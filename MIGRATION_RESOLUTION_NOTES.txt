@@ -1,0 +1,43 @@
+=== MIGRATION HEAD RESOLUTION ===
+
+PROBLEM:
+  Two migrations share down_revision='0026_fix_duplicate_indexes':
+  - 0027_contact_delivery_fields.py
+  - 0027_inquiry_delivery_fields.py
+
+This creates multiple Alembic heads, breaking upgrade chain.
+
+ANALYSIS:
+  0027_contact_delivery_fields.py (SUPERSET - KEEP):
+    ✓ Adds contact_email to tenants table
+    ✓ Adds delivery_error to inquiries (uses String(500) to match model)
+    ✓ Adds submission_id to inquiries
+    ✓ Adds user_agent to inquiries
+    ✓ Adds delivery_status to inquiries
+    ✓ Adds provider_used to inquiries
+    ✓ Creates index ix_inquiries_tenant_submission_id
+    ✓ Model verification: Inquiry.delivery_error = db.Column(db.String(500), ...)
+
+  0027_inquiry_delivery_fields.py (PARTIAL - RETIRE):
+    - Only adds delivery fields to inquiries
+    - Missing contact_email addition to tenants
+    - Missing submission_id addition
+    - Creates different index ix_inquiries_provider_delivery
+    - Incomplete feature implementation
+
+DECISION:
+  Retire 0027_inquiry_delivery_fields.py without breaking existing schemas.
+  
+METHOD:
+  1. Delete 0027_inquiry_delivery_fields.py from repository
+  2. Document in migration history that this was a duplicate/incomplete head
+  3. Existing databases that applied it will not be affected (idempotent - check exists before add)
+  4. New databases will only apply 0027_contact_delivery_fields.py which is a superset
+  5. No migrations modify these columns, so no downgrade path issues
+
+SAFETY:
+  - Non-breaking: if already applied, fields exist; if not, will be created by superset
+  - Idempotent checks in 0027_contact_delivery_fields.py prevent double-creation
+  - No data transformation required
+  - Render deployment uses fresh database, not affected
+  - Existing production databases unaffected (already have either version or neither)

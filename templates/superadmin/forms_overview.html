@@ -1,0 +1,222 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Form Providers{% endblock %}
+{% block page_title %}Contact Form Providers{% endblock %}
+
+{% block content %}
+
+<div class="dashboard-hero">
+  <div class="hero-card">
+    <div class="hero-copy">
+      <span class="section-tag">SuperAdmin — Forms</span>
+      <h1>Contact Form Providers</h1>
+      <p>View each tenant's form provider status. API keys are never exposed here.</p>
+    </div>
+  </div>
+</div>
+
+{# ── Summary metrics ──────────────────────────────────────────────────────── #}
+<div class="stats-row" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr));margin-bottom:2rem;">
+
+  <div class="stat-card-v2">
+    <div class="stat-header">
+      <div class="stat-icon-wrap info">
+        <iconify-icon icon="lucide:users" width="18"></iconify-icon>
+      </div>
+    </div>
+    <div class="stat-big">{{ total }}</div>
+    <div class="stat-name">Total Tenants</div>
+  </div>
+
+  <div class="stat-card-v2">
+    <div class="stat-header">
+      <div class="stat-icon-wrap success">
+        <iconify-icon icon="lucide:circle-check" width="18"></iconify-icon>
+      </div>
+    </div>
+    <div class="stat-big">{{ connected }}</div>
+    <div class="stat-name">Connected</div>
+  </div>
+
+  <div class="stat-card-v2">
+    <div class="stat-header">
+      <div class="stat-icon-wrap warning">
+        <iconify-icon icon="lucide:circle-alert" width="18"></iconify-icon>
+      </div>
+    </div>
+    <div class="stat-big">{{ needs_setup }}</div>
+    <div class="stat-name">Needs Setup</div>
+  </div>
+
+  <div class="stat-card-v2">
+    <div class="stat-header">
+      <div class="stat-icon-wrap danger">
+        <iconify-icon icon="lucide:circle-x" width="18"></iconify-icon>
+      </div>
+    </div>
+    <div class="stat-big">{{ disabled }}</div>
+    <div class="stat-name">Disabled</div>
+  </div>
+
+</div>
+
+{# ── Tenant table ─────────────────────────────────────────────────────────── #}
+<div class="section-hd" style="margin-bottom:.75rem;">
+  <div class="section-hd-left">
+    <div class="section-icon-wrap info">
+      <iconify-icon icon="lucide:layout-panel-top" width="16"></iconify-icon>
+    </div>
+    <h2>All Tenants</h2>
+  </div>
+</div>
+
+<div class="table-card">
+  {% if not rows %}
+    <div class="empty-state">
+      <div class="empty-icon">
+        <iconify-icon icon="lucide:users" width="32"></iconify-icon>
+      </div>
+      <p class="empty-title">No tenants</p>
+      <p class="empty-sub">Create a tenant to configure form providers.</p>
+    </div>
+  {% else %}
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Tenant</th>
+            <th>Provider</th>
+            <th>Status</th>
+            <th>API Key</th>
+            <th>Enabled</th>
+            <th>Detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>
+              <div class="tenant-cell">
+                <span class="tenant-name">{{ row.tenant.company_name or row.tenant.slug }}</span>
+                <span class="tenant-slug">{{ row.tenant.slug }}</span>
+              </div>
+            </td>
+            <td>
+              {% if row.provider == 'basin' %}
+                <span class="provider-badge provider-badge--basin">
+                  <iconify-icon icon="lucide:layout-panel-top" width="12"></iconify-icon>
+                  Basin
+                </span>
+              {% elif row.provider == 'web3forms' %}
+                <span class="provider-badge provider-badge--web3">
+                  <iconify-icon icon="lucide:zap" width="12"></iconify-icon>
+                  Web3Forms
+                </span>
+              {% else %}
+                <span class="provider-badge provider-badge--internal">
+                  <iconify-icon icon="lucide:inbox" width="12"></iconify-icon>
+                  Internal / Disabled
+                </span>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.status == 'connected' %}
+                <span class="status-badge status-badge--success">
+                  <iconify-icon icon="lucide:check" width="11"></iconify-icon>
+                  Connected
+                </span>
+              {% elif row.status == 'needs_setup' %}
+                <span class="status-badge status-badge--warning">
+                  <iconify-icon icon="lucide:alert-triangle" width="11"></iconify-icon>
+                  Needs Setup
+                </span>
+              {% else %}
+                <span class="status-badge status-badge--muted">
+                  Disabled
+                </span>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.masked_key %}
+                <code class="masked-key">{{ row.masked_key }}</code>
+              {% else %}
+                <span class="text-muted" style="font-size:.8rem;">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.is_enabled %}
+                <iconify-icon icon="lucide:toggle-right" width="22" style="color:#34d399;"></iconify-icon>
+              {% else %}
+                <iconify-icon icon="lucide:toggle-left" width="22" style="color:#475569;"></iconify-icon>
+              {% endif %}
+            </td>
+            <td>
+              <a href="{{ url_for('superadmin_forms.forms_tenant_detail', tenant_id=row.tenant.id) }}"
+                 class="btn btn-xs btn-ghost">
+                <iconify-icon icon="lucide:eye" width="12"></iconify-icon>
+                View
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.section-hd       { display:flex;align-items:center;justify-content:space-between; }
+.section-hd-left  { display:flex;align-items:center;gap:.6rem; }
+.section-hd-left h2 { font-size:.95rem;font-weight:600;margin:0;color:var(--text-primary,#f1f5f9); }
+
+.section-icon-wrap { width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+.section-icon-wrap.info    { background:rgba(59,130,246,.15); color:#60a5fa; }
+.section-icon-wrap.success { background:rgba(16,185,129,.15); color:#34d399; }
+.section-icon-wrap.warning { background:rgba(245,158,11,.15); color:#fbbf24; }
+.section-icon-wrap.danger  { background:rgba(239,68,68,.15);  color:#f87171; }
+
+.table-card { background:var(--card-bg,#1e2433);border:1px solid var(--border-color,rgba(255,255,255,.07));border-radius:14px;overflow:hidden; }
+.data-table { width:100%;border-collapse:collapse;font-size:.85rem; }
+.data-table thead th { padding:.65rem 1rem;text-align:left;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted,#94a3b8);border-bottom:1px solid var(--border-color,rgba(255,255,255,.07));background:var(--table-head-bg,rgba(255,255,255,.025)); }
+.data-table tbody tr { border-bottom:1px solid var(--border-color,rgba(255,255,255,.04));transition:background .15s; }
+.data-table tbody tr:last-child { border-bottom:none; }
+.data-table tbody tr:hover { background:var(--row-hover,rgba(255,255,255,.03)); }
+.data-table tbody td { padding:.7rem 1rem;vertical-align:middle; }
+
+.tenant-cell { display:flex;flex-direction:column;gap:.1rem; }
+.tenant-name { font-weight:500;color:var(--text-primary,#f1f5f9);font-size:.875rem; }
+.tenant-slug { font-size:.75rem;color:var(--text-muted,#94a3b8); }
+
+.provider-badge { display:inline-flex;align-items:center;gap:.3rem;padding:2px 9px;border-radius:5px;font-size:.73rem;font-weight:600; }
+.provider-badge--basin    { background:rgba(16,185,129,.12);color:#34d399; }
+.provider-badge--web3     { background:rgba(99,102,241,.12);color:#a5b4fc; }
+.provider-badge--internal { background:rgba(148,163,184,.1);color:#94a3b8; }
+
+.status-badge { display:inline-flex;align-items:center;gap:.25rem;padding:2px 8px;border-radius:5px;font-size:.73rem;font-weight:600; }
+.status-badge--success { background:rgba(16,185,129,.15);color:#34d399; }
+.status-badge--warning { background:rgba(245,158,11,.15);color:#fbbf24; }
+.status-badge--muted   { background:rgba(148,163,184,.1);color:#94a3b8; }
+
+.masked-key { font-family:monospace;font-size:.78rem;color:var(--text-muted,#94a3b8);background:rgba(255,255,255,.04);padding:2px 6px;border-radius:4px; }
+
+.empty-state { padding:2.5rem 1rem;text-align:center; }
+.empty-icon  { color:var(--text-muted,#94a3b8);margin-bottom:.75rem;opacity:.5; }
+.empty-title { font-weight:600;color:var(--text-primary,#f1f5f9);margin-bottom:.25rem;font-size:.9rem; }
+.empty-sub   { font-size:.82rem;color:var(--text-muted,#94a3b8);margin:0; }
+
+.btn-xs   { font-size:.72rem;padding:.2rem .6rem;border-radius:5px; }
+.btn-ghost { background:transparent;border:1px solid var(--border-color,rgba(255,255,255,.07));color:var(--text-muted,#94a3b8);display:inline-flex;align-items:center;gap:.25rem; }
+.btn-ghost:hover { background:rgba(255,255,255,.05);color:var(--text-primary,#f1f5f9); }
+
+.stat-icon-wrap.warning { background:rgba(245,158,11,.15);color:#fbbf24; }
+.stat-icon-wrap.danger  { background:rgba(239,68,68,.15);color:#f87171; }
+
+@media(max-width:768px) {
+  .data-table thead th:nth-child(4),
+  .data-table tbody td:nth-child(4) { display:none; }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "admin/base.html" %}
+{% block title %}New Backup Codes{% endblock %}
+{% block page_title %}New Backup Codes{% endblock %}
+
+{% block content %}
+<div class="settings-grid" style="max-width:600px;">
+  <div class="form-card">
+    <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+      <iconify-icon icon="lucide:key" width="22" style="color:var(--accent-light);"></iconify-icon>
+      <h3 style="margin:0;">Your New Backup Codes</h3>
+    </div>
+
+    <div style="background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3);
+                border-radius:10px; padding:0.875rem 1rem; margin-bottom:1.5rem;
+                display:flex; gap:0.75rem; align-items:flex-start;">
+      <iconify-icon icon="lucide:alert-triangle" width="18" style="color:#f59e0b; flex-shrink:0; margin-top:2px;"></iconify-icon>
+      <p style="font-size:0.875rem; color:#fcd34d; margin:0; line-height:1.5;">
+        These codes replace your previous ones. Each code can only be used <strong>once</strong>.
+        Store them somewhere safe — this screen will not be shown again.
+      </p>
+    </div>
+
+    <div id="backupCodesBox" style="
+        font-family:'Courier New',monospace; font-size:0.95rem;
+        background:rgba(0,0,0,0.3); border:1px solid var(--border);
+        border-radius:10px; padding:1.25rem;
+        display:grid; grid-template-columns:1fr 1fr; gap:0.5rem 2rem;
+        margin-bottom:1.25rem; user-select:all;">
+      {% for code in backup_codes %}
+        <span style="color:var(--accent-light);">{{ code }}</span>
+      {% endfor %}
+    </div>
+
+    <div style="display:flex; gap:0.75rem;">
+      <button class="btn btn-secondary" onclick="copyBackupCodes()" style="flex:1;">
+        <iconify-icon icon="lucide:copy" width="16"></iconify-icon>
+        Copy All Codes
+      </button>
+      <a href="{{ url_for('admin.settings') }}" class="btn btn-primary" style="flex:1;">
+        Done
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyBackupCodes() {
+    const codes = Array.from(document.querySelectorAll('#backupCodesBox span'))
+        .map(el => el.textContent.trim()).join('\n');
+    navigator.clipboard.writeText(codes).then(() => {
+        const btn = event.currentTarget;
+        btn.innerHTML = '<iconify-icon icon="lucide:check" width="16"></iconify-icon> Copied!';
+        setTimeout(() => {
+            btn.innerHTML = '<iconify-icon icon="lucide:copy" width="16"></iconify-icon> Copy All Codes';
+        }, 2000);
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,204 @@
+{% extends "admin/base.html" %}
+{% block title %}Edit Profile{% endblock %}
+{% block page_title %}Profile{% endblock %}
+
+{% block content %}
+<div class="page-hd" style="margin-bottom:1.5rem;">
+  <div class="page-hd-left">
+    <h1>Edit Profile</h1>
+    <p>Your public portfolio identity — keep it fresh and complete.</p>
+  </div>
+</div>
+
+<form data-loading="true" method="POST" enctype="multipart/form-data" class="admin-form">
+  {{ form.hidden_tag() }}
+
+  <div class="form-layout">
+
+    <!-- Left: Avatar + quick stats -->
+    <div class="form-sidebar">
+      <div class="avatar-upload-card">
+        <div class="avatar-preview" id="avatarPreview">
+          {% if profile and profile.profile_image %}
+            <img src="{{ url_for('static', filename='uploads/profiles/' + profile.profile_image) }}"
+                 alt="Profile" id="avatarImg"/>
+          {% else %}
+            <div class="avatar-placeholder" id="avatarPlaceholder">
+              <span>◎</span>
+              <p>No photo</p>
+            </div>
+            <img src="" alt="" id="avatarImg" class="hidden-field"/>
+          {% endif %}
+        </div>
+        <label class="upload-btn" for="profile_image_input">
+          ↑ Upload Photo
+        </label>
+        {{ form.profile_image(id="profile_image_input", class_="hidden-field",
+           onchange="previewAvatar(this)") }}
+        <p class="upload-hint">JPG, PNG, WebP · Max 5MB<br>Recommended: 400×400px</p>
+      </div>
+
+      <div class="form-card">
+        <h3>Availability</h3>
+        <div class="form-group toggle-group">
+          {{ form.is_available() }}
+          <label for="{{ form.is_available.id }}">Available for work</label>
+        </div>
+        <div class="form-group">
+          {{ form.availability_status.label }}
+          {{ form.availability_status(class="form-input", placeholder="e.g. Open to freelance") }}
+        </div>
+      </div>
+
+      {% if profile %}
+      <div class="form-card completion-card">
+        <h3>Completion</h3>
+        <div class="completion-value">{{ profile_completion }}%</div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: {{ profile_completion }}%"></div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="form-card" style="margin-top:0;">
+        <h3>Security</h3>
+        <div class="profile-summary-row" style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0;">
+          <span style="color:var(--text-muted); font-size:0.9rem;">Two-Factor Auth</span>
+          {% if current_user.totp_enabled %}
+            <span style="display:inline-flex; align-items:center; gap:0.35rem; color:#22c55e; font-size:0.85rem; font-weight:600;">
+              <iconify-icon icon="lucide:shield-check" width="14"></iconify-icon> On
+            </span>
+          {% else %}
+            <a href="{{ url_for('admin.settings') }}" style="display:inline-flex; align-items:center; gap:0.35rem; color:var(--accent-light); font-size:0.85rem; text-decoration:none;">
+              <iconify-icon icon="lucide:shield-plus" width="14"></iconify-icon> Enable
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Main form -->
+    <div class="form-main">
+
+      <div class="form-card">
+        <h3>Basic Info</h3>
+        <div class="form-row">
+          <div class="form-group">
+            {{ form.name.label }}
+            {{ form.name(class="form-input", placeholder="Your full name") }}
+            {% for e in form.name.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+          </div>
+          <div class="form-group">
+            {{ form.title.label }}
+            {{ form.title(class="form-input", placeholder="e.g. Full Stack Developer") }}
+          </div>
+        </div>
+        <div class="form-group">
+          {{ form.subtitle.label }}
+          {{ form.subtitle(class="form-input", placeholder="A compelling one-liner") }}
+        </div>
+        <div class="form-group">
+          {{ form.hero_tagline.label }}
+          {{ form.hero_tagline(class="form-input", placeholder="Hero section tagline") }}
+        </div>
+        <div class="form-group">
+          {{ form.bio_short.label }}
+          {{ form.bio_short(class="form-input", placeholder="One-paragraph summary (shown in cards)") }}
+        </div>
+        <div class="form-group">
+          {{ form.bio.label }}
+          {{ form.bio(class="form-textarea", rows=6, placeholder="Full biography...") }}
+        </div>
+      </div>
+
+      <div class="form-card">
+        <h3>Contact & Location</h3>
+        <div class="form-row">
+          <div class="form-group">
+            {{ form.email.label }}
+            {{ form.email(class="form-input", placeholder="you@example.com") }}
+          </div>
+          <div class="form-group">
+            {{ form.phone.label }}
+            {{ form.phone(class="form-input", placeholder="+1 555 000 0000") }}
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            {{ form.location.label }}
+            {{ form.location(class="form-input", placeholder="City, Country") }}
+          </div>
+          <div class="form-group">
+            {{ form.resume_url.label }}
+            {{ form.resume_url(class="form-input", placeholder="https://...") }}
+          </div>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <h3>Stats</h3>
+        <div class="form-row form-row--3">
+          <div class="form-group">
+            {{ form.years_experience.label }}
+            {{ form.years_experience(class="form-input", placeholder="5") }}
+          </div>
+          <div class="form-group">
+            {{ form.experience_start_year.label }}
+            {{ form.experience_start_year(class="form-input", placeholder="2019") }}
+          </div>
+          <div class="form-group">
+            {{ form.clients_count.label }}
+            {{ form.clients_count(class="form-input", placeholder="20") }}
+          </div>
+        </div>
+        <p class="form-hint">If "Start Year" is set, years of experience is calculated automatically.</p>
+      </div>
+
+      <div class="form-card">
+        <h3>Social Links</h3>
+        <div class="social-grid">
+          {% for field_name, icon in [('github','⌥'), ('linkedin','in'), ('facebook','f'), ('twitter','𝕏'),
+                                       ('instagram','◎'), ('youtube','▶'), ('website','↗'), ('dribbble','◉')] %}
+          <div class="form-group social-group">
+            <label>
+              <span class="social-icon-label">{{ icon }}</span>
+              {{ form[field_name].label.text }}
+            </label>
+            {{ form[field_name](class="form-input", placeholder="https://...") }}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-actions">
+        {{ form.submit(class="btn btn-primary btn-lg") }}
+        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-ghost">Cancel</a>
+      </div>
+
+    </div>
+  </div>
+</form>
+
+<script>
+function previewAvatar(input) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.getElementById('avatarImg');
+      const ph = document.getElementById('avatarPlaceholder');
+      img.src = e.target.result;
+      img.style.display = 'block';
+      if (ph) ph.style.display = 'none';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Calculate profile completion dynamically for display only
+const completion = {{ profile_completion if profile else 0 }};
+</script>
+{% endblock %}

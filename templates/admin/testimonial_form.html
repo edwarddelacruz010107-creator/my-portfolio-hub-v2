@@ -1,0 +1,105 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit' if testimonial else 'New' }} Testimonial{% endblock %}
+{% block page_title %}{{ 'Edit Testimonial' if testimonial else 'New Testimonial' }}{% endblock %}
+
+{% block content %}
+<div class="page-hd" style="margin-bottom:1.5rem;">
+  <div class="page-hd-left">
+    <h1>{{ 'Edit Testimonial' if testimonial else 'New Testimonial' }}</h1>
+    <p>{% if testimonial %}Update this testimonial's content.{% else %}Add a client testimonial to your portfolio.{% endif %}</p>
+  </div>
+  <div class="page-hd-right">
+    <a href="{{ url_for('admin.testimonials') }}" class="btn btn-ghost btn-sm">
+      <iconify-icon icon="lucide:arrow-left" width="14"></iconify-icon> Back
+    </a>
+  </div>
+</div>
+
+<form data-loading="true" method="POST" enctype="multipart/form-data" class="admin-form form-narrow">
+  {{ form.hidden_tag() }}
+  <div class="form-card">
+    <h3>Author</h3>
+    <div class="avatar-upload-card avatar-upload-row">
+      <div class="avatar-preview" id="avatarPreview">
+        {% if testimonial and testimonial.author_avatar %}
+          <img src="{{ url_for('static', filename='uploads/profiles/' + testimonial.author_avatar) }}"
+               alt="{{ testimonial.author_name }}" id="avatarImg"/>
+        {% else %}
+          <div class="avatar-placeholder" id="avatarPlaceholder"><span>◉</span></div>
+          <img src="" id="avatarImg" class="hidden-field"/>
+        {% endif %}
+      </div>
+      <div class="avatar-upload-copy">
+        <label class="upload-btn" for="avatar_input">↑ Upload Avatar</label>
+        {{ form.author_avatar(id="avatar_input", class_="hidden-field",
+           onchange="previewAvatar(this)") }}
+        <p class="form-hint">Square image recommended. 200×200px.</p>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        {{ form.author_name.label }}
+        {{ form.author_name(class="form-input", placeholder="Jane Smith") }}
+        {% for e in form.author_name.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+      <div class="form-group">
+        {{ form.author_title.label }}
+        {{ form.author_title(class="form-input", placeholder="CEO") }}
+      </div>
+    </div>
+    <div class="form-group">
+      {{ form.author_company.label }}
+      {{ form.author_company(class="form-input", placeholder="Acme Inc.") }}
+    </div>
+  </div>
+
+  <div class="form-card">
+    <h3>Content</h3>
+    <div class="form-group">
+      {{ form.content.label }}
+      {{ form.content(class="form-textarea", rows=5, placeholder="What did they say about your work?") }}
+      {% for e in form.content.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        {{ form.rating.label }}
+        {{ form.rating(class="form-select") }}
+      </div>
+      <div class="form-group">
+        {{ form.order.label }}
+        {{ form.order(class="form-input", placeholder="0") }}
+      </div>
+    </div>
+    <div class="form-group toggle-group">
+      {{ form.is_featured() }}
+      <label for="{{ form.is_featured.id }}">Featured testimonial</label>
+    </div>
+    <div class="form-group toggle-group">
+      {{ form.is_visible() }}
+      <label for="{{ form.is_visible.id }}">Visible on portfolio</label>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    {{ form.submit(class="btn btn-primary") }}
+    <a href="{{ url_for('admin.testimonials') }}" class="btn btn-ghost">Cancel</a>
+  </div>
+</form>
+
+<script>
+function previewAvatar(input) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.getElementById('avatarImg');
+      const ph = document.getElementById('avatarPlaceholder');
+      img.src = e.target.result;
+      img.style.display = 'block';
+      if (ph) ph.style.display = 'none';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+</script>
+{% endblock %}

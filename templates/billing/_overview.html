@@ -1,0 +1,151 @@
+{# Billing overview — PayMongo automated subscriptions (v3.4) #}
+{% macro billing_route(endpoint) -%}
+  {%- if endpoint.startswith('tenant.') and tenant_slug is defined and tenant_slug -%}
+    {{ url_for(endpoint, tenant_slug=tenant_slug) }}
+  {%- else -%}
+    {{ url_for(endpoint) }}
+  {%- endif -%}
+{%- endmacro %}
+
+<div class="page-hd">
+  <div class="page-hd-left">
+    <h1>Billing &amp; Subscription</h1>
+    <p>Manage your plan and pay securely via PayMongo. Subscriptions activate automatically.</p>
+  </div>
+</div>
+
+{% set sub = subscription %}
+{% set status = subscription_status|default(license_status) %}
+{% set is_active = status == 'active' %}
+{% set is_trial = status == 'trial' %}
+{% set is_grace = status == 'grace' %}
+{% set is_pending = status == 'pending' %}
+{% set is_expired = status in ('expired', 'none', 'unlicensed') %}
+
+<div class="subscription-status-card {% if is_active %}status-active{% elif is_trial %}status-trial{% elif is_grace %}status-awaiting{% elif is_expired %}status-expired{% else %}status-awaiting{% endif %}" style="margin-bottom:1.5rem">
+  <div>
+    <div class="sub-status-label">Current Plan</div>
+    <div class="sub-status-name">
+      {{ sub.plan if sub else profile.plan or 'Basic' }}
+      <span class="badge-status
+        {% if is_active %}badge-active
+        {% elif is_trial %}badge-trial
+        {% elif is_grace %}badge-warning
+        {% elif is_expired %}badge-expired
+        {% else %}badge-inactive{% endif %}"
+        style="vertical-align:middle;margin-left:0.5rem">
+        {% if is_active %}Active
+        {% elif is_trial %}Trial — {{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }} left
+        {% elif is_grace %}Grace Period
+        {% elif is_pending %}Pending Payment
+        {% elif is_expired %}Expired
+        {% else %}No Subscription{% endif %}
+      </span>
+    </div>
+    <div class="sub-status-meta" style="margin-top:0.75rem">
+      {% if sub %}
+      <div class="sub-meta-item">
+        <span class="sub-meta-key">Status</span>
+        <span class="sub-meta-val">{{ sub.status_label }}</span>
+      </div>
+      {% if sub.expires_at and is_active %}
+      <div class="sub-meta-item">
+        <span class="sub-meta-key">Next Billing</span>
+        <span class="sub-meta-val">{{ sub.expires_at.strftime('%b %d, %Y') }}</span>
+      </div>
+      {% endif %}
+      {% if sub.paymongo_payment_id %}
+      <div class="sub-meta-item">
+        <span class="sub-meta-key">PayMongo</span>
+        <span class="sub-meta-val" style="font-family:monospace;font-size:0.8rem">{{ sub.paymongo_payment_id[:16] }}…</span>
+      </div>
+      {% endif %}
+      {% endif %}
+      {% if is_trial %}
+      <div class="sub-meta-item">
+        <span class="sub-meta-key">Trial Remaining</span>
+        <span class="sub-meta-val" style="color:var(--warn)">{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</span>
+      </div>
+      {% endif %}
+      <div class="sub-meta-item">
+        <span class="sub-meta-key">Processor</span>
+        <span class="sub-meta-val">⚡ PayMongo</span>
+      </div>
+    </div>
+  </div>
+  <div class="sub-actions">
+    <a href="{{ billing_route(billing_routes['plans']) }}" class="btn btn-primary btn-sm">
+      <iconify-icon icon="lucide:layers" width="14"></iconify-icon>
+      {% if is_active %}Change Plan{% else %}Subscribe{% endif %}
+    </a>
+    <a href="{{ billing_route(billing_routes['history']) }}" class="btn btn-ghost btn-sm">
+      <iconify-icon icon="lucide:history" width="14"></iconify-icon>
+      History
+    </a>
+  </div>
+</div>
+
+{% if is_grace %}
+<div class="alert alert-warning" style="margin-bottom:1.5rem">
+  <iconify-icon icon="lucide:clock" width="16"></iconify-icon>
+  <span>Your subscription expired but you're in the <strong>grace period</strong>. Renew now to avoid suspension.</span>
+</div>
+{% elif is_pending %}
+<div class="alert alert-info" style="margin-bottom:1.5rem">
+  <iconify-icon icon="lucide:credit-card" width="16"></iconify-icon>
+  <span>Complete your PayMongo checkout to activate your subscription.</span>
+</div>
+{% elif is_expired %}
+<div class="alert alert-danger" style="margin-bottom:1.5rem">
+  <iconify-icon icon="lucide:alert-triangle" width="16"></iconify-icon>
+  <span>Your subscription has expired. Choose a plan below to restore access.</span>
+</div>
+{% elif is_trial %}
+<div class="alert alert-warning" style="margin-bottom:1.5rem">
+  <iconify-icon icon="lucide:clock" width="16"></iconify-icon>
+  <span><strong>{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</strong> left in your trial.
+    <a href="{{ billing_route(billing_routes['plans']) }}" style="font-weight:600">Subscribe now</a> to avoid interruption.</span>
+</div>
+{% endif %}
+
+<div class="dash-panel">
+  <div class="panel-header">
+    <div>
+      <span class="section-tag">Available Plans</span>
+      <h2>Choose Your Plan</h2>
+    </div>
+    <div class="paymongo-badge-sm"><span>⚡</span> PayMongo</div>
+  </div>
+  <div class="plan-cards-grid">
+    {% for key, details in plans.items() %}
+    {% set is_current = (sub and sub.plan == key) or (not sub and profile and profile.plan == key) %}
+    <div class="plan-card-v2 {% if is_current %}selected{% endif %}">
+      {% if loop.index == 2 %}<div class="plan-badge-popular">Most Popular</div>{% endif %}
+      <div class="plan-name">{{ key }}</div>
+      <div class="plan-price"><span class="amount">{{ details.price_label }}</span></div>
+      <div class="plan-desc">{{ details.description }}</div>
+      <ul class="plan-features">
+        {% for feature in details.features %}
+          <li>{{ feature }}</li>
+        {% endfor %}
+      </ul>
+      {% if is_current and is_active %}
+        <span class="badge-status badge-active" style="align-self:flex-start;margin-top:auto">Current Plan</span>
+      {% else %}
+        <a href="{{ billing_route(billing_routes['plans']) }}" class="btn btn-ghost btn-sm" style="align-self:flex-start;margin-top:auto">
+          {% if is_current %}Renew{% else %}Select{% endif %}
+        </a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<style>
+.paymongo-badge-sm {
+  display:flex;align-items:center;gap:0.4rem;font-size:0.82rem;
+  color:rgba(16,185,129,0.8);font-weight:600;
+  background:rgba(16,185,129,0.07);border:1px solid rgba(16,185,129,0.2);
+  padding:0.3rem 0.75rem;border-radius:20px;
+}
+</style>

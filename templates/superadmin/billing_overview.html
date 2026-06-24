@@ -1,0 +1,162 @@
+{#
+  templates/superadmin/billing_overview.html
+  ==========================================
+  PATCH v3.6.1 — row.profile guard added throughout.
+
+  This template is self-defensive: every row.profile access uses Jinja2's
+  attribute() filter or an inline is defined / is not none check so the page
+  never crashes even if a row arrives without a profile object.
+
+  The PRIMARY fix is in the view (billing_overview_patch.py).
+  This template patch is the belt-and-suspenders backup.
+#}
+{% extends 'superadmin/base.html' %}
+{% block title %}Subscription Overview{% endblock %}
+{% block page_title %}Subscription Overview{% endblock %}
+
+{% block content %}
+<div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:2rem">
+  <div class="stat-card">
+    <div class="stat-label">MRR</div>
+    <div class="stat-value">&#x20B1;{{ '%.0f'|format(metrics.mrr) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active Subscriptions</div>
+    <div class="stat-value">{{ metrics.active_count }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Pending</div>
+    <div class="stat-value">{{ metrics.pending_count }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Churn (30d)</div>
+    <div class="stat-value">{{ metrics.churn_rate }}%</div>
+  </div>
+</div>
+
+<div class="dash-panel" style="margin-bottom:2rem">
+  <div class="panel-header">
+    <h2>Webhook Status</h2>
+    <a href="{{ url_for('superadmin.subscription_settings') }}" class="btn btn-ghost btn-sm">Plan Settings</a>
+  </div>
+  {% if metrics.last_webhook %}
+  <p style="font-size:0.9rem;color:var(--text-muted)">
+    Last webhook: <strong>{{ metrics.last_webhook.event_type }}</strong>
+    at {{ metrics.last_webhook.received_at.strftime('%Y-%m-%d %H:%M UTC') }}
+    {% if metrics.last_webhook.processed %}
+      <span class="badge-status badge-active">processed</span>
+    {% endif %}
+  </p>
+  {% else %}
+  <p class="text-muted">No webhooks received yet. Configure PayMongo to POST to <code>/webhooks/paymongo</code></p>
+  {% endif %}
+</div>
+
+<div class="dash-panel" style="margin-bottom:2rem">
+  <div class="panel-header"><h2>Tenants</h2></div>
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Tenant</th>
+          <th>Plan</th>
+          <th>Status</th>
+          <th>Next Billing</th>
+          <th>PayMongo</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in tenants %}
+        {#
+          FIX: row.profile is now always the Profile ORM object (set in the view).
+          The guards below are belt-and-suspenders for any edge-case rows.
+        #}
+        {% set prof = row.profile if row.profile is defined and row.profile else none %}
+        <tr>
+          <td>
+            <strong>{{ prof.tenant_slug if prof else '—' }}</strong>
+            <br>
+            <small>{{ prof.name if prof else '—' }}</small>
+          </td>
+          <td>
+            {{ row.plan | default('—') }}
+            <small class="text-muted">{{ row.plan_price_label | default('') }}</small>
+          </td>
+          <td>
+            <span class="badge-status badge-{{ row.status | default('inactive') }}">
+              {{ row.status | default('inactive') }}
+            </span>
+          </td>
+          <td>
+            {{ row.next_billing.strftime('%b %d, %Y') if row.next_billing else '—' }}
+          </td>
+          <td style="font-size:0.75rem">
+            {% if row.subscription and row.subscription.paymongo_dashboard_url() %}
+            <a href="{{ row.subscription.paymongo_dashboard_url() }}" target="_blank" rel="noopener">Dashboard ↗</a>
+            {% else %}—{% endif %}
+          </td>
+          <td style="white-space:nowrap">
+            {% if prof %}
+            <form method="post"
+                  action="{{ url_for('superadmin.billing_sync_tenant', profile_id=prof.id) }}"
+                  style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-ghost btn-xs">Sync</button>
+            </form>
+            <form method="post"
+                  action="{{ url_for('superadmin.billing_force_activate', profile_id=prof.id) }}"
+                  style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="plan" value="{{ row.plan | default('Basic') }}">
+              <button type="submit" class="btn btn-ghost btn-xs">Activate</button>
+            </form>
+            {% else %}
+            <span class="text-muted" style="font-size:0.75rem">no profile</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="dash-panel">
+  <div class="panel-header"><h2>Recent Webhooks</h2></div>
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Event</th>
+          <th>Type</th>
+          <th>Tenant</th>
+          <th>Time</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in recent_webhooks %}
+        <tr>
+          <td style="font-family:monospace;font-size:0.78rem">{{ w.event_id[:20] }}…</td>
+          <td>{{ w.event_type }}</td>
+          <td>{{ w.tenant_id or '—' }}</td>
+          <td>
+            {% if w.received_at %}
+              {{ w.received_at.strftime('%b %d, %H:%M') }}
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            <span class="badge-status {% if w.processed %}badge-active{% else %}badge-inactive{% endif %}">
+              {{ 'ok' if w.processed else 'pending' }}
+            </span>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted">No webhook events logged.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

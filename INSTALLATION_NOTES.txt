@@ -1,0 +1,216 @@
+═════════════════════════════════════════════════════════════════════════════
+  PORTFOLIO CMS v5 — MAILERSEND TENANT MIGRATION
+  Installation Instructions
+═════════════════════════════════════════════════════════════════════════════
+
+📂 DIRECTORY STRUCTURE EXPLAINED
+
+After extracting this ZIP, the contents are organized in PROJECT LOCATIONS:
+
+  your_project/
+  ├── migrations/versions/
+  │   └── 0024_tenant_mailersend_migration.py ......... Copy here
+  │
+  ├── templates/superadmin/
+  │   └── tenant_communication.html .................. Copy here
+  │
+  ├── app/services/
+  │   └── email_service_example.py ................... (optional) Copy here
+  │
+  ├── app/models/
+  │   └── CORE_MODEL_INSTRUCTIONS.txt ................ Read this!
+  │
+  ├── app/superadmin/
+  │   └── ROUTE_HANDLER_INSTRUCTIONS.txt ............ Read this!
+  │
+  └── DOCUMENTATION/ .............................. (Keep for reference)
+      ├── 00_START_HERE.txt
+      ├── README.md
+      ├── QUICK_IMPLEMENTATION.md .................. ⭐ READ THIS FIRST
+      ├── MAILERSEND_TENANT_MIGRATION_GUIDE.md
+      ├── DELIVERABLES.md
+      └── (reference files for code snippets)
+
+
+═════════════════════════════════════════════════════════════════════════════
+⚡ QUICK START (15 minutes)
+═════════════════════════════════════════════════════════════════════════════
+
+STEP 1: Backup your database
+────────────────────────────────────────────────────────────────────────────
+  # PostgreSQL
+  pg_dump your_database > backup.sql
+  
+  # SQLite
+  cp instance/your_database.db instance/your_database.db.backup
+
+
+STEP 2: Copy migration file
+────────────────────────────────────────────────────────────────────────────
+  cp migrations/versions/0024_tenant_mailersend_migration.py \
+     your_project/migrations/versions/
+
+
+STEP 3: Run migration
+────────────────────────────────────────────────────────────────────────────
+  cd your_project
+  flask db upgrade
+
+
+STEP 4: Update model (app/models/core.py)
+────────────────────────────────────────────────────────────────────────────
+  Read: app/models/CORE_MODEL_INSTRUCTIONS.txt
+  
+  Then:
+  1. Open your app/models/core.py
+  2. Find: class TenantCommunicationSettings (around line 664)
+  3. Replace entire class with:
+     DOCUMENTATION/TenantCommunicationSettings_COMPLETE.py
+
+
+STEP 5: Update template
+────────────────────────────────────────────────────────────────────────────
+  cp templates/superadmin/tenant_communication.html \
+     your_project/templates/superadmin/
+
+
+STEP 6: Update routes (app/superadmin/__init__.py)
+────────────────────────────────────────────────────────────────────────────
+  Read: app/superadmin/ROUTE_HANDLER_INSTRUCTIONS.txt
+  
+  Make 3 changes:
+  1. Lines 2410-2424: Replace SMTP → MailerSend
+  2. Lines 2426-2435: Clear MailerSend in reset section
+  3. Line 2452: Change has_smtp → has_mailersend
+
+
+STEP 7: Test
+────────────────────────────────────────────────────────────────────────────
+  flask run
+  Navigate to: http://localhost:5000/superadmin/tenants/1/communication
+  
+  Verify:
+  ✓ Form loads without errors
+  ✓ MailerSend fields visible
+  ✓ Legacy SMTP in read-only <details> block
+  ✓ Can fill MailerSend fields
+  ✓ Can save configuration
+
+
+═════════════════════════════════════════════════════════════════════════════
+📖 DOCUMENTATION GUIDE
+═════════════════════════════════════════════════════════════════════════════
+
+START WITH:
+  1. DOCUMENTATION/00_START_HERE.txt (5 min) — Full overview
+  2. DOCUMENTATION/README.md (5 min) — Master index
+  3. DOCUMENTATION/QUICK_IMPLEMENTATION.md (15 min) — Step-by-step ⭐
+
+FOR DEEP UNDERSTANDING:
+  4. DOCUMENTATION/MAILERSEND_TENANT_MIGRATION_GUIDE.md — Full design
+  5. Code comments in updated files
+
+FOR REFERENCE:
+  6. DOCUMENTATION/DELIVERABLES.md — What's included
+  7. Instruction files in app/models/ and app/superadmin/
+
+
+═════════════════════════════════════════════════════════════════════════════
+✅ FILE CHECKLIST
+═════════════════════════════════════════════════════════════════════════════
+
+REQUIRED FILES (must copy):
+  [ ] migrations/versions/0024_tenant_mailersend_migration.py
+  [ ] templates/superadmin/tenant_communication.html
+  [ ] app/models/core.py (UPDATE — see CORE_MODEL_INSTRUCTIONS.txt)
+  [ ] app/superadmin/__init__.py (UPDATE — see ROUTE_HANDLER_INSTRUCTIONS.txt)
+
+OPTIONAL FILES (recommended):
+  [ ] app/services/email_service_example.py (reference for email service)
+
+REFERENCE FILES (keep for documentation):
+  [ ] DOCUMENTATION/TenantCommunicationSettings_COMPLETE.py
+  [ ] DOCUMENTATION/tenant_communication_route_updated.py
+  [ ] All .md files in DOCUMENTATION/
+
+
+═════════════════════════════════════════════════════════════════════════════
+🔄 IF SOMETHING GOES WRONG
+═════════════════════════════════════════════════════════════════════════════
+
+Rollback the migration:
+────────────────────────────────────────────────────────────────────────────
+  flask db downgrade -1
+  
+  This will:
+  ✓ Drop the three new columns cleanly
+  ✓ Revert database to previous state
+  ✓ Leave SMTP data intact (never touched)
+  ✓ Restore old templates (via git)
+
+
+Troubleshooting:
+────────────────────────────────────────────────────────────────────────────
+  See DOCUMENTATION/QUICK_IMPLEMENTATION.md section: Troubleshooting
+
+
+═════════════════════════════════════════════════════════════════════════════
+📊 WHAT CHANGES
+═════════════════════════════════════════════════════════════════════════════
+
+Database:
+  ✓ 3 new columns (encrypted API key, from_email, from_name)
+  ✓ SMTP columns retained (backward compatible)
+
+Model:
+  ✓ New encryption properties for MailerSend
+  ✓ New helper methods (has_mailersend, effective_mailersend_config)
+  ✓ Updated priority logic (checks MailerSend first)
+
+UI (Template):
+  ✓ MailerSend form (3 fields)
+  ✓ Status badges updated
+  ✓ Legacy SMTP moved to read-only section
+
+Routes:
+  ✓ POST processing extracts MailerSend fields
+  ✓ Validation ensures complete configs
+  ✓ Template context updated
+
+No breaking changes — existing SMTP configs continue to work!
+
+
+═════════════════════════════════════════════════════════════════════════════
+🔐 SECURITY NOTES
+═════════════════════════════════════════════════════════════════════════════
+
+✅ API keys encrypted with Fernet (symmetric encryption)
+✅ Password fields never pre-filled or echoed
+✅ Database stores encrypted gibberish (not plaintext)
+✅ Decryption only happens in Python (never in SQL)
+✅ CSRF protection on all forms
+✅ Superadmin-only access
+✅ Audit trail via updated_at timestamp
+
+Your API keys are safe!
+
+
+═════════════════════════════════════════════════════════════════════════════
+🎯 NEXT STEPS
+═════════════════════════════════════════════════════════════════════════════
+
+1. Read: DOCUMENTATION/00_START_HERE.txt (overview)
+2. Read: DOCUMENTATION/QUICK_IMPLEMENTATION.md (step-by-step)
+3. Read: Instruction files in app/models/ and app/superadmin/
+4. Copy & configure files
+5. Test on staging environment
+6. Deploy to production
+7. Monitor email delivery
+
+═════════════════════════════════════════════════════════════════════════════
+
+Questions? See DOCUMENTATION/QUICK_IMPLEMENTATION.md troubleshooting section.
+
+Ready to deploy? Let's go! 🚀
+
+═════════════════════════════════════════════════════════════════════════════

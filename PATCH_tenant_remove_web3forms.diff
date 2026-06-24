@@ -1,0 +1,31 @@
+--- a/app/tenant/__init__.py
++++ b/app/tenant/__init__.py
+@@ -525,20 +525,15 @@ def contact_form():
+     db.session.commit()
+     log_activity('create', 'inquiry', name, f'Contact from {email} to tenant {tenant_slug!r}')
+ 
+-    # ── Email dispatch (v3.8): try Web3Forms first, fall back to SMTP ────────
++    # ── Email dispatch (v5.0): use configured email service ────────────────
+     # Resolve contact destination: Tenant.contact_email → comm_settings.admin_email → fallback
+     contact_dest = ''
+     if profile and profile.tenant:
+         contact_dest = (profile.tenant.contact_email or '').strip()
+     if not contact_dest and comm_settings:
+         contact_dest = (comm_settings.admin_email or '').strip()
+ 
++    # Send via MailerSend (configured in comm_settings)
+     if contact_dest:
+-        from app.services.email_service import send_contact_form_web3forms
+-        portfolio_url = request.host_url.rstrip('/') + f'/{tenant_slug}'
+-        w3f_sent = send_contact_form_web3forms(
+-            inquiry, contact_dest,
+-            comm_settings=comm_settings,
+-            portfolio_url=portfolio_url,
+-        )
+-
+-    if not w3f_sent:
+-        # Fall back to SMTP path (send_inquiry_email uses comm_settings for routing)
+-        send_inquiry_email(inquiry, comm_settings=comm_settings)
++        send_inquiry_email(inquiry, comm_settings=comm_settings)
+ 
+     tenant_display = (profile.name if profile else tenant_slug.replace('-', ' ').title())

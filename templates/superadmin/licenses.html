@@ -1,0 +1,122 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Licenses{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>License Management</h2>
+  <p class="muted">Generate and assign license keys to tenants with plan-based pricing and activation tracking.</p>
+</div>
+
+<div class="license-overview-panel">
+  <form method="post" class="license-plans-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <input type="hidden" name="action" value="save_plans" />
+    <div class="license-plan-grid">
+      {% for plan_name, plan_data in license_plans.items() %}
+      <article class="license-plan-card">
+        <div class="plan-card-header">
+          <div>
+            <p class="plan-label">{{ plan_name }}</p>
+            <span class="badge {{ plan_data.badge_class }}">{{ plan_data.label }}</span>
+          </div>
+          <p class="plan-price">{{ plan_data.currency_symbol or '₱' }}{{ plan_data.price }}</p>
+        </div>
+
+        <div class="plan-edit-row">
+          <label for="label_{{ plan_name }}">Title</label>
+          <input id="label_{{ plan_name }}" name="label_{{ plan_name }}" type="text" class="form-input" value="{{ plan_data.label }}" />
+        </div>
+        <div class="plan-edit-row">
+          <label for="currency_{{ plan_name }}">Currency Symbol</label>
+          <input id="currency_{{ plan_name }}" name="currency_{{ plan_name }}" type="text" class="form-input" maxlength="3" value="{{ plan_data.currency_symbol or '₱' }}" />
+        </div>
+        <div class="plan-edit-row">
+          <label for="price_{{ plan_name }}">Price</label>
+          <input id="price_{{ plan_name }}" name="price_{{ plan_name }}" type="number" min="0" class="form-input" value="{{ plan_data.price }}" />
+        </div>
+        <div class="plan-edit-row">
+          <label for="duration_{{ plan_name }}">Duration (days)</label>
+          <input id="duration_{{ plan_name }}" name="duration_{{ plan_name }}" type="number" min="1" class="form-input" value="{{ plan_data.duration_days }}" />
+        </div>
+        <div class="plan-edit-row">
+          <label for="description_{{ plan_name }}">Description</label>
+          <textarea id="description_{{ plan_name }}" name="description_{{ plan_name }}" class="form-textarea">{{ plan_data.description }}</textarea>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+
+    <div class="plans-submit-row">
+      <button class="btn btn-secondary btn-sm" type="submit">Save plan settings</button>
+    </div>
+  </form>
+</div>
+
+<div class="table-wrap">
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Tenant</th>
+        <th>Plan</th>
+        <th>Price</th>
+        <th>Status</th>
+        <th>Expires</th>
+        <th>License Key</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tenants %}
+      <tr>
+        <td>
+          <div class="tenant-column">
+            <strong>{{ t.tenant_slug }}</strong>
+            {% if t.name %}<div class="muted small">{{ t.name }}</div>{% endif %}
+          </div>
+        </td>
+        <td>
+          <div class="plan-cell">
+            <span class="badge {{ t.license_badge_class }}">{{ t.license_label }}</span>
+            <div class="muted small">{{ t.license_duration }} days</div>
+          </div>
+        </td>
+        <td>{{ t.license_currency_symbol or '₱' }}{{ t.license_price }}</td>
+        <td>
+          <span class="status-pill {% if t.license_active %}active{% else %}inactive{% endif %}">
+            {{ t.license_status }}
+          </span>
+        </td>
+        <td>
+          {% if t.license_expires_at %}
+            {{ t.license_expires_at.strftime('%Y-%m-%d') }}
+            <div class="muted small">{{ t.license_expires_in }} days left</div>
+          {% else %}
+            —
+          {% endif %}
+        </td>
+        <td class="license-key-cell">
+          <div>{{ t.license_key or 'None' }}</div>
+          {% if t.subscription_payment_method %}
+          <div class="muted small">{{ t.subscription_payment_method }}</div>
+          {% endif %}
+        </td>
+        <td>
+          <form method="post" class="license-action-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <input type="hidden" name="tenant_slug" value="{{ t.tenant_slug }}" />
+            <select name="plan" class="form-select">
+              {% for plan_name, plan_data in license_plans.items() %}
+              <option value="{{ plan_name }}" {% if plan_name == t.plan %}selected{% endif %}>
+                {{ plan_name }} • {{ plan_data.currency_symbol or '₱' }}{{ plan_data.price }} / {{ plan_data.duration_days }}d
+              </option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-primary btn-sm" type="submit">Generate</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

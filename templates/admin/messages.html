@@ -1,0 +1,129 @@
+{% extends "admin/base.html" %}
+{% block title %}Messages{% endblock %}
+{% block page_title %}Messages{% endblock %}
+
+{% block content %}
+<div class="page-hd" style="margin-bottom:1rem;">
+  <div class="page-hd-left">
+    <h1>Messages</h1>
+    <p>Contact submissions, superadmin notices, and your support threads.</p>
+  </div>
+  <div class="page-hd-right">
+    <a href="{{ url_for('admin.new_message_to_superadmin') }}" class="btn btn-primary btn-sm">
+      <iconify-icon icon="lucide:send" width="14"></iconify-icon>
+      Message Support
+    </a>
+  </div>
+</div>
+
+{# Tab bar #}
+<div class="tab-bar" style="margin-bottom:1.25rem;">
+  <a href="{{ url_for('admin.messages', tab='all', q=search) }}"
+     class="tab-item {{ 'tab-active' if tab=='all' else '' }}">All</a>
+  <a href="{{ url_for('admin.messages', tab='from_superadmin', q=search) }}"
+     class="tab-item {{ 'tab-active' if tab=='from_superadmin' else '' }}">From Support</a>
+  <a href="{{ url_for('admin.messages', tab='from_visitors', q=search) }}"
+     class="tab-item {{ 'tab-active' if tab=='from_visitors' else '' }}">Visitors</a>
+  <a href="{{ url_for('admin.messages', tab='unread', q=search) }}"
+     class="tab-item {{ 'tab-active' if tab=='unread' else '' }}">
+    Unread
+    {% if unread_total %}<span class="badge-count">{{ unread_total }}</span>{% endif %}
+  </a>
+</div>
+
+{# Search #}
+<form method="GET" action="{{ url_for('admin.messages') }}" style="display:flex;gap:.75rem;align-items:center;margin-bottom:1.25rem;">
+  <input type="hidden" name="tab" value="{{ tab }}">
+  <div style="position:relative;flex:1">
+    <iconify-icon icon="lucide:search" width="15" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted)"></iconify-icon>
+    <input type="text" name="q" value="{{ search }}" placeholder="Search messages…"
+           style="width:100%;padding:.6rem 1rem .6rem 2.2rem;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);font-size:.875rem">
+  </div>
+  {% if search %}
+  <a href="{{ url_for('admin.messages', tab=tab) }}" class="btn btn-ghost btn-sm">Clear</a>
+  {% endif %}
+</form>
+
+<div class="dash-panel">
+  {% if messages.items %}
+  <div class="message-table">
+    <div class="message-row message-row--header">
+      <span>From</span>
+      <span>Subject</span>
+      <span>Date</span>
+      <span>Status</span>
+    </div>
+    {% for message in messages.items %}
+    <a href="{{ url_for('admin.view_message', message_id=message.id) }}"
+       class="message-row {{ 'message-row--unread' if not message.is_read or message.thread_unread_tenant > 0 else '' }}">
+      <span>
+        <strong>{{ message.name }}</strong>
+        {% if message.sender == 'superadmin' %}
+          <span class="tag-sm tag-accent">Platform</span>
+        {% elif message.sender == 'tenant' %}
+          <span class="tag-sm tag-info">You</span>
+        {% endif %}<br>
+        <small style="color:var(--text-muted)">{{ message.email }}</small>
+      </span>
+      <span>
+        {{ message.subject or '(no subject)' }}
+        {% if message.thread_unread_tenant > 0 %}
+          <span class="badge-count" style="margin-left:5px;">{{ message.thread_unread_tenant }}</span>
+        {% endif %}
+      </span>
+      <span style="white-space:nowrap">
+        {% set ts = message.updated_at or message.created_at %}
+        {{ ts.strftime('%b %d, %Y') if ts else '—' }}<br>
+        <small style="color:var(--text-muted)">{{ ts.strftime('%H:%M') if ts else '' }}</small>
+      </span>
+      <span>
+        {% if message.thread_unread_tenant > 0 %}
+          <span class="tag-sm tag-accent">New Reply</span>
+        {% elif not message.is_read %}
+          <span class="tag-sm tag-warn">Unread</span>
+        {% else %}
+          <span class="tag-sm tag-success">Read</span>
+        {% endif %}
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if messages.pages > 1 %}
+  <div style="display:flex;align-items:center;justify-content:center;gap:1rem;padding:1rem;border-top:1px solid var(--border)">
+    {% if messages.has_prev %}
+    <a href="{{ url_for('admin.messages', tab=tab, q=search, page=messages.prev_num) }}"
+       class="btn btn-ghost btn-sm">&larr; Prev</a>
+    {% endif %}
+    <span style="font-size:.8rem;color:var(--text-muted)">{{ messages.page }} / {{ messages.pages }}</span>
+    {% if messages.has_next %}
+    <a href="{{ url_for('admin.messages', tab=tab, q=search, page=messages.next_num) }}"
+       class="btn btn-ghost btn-sm">Next &rarr;</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="empty-state-v2">
+    <div class="empty-icon"><iconify-icon icon="lucide:mail-open" width="28"></iconify-icon></div>
+    <h3>No messages</h3>
+    <p>{% if search %}No messages match "{{ search }}".{% else %}No messages yet. Contact form submissions and platform notices will appear here.{% endif %}</p>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+.tab-bar{display:flex;gap:.25rem;border-bottom:1px solid var(--border);padding-bottom:0}
+.tab-item{padding:.45rem .9rem;font-size:.82rem;font-weight:600;color:var(--text-muted);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s;display:inline-flex;align-items:center;gap:.4rem}
+.tab-item:hover{color:var(--text)}
+.tab-active{color:var(--accent);border-bottom-color:var(--accent)!important}
+.badge-count{background:var(--accent,#6366f1);color:#fff;border-radius:999px;font-size:.68rem;font-weight:700;padding:1px 6px}
+.message-table{display:flex;flex-direction:column}
+.message-row{display:grid;grid-template-columns:200px 1fr 120px 100px;gap:1rem;align-items:center;padding:.8rem 1.25rem;border-bottom:1px solid var(--border);text-decoration:none;color:var(--text);transition:background .15s}
+.message-row--header{font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid var(--border)}
+.message-row:not(.message-row--header):hover{background:rgba(99,102,241,.04)}
+.message-row--unread{background:rgba(99,102,241,.03)}
+.tag-info{background:rgba(6,182,212,.1);color:#22d3ee;border:1px solid rgba(6,182,212,.2)}
+.tag-warn{background:rgba(234,179,8,.1);color:#fde047;border:1px solid rgba(234,179,8,.2)}
+</style>
+{% endblock %}

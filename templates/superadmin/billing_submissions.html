@@ -1,0 +1,400 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Payment Submissions{% endblock %}
+{% block page_title %}Payment Submissions{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Proof modal ──────────────────────────────────────────── */
+.proof-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.82);
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+}
+.proof-modal-overlay.open { display: flex; }
+.proof-modal {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.5rem;
+  max-width: min(780px, 92vw);
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+}
+.proof-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  gap: 1rem;
+}
+.proof-modal-header h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary);
+}
+.proof-modal-meta {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-top: 0.2rem;
+}
+.proof-close-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.3rem 0.55rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  line-height: 1;
+  flex-shrink: 0;
+}
+.proof-close-btn:hover { background: var(--bg-3); }
+
+.proof-img-wrap {
+  background: var(--bg-1);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+.proof-img-wrap img {
+  max-width: 100%;
+  max-height: 500px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+.proof-pdf-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--bg-1);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.proof-ref-box {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.proof-ref-box .ref-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.proof-ref-box .ref-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.04em;
+  word-break: break-all;
+}
+.ref-hint {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-top: 0.35rem;
+}
+
+/* ── Table tweaks ────────────────────────────────────────── */
+.proof-thumb-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.2rem 0.45rem;
+  cursor: pointer;
+  color: var(--accent-light);
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: background 0.15s;
+}
+.proof-thumb-btn:hover { background: var(--bg-3); }
+.proof-thumb-btn img {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-heading">Payment Submissions</h1>
+    <p class="page-subtext">Review incoming tenant manual payments. Approving activates the subscription and notifies the tenant.</p>
+  </div>
+</div>
+
+<div class="sa-table-card">
+  {% if submissions %}
+  <table class="sa-table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Tenant</th>
+        <th>Plan</th>
+        <th>Method</th>
+        <th>Amount</th>
+        <th>Proof Status</th>
+        <th>Sub Status</th>
+        <th>Tx Ref</th>
+        <th>Proof</th>
+        <th>Notes</th>
+        <th class="th-actions">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for submission in submissions %}
+      {% set sub = submission.subscription %}
+      {% set proof = submission.payment_proof %}
+      {% set is_image = proof and (proof.lower().endswith('.jpg') or proof.lower().endswith('.jpeg') or proof.lower().endswith('.png') or proof.lower().endswith('.webp')) %}
+      <tr>
+        <td style="white-space:nowrap">{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') if submission.submitted_at else '—' }}</td>
+        <td><strong>{{ submission.tenant.slug if submission.tenant else 'Unknown' }}</strong></td>
+        <td>{{ submission.plan }}</td>
+        <td>{{ submission.payment_method or '—' }}</td>
+        <td>{% if submission.amount_paid %}₱{{ "%.2f"|format(submission.amount_paid) }}{% else %}—{% endif %}</td>
+
+        <td>
+          <span class="status-pill
+            {% if submission.status == 'approved' %}status-active
+            {% elif submission.status == 'pending' %}status-pending
+            {% else %}status-inactive{% endif %}">
+            <span class="status-dot"></span>
+            {{ submission.status.title() }}
+          </span>
+        </td>
+
+        <td>
+          {% if sub %}
+          <span class="status-pill
+            {% if sub.status == 'active' %}status-active
+            {% elif sub.status == 'awaiting_activation' %}status-pending
+            {% elif sub.status == 'pending' %}status-inactive
+            {% else %}status-inactive{% endif %}">
+            <span class="status-dot"></span>
+            {{ sub.status_label }}
+          </span>
+          {% else %}—{% endif %}
+        </td>
+
+        <td>
+          <span style="font-family:monospace;font-size:0.8rem">
+            {{ submission.payment_reference or '—' }}
+          </span>
+        </td>
+
+        {# ── Proof cell: thumbnail button that opens modal ── #}
+        <td>
+          {% if proof %}
+            {% if is_image %}
+            <button type="button" class="proof-thumb-btn"
+                    data-modal="proof-modal"
+                    data-proof-url="{{ url_for('static', filename='uploads/billing/' ~ proof) }}"
+                    data-proof-type="image"
+                    data-proof-ref="{{ submission.payment_reference or '' }}"
+                    data-proof-tenant="{{ submission.tenant.slug if submission.tenant else '' }}"
+                    data-proof-amount="₱{{ '%.2f'|format(submission.amount_paid) if submission.amount_paid else '—' }}"
+                    data-proof-method="{{ submission.payment_method or '' }}"
+                    data-proof-date="{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') if submission.submitted_at else '' }}"
+                    title="Click to verify proof">
+              <img src="{{ url_for('static', filename='uploads/billing/' ~ proof) }}"
+                   alt="proof"
+                   onerror="this.style.display='none'"/>
+              <iconify-icon icon="lucide:zoom-in" width="13"></iconify-icon>
+            </button>
+            {% else %}
+            <button type="button" class="proof-thumb-btn"
+                    data-modal="proof-modal"
+                    data-proof-url="{{ url_for('static', filename='uploads/billing/' ~ proof) }}"
+                    data-proof-type="document"
+                    data-proof-ref="{{ submission.payment_reference or '' }}"
+                    data-proof-tenant="{{ submission.tenant.slug if submission.tenant else '' }}"
+                    data-proof-amount="₱{{ '%.2f'|format(submission.amount_paid) if submission.amount_paid else '—' }}"
+                    data-proof-method="{{ submission.payment_method or '' }}"
+                    data-proof-date="{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') if submission.submitted_at else '' }}"
+                    title="Open proof document">
+              <iconify-icon icon="lucide:file-text" width="15"></iconify-icon>
+              View
+            </button>
+            {% endif %}
+          {% else %}—{% endif %}
+        </td>
+
+        <td>
+          {% if submission.note %}
+          <span class="text-dim" style="font-size:0.8rem">{{ submission.note[:40] }}{% if submission.note|length > 40 %}…{% endif %}</span>
+          {% elif submission.review_notes %}
+          <span class="text-dim" style="font-size:0.8rem">{{ submission.review_notes[:40] }}{% if submission.review_notes|length > 40 %}…{% endif %}</span>
+          {% else %}—{% endif %}
+        </td>
+
+        <td class="td-actions">
+          {% if submission.status == 'pending' %}
+          <form method="post" action="{{ url_for('superadmin.billing_submission_review', submission_id=submission.id) }}" class="action-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <input type="hidden" name="review_notes" value="Reviewed by {{ current_user.username }}" />
+            <button type="submit" name="action" value="approve"
+              class="action-btn action-btn-primary"
+              title="Approve — activates subscription and notifies tenant"
+              onclick="return confirm('Approve this payment and activate the subscription?')">
+              <iconify-icon icon="lucide:check" width="15"></iconify-icon>
+            </button>
+            <button type="submit" name="action" value="reject"
+              class="action-btn action-btn-danger"
+              title="Reject payment submission"
+              onclick="return confirm('Reject this payment submission?')">
+              <iconify-icon icon="lucide:x" width="15"></iconify-icon>
+            </button>
+          </form>
+          {% else %}
+          <div style="font-size:0.78rem;color:var(--muted)">
+            {% if submission.reviewed_by %}by {{ submission.reviewed_by }}{% else %}Reviewed{% endif %}
+            <br>{% if submission.reviewed_at %}{{ submission.reviewed_at.strftime('%m/%d %H:%M') }}{% endif %}
+          </div>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">
+    <iconify-icon icon="lucide:inbox" width="48" style="color:var(--muted)"></iconify-icon>
+    <p>No payment submissions have been received yet.</p>
+  </div>
+  {% endif %}
+</div>
+
+
+{# ═══════════════ PROOF VIEWER MODAL ═══════════════ #}
+<div class="proof-modal-overlay" id="proof-modal" role="dialog" aria-modal="true">
+  <div class="proof-modal">
+    <div class="proof-modal-header">
+      <div>
+        <h3>Payment Proof Verification</h3>
+        <div class="proof-modal-meta" id="proof-meta"></div>
+      </div>
+      <button type="button" class="proof-close-btn" id="proof-close-btn" aria-label="Close">
+        <iconify-icon icon="lucide:x" width="16"></iconify-icon>
+      </button>
+    </div>
+
+    {# Transaction reference callout — cross-check with screenshot #}
+    <div class="proof-ref-box" id="proof-ref-box" style="margin-bottom:1rem;">
+      <span class="ref-label">Transaction Reference</span>
+      <div>
+        <div class="ref-value" id="proof-ref-value">—</div>
+        <div class="ref-hint">Verify this reference number matches what is visible in the proof screenshot below.</div>
+      </div>
+    </div>
+
+    {# Image proof #}
+    <div class="proof-img-wrap" id="proof-img-wrap" style="display:none;">
+      <img id="proof-img" src="" alt="Payment proof screenshot"/>
+    </div>
+
+    {# PDF / document proof #}
+    <div class="proof-pdf-link" id="proof-pdf-wrap" style="display:none;">
+      <iconify-icon icon="lucide:file-text" width="22" style="color:var(--accent-light)"></iconify-icon>
+      <div>
+        <div style="font-weight:600;">Document proof attached</div>
+        <a id="proof-pdf-link" href="#" target="_blank" style="font-size:0.8rem;color:var(--accent-light)">
+          Open in new tab <iconify-icon icon="lucide:external-link" width="11"></iconify-icon>
+        </a>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:0.75rem; flex-wrap:wrap;">
+      <a id="proof-open-link" href="#" target="_blank" class="btn btn-ghost btn-sm">
+        <iconify-icon icon="lucide:external-link" width="14"></iconify-icon> Open full size
+      </a>
+      <button type="button" class="btn btn-ghost btn-sm" id="proof-close-btn-2">Close</button>
+    </div>
+  </div>
+</div>
+
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const overlay   = document.getElementById('proof-modal');
+  const closeBtn  = document.getElementById('proof-close-btn');
+  const closeBtn2 = document.getElementById('proof-close-btn-2');
+  const metaEl    = document.getElementById('proof-meta');
+  const refVal    = document.getElementById('proof-ref-value');
+  const imgWrap   = document.getElementById('proof-img-wrap');
+  const imgEl     = document.getElementById('proof-img');
+  const pdfWrap   = document.getElementById('proof-pdf-wrap');
+  const pdfLink   = document.getElementById('proof-pdf-link');
+  const openLink  = document.getElementById('proof-open-link');
+
+  function openModal(btn) {
+    const url    = btn.dataset.proofUrl;
+    const type   = btn.dataset.proofType;
+    const ref    = btn.dataset.proofRef   || '—';
+    const tenant = btn.dataset.proofTenant || '';
+    const amount = btn.dataset.proofAmount || '';
+    const method = btn.dataset.proofMethod || '';
+    const date   = btn.dataset.proofDate   || '';
+
+    metaEl.textContent = [tenant, method, amount, date].filter(Boolean).join('  ·  ');
+    refVal.textContent = ref;
+    openLink.href = url;
+
+    if (type === 'image') {
+      imgEl.src = url;
+      imgWrap.style.display = 'block';
+      pdfWrap.style.display = 'none';
+    } else {
+      pdfLink.href = url;
+      imgWrap.style.display = 'none';
+      pdfWrap.style.display = 'flex';
+    }
+
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal() {
+    overlay.classList.remove('open');
+    document.body.style.overflow = '';
+    imgEl.src = '';
+  }
+
+  document.querySelectorAll('[data-modal="proof-modal"]').forEach(btn => {
+    btn.addEventListener('click', () => openModal(btn));
+  });
+
+  closeBtn.addEventListener('click', closeModal);
+  closeBtn2.addEventListener('click', closeModal);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+})();
+</script>
+{% endblock %}

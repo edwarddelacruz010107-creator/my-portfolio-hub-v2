@@ -1,0 +1,168 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}{{ page_title if page_title is defined else 'Superadmin Settings' }}{% endblock %}
+{% block page_title %}{{ page_title if page_title is defined else 'Superadmin Settings' }}{% endblock %}
+
+{% block content %}
+<div class="settings-grid">
+
+  <div class="form-card">
+    <h3>Account Overview</h3>
+    <div class="profile-summary">
+      <div class="profile-summary-row">
+        <span>Username</span>
+        <strong>{{ current_user.username }}</strong>
+      </div>
+      <div class="profile-summary-row">
+        <span>Email</span>
+        <strong>{{ current_user.email }}</strong>
+      </div>
+      <div class="profile-summary-row">
+        <span>Last login</span>
+        <strong>{{ current_user.last_login.strftime('%b %d, %Y %H:%M') if current_user.last_login else 'N/A' }}</strong>
+      </div>
+      <div class="profile-summary-row">
+        <span>Two-Factor Auth</span>
+        <strong>
+          {% if current_user.totp_enabled %}
+            <span class="badge badge-success">Enabled</span>
+          {% else %}
+            <span class="badge badge-muted">Disabled</span>
+          {% endif %}
+        </strong>
+      </div>
+    </div>
+  </div>
+
+  <form method="POST" class="admin-form" id="accountForm">
+    {{ account_form.hidden_tag() }}
+    <div class="form-card">
+      <h3>Update Superadmin Account</h3>
+      <div class="form-group">
+        {{ account_form.username.label }}
+        {{ account_form.username(class='form-input', placeholder='New username') }}
+        {% for e in account_form.username.errors %}
+          <span class="form-error">{{ e }}</span>
+        {% endfor %}
+      </div>
+      <div class="form-group">
+        {{ account_form.email.label }}
+        {{ account_form.email(class='form-input', placeholder='New email address') }}
+        {% for e in account_form.email.errors %}
+          <span class="form-error">{{ e }}</span>
+        {% endfor %}
+      </div>
+      <div class="form-group">
+        {{ account_form.current_password.label }}
+        {{ account_form.current_password(class='form-input', placeholder='Current password') }}
+        {% for e in account_form.current_password.errors %}
+          <span class="form-error">{{ e }}</span>
+        {% endfor %}
+      </div>
+      <div class="form-actions">
+        {{ account_form.submit(class='btn btn-primary') }}
+      </div>
+    </div>
+  </form>
+
+  <form method="POST" class="admin-form" id="passwordForm">
+    {{ password_form.hidden_tag() }}
+    <div class="form-card">
+      <h3>Change Password</h3>
+      <div class="form-group">
+        {{ password_form.current_password.label }}
+        {{ password_form.current_password(class='form-input', placeholder='Current password') }}
+        {% for e in password_form.current_password.errors %}
+          <span class="form-error">{{ e }}</span>
+        {% endfor %}
+      </div>
+      <div class="form-group">
+        {{ password_form.new_password.label }}
+        {{ password_form.new_password(class='form-input', placeholder='New password (min. 8 chars)') }}
+        {% for e in password_form.new_password.errors %}
+          <span class="form-error">{{ e }}</span>
+        {% endfor %}
+      </div>
+      <div class="form-group">
+        {{ password_form.confirm_password.label }}
+        {{ password_form.confirm_password(class='form-input', placeholder='Confirm new password') }}
+        {% for e in password_form.confirm_password.errors %}
+          <span class="form-error">{{ e }}</span>
+        {% endfor %}
+      </div>
+      <div class="form-actions">
+        {{ password_form.submit(class='btn btn-primary') }}
+      </div>
+    </div>
+  </form>
+
+  <div class="form-card">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+      <h3 style="margin:0;">Two-Factor Authentication</h3>
+      {% if current_user.totp_enabled %}
+        <span class="badge badge-success">Active</span>
+      {% else %}
+        <span class="badge badge-muted">Inactive</span>
+      {% endif %}
+    </div>
+
+    {% if current_user.totp_enabled %}
+      <p style="color:var(--text-muted); font-size:0.95rem; margin-bottom:1.25rem;">
+        Two-factor authentication is enabled. You have <strong>{{ current_user.backup_codes_remaining }}</strong> backup code{{ 's' if current_user.backup_codes_remaining != 1 else '' }} remaining.
+      </p>
+
+      <div style="display:grid; gap:0.75rem;">
+        <form method="POST" action="{{ url_for('superadmin.regenerate_backup_codes') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <button type="submit" class="btn btn-secondary" style="width:100%;">
+            Regenerate Backup Codes
+          </button>
+        </form>
+
+        <button class="btn btn-danger" style="width:100%;" onclick="document.getElementById('disable2faModal').classList.remove('hidden')">
+          Disable Two-Factor Auth
+        </button>
+      </div>
+    {% else %}
+      <p style="color:var(--text-muted); font-size:0.95rem; margin-bottom:1.25rem;">
+        Add extra security to your superadmin account by enabling two-factor authentication.
+      </p>
+      <a href="{{ url_for('superadmin.setup_2fa') }}" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:0.5rem;">
+        Enable Two-Factor Auth
+      </a>
+    {% endif %}
+  </div>
+
+  <div class="form-card">
+    <h3>Navigation</h3>
+    <div class="settings-links">
+      <a href="{{ url_for('superadmin.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+      <a href="{{ url_for('superadmin.tenants') }}" class="btn btn-secondary">Manage Tenants</a>
+    </div>
+  </div>
+
+</div>
+
+{% if current_user.totp_enabled %}
+<div class="modal-backdrop hidden" id="disable2faModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Disable Two-Factor Authentication</h3>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom:1.25rem; color:var(--text-muted);">Enter your password to confirm. This will remove 2FA from your account.</p>
+      <form method="POST" action="{{ url_for('superadmin.disable_2fa') }}" id="disable2faForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="form-group">
+          <label for="disable_password" class="form-label">Current Password</label>
+          <input type="password" id="disable_password" name="password" class="form-input" placeholder="Enter your password" required />
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('disable2faModal').classList.add('hidden')" type="button">Cancel</button>
+      <button type="submit" form="disable2faForm" class="btn btn-danger">Disable 2FA</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

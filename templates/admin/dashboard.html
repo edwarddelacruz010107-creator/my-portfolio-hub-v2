@@ -1,0 +1,366 @@
+{% extends "admin/base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-grid">
+
+  {# ── Hero Card ───────────────────────────────────────── #}
+  <div class="dashboard-hero">
+    <div class="hero-card">
+      <div class="hero-copy">
+        <span class="section-tag">Welcome back, {{ current_user.username }}</span>
+        <h1>Your portfolio dashboard
+          {% if profile %}
+          {% set _ss = subscription_status %}
+          {% set _plan = profile.effective_plan() %}
+          {% set _plan_is_real = _plan in ('Basic', 'Pro', 'Enterprise', 'Administrator') %}
+          <span class="badge-status badge-{{ _ss }}"
+                style="font-size:0.55em;vertical-align:middle;margin-left:0.5rem">
+            {% if _ss == 'active' and _plan_is_real %}
+              {{ _plan }} · Licensed
+            {% elif _ss == 'trial' %}
+              Trial · {{ profile.trial_days_remaining() }}d left
+            {% elif _ss == 'grace' %}
+              {{ _plan if _plan_is_real else 'Basic' }} · Grace Period
+            {% elif _ss == 'pending' %}
+              {{ _plan if _plan_is_real else 'Basic' }} · Pending
+            {% elif _ss in ('expired', 'cancelled') %}
+              Expired — <a href="{{ url_for('admin.billing_index') }}" style="color:inherit">Renew</a>
+            {% else %}
+              No License
+            {% endif %}
+          </span>
+          {% endif %}
+        </h1>
+        <p>
+          {% if stats.profile_completion < 60 %}
+            Your profile is {{ stats.profile_completion }}% complete — finish setting it up to make a great first impression.
+          {% elif stats.published_projects == 0 %}
+            You have {{ stats.total_projects }} project{{ 's' if stats.total_projects != 1 }} — publish one to make it live.
+          {% else %}
+            {{ stats.published_projects }} project{{ 's' if stats.published_projects != 1 else '' }} live,
+            {{ stats.total_skills }} skill{{ 's' if stats.total_skills != 1 else '' }} showcased,
+            {{ stats.total_testimonials }} testimonial{{ 's' if stats.total_testimonials != 1 else '' }} collected.
+          {% endif %}
+        </p>
+      </div>
+      <div class="hero-actions">
+        <a href="{{ url_for('admin.new_project') }}" class="btn btn-primary">
+          <iconify-icon icon="lucide:plus" width="15"></iconify-icon>
+          New Project
+        </a>
+        <a href="{{ url_for('admin.edit_profile') }}" class="btn btn-ghost">Edit Profile</a>
+        <a href="{{ url_for('admin.activity') }}" class="btn btn-secondary">Activity</a>
+      </div>
+    </div>
+  </div>
+
+  {# ── Stats Row ────────────────────────────────────────── #}
+  <div class="stats-row">
+    <div class="stat-card-v2">
+      <div class="stat-header">
+        <div class="stat-icon-wrap accent">
+          <iconify-icon icon="lucide:folder" width="18"></iconify-icon>
+        </div>
+      </div>
+      <div class="stat-big">{{ stats.total_projects }}</div>
+      <div class="stat-name">Total Projects</div>
+      <div class="stat-footer">
+        <span class="trend trend-up">
+          <iconify-icon icon="lucide:check-circle" width="11"></iconify-icon>
+          {{ stats.published_projects }} published
+        </span>
+      </div>
+    </div>
+
+    <div class="stat-card-v2">
+      <div class="stat-header">
+        <div class="stat-icon-wrap info">
+          <iconify-icon icon="lucide:award" width="18"></iconify-icon>
+        </div>
+      </div>
+      <div class="stat-big">{{ stats.total_skills }}</div>
+      <div class="stat-name">Skills</div>
+      <div class="stat-footer">
+        <span class="stat-sub">across all categories</span>
+      </div>
+    </div>
+
+    <div class="stat-card-v2">
+      <div class="stat-header">
+        <div class="stat-icon-wrap success">
+          <iconify-icon icon="lucide:star" width="18"></iconify-icon>
+        </div>
+      </div>
+      <div class="stat-big">{{ stats.total_testimonials }}</div>
+      <div class="stat-name">Testimonials</div>
+      <div class="stat-footer">
+        <span class="stat-sub">social proof</span>
+      </div>
+    </div>
+
+    <div class="stat-card-v2" style="border-color:rgba(99,102,241,0.25);background:linear-gradient(135deg,var(--bg-2),rgba(99,102,241,0.05))">
+      <div class="stat-header">
+        <div class="stat-icon-wrap" style="background:rgba(99,102,241,0.12);color:var(--accent-light)">
+          <iconify-icon icon="lucide:user-check" width="18"></iconify-icon>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:1rem;">
+        <div class="completion-ring-wrap" style="width:64px;height:64px;flex-shrink:0;">
+          <svg class="completion-ring" viewBox="0 0 64 64" style="width:64px;height:64px;">
+            <defs>
+              <linearGradient id="completionGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#6366f1"/>
+                <stop offset="100%" style="stop-color:#818cf8"/>
+              </linearGradient>
+            </defs>
+            <circle class="completion-ring-bg" cx="32" cy="32" r="26"/>
+            <circle class="completion-ring-fill" cx="32" cy="32" r="26"
+              stroke-dasharray="{{ (stats.profile_completion / 100 * 163.4) | round(1) }} 163.4"/>
+          </svg>
+          <div class="completion-ring-label" style="font-size:0.78rem;">{{ stats.profile_completion }}%</div>
+        </div>
+        <div>
+          <div class="stat-big" style="font-size:1.4rem;">{{ stats.profile_completion }}%</div>
+          <div class="stat-name">Profile Complete</div>
+        </div>
+      </div>
+      <div class="stat-footer">
+        {% if stats.profile_completion < 100 %}
+        <a href="{{ url_for('admin.edit_profile') }}" style="font-size:0.72rem;color:var(--accent-light);text-decoration:none;">Complete profile →</a>
+        {% else %}
+        <span style="font-size:0.72rem;color:var(--success);">✓ Profile complete</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ── Messages Stats Row ────────────────────────────────── #}
+  <div class="stats-row" style="margin-top:.75rem;">
+    <a href="{{ url_for('admin.messages') }}" class="stat-card-v2" style="text-decoration:none;cursor:pointer;
+       {% if stats.unread_messages %}border-color:rgba(245,158,11,.4);background:linear-gradient(135deg,var(--bg-2),rgba(245,158,11,.05));{% endif %}">
+      <div class="stat-header">
+        <div class="stat-icon-wrap {% if stats.unread_messages %}warn{% else %}info{% endif %}">
+          <iconify-icon icon="lucide:mail{% if stats.unread_messages %}-open{% endif %}" width="18"></iconify-icon>
+        </div>
+      </div>
+      <div class="stat-big">{{ stats.unread_messages }}</div>
+      <div class="stat-name">Unread Messages</div>
+      <div class="stat-footer">
+        {% if stats.unread_messages %}
+          <span class="trend trend-warn">needs attention</span>
+        {% else %}
+          <span class="stat-sub">inbox clear</span>
+        {% endif %}
+      </div>
+    </a>
+
+    <a href="{{ url_for('admin.messages') }}" class="stat-card-v2" style="text-decoration:none;cursor:pointer;">
+      <div class="stat-header">
+        <div class="stat-icon-wrap accent">
+          <iconify-icon icon="lucide:inbox" width="18"></iconify-icon>
+        </div>
+      </div>
+      <div class="stat-big">{{ stats.total_messages }}</div>
+      <div class="stat-name">Total Messages</div>
+      <div class="stat-footer">
+        <span class="stat-sub">all time</span>
+      </div>
+    </a>
+
+    <a href="{{ url_for('admin.messages') }}" class="stat-card-v2" style="text-decoration:none;cursor:pointer;">
+      <div class="stat-header">
+        <div class="stat-icon-wrap success">
+          <iconify-icon icon="lucide:calendar-check" width="18"></iconify-icon>
+        </div>
+      </div>
+      <div class="stat-big">{{ stats.today_messages }}</div>
+      <div class="stat-name">Today's Messages</div>
+      <div class="stat-footer">
+        <span class="stat-sub">since midnight UTC</span>
+      </div>
+    </a>
+
+    <a href="{{ url_for('admin.messages') }}" class="stat-card-v2" style="text-decoration:none;cursor:pointer;">
+      <div class="stat-header">
+        <div class="stat-icon-wrap info">
+          <iconify-icon icon="lucide:calendar-days" width="18"></iconify-icon>
+        </div>
+      </div>
+      <div class="stat-big">{{ stats.week_messages }}</div>
+      <div class="stat-name">Last 7 Days</div>
+      <div class="stat-footer">
+        <span class="stat-sub">rolling window</span>
+      </div>
+    </a>
+  </div>
+
+  {# ── Two-column layout ────────────────────────────────── #}
+  <div class="dashboard-cols">
+
+    {# Recent Projects #}
+    <div class="dash-panel">
+      <div class="panel-header">
+        <div>
+          <span class="section-tag">Content</span>
+          <h2>Recent Projects</h2>
+        </div>
+        <a href="{{ url_for('admin.new_project') }}" class="btn btn-sm btn-primary">
+          <iconify-icon icon="lucide:plus" width="13"></iconify-icon>
+          New
+        </a>
+      </div>
+      {% if recent_projects %}
+        <div class="project-list">
+          {% for p in recent_projects %}
+          <div class="project-row">
+            <div class="project-row-img">
+              {% if p.image %}
+                <img src="{{ url_for('static', filename='uploads/projects/' + p.image) }}" alt="{{ p.title }}"/>
+              {% else %}
+                <div class="img-placeholder">
+                  <iconify-icon icon="lucide:image" width="16"></iconify-icon>
+                </div>
+              {% endif %}
+            </div>
+            <div class="project-row-info">
+              <strong>{{ p.title }}</strong>
+              <span class="badge-status badge-{{ p.status }}">{{ p.status }}</span>
+            </div>
+            <div class="project-row-actions">
+              <a href="{{ url_for('admin.edit_project', id=p.id) }}" class="icon-btn" title="Edit">
+                <iconify-icon icon="lucide:pencil" width="14"></iconify-icon>
+              </a>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state-v2">
+          <div class="empty-icon">
+            <iconify-icon icon="lucide:folder-plus" width="28"></iconify-icon>
+          </div>
+          <h3>No projects yet</h3>
+          <p>Add your first project to start building your portfolio.</p>
+          <div class="empty-actions">
+            <a href="{{ url_for('admin.new_project') }}" class="btn btn-primary">
+              <iconify-icon icon="lucide:plus" width="14"></iconify-icon>
+              Add First Project
+            </a>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    {# Activity Feed #}
+    <div class="dash-panel">
+      <div class="panel-header">
+        <div>
+          <span class="section-tag">System</span>
+          <h2>Recent Activity</h2>
+        </div>
+        <a href="{{ url_for('admin.activity') }}" class="btn btn-sm btn-ghost">View All</a>
+      </div>
+      {% if recent_activity %}
+        <div class="timeline">
+          {% for log in recent_activity %}
+          {% set action_lower = log.action | lower %}
+          {% set dot_class = 'create' if 'create' in action_lower or 'add' in action_lower
+                        else 'update' if 'update' in action_lower or 'edit' in action_lower
+                        else 'delete' if 'delete' in action_lower or 'remove' in action_lower
+                        else 'login' if 'login' in action_lower
+                        else '' %}
+          {% set icon = 'lucide:plus-circle' if 'create' in action_lower or 'add' in action_lower
+                   else 'lucide:pencil' if 'update' in action_lower or 'edit' in action_lower
+                   else 'lucide:trash-2' if 'delete' in action_lower
+                   else 'lucide:log-in' if 'login' in action_lower
+                   else 'lucide:activity' %}
+          <div class="timeline-item">
+            <div class="timeline-dot {{ dot_class }}">
+              <iconify-icon icon="{{ icon }}" width="14"></iconify-icon>
+            </div>
+            <div class="timeline-content">
+              <div class="timeline-meta">
+                <span class="timeline-action">{{ log.action | title }}</span>
+                <span class="timeline-time">{{ log.created_at.strftime('%b %d, %H:%M') }}</span>
+              </div>
+              {% if log.entity_name %}
+                <span class="timeline-entity">{{ log.entity_type or '' }} — {{ log.entity_name }}</span>
+              {% elif log.entity_type %}
+                <span class="timeline-entity">{{ log.entity_type }}</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state-v2">
+          <div class="empty-icon">
+            <iconify-icon icon="lucide:activity" width="28"></iconify-icon>
+          </div>
+          <h3>No activity yet</h3>
+          <p>Actions you take will be logged here.</p>
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  {# ── Quick Actions ─────────────────────────────────────── #}
+  <div class="quick-actions">
+    <h2>Quick Actions</h2>
+    <div class="actions-grid">
+      <a href="{{ url_for('admin.new_project') }}" class="action-card">
+        <span class="action-icon">
+          <iconify-icon icon="lucide:folder-plus" width="22"></iconify-icon>
+        </span>
+        <span>Add Project</span>
+      </a>
+      <a href="{{ url_for('admin.new_skill') }}" class="action-card">
+        <span class="action-icon">
+          <iconify-icon icon="lucide:award" width="22"></iconify-icon>
+        </span>
+        <span>Add Skill</span>
+      </a>
+      <a href="{{ url_for('admin.edit_profile') }}" class="action-card">
+        <span class="action-icon">
+          <iconify-icon icon="lucide:user" width="22"></iconify-icon>
+        </span>
+        <span>Edit Profile</span>
+      </a>
+      <a href="{{ url_for('admin.messages') }}" class="action-card">
+        <span class="action-icon">
+          <iconify-icon icon="lucide:mail" width="22"></iconify-icon>
+        </span>
+        <span>Messages
+          {% if unread_messages %}<span class="nav-badge" style="margin-left:4px">{{ unread_messages }}</span>{% endif %}
+        </span>
+      </a>
+      {% if active_tenant_slug %}
+        <a href="{{ url_for('admin.billing_index') }}" class="action-card action-card--secondary">
+          <span class="action-icon">
+            <iconify-icon icon="lucide:credit-card" width="22"></iconify-icon>
+          </span>
+          <span>Tenant Billing</span>
+        </a>
+        <a href="{{ url_for('tenant.portfolio', tenant_slug=active_tenant_slug) }}" target="_blank" class="action-card action-card--outline">
+          <span class="action-icon">
+            <iconify-icon icon="lucide:external-link" width="22"></iconify-icon>
+          </span>
+          <span>View Live Site</span>
+        </a>
+      {% else %}
+        <a href="{{ url_for('root') }}" target="_blank" class="action-card action-card--outline">
+          <span class="action-icon">
+            <iconify-icon icon="lucide:external-link" width="22"></iconify-icon>
+          </span>
+          <span>View Live Site</span>
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+
+</div>
+{% endblock %}

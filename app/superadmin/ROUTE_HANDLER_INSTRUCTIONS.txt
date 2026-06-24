@@ -1,0 +1,134 @@
+📋 INSTRUCTION: Update app/superadmin/__init__.py
+
+═════════════════════════════════════════════════════════════════════════════
+
+FILE TO MODIFY: app/superadmin/__init__.py
+FUNCTION TO UPDATE: tenant_communication() (around line 2374)
+
+═════════════════════════════════════════════════════════════════════════════
+
+CHANGES NEEDED:
+
+There are 3 sections to update in the tenant_communication() function:
+
+═════════════════════════════════════════════════════════════════════════════
+
+CHANGE #1: POST FORM PROCESSING (lines ~2410–2424)
+
+OLD CODE (SMTP):
+────────────────
+        # ── SMTP ──────────────────────────────────────────────────────────
+        comm.mail_username       = request.form.get('mail_username', '').strip()
+        comm.mail_default_sender = request.form.get('mail_default_sender', '').strip()
+        comm.admin_email         = request.form.get('admin_email', '').strip()
+        comm.smtp_host           = request.form.get('smtp_host', '').strip()
+        comm.smtp_tls            = request.form.get('smtp_tls') == '1'
+        try:
+            comm.smtp_port = int(request.form.get('smtp_port', 587))
+        except (ValueError, TypeError):
+            comm.smtp_port = 587
+
+        pw = request.form.get('mail_password', '').strip()
+        if pw and pw != '\u2022' * 8:
+            comm.mail_password = pw
+
+NEW CODE (MAILERSEND):
+──────────────────────
+        # ── MailerSend Configuration ──────────────────────────────────────
+        # API key: password field behavior — empty = keep existing
+        api_key = request.form.get('mailersend_api_key', '').strip()
+        if api_key and api_key != '●' * 8:
+            comm.mailersend_api_key = api_key
+
+        # From email and name can be cleared
+        comm.mailersend_from_email = request.form.get('mailersend_from_email', '').strip()
+        comm.mailersend_from_name  = request.form.get('mailersend_from_name', '').strip()
+
+        # Validate: if any MailerSend field is set, all must be set
+        has_email_config = (
+            api_key or comm._mailersend_api_key or
+            comm.mailersend_from_email or
+            comm.mailersend_from_name
+        )
+        if has_email_config:
+            if not (comm._mailersend_api_key and comm.mailersend_from_email and comm.mailersend_from_name):
+                flash(
+                    'MailerSend configuration incomplete. '
+                    'Provide API Key, Sender Email, and Sender Name together, or leave all blank.',
+                    'warning'
+                )
+                db.session.rollback()
+                comm = TenantCommunicationSettings.get_or_create(tenant_id, profile.tenant_slug)
+                return redirect(url_for('superadmin.tenant_communication', tenant_id=tenant_id))
+
+═════════════════════════════════════════════════════════════════════════════
+
+CHANGE #2: RESET TO DEFAULTS (lines ~2426–2435)
+
+OLD CODE:
+─────────
+        if request.form.get('reset_to_defaults'):
+            tenant.form_provider  = 'internal'
+            tenant.basin_endpoint = None
+            comm.mail_username       = ''
+            comm.mail_password       = ''
+            comm.mail_default_sender = ''
+            comm.admin_email         = ''
+            comm.smtp_host           = ''
+            comm.smtp_port           = 587
+            comm.smtp_tls            = True
+
+NEW CODE:
+─────────
+        if request.form.get('reset_to_defaults'):
+            tenant.form_provider  = 'internal'
+            tenant.basin_endpoint = None
+            # Add these three lines:
+            comm.mailersend_api_key    = ''  # ← NEW
+            comm.mailersend_from_email = ''  # ← NEW
+            comm.mailersend_from_name  = ''  # ← NEW
+            # Keep existing SMTP reset:
+            comm.mail_username       = ''
+            comm.mail_password       = ''
+            comm.mail_default_sender = ''
+            comm.admin_email         = ''
+            comm.smtp_host           = ''
+            comm.smtp_port           = 587
+            comm.smtp_tls            = True
+
+═════════════════════════════════════════════════════════════════════════════
+
+CHANGE #3: TEMPLATE CONTEXT (lines ~2447–2454)
+
+OLD CODE:
+─────────
+    return render_template(
+        'superadmin/tenant_communication.html',
+        profile=profile,
+        tenant=tenant,
+        comm=comm,
+        has_smtp=comm.has_smtp,
+        page_title=f'Communication — {profile.tenant_slug}',
+    )
+
+NEW CODE:
+─────────
+    return render_template(
+        'superadmin/tenant_communication.html',
+        profile=profile,
+        tenant=tenant,
+        comm=comm,
+        has_mailersend=comm.has_mailersend,  # ← CHANGED from has_smtp
+        page_title=f'Communication — {profile.tenant_slug}',
+    )
+
+═════════════════════════════════════════════════════════════════════════════
+
+REFERENCE FILE:
+
+See DOCUMENTATION/tenant_communication_route_updated.py for complete code
+
+═════════════════════════════════════════════════════════════════════════════
+
+For step-by-step instructions, see:
+  DOCUMENTATION/QUICK_IMPLEMENTATION.md (Step 4)

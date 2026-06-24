@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  {# ── Title ── #}
+  {% set _base_title = self.title() | trim %}
+  {% if _base_title %}
+  <title>{{ _base_title }} — {{ profile.name if profile else 'Portfolio' }}</title>
+  {% else %}
+  <title>{{ profile.name if profile else 'Portfolio' }}</title>
+  {% endif %}
+
+  {# ── Primary meta ── #}
+  <meta name="description" content="{% block meta_desc %}{{ profile.bio_short if profile else '' }}{% endblock %}"/>
+  <meta name="robots" content="{% block meta_robots %}index, follow{% endblock %}"/>
+  {% if profile and profile.name %}
+  <meta name="author" content="{{ profile.name }}"/>
+  {% endif %}
+
+  {# ── Canonical ── #}
+  <link rel="canonical" href="{% block canonical %}{{ request.url }}{% endblock %}"/>
+
+  {# ── Open Graph ── #}
+  {% set _og_title = self.title() | trim or (profile.name if profile else 'Portfolio') %}
+  {% set _og_desc  = self.meta_desc() | trim %}
+  <meta property="og:type"        content="{% block og_type %}website{% endblock %}"/>
+  <meta property="og:title"       content="{{ _og_title }}"/>
+  <meta property="og:description" content="{{ _og_desc }}"/>
+  <meta property="og:url"         content="{{ request.url }}"/>
+  <meta property="og:site_name"   content="{{ profile.name if profile else 'Portfolio CMS' }}"/>
+  {% block og_image %}
+  {% if profile and profile.profile_image %}
+  {% if profile.profile_image.startswith('http') %}
+  <meta property="og:image" content="{{ profile.profile_image }}"/>
+  {% else %}
+  <meta property="og:image" content="{{ url_for('static', filename='uploads/profiles/' + profile.profile_image, _external=True) }}"/>
+  {% endif %}
+  <meta property="og:image:width"  content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  {% endif %}
+  {% endblock %}
+
+  {# ── Twitter Card ── #}
+  <meta name="twitter:card"        content="summary_large_image"/>
+  <meta name="twitter:title"       content="{{ _og_title }}"/>
+  <meta name="twitter:description" content="{{ _og_desc }}"/>
+  {% if profile and profile.social_links and profile.social_links.get('twitter') %}
+  <meta name="twitter:creator"     content="@{{ profile.social_links.twitter.rstrip('/').split('/')[-1] }}"/>
+  {% endif %}
+
+  {# ── JSON-LD: WebSite (sitelinks search box signal) ── #}
+  {% if profile %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "{{ profile.name | e }}",
+    "url": "{{ request.host_url }}",
+    "description": "{{ (profile.bio_short or '') | e }}"
+  }
+  </script>
+  {% endif %}
+
+  {# ── Page-specific structured data slot ── #}
+  {% block structured_data %}{% endblock %}
+
+  {# ── Fonts & styles ── #}
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+  <script src="https://unpkg.com/iconify-icon@1.0.7/dist/iconify-icon.min.js" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}"/>
+  <link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon"/>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+  {% block body %}{% endblock %}
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

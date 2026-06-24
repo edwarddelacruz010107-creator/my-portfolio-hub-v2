@@ -1,0 +1,348 @@
+<div class="page-hd">
+  <div class="page-hd-left">
+    <h1>Complete Your Payment</h1>
+    <p>
+      Paying via <strong>{{ payment_method.name }}</strong>
+      {% set _plan = subscription.plan if subscription else profile.plan or 'Basic' %}
+      &mdash; <strong>{{ _plan }}</strong> plan
+      ({{ billing_cycle | capitalize }})
+    </p>
+  </div>
+  <div class="page-hd-right">
+    <span class="activation-eta-badge">
+      <iconify-icon icon="lucide:clock" width="14"></iconify-icon>
+      {{ activation_eta|default('Usually within 24 hours') }} to activate
+    </span>
+  </div>
+</div>
+
+{# ── Step progress bar ── #}
+<div class="payment-steps-bar">
+  <div class="pstep pstep--active">
+    <span class="pstep-num">1</span>
+    <span class="pstep-label">{% if payment_method.qr_image %}Scan QR / Transfer{% else %}Transfer{% endif %}</span>
+  </div>
+  <div class="pstep-connector"></div>
+  <div class="pstep pstep--active">
+    <span class="pstep-num">2</span>
+    <span class="pstep-label">Enter Reference</span>
+  </div>
+  <div class="pstep-connector"></div>
+  <div class="pstep pstep--active">
+    <span class="pstep-num">3</span>
+    <span class="pstep-label">Upload Screenshot</span>
+  </div>
+</div>
+
+<div class="payment-layout">
+  <form method="post" enctype="multipart/form-data" id="paymentForm">
+    {{ form.hidden_tag() }}
+    {{ form.payment_method_id() }}
+
+    {# ── Step 1: payment instructions + inline QR (mobile) ── #}
+    <div class="payment-form-card">
+      <h3><span class="step-num">1</span>
+        {% if payment_method.qr_image %}Scan QR Code or Transfer{% else %}Make the Transfer{% endif %}
+      </h3>
+      <p class="payment-card-subtitle">
+        Send <strong>₱{{ suggested_amount | default('') }}</strong>
+        to the account below, then continue to step 2.
+      </p>
+
+      {# inline QR — visible only on mobile; desktop shows it in the sidebar #}
+      {% if payment_method.qr_image %}
+      <div class="payment-qr-inline">
+        <div class="payment-qr-frame">
+          <img src="{{ url_for('static', filename='uploads/billing/' ~ payment_method.qr_image) }}"
+               alt="QR code for {{ payment_method.name }}" class="payment-qr-img" />
+        </div>
+        <p class="payment-qr-caption">Scan with your {{ payment_method.name }} app</p>
+      </div>
+      {% endif %}
+
+      <div class="method-details-block">
+        <div class="paymongo-method-row">
+          <iconify-icon icon="{{ payment_method.icon }}" width="22"></iconify-icon>
+          <div>
+            <strong>{{ payment_method.name }}</strong>
+            <div style="font-size:0.8rem;color:var(--text-muted)">{{ payment_method.type_label }}</div>
+          </div>
+          <span class="badge-status badge-active" style="margin-left:auto">Selected</span>
+        </div>
+
+        {% if payment_method.account_name %}
+        <div class="instruction-row">
+          <span class="key">Account Name</span>
+          <span class="val">{{ payment_method.account_name }}</span>
+        </div>
+        {% endif %}
+        {% if payment_method.account_number %}
+        <div class="instruction-row">
+          <span class="key">Number</span>
+          <span class="val">
+            {{ payment_method.account_number }}
+            <button type="button" class="copy-btn"
+                    onclick="copyText('{{ payment_method.account_number }}', this)">Copy</button>
+          </span>
+        </div>
+        {% endif %}
+        {% if payment_method.mobile_number %}
+        <div class="instruction-row">
+          <span class="key">Mobile</span>
+          <span class="val">
+            {{ payment_method.mobile_number }}
+            <button type="button" class="copy-btn"
+                    onclick="copyText('{{ payment_method.mobile_number }}', this)">Copy</button>
+          </span>
+        </div>
+        {% endif %}
+        {% if payment_method.bank_name %}
+        <div class="instruction-row">
+          <span class="key">Bank</span>
+          <span class="val">{{ payment_method.bank_name }}</span>
+        </div>
+        {% endif %}
+        {% if payment_method.instructions %}
+        <p class="instruction-description" style="margin-top:0.75rem">{{ payment_method.instructions }}</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Step 2: reference + amount ── #}
+    <div class="payment-form-card">
+      <h3><span class="step-num">2</span> Enter Transaction Details</h3>
+      <p class="payment-card-subtitle">
+        After sending, enter the reference number shown in your {{ payment_method.name }} app.
+      </p>
+
+      <div class="form-row-group">
+        <div class="form-group">
+          <label class="field-label" for="payment_reference">
+            Transaction Reference / ID <span class="required">*</span>
+          </label>
+          {{ form.payment_reference(class="field-input", id="payment_reference",
+             placeholder="e.g. TXN-123456789") }}
+          {% for e in form.payment_reference.errors %}
+            <span class="field-error">{{ e }}</span>
+          {% endfor %}
+        </div>
+        <div class="form-group">
+          <label class="field-label" for="amount_paid">
+            Amount Paid (₱) <span class="required">*</span>
+          </label>
+          {{ form.amount_paid(class="field-input", id="amount_paid",
+             placeholder=suggested_amount|default('')) }}
+          {% for e in form.amount_paid.errors %}
+            <span class="field-error">{{ e }}</span>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="field-label" for="payment_note">Note (Optional)</label>
+        {{ form.payment_note(class="field-input", id="payment_note",
+           placeholder="Any additional context for the reviewer") }}
+      </div>
+    </div>
+
+    {# ── Step 3: screenshot upload ── #}
+    <div class="payment-form-card">
+      <h3><span class="step-num">3</span> Upload Payment Screenshot</h3>
+      <p class="payment-card-subtitle">
+        Attach a screenshot of the successful transaction from your {{ payment_method.name }} app.
+        <br><small style="color:var(--text-muted)">JPG · PNG · WebP · PDF — max 10 MB</small>
+      </p>
+
+      <div class="form-group">
+        <div class="upload-zone" id="uploadZone">
+          {{ form.payment_proof(id="paymentProofInput", accept="image/*,.pdf") }}
+          <div class="upload-zone-content" id="uploadZoneContent">
+            <div class="upload-zone-icon">
+              <iconify-icon icon="lucide:upload-cloud" width="36"></iconify-icon>
+            </div>
+            <div class="upload-zone-text">Drop your screenshot here or <u>click to browse</u></div>
+            <div class="upload-zone-sub">JPG · PNG · WebP · PDF &nbsp;|&nbsp; max 10 MB</div>
+          </div>
+          <div class="upload-preview" id="uploadPreview" style="display:none">
+            <iconify-icon icon="lucide:file-check" width="20"></iconify-icon>
+            <span id="uploadFileName"></span>
+            <button type="button" class="copy-btn" id="clearUpload">Remove</button>
+          </div>
+        </div>
+        {% for e in form.payment_proof.errors %}
+          <span class="field-error">{{ e }}</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="payment-button-group">
+      <a href="{{ url_for('admin.billing_plans') }}" class="btn btn-ghost">
+        <iconify-icon icon="lucide:arrow-left" width="15"></iconify-icon>
+        Back to Plans
+      </a>
+      <button type="submit" class="btn btn-primary btn-submit-pay" id="submitBtn">
+        <iconify-icon icon="lucide:send" width="16"></iconify-icon>
+        Submit Payment for Review
+      </button>
+    </div>
+  </form>
+
+  {# ── Desktop sidebar: large QR + how-it-works ── #}
+  <aside class="payment-sidebar{% if payment_method.qr_image %} payment-sidebar--has-qr{% endif %}">
+    {% if payment_method.qr_image %}
+    <div class="payment-qr-showcase">
+      <div class="payment-qr-showcase-head">
+        <iconify-icon icon="lucide:qr-code" width="20"></iconify-icon>
+        <span>Scan to Pay via {{ payment_method.name }}</span>
+      </div>
+      <div class="payment-qr-frame">
+        <img src="{{ url_for('static', filename='uploads/billing/' ~ payment_method.qr_image) }}"
+             alt="QR code for {{ payment_method.name }}" class="payment-qr-img" />
+      </div>
+      {% if payment_method.account_number %}
+      <p class="payment-qr-caption">{{ payment_method.account_number }}</p>
+      {% endif %}
+      {% if payment_method.account_name %}
+      <p class="payment-qr-caption" style="margin-top:0.2rem;font-size:0.8rem;opacity:0.7">
+        {{ payment_method.account_name }}
+      </p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="instructions-sidebar">
+      <div class="instructions-header">
+        <iconify-icon icon="lucide:info" width="14"></iconify-icon>
+        How it works
+      </div>
+      <ol class="how-it-works-list">
+        <li>Scan the QR code or send to the account number shown above</li>
+        <li>Copy the <strong>reference / transaction ID</strong> from your app</li>
+        <li>Take a <strong>screenshot</strong> of the confirmation screen</li>
+        <li>Fill in the form and submit — approval usually within <strong>24 hours</strong></li>
+      </ol>
+    </div>
+  </aside>
+</div>
+
+<style>
+/* ── Step progress bar ── */
+.payment-steps-bar{display:flex;align-items:center;margin-bottom:1.75rem;padding:1rem 1.25rem;background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.18);border-radius:14px}
+.pstep{display:flex;align-items:center;gap:0.5rem;flex:1;justify-content:center}
+.pstep-num{width:28px;height:28px;border-radius:50%;background:rgba(99,102,241,0.35);border:2px solid #6366f1;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;color:#e0e7ff;flex-shrink:0}
+.pstep-label{font-size:0.8rem;font-weight:600;color:var(--text-muted)}
+.pstep-connector{flex:0 0 2rem;height:2px;background:rgba(99,102,241,0.25);margin:0 0.25rem}
+@media(max-width:600px){.pstep-label{display:none}.pstep-connector{flex:0 0 0.75rem}}
+
+/* ── Method detail block inside step 1 ── */
+.method-details-block{display:flex;flex-direction:column;gap:0;font-size:0.85rem}
+.instruction-row{display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05)}
+.instruction-row:last-child{border-bottom:none}
+.instruction-row .key{color:var(--text-muted)}
+.instruction-row .val{font-weight:600;display:flex;align-items:center;gap:0.4rem}
+.copy-btn{font-size:0.7rem;padding:0.15rem 0.45rem;border-radius:4px;border:1px solid rgba(99,102,241,0.4);background:rgba(99,102,241,0.1);color:#a5b4fc;cursor:pointer;transition:background 0.15s}
+.copy-btn:hover{background:rgba(99,102,241,0.25)}
+.instruction-description{font-size:0.82rem;color:var(--text-muted);margin:0}
+.paymongo-method-row{display:flex;align-items:center;gap:0.75rem;padding:0.85rem 1rem;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:10px;margin-bottom:0.75rem}
+
+/* ── Inline QR — mobile only ── */
+.payment-qr-inline{display:none;flex-direction:column;align-items:center;gap:0.6rem;margin:0.5rem 0 0.75rem}
+@media(max-width:900px){.payment-qr-inline{display:flex}}
+.payment-qr-caption{font-size:0.78rem;color:var(--text-muted);margin:0;text-align:center}
+
+/* ── Upload zone ── */
+.upload-zone{position:relative;border:2px dashed rgba(99,102,241,0.35);border-radius:14px;padding:2.25rem 1.5rem;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;overflow:hidden}
+.upload-zone:hover,.upload-zone.drag-over{border-color:#6366f1;background:rgba(99,102,241,0.07)}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-zone-icon{color:#6366f1;margin-bottom:0.6rem}
+.upload-zone-text{font-weight:600;font-size:0.95rem;margin-bottom:0.3rem}
+.upload-zone-sub{font-size:0.78rem;color:var(--text-muted)}
+.upload-preview{display:flex;align-items:center;justify-content:center;gap:0.6rem;font-size:0.9rem;color:#6ee7b7;font-weight:600;padding:0.5rem 0}
+
+/* ── Submit button ── */
+.btn-submit-pay{padding:0.85rem 1.75rem;font-size:1rem;min-width:220px}
+
+/* ── Sidebar ── */
+.payment-sidebar{display:flex;flex-direction:column;gap:1.25rem;position:sticky;top:1.5rem}
+.payment-qr-showcase{background:linear-gradient(160deg,rgba(99,102,241,0.14),rgba(16,185,129,0.08));border:2px solid rgba(99,102,241,0.35);border-radius:20px;padding:1.35rem 1.25rem 1.15rem;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,0.25)}
+.payment-qr-showcase-head{display:flex;align-items:center;justify-content:center;gap:0.5rem;font-weight:800;font-size:0.95rem;color:#e0e7ff;margin-bottom:1rem}
+.payment-qr-frame{background:#fff;border-radius:16px;padding:14px;margin:0 auto;width:min(100%,300px);box-shadow:0 8px 28px rgba(0,0,0,0.35)}
+.payment-qr-img{display:block;width:100%;height:auto;border-radius:8px;image-rendering:auto}
+.instructions-sidebar{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:1rem 1.1rem}
+.instructions-header{display:flex;align-items:center;gap:0.4rem;font-weight:700;font-size:0.85rem;margin-bottom:0.75rem;color:#e0e7ff}
+.how-it-works-list{padding-left:1.2rem;margin:0;display:flex;flex-direction:column;gap:0.55rem;font-size:0.84rem;color:var(--text-muted)}
+.how-it-works-list li strong{color:var(--text-primary,#e0e7ff)}
+.activation-eta-badge{display:inline-flex;align-items:center;gap:0.35rem;font-size:0.82rem;padding:0.35rem 0.75rem;border-radius:20px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);color:#f59e0b}
+
+@media(max-width:980px){.payment-sidebar{position:static}.payment-qr-frame{width:min(100%,320px)}}
+@media(max-width:600px){.payment-qr-showcase{padding:1.1rem}.payment-qr-frame{padding:12px;width:100%}.btn-submit-pay{width:100%}}
+</style>
+
+<script>
+/* ── Copy with feedback ── */
+function copyText(txt, btn) {
+  navigator.clipboard.writeText(txt).then(function () {
+    if (!btn) return;
+    var orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.style.color = '#6ee7b7';
+    setTimeout(function () { btn.textContent = orig; btn.style.color = ''; }, 1600);
+  });
+}
+
+/* ── Upload zone: drag highlight + filename preview ── */
+(function () {
+  var zone     = document.getElementById('uploadZone');
+  var input    = document.getElementById('paymentProofInput');
+  var preview  = document.getElementById('uploadPreview');
+  var content  = document.getElementById('uploadZoneContent');
+  var nameEl   = document.getElementById('uploadFileName');
+  var clearBtn = document.getElementById('clearUpload');
+
+  if (!zone || !input) return;
+
+  zone.addEventListener('dragover',  function (e) { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', function ()  { zone.classList.remove('drag-over'); });
+  zone.addEventListener('drop',      function (e) { e.preventDefault(); zone.classList.remove('drag-over'); });
+
+  function showFile(name) {
+    nameEl.textContent = name;
+    preview.style.display = 'flex';
+    if (content) content.style.display = 'none';
+  }
+
+  function clearFile() {
+    input.value = '';
+    preview.style.display = 'none';
+    if (content) content.style.display = '';
+  }
+
+  input.addEventListener('change', function () {
+    if (this.files && this.files[0]) showFile(this.files[0].name);
+  });
+
+  if (clearBtn) clearBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    clearFile();
+  });
+})();
+
+/* ── Submit guard + double-submit protection ── */
+document.getElementById('paymentForm').addEventListener('submit', function (e) {
+  var ref = document.getElementById('payment_reference');
+  var btn = document.getElementById('submitBtn');
+
+  if (ref && !ref.value.trim()) {
+    e.preventDefault();
+    ref.focus();
+    ref.style.outline = '2px solid rgba(239,68,68,0.7)';
+    setTimeout(function () { ref.style.outline = ''; }, 3000);
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<iconify-icon icon="lucide:loader-2" width="16"></iconify-icon> Submitting\u2026';
+  }
+});
+</script>

@@ -1,0 +1,154 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ message.subject or 'Message' }}{% endblock %}
+{% block page_title %}Message Thread{% endblock %}
+
+{% block content %}
+<div class="page-hd" style="margin-bottom:1rem;">
+  <div class="page-hd-left">
+    <a href="{{ url_for('admin.messages') }}" class="back-link">
+      <iconify-icon icon="lucide:arrow-left" width="14"></iconify-icon> Inbox
+    </a>
+    <h1 style="margin-top:.4rem;">{{ message.subject or '(no subject)' }}</h1>
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.3rem;font-size:.85rem;color:var(--text-muted)">
+      <span>Started by <strong>{{ message.name }}</strong></span>
+      <span>·</span>
+      <span>{{ message.created_at.strftime('%b %d, %Y %H:%M') if message.created_at else '' }}</span>
+      {% if message.sender == 'superadmin' %}
+        <span class="tag-sm tag-accent">From Platform Support</span>
+      {% elif message.sender == 'visitor' %}
+        <span class="tag-sm tag-muted">Visitor</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="page-hd-right" style="display:flex;gap:.5rem;">
+    <form method="POST" action="{{ url_for('admin.delete_message', message_id=message.id) }}"
+          onsubmit="return confirm('Delete this entire thread?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-danger btn-sm">
+        <iconify-icon icon="lucide:trash-2" width="14"></iconify-icon> Delete
+      </button>
+    </form>
+  </div>
+</div>
+
+{# ── Thread ──────────────────────────────────────────────────────────────── #}
+<div class="thread-wrap">
+
+  {# Root message #}
+  <div class="bubble-wrap bubble-{{ 'right' if message.sender == 'tenant' else 'left' }}">
+    <div class="bubble-avatar {{ 'avatar-tenant' if message.sender == 'tenant' else ('avatar-super' if message.sender == 'superadmin' else 'avatar-visitor') }}">
+      <iconify-icon icon="{{ 'lucide:building-2' if message.sender == 'tenant' else ('lucide:shield' if message.sender == 'superadmin' else 'lucide:user') }}" width="15"></iconify-icon>
+    </div>
+    <div class="bubble-body">
+      <div class="bubble-header">
+        <span class="bubble-sender">
+          {{ message.name }}
+          {% if message.sender == 'superadmin' %}<span class="tag-sm tag-accent">Platform Support</span>{% endif %}
+          {% if message.sender == 'tenant' %}<span class="tag-sm tag-info">You</span>{% endif %}
+        </span>
+        <span class="bubble-time">{{ message.created_at.strftime('%b %d, %Y · %H:%M') if message.created_at else '' }}</span>
+      </div>
+      {% if message.email and message.sender != 'superadmin' %}
+      <div class="bubble-sub">{{ message.email }}</div>
+      {% endif %}
+      <div class="bubble-text">{{ message.message | nl2br }}</div>
+    </div>
+  </div>
+
+  {# Replies #}
+  {% for reply in replies %}
+  <div class="bubble-wrap bubble-{{ 'right' if reply.direction == 'tenant' else 'left' }}">
+    <div class="bubble-avatar {{ 'avatar-tenant' if reply.direction == 'tenant' else 'avatar-super' }}">
+      <iconify-icon icon="{{ 'lucide:building-2' if reply.direction == 'tenant' else 'lucide:shield' }}" width="15"></iconify-icon>
+    </div>
+    <div class="bubble-body">
+      <div class="bubble-header">
+        <span class="bubble-sender">
+          {{ reply.sender_name }}
+          {% if reply.direction == 'superadmin' %}<span class="tag-sm tag-accent">Platform Support</span>{% endif %}
+          {% if reply.direction == 'tenant' %}<span class="tag-sm tag-info">You</span>{% endif %}
+        </span>
+        <span class="bubble-time">{{ reply.created_at.strftime('%b %d, %Y · %H:%M') if reply.created_at else '' }}</span>
+      </div>
+      <div class="bubble-text">{{ reply.message | nl2br }}</div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {# Reply compose — only show for superadmin messages or tenant-initiated threads #}
+  {% if message.sender in ('superadmin', 'tenant') %}
+  <div class="reply-compose">
+    <div class="bubble-avatar avatar-tenant">
+      <iconify-icon icon="lucide:building-2" width="15"></iconify-icon>
+    </div>
+    <div style="flex:1">
+      {% with flashes = get_flashed_messages(with_categories=true) %}
+        {% if flashes %}{% for cat, m in flashes %}
+        <div class="alert-inline alert-{{ cat }}" style="margin-bottom:.75rem;">{{ m }}</div>
+        {% endfor %}{% endif %}
+      {% endwith %}
+      <form method="POST" action="{{ url_for('admin.view_message', message_id=message.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <textarea
+          name="message"
+          class="reply-textarea"
+          rows="4"
+          placeholder="{{ 'Reply to Platform Support…' if message.sender == 'superadmin' else 'Add a note to this thread…' }}"
+          required
+        ></textarea>
+        {% if form and form.message.errors %}
+        <div style="color:#f87171;font-size:.8rem;margin-top:.25rem;">{{ form.message.errors[0] }}</div>
+        {% endif %}
+        <div style="display:flex;align-items:center;gap:1rem;margin-top:.75rem;">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <iconify-icon icon="lucide:send" width="14"></iconify-icon>
+            {{ 'Reply to Support' if message.sender == 'superadmin' else 'Send Reply' }}
+          </button>
+          <span style="font-size:.78rem;color:var(--text-muted)">
+            As <strong>{{ current_user.username }}</strong>
+          </span>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  {# Visitor message — show a note, no reply form (contact them via email) #}
+  <div class="visitor-note">
+    <iconify-icon icon="lucide:info" width="15"></iconify-icon>
+    This is a visitor contact form submission. To respond, email
+    <strong>{{ message.email }}</strong> directly.
+  </div>
+  {% endif %}
+
+</div>
+
+<style>
+.back-link{display:inline-flex;align-items:center;gap:.4rem;color:var(--text-muted);font-size:.85rem;text-decoration:none}
+.back-link:hover{color:var(--accent)}
+.thread-wrap{display:flex;flex-direction:column;gap:1.15rem;max-width:780px}
+.bubble-wrap{display:flex;gap:.8rem;align-items:flex-start}
+.bubble-right{flex-direction:row-reverse}
+.bubble-avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}
+.avatar-super{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;box-shadow:0 2px 10px rgba(99,102,241,.3)}
+.avatar-tenant{background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;box-shadow:0 2px 10px rgba(14,165,233,.25)}
+.avatar-visitor{background:linear-gradient(135deg,#64748b,#475569);color:#fff}
+.bubble-body{flex:1;max-width:80%}
+.bubble-header{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem}
+.bubble-right .bubble-header{flex-direction:row-reverse}
+.bubble-sender{font-weight:600;font-size:.85rem}
+.bubble-time{font-size:.73rem;color:var(--text-muted)}
+.bubble-sub{font-size:.77rem;color:var(--text-muted);margin-bottom:.35rem}
+.bubble-right .bubble-sub{text-align:right}
+.bubble-text{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:14px;padding:.85rem 1rem;font-size:.875rem;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+.bubble-right .bubble-text{background:rgba(14,165,233,.08);border-color:rgba(14,165,233,.18);border-top-right-radius:4px}
+.bubble-left .bubble-text{border-top-left-radius:4px}
+.reply-compose{display:flex;gap:.8rem;align-items:flex-start;margin-top:.5rem;padding-top:1.1rem;border-top:1px solid var(--border)}
+.reply-textarea{width:100%;padding:.8rem 1rem;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);font-size:.875rem;line-height:1.6;resize:vertical}
+.reply-textarea:focus{outline:none;border-color:rgba(99,102,241,.55);box-shadow:0 0 0 4px rgba(99,102,241,.09)}
+.visitor-note{display:flex;align-items:center;gap:.6rem;padding:.9rem 1.1rem;border-radius:12px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.12);font-size:.85rem;color:var(--text-muted);margin-top:.5rem}
+.alert-inline{padding:.55rem .85rem;border-radius:8px;font-size:.83rem}
+.alert-success{background:rgba(16,185,129,.1);color:#6ee7b7;border:1px solid rgba(16,185,129,.2)}
+.alert-danger{background:rgba(239,68,68,.1);color:#fca5a5;border:1px solid rgba(239,68,68,.2)}
+.tag-info{background:rgba(6,182,212,.1);color:#22d3ee;border:1px solid rgba(6,182,212,.2)}
+</style>
+{% endblock %}

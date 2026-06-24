@@ -1,0 +1,85 @@
+{% extends "admin/base.html" %}
+{% block title %}Activity Log{% endblock %}
+{% block page_title %}Activity Log{% endblock %}
+
+{% block content %}
+<div class="list-page">
+  <div class="page-hd">
+    <div class="page-hd-left">
+      <h1>Activity Log</h1>
+      <p>A record of all actions taken in your admin panel.</p>
+    </div>
+  </div>
+
+  {% if logs.items %}
+  <div class="activity-log-list">
+    {% for log in logs.items %}
+    <div class="activity-log-row">
+      <div class="log-icon">{{ log.ACTION_ICONS.get(log.action, '•') }}</div>
+      <div class="log-body">
+        <div class="log-summary">
+          <span class="log-action">{{ log.action|title }}</span>
+          {% if log.entity_type %}
+            <span class="log-entity">{{ log.entity_type }}</span>
+          {% endif %}
+          {% if log.entity_name %}
+            <strong class="log-name">{{ log.entity_name }}</strong>
+          {% endif %}
+        </div>
+        {% if log.description %}
+          <div class="log-desc">{{ log.description }}</div>
+        {% endif %}
+      </div>
+      <div class="log-time">
+        <span>{{ log.created_at.strftime('%b %d') }}</span>
+        <span class="log-time-sub">{{ log.created_at.strftime('%H:%M') }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Pagination -->
+  {% if logs.pages > 1 %}
+  <div class="pagination">
+    {% if logs.has_prev %}
+      <a href="{{ url_for('admin.activity', page=logs.prev_num) }}" class="btn btn-ghost btn-sm">← Prev</a>
+    {% endif %}
+    <span class="page-info">Page {{ logs.page }} of {{ logs.pages }}</span>
+    {% if logs.has_next %}
+      <a href="{{ url_for('admin.activity', page=logs.next_num) }}" class="btn btn-ghost btn-sm">Next →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="empty-page">
+    <div class="empty-icon">◫</div>
+    <h2>No activity yet</h2>
+    <p>Actions you take in the admin will appear here.</p>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+.activity-log-list { display: flex; flex-direction: column; gap: 0.35rem; }
+.activity-log-row {
+  display: flex; align-items: flex-start; gap: 1rem;
+  padding: 0.85rem 1.1rem; background: var(--bg-2);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  transition: border-color var(--transition);
+}
+.activity-log-row:hover { border-color: var(--border-light); }
+.log-icon { font-size: 1.1rem; margin-top: 0.05rem; flex-shrink: 0; }
+.log-body { flex: 1; }
+.log-summary { font-size: 0.875rem; display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+.log-action { color: var(--accent-light); font-weight: 600; }
+.log-entity { color: var(--text-muted); }
+.log-name { color: var(--text); }
+.log-desc { font-size: 0.78rem; color: var(--text-dim); margin-top: 0.2rem; }
+.log-time { display: flex; flex-direction: column; align-items: flex-end; gap: 0.1rem; flex-shrink: 0; }
+.log-time span { font-size: 0.8rem; color: var(--text-muted); }
+.log-time-sub { font-size: 0.72rem; color: var(--text-dim); }
+.pagination { display: flex; align-items: center; gap: 1rem; justify-content: center; padding-top: 1rem; }
+.page-info { font-size: 0.85rem; color: var(--text-muted); }
+</style>
+{% endblock %}

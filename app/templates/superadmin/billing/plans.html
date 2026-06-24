@@ -1,0 +1,52 @@
+{#
+  app/templates/superadmin/billing/plans.html
+  Superadmin Plan Settings – Portfolio CMS v3.5
+
+  Uses the same BILLING_PLANS data as the tenant billing cards,
+  so currency symbol (₱) and prices are always consistent.
+#}
+{% extends "superadmin/base.html" %}
+{% block title %}Plan Settings{% endblock %}
+
+{% block content %}
+<div class="sa-billing-plans">
+
+  <div class="page-header">
+    <h1>Plan Settings</h1>
+    <p class="subtitle">
+      These values match what tenants see on their billing page.
+      Currency symbol and prices come from the same
+      <code>BILLING_PLANS</code> dictionary.
+    </p>
+  </div>
+
+  <table class="sa-plans-table">
+    <thead>
+      <tr>
+        <th>Plan</th>
+        <th>Monthly price</th>
+        <th>Yearly price</th>
+        <th>Duration (days)</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for key, plan in plans.items() %}
+      <tr>
+        <td><strong>{{ plan.label }}</strong></td>
+        <td>{{ plan.monthly_label }}</td>
+        <td>{{ plan.yearly_label }}</td>
+        <td>{{ plan.duration_days }}</td>
+        <td>
+          <a href="{{ url_for('superadmin.superadmin_billing_plans.edit_plan', plan_key=key) }}"
+             class="btn btn-sm btn-secondary">
+            Edit
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+</div>
+{% endblock %}

@@ -1,0 +1,101 @@
+═══════════════════════════════════════════════════════════════════════════════
+  FLASK DUPLICATE INDEX FIX — CORRECTED (v2)
+═══════════════════════════════════════════════════════════════════════════════
+
+📦 WHAT'S FIXED IN THIS VERSION
+───────────────────────────────
+✓ Migration revision ID corrected to: '0025' (was '0025_add_critical_indexes')
+✓ No more "KeyError" when running flask db upgrade
+✓ Ready to deploy!
+
+
+═══════════════════════════════════════════════════════════════════════════════
+🚀 INSTALLATION (3 STEPS)
+═══════════════════════════════════════════════════════════════════════════════
+
+STEP 1: Extract Files
+──────────────────────
+unzip portfolio_cms_fix.zip -d .
+
+This extracts:
+  ✓ app/models/core.py                               (FIXED)
+  ✓ migrations/versions/0026_fix_duplicate_indexes.py (CORRECTED)
+
+
+STEP 2: Apply Migration
+───────────────────────
+flask db upgrade
+
+Expected output:
+  INFO  [alembic.runtime.migration] Running upgrade 0025 -> 0026_fix_duplicate_indexes
+
+
+STEP 3: Verify
+──────────────
+flask db current
+# Expected: 0026_fix_duplicate_indexes
+
+
+═══════════════════════════════════════════════════════════════════════════════
+✅ SUCCESS CRITERIA
+═══════════════════════════════════════════════════════════════════════════════
+
+✓ No KeyError (this is fixed!)
+✓ flask db current shows: 0026_fix_duplicate_indexes
+✓ No errors during migration
+✓ flask init-db works without DuplicateTable error
+
+
+═══════════════════════════════════════════════════════════════════════════════
+⚠️  WHAT WAS WRONG (And Now Fixed)
+═══════════════════════════════════════════════════════════════════════════════
+
+PREVIOUS ERROR:
+  KeyError: '0025_add_critical_indexes'
+  
+CAUSE:
+  Migration file referenced revision '0025_add_critical_indexes'
+  But actual revision ID is just '0025'
+
+THIS VERSION:
+  down_revision = '0025'  ✓ CORRECT
+
+
+═══════════════════════════════════════════════════════════════════════════════
+5 COLUMNS FIXED IN app/models/core.py
+═══════════════════════════════════════════════════════════════════════════════
+
+Line 900 — Inquiry.tenant_id           [index=True removed]
+Line 901 — Inquiry.tenant_slug         [index=True removed]
+Line 973 — SubscriptionNotification... [index=True removed]
+Line 1029 — ActivityLog.tenant_slug    [index=True removed]
+Line 1030 — ActivityLog.user_id        [index=True removed]
+
+
+═══════════════════════════════════════════════════════════════════════════════
+⏱️  TIME TO FIX
+═══════════════════════════════════════════════════════════════════════════════
+
+Extract: 10 seconds
+Migrate: 30 seconds
+Verify:  20 seconds
+─────────────────
+TOTAL:   60 SECONDS
+
+
+═══════════════════════════════════════════════════════════════════════════════
+🔄 ROLLBACK
+═══════════════════════════════════════════════════════════════════════════════
+
+If you need to revert:
+
+  flask db downgrade
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Ready? Extract the zip and run: flask db upgrade
+
+Questions? See the detailed documentation files.
+
+Good luck! 🚀

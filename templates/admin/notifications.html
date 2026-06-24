@@ -1,0 +1,95 @@
+{% extends 'admin/base.html' %}
+{% block title %}Notifications{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-title">
+      <span class="page-title-icon">🔔</span>
+      Notifications
+      {% if unread_count %}
+        <span class="badge badge-danger ms-2">{{ unread_count }} unread</span>
+      {% endif %}
+    </h1>
+  </div>
+  <div class="page-header-right">
+    {% if unread_count %}
+    <form method="POST" action="{{ url_for('admin.notifications_mark_all_read') }}" style="display:inline;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-outline-secondary btn-sm">
+        ✓ Mark All as Read
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    {% if notifications %}
+    <ul class="notification-list">
+      {% for n in notifications %}
+      <li class="notification-item {% if not n.is_read %}notification-item--unread{% endif %}">
+        <div class="notification-icon notif-type-{{ n.notification_type }}">
+          {% if n.notification_type in ('reminder_7d', 'reminder_30d') %}⚠
+          {% elif n.notification_type == 'expired' %}❌
+          {% elif n.notification_type == 'renewed' %}✅
+          {% elif n.notification_type == 'activated' %}🎉
+          {% else %}📢{% endif %}
+        </div>
+        <div class="notification-body">
+          <div class="notification-title">{{ n.title }}</div>
+          <div class="notification-message">{{ n.message }}</div>
+          <div class="notification-meta">
+            {{ n.created_at.strftime('%b %d, %Y %H:%M UTC') if n.created_at else '' }}
+            {% if n.sent_via_email %}
+              &nbsp;·&nbsp;<span class="notif-email-badge">📧 Email sent</span>
+            {% endif %}
+          </div>
+        </div>
+        {% if not n.is_read %}
+        <div class="notification-actions">
+          <form method="POST" action="{{ url_for('admin.notification_mark_read', notif_id=n.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn-mark-read" title="Mark as read">✓</button>
+          </form>
+        </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty-state py-5 text-center">
+      <div style="font-size:3rem;">🔔</div>
+      <p class="text-muted mt-2">No notifications yet.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+.notification-list { list-style:none; margin:0; padding:0; }
+.notification-item {
+  display:flex; align-items:flex-start; gap:1rem;
+  padding:1rem 1.25rem; border-bottom:1px solid var(--border-color, #eee);
+  transition:background 0.15s;
+}
+.notification-item:last-child { border-bottom:none; }
+.notification-item--unread { background:rgba(var(--primary-rgb,59,130,246),.05); }
+.notification-icon {
+  font-size:1.4rem; flex-shrink:0; width:2rem; text-align:center; padding-top:2px;
+}
+.notification-body { flex:1; min-width:0; }
+.notification-title { font-weight:600; font-size:.9rem; margin-bottom:.25rem; }
+.notification-message { font-size:.85rem; color:var(--text-muted,#666); white-space:pre-line; }
+.notification-meta { font-size:.75rem; color:var(--text-muted,#999); margin-top:.4rem; }
+.notif-email-badge { background:#e8f4fd; color:#0369a1; padding:1px 6px; border-radius:4px; font-size:.72rem; }
+.notification-actions { flex-shrink:0; }
+.btn-mark-read {
+  background:none; border:1px solid var(--border-color,#ccc);
+  border-radius:50%; width:28px; height:28px; cursor:pointer; font-size:.85rem;
+  color:var(--text-muted,#666); transition:all .15s;
+}
+.btn-mark-read:hover { background:var(--primary,#3b82f6); color:#fff; border-color:var(--primary,#3b82f6); }
+</style>
+{% endblock %}

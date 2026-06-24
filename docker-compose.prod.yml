@@ -1,0 +1,266 @@
+# Portfolio CMS v5.0 — Production Docker Compose
+#
+# Services:
+#   - web: Flask application with gunicorn
+#   - postgres-core: Core database (auth, billing, tenants)
+#   - postgres-tenant: Tenant database (portfolio content)
+#   - redis: Cache and session storage
+#
+# Usage:
+#   docker-compose -f docker-compose.prod.yml up -d
+#   docker-compose -f docker-compose.prod.yml logs -f web
+#   docker-compose -f docker-compose.prod.yml exec web flask db upgrade-core
+
+version: '3.8'
+
+services:
+  # ────────────────────────────────────────────────────────────
+  # WEB APPLICATION
+  # ────────────────────────────────────────────────────────────
+  web:
+    image: portfolio-cms:5.0
+    container_name: portfolio-cms-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    # Environment variables (override with .env file)
+    env_file: .env
+    environment:
+      - FLASK_ENV=production
+      - FLASK_APP=wsgi.py
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+    
+    # Port mapping
+    ports:
+      - "5000:5000"
+    
+    # Dependencies
+    depends_on:
+      postgres-core:
+        condition: service_healthy
+      postgres-tenant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    # Volumes for logs and uploads
+    volumes:
+      - ./logs:/app/logs
+      - ./storage:/app/storage
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Networks
+    networks:
+      - portfolio-network
+
+  # ────────────────────────────────────────────────────────────
+  # CORE DATABASE (PostgreSQL)
+  # ────────────────────────────────────────────────────────────
+  postgres-core:
+    image: postgres:15-alpine
+    container_name: portfolio-postgres-core
+    
+    # Environment
+    environment:
+      POSTGRES_DB: portfolio_core_prod
+      POSTGRES_USER: portfolio_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+    
+    # Volumes for data persistence
+    volumes:
+      - postgres-core-data:/var/lib/postgresql/data
+      - ./migrations/schema_postgresql.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    
+    # Ports (internal only, not exposed to host)
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Health check
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portfolio_app -d portfolio_core_prod"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Networks
+    networks:
+      - portfolio-network
+
+  # ────────────────────────────────────────────────────────────
+  # TENANT DATABASE (PostgreSQL)
+  # ────────────────────────────────────────────────────────────
+  postgres-tenant:
+    image: postgres:15-alpine
+    container_name: portfolio-postgres-tenant
+    
+    # Environment
+    environment:
+      POSTGRES_DB: portfolio_tenant_prod
+      POSTGRES_USER: portfolio_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+    
+    # Volumes for data persistence
+    volumes:
+      - postgres-tenant-data:/var/lib/postgresql/data
+      - ./migrations/schema_postgresql.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    
+    # Ports (internal only)
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Health check
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portfolio_app -d portfolio_tenant_prod"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Networks
+    networks:
+      - portfolio-network
+
+  # ────────────────────────────────────────────────────────────
+  # REDIS CACHE & SESSION STORAGE
+  # ────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: portfolio-redis
+    
+    # Command with password
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis}
+    
+    # Volumes for persistence
+    volumes:
+      - redis-data:/data
+    
+    # Ports (internal only)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Networks
+    networks:
+      - portfolio-network
+
+# ─────────────────────────────────────────────────────────────
+# VOLUMES (Data Persistence)
+# ─────────────────────────────────────────────────────────────
+volumes:
+  postgres-core-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/data/postgres-core
+
+  postgres-tenant-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/data/postgres-tenant
+
+  redis-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/data/redis
+
+# ─────────────────────────────────────────────────────────────
+# NETWORKS (Service Communication)
+# ─────────────────────────────────────────────────────────────
+networks:
+  portfolio-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

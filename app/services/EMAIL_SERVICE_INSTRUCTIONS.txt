@@ -1,0 +1,159 @@
+📧 OPTIONAL: Email Service Integration
+
+═════════════════════════════════════════════════════════════════════════════
+
+WHAT IS THIS?
+
+This is an OPTIONAL but RECOMMENDED enhancement.
+
+It ensures your email dispatch logic properly prioritizes per-tenant MailerSend
+configuration over global settings.
+
+═════════════════════════════════════════════════════════════════════════════
+
+DO YOU NEED IT?
+
+YES if your application:
+  ✓ Uses a custom email service module
+  ✓ Sends transactional emails (OTP, password reset, etc.)
+  ✓ Wants per-tenant MailerSend support to work end-to-end
+
+NO if:
+  ✓ You only use Flask-Mail or basic email
+  ✓ You're just doing the migration and will refactor later
+
+═════════════════════════════════════════════════════════════════════════════
+
+HOW TO DO IT:
+
+1. Review: DOCUMENTATION/email_service_example.py
+   This shows the complete pattern with:
+   - get_effective_mailersend_config() → resolves which provider to use
+   - send_email_via_mailersend() → calls MailerSend API
+   - send_tenant_email() → main function to use in routes
+   - Example helpers for password reset, welcome emails, etc.
+
+2. Adapt to your code:
+   - If you have app/services/email_service.py:
+     Add the functions from the example
+   - If you don't have one:
+     Create app/services/email_service.py with the example code
+   - If you use something else:
+     Adapt the priority logic to your setup
+
+3. Update your email-sending code:
+   OLD:
+     send_smtp_email(to, subject, body)
+   
+   NEW:
+     from app.services.email_service import send_tenant_email
+     send_tenant_email(tenant_id, to, subject, body_html)
+
+═════════════════════════════════════════════════════════════════════════════
+
+KEY CONCEPTS FROM THE EXAMPLE:
+
+1. PRIORITY RESOLUTION
+   def get_effective_mailersend_config(tenant_id):
+     Check per-tenant MailerSend first
+     Fall back to global MailerSend
+     Raise error if neither configured
+
+2. ENCRYPTION
+   comm.mailersend_api_key  # Automatically decrypted property
+   Never logs or exposes decrypted key
+
+3. ERROR HANDLING
+   try/except blocks for API failures
+   Graceful error messages
+
+4. FLEXIBILITY
+   Works with existing SMTP/Web3Forms
+   Can be adopted gradually
+
+═════════════════════════════════════════════════════════════════════════════
+
+INTEGRATION EXAMPLE:
+
+In your route handler, instead of:
+  
+  send_email(to='user@example.com', subject='...', body='...')
+
+Use:
+  
+  from app.services.email_service import send_tenant_email, EmailServiceError
+  
+  try:
+      result = send_tenant_email(
+          tenant_id=current_user.tenant_id,
+          to_email='user@example.com',
+          subject='Password Reset',
+          body_html='<p>Click link to reset</p>',
+      )
+      if result['success']:
+          flash('Email sent', 'success')
+  except EmailServiceError as e:
+      flash(f'Email failed: {e}', 'danger')
+
+═════════════════════════════════════════════════════════════════════════════
+
+TESTING THE INTEGRATION:
+
+1. Verify config resolution works:
+   
+   from app.models.core import TenantCommunicationSettings
+   from app.services.email_service import get_effective_mailersend_config
+   
+   config = get_effective_mailersend_config(tenant_id=1)
+   print(config)  # Should have api_key, from_email, from_name
+
+2. Test email sending:
+   
+   from app.services.email_service import send_tenant_email
+   
+   result = send_tenant_email(
+       tenant_id=1,
+       to_email='test@example.com',
+       subject='Test',
+       body_html='<p>Test email</p>',
+   )
+   print(result)  # Should show success=True
+
+═════════════════════════════════════════════════════════════════════════════
+
+COMMON SCENARIOS:
+
+Scenario 1: New application
+→ Copy entire example to app/services/email_service.py
+→ Use send_tenant_email() everywhere
+→ Done!
+
+Scenario 2: Existing email service
+→ Add get_effective_mailersend_config() to your service
+→ Update your send function to use it
+→ Test with per-tenant config
+
+Scenario 3: Flask-Mail based
+→ Create email_service.py wrapper
+→ Use priority resolution from example
+→ Call Flask-Mail with resolved config
+
+═════════════════════════════════════════════════════════════════════════════
+
+IMPORTANT:
+
+✓ API key decryption happens automatically via property
+✓ Password fields in superadmin prevent key from being exposed
+✓ Each send_tenant_email() call resolves current config (flexible)
+✓ Fallback to global config works seamlessly
+✓ Error handling prevents email failures from crashing app
+
+═════════════════════════════════════════════════════════════════════════════
+
+For complete implementation:
+  DOCUMENTATION/email_service_example.py (copy-paste ready)
+
+For step-by-step guide:
+  DOCUMENTATION/QUICK_IMPLEMENTATION.md (Step 5)
+
+═════════════════════════════════════════════════════════════════════════════

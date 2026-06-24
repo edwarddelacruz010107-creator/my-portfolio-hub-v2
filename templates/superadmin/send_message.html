@@ -1,0 +1,66 @@
+{% extends 'superadmin/base.html' %}
+
+{% block title %}Send Message{% endblock %}
+{% block page_title %}Send Message to Tenant{% endblock %}
+
+{% block content %}
+<div class="page-header page-header-premium">
+  <div class="page-header-left">
+    <h1 class="page-heading page-heading-lg">Send Message to Tenant</h1>
+    <p class="page-subtext page-subtext-muted">
+      Send CRM-style messages directly to tenant administrators or broadcast notices to all tenants.
+    </p>
+  </div>
+  <div class="page-header-right">
+    <a href="{{ url_for('superadmin.tenants') }}" class="btn btn-ghost btn-sm btn-pill">
+      <iconify-icon icon="lucide:chevron-left" width="16"></iconify-icon>
+      Back to Tenants
+    </a>
+  </div>
+</div>
+
+<div class="form-card form-card-premium">
+  <form method="post" novalidate class="super-message-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+    <div class="form-row">
+      <label class="field-label" for="tenant_slug">Tenant</label>
+      {{ form.tenant_slug(class='form-select') }}
+      <p class="field-help">Choose a single tenant or select All Tenants to broadcast.</p>
+      {% if form.tenant_slug.errors %}
+      <div class="field-error">{{ form.tenant_slug.errors[0] }}</div>
+      {% endif %}
+    </div>
+
+    <div class="form-row">
+      <label class="field-label" for="message_type">Message Type</label>
+      {{ form.message_type(class='form-select') }}
+      <p class="field-help">Pick a type so the tenant sees the reason for the message.</p>
+      {% if form.message_type.errors %}
+      <div class="field-error">{{ form.message_type.errors[0] }}</div>
+      {% endif %}
+    </div>
+
+    <div class="form-row">
+      <label class="field-label" for="subject">Subject</label>
+      {{ form.subject(class='form-input', placeholder='Subject for tenant admin') }}
+      {% if form.subject.errors %}
+      <div class="field-error">{{ form.subject.errors[0] }}</div>
+      {% endif %}
+    </div>
+
+    <div class="form-row">
+      <label class="field-label" for="message">Message</label>
+      {{ form.message(class='form-textarea', rows=8, placeholder='Write your message to the tenant admin here...') }}
+      {% if form.message.errors %}
+      <div class="field-error">{{ form.message.errors[0] }}</div>
+      {% endif %}
+    </div>
+
+    <div class="form-actions">
+      {{ form.submit(class='btn btn-primary btn-lg') }}
+      <a href="{{ url_for('superadmin.tenants') }}" class="btn btn-ghost btn-lg">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

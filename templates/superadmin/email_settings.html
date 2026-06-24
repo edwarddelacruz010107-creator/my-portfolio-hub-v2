@@ -1,0 +1,324 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Email &amp; Forms Settings{% endblock %}
+{% block page_title %}Email &amp; Forms Settings{% endblock %}
+
+{% block content %}
+<div class="breadcrumb-trail">
+  <a href="{{ url_for('superadmin.settings') }}" class="bc-link">
+    <iconify-icon icon="lucide:settings" width="14"></iconify-icon> Settings
+  </a>
+  <iconify-icon icon="lucide:chevron-right" width="14" class="bc-sep"></iconify-icon>
+  <span class="bc-current">Email &amp; Forms</span>
+</div>
+
+{# Status badges #}
+<div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+  <span class="tag-sm {{ 'tag-success' if has_mailersend else 'tag-warn' }}">
+    {{ '✓ MailerSend configured' if has_mailersend else '○ MailerSend API key not set' }}
+  </span>
+  <span class="tag-sm {{ 'tag-success' if cfg.recovery_enabled else 'tag-muted' }}">
+    {{ '✓ Recovery enabled' if cfg.recovery_enabled else '✗ Recovery disabled' }}
+  </span>
+</div>
+
+<form method="POST" action="{{ url_for('superadmin.email_settings') }}" autocomplete="off">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="action" value="save">
+
+  <div class="content-grid" style="max-width:820px;">
+
+    {# ── EMAIL PROVIDER (MailerSend) ───────────────────────────────────────── #}
+    <div class="form-card">
+      <div class="form-card-header">
+        <iconify-icon icon="lucide:send" width="18"></iconify-icon>
+        <h3>Email Provider — MailerSend</h3>
+      </div>
+      <div class="form-card-body">
+        <p class="field-hint" style="margin-bottom:1.25rem;">
+          MailerSend handles all transactional emails: OTP codes, password reset,
+          welcome emails, subscription notifications, and payment alerts.
+          Get a free API key at <a href="https://www.mailersend.com" target="_blank" rel="noopener">mailersend.com</a>.
+          <strong>The API key is stored encrypted and is never sent to the browser.</strong>
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="mailersend_api_key">
+            MailerSend API Key
+            {% if has_mailersend %}<span class="badge badge-success" style="margin-left:.5rem;">Configured</span>{% endif %}
+          </label>
+          <div class="input-group">
+            <input
+              type="password"
+              id="mailersend_api_key"
+              name="mailersend_api_key"
+              class="form-input"
+              autocomplete="new-password"
+              placeholder="{{ '●●●●●●●●  (set — enter new value to replace)' if has_mailersend else 'Paste your MailerSend API key' }}"
+            >
+            <button type="button" id="validateMailerSendBtn" class="btn btn-ghost btn-sm"
+                    style="white-space:nowrap;">
+              <iconify-icon icon="lucide:check-circle" width="14"></iconify-icon>
+              Validate
+            </button>
+          </div>
+          <span class="field-hint">Leave blank to keep the current key. Find your API key under <strong>API Tokens</strong> in the MailerSend dashboard.</span>
+        </div>
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label" for="sender_name">Sender Display Name</label>
+            <input type="text" id="sender_name" name="sender_name" class="form-input"
+              value="{{ cfg.sender_name or '' }}" placeholder="Portfolio CMS" maxlength="200">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="sender_email">
+              From Email Address
+              <span class="field-hint" style="display:inline;">(must be a verified MailerSend domain)</span>
+            </label>
+            <input type="email" id="sender_email" name="sender_email" class="form-input"
+              value="{{ cfg.sender_email or '' }}" placeholder="noreply@yourdomain.com" maxlength="200">
+          </div>
+        </div>
+        {# Test Email row — only shown when key is configured #}
+        {% if has_mailersend %}
+        <div class="form-group" style="margin-top:1rem;">
+          <label class="form-label">Test Email Delivery</label>
+          <div class="input-group">
+            <input type="email" id="testEmailAddr" class="form-input"
+                   placeholder="your@email.com" maxlength="200">
+            <button type="button" id="testEmailBtn" class="btn btn-ghost btn-sm"
+                    style="white-space:nowrap;">
+              <iconify-icon icon="lucide:send" width="14"></iconify-icon>
+              Send Test
+            </button>
+          </div>
+          <span class="field-hint">Sends a live test via the configured MailerSend key to verify end-to-end delivery.</span>
+        </div>
+        {% endif %}
+        <div id="mailersend-validate-result" style="display:none;margin-top:.75rem;"></div>
+      </div>
+    </div>
+
+    {# ── CONTACT FORM PROVIDER (Basin) ────────────────────────────────────── #}
+    <div class="form-card">
+      <div class="form-card-header">
+        <iconify-icon icon="lucide:layout-panel-top" width="18"></iconify-icon>
+        <h3>Contact Form Provider — Basin</h3>
+      </div>
+      <div class="form-card-body">
+        <p class="field-hint" style="margin-bottom:1.25rem;">
+          Basin (<a href="https://usebasin.com" target="_blank" rel="noopener">usebasin.com</a>)
+          handles portfolio contact form submissions per tenant.
+          Each tenant configures their own Basin endpoint in their admin settings.
+          <br>The default is <strong>Internal CMS</strong> — submissions are stored in the database.
+        </p>
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label">Default Provider</label>
+            <select name="default_form_provider" class="form-input">
+              <option value="internal" {{ 'selected' if default_form_provider == 'internal' else '' }}>Internal CMS (default)</option>
+              <option value="basin"    {{ 'selected' if default_form_provider == 'basin' else '' }}>Basin</option>
+            </select>
+            <span class="field-hint">Applied to new tenants. Existing tenants use their own setting.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ── OTP & RECOVERY ───────────────────────────────────────────────────── #}
+    <div class="form-card">
+      <div class="form-card-header">
+        <iconify-icon icon="lucide:shield-check" width="18"></iconify-icon>
+        <h3>OTP &amp; Password Recovery</h3>
+      </div>
+      <div class="form-card-body">
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label" for="otp_expiry_minutes">OTP Expiration (minutes)</label>
+            <input type="number" id="otp_expiry_minutes" name="otp_expiry_minutes" class="form-input"
+              value="{{ cfg.otp_expiry_minutes or 10 }}" min="1" max="60">
+            <span class="field-hint">1–60 minutes. Default: 10.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password Recovery</label>
+            <label class="toggle-row">
+              <input type="checkbox" name="recovery_enabled" id="recovery_enabled"
+                {{ 'checked' if cfg.recovery_enabled else '' }}>
+              <span class="toggle-track"></span>
+              <span class="toggle-label">Enable OTP-based password recovery</span>
+            </label>
+            <span class="field-hint">Disabling blocks all OTP resets across all portals.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ── PER-PORTAL API CONFIGURATION (v5.6) ───────────────────────────────── #}
+    <div class="form-card">
+      <div class="form-card-header">
+        <iconify-icon icon="lucide:layers" width="18"></iconify-icon>
+        <h3>Per-Portal MailerSend Configuration</h3>
+      </div>
+      <div class="form-card-body">
+        <p class="field-hint" style="margin-bottom:1.25rem;">
+          Optionally configure separate MailerSend API keys, sender emails, and display names for
+          each portal. If left blank, each portal falls back to the shared key and sender above.<br>
+          Env-var fallbacks: <code>ADMIN_MAILERSEND_API_KEY</code>, <code>SUPERADMIN_MAILERSEND_API_KEY</code>,
+          <code>ADMIN_MAIL_FROM</code>, <code>SUPERADMIN_MAIL_FROM</code>, <code>ADMIN_MAIL_NAME</code>, <code>SUPERADMIN_MAIL_NAME</code>.
+        </p>
+
+        {# Admin Portal #}
+        <div style="border:1px solid var(--border-color,#e5e7eb);border-radius:10px;padding:1.25rem;margin-bottom:1.25rem;">
+          <h4 style="margin:0 0 1rem;font-size:.875rem;font-weight:600;display:flex;align-items:center;gap:.5rem;">
+            <iconify-icon icon="lucide:shield" width="16"></iconify-icon>
+            Admin Portal
+            <span class="badge {{ 'badge-success' if cfg.has_admin_mailersend else 'badge-muted' }}" style="margin-left:.5rem;font-size:.7rem;">
+              {{ '✓ Custom key configured' if cfg.has_admin_mailersend else '○ Using shared key' }}
+            </span>
+          </h4>
+          <div class="form-row">
+            <div class="form-col">
+              <label class="form-label" for="admin_mailersend_api_key">API Key</label>
+              <input type="password" id="admin_mailersend_api_key" name="admin_mailersend_api_key"
+                class="form-input" autocomplete="off"
+                placeholder="{{ '●●●●●●●● (set — enter new value to replace)' if cfg.has_admin_mailersend else 'Leave blank to use shared key' }}">
+            </div>
+            <div class="form-col">
+              <label class="form-label" for="admin_sender_email">Sender Email</label>
+              <input type="email" id="admin_sender_email" name="admin_sender_email"
+                class="form-input" value="{{ cfg.admin_sender_email or '' }}"
+                placeholder="Leave blank to use shared sender">
+            </div>
+            <div class="form-col">
+              <label class="form-label" for="admin_sender_name">Sender Name</label>
+              <input type="text" id="admin_sender_name" name="admin_sender_name"
+                class="form-input" value="{{ cfg.admin_sender_name or '' }}"
+                placeholder="Leave blank to use shared name">
+            </div>
+          </div>
+        </div>
+
+        {# Superadmin Portal #}
+        <div style="border:1px solid var(--border-color,#e5e7eb);border-radius:10px;padding:1.25rem;">
+          <h4 style="margin:0 0 1rem;font-size:.875rem;font-weight:600;display:flex;align-items:center;gap:.5rem;">
+            <iconify-icon icon="lucide:shield-check" width="16"></iconify-icon>
+            Superadmin Portal
+            <span class="badge {{ 'badge-success' if cfg.has_superadmin_mailersend else 'badge-muted' }}" style="margin-left:.5rem;font-size:.7rem;">
+              {{ '✓ Custom key configured' if cfg.has_superadmin_mailersend else '○ Using shared key' }}
+            </span>
+          </h4>
+          <div class="form-row">
+            <div class="form-col">
+              <label class="form-label" for="superadmin_mailersend_api_key">API Key</label>
+              <input type="password" id="superadmin_mailersend_api_key" name="superadmin_mailersend_api_key"
+                class="form-input" autocomplete="off"
+                placeholder="{{ '●●●●●●●● (set — enter new value to replace)' if cfg.has_superadmin_mailersend else 'Leave blank to use shared key' }}">
+            </div>
+            <div class="form-col">
+              <label class="form-label" for="superadmin_sender_email">Sender Email</label>
+              <input type="email" id="superadmin_sender_email" name="superadmin_sender_email"
+                class="form-input" value="{{ cfg.superadmin_sender_email or '' }}"
+                placeholder="Leave blank to use shared sender">
+            </div>
+            <div class="form-col">
+              <label class="form-label" for="superadmin_sender_name">Sender Name</label>
+              <input type="text" id="superadmin_sender_name" name="superadmin_sender_name"
+                class="form-input" value="{{ cfg.superadmin_sender_name or '' }}"
+                placeholder="Leave blank to use shared name">
+            </div>
+          </div>
+        </div>
+
+        <p class="field-hint" style="margin-top:.75rem;">
+          <iconify-icon icon="lucide:info" width="13" style="vertical-align:middle;"></iconify-icon>
+          API keys are stored Fernet-encrypted in the database. They are never exposed in any response.
+        </p>
+      </div>
+    </div>
+
+    {# ── Save ──────────────────────────────────────────────────────────────── #}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">
+        <iconify-icon icon="lucide:save" width="16"></iconify-icon>
+        Save Settings
+      </button>
+    </div>
+
+  </div>
+</form>
+
+<script>
+/* ── Validate MailerSend key ─────────────────────────────────────────── */
+document.getElementById('validateMailerSendBtn').addEventListener('click', async function() {
+  const key = document.getElementById('mailersend_api_key').value.trim();
+  if (!key) { alert('Enter a MailerSend API key first.'); return; }
+
+  const btn = this;
+  btn.disabled = true;
+  btn.textContent = 'Validating…';
+
+  const result = document.getElementById('mailersend-validate-result');
+  result.style.display = 'none';
+
+  try {
+    const fd = new FormData();
+    fd.append('csrf_token',         '{{ csrf_token() }}');
+    fd.append('action',             'validate_mailersend_key');
+    fd.append('mailersend_api_key', key);
+
+    const resp = await fetch('{{ url_for("superadmin.email_settings") }}', {
+      method: 'POST', body: fd,
+    });
+    const data = await resp.json();
+
+    result.style.display = 'block';
+    result.className = data.ok ? 'alert alert-success' : 'alert alert-danger';
+    result.textContent = data.message;
+  } catch (e) {
+    result.style.display = 'block';
+    result.className = 'alert alert-danger';
+    result.textContent = 'Validation request failed: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<iconify-icon icon="lucide:check-circle" width="14"></iconify-icon> Validate';
+  }
+});
+
+/* ── Send test email ─────────────────────────────────────────────────── */
+const testBtn = document.getElementById('testEmailBtn');
+if (testBtn) {
+  testBtn.addEventListener('click', async function() {
+    const addr = document.getElementById('testEmailAddr').value.trim();
+    if (!addr) { alert('Enter a recipient email address.'); return; }
+
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+
+    const result = document.getElementById('mailersend-validate-result');
+    result.style.display = 'none';
+
+    try {
+      const fd = new FormData();
+      fd.append('csrf_token',  '{{ csrf_token() }}');
+      fd.append('action',      'send_test_email');
+      fd.append('test_email',  addr);
+
+      const resp = await fetch('{{ url_for("superadmin.email_settings") }}', {
+        method: 'POST', body: fd,
+      });
+      const data = await resp.json();
+
+      result.style.display = 'block';
+      result.className = data.ok ? 'alert alert-success' : 'alert alert-danger';
+      result.textContent = data.message;
+    } catch (e) {
+      result.style.display = 'block';
+      result.className = 'alert alert-danger';
+      result.textContent = 'Request failed: ' + e.message;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<iconify-icon icon="lucide:send" width="14"></iconify-icon> Send Test';
+    }
+  });
+}
+</script>
+{% endblock %}

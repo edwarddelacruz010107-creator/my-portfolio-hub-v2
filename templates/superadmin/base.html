@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}Superadmin{% endblock %} — CMS Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/superadmin.css') }}"/>
+  <link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon">
+  {% block extra_css %}{% endblock %}
+</head>
+<body class="admin-body">
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- ── SIDEBAR ─────────────────────────────────────────────── -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">
+      <span class="logo-icon sa-logo-icon">⬡</span>
+      <span class="logo-text">SuperAdmin</span>
+    </div>
+    <button type="button" class="sidebar-close" id="sidebarClose" aria-label="Close sidebar">✕</button>
+  </div>
+
+  <!-- Superadmin identity badge -->
+  <div class="sa-identity-badge">
+    <div class="sa-avatar">{{ current_user.username[0].upper() }}</div>
+    <div class="sa-identity-info">
+      <div class="sa-identity-name">{{ current_user.username }}</div>
+      <div class="sa-identity-role">
+        <iconify-icon icon="lucide:shield-check" width="11"></iconify-icon>
+        Super Administrator
+      </div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+
+    <!-- Platform Overview -->
+    <div class="nav-section">
+      <span class="nav-label">Platform</span>
+      <a href="{{ url_for('superadmin.dashboard') }}"
+         class="nav-item {% if request.endpoint == 'superadmin.dashboard' %}active{% endif %}">
+        <span class="nav-icon"><iconify-icon icon="lucide:layout-dashboard" width="18"></iconify-icon></span>
+        Overview
+      </a>
+    </div>
+
+    <!-- Tenant Management -->
+    <div class="nav-section">
+      <span class="nav-label">Tenants
+        {% set tc = tenant_count|default(0) %}
+        {% if tc %}<span class="nav-section-badge">{{ tc }}</span>{% endif %}
+      </span>
+      <a href="{{ url_for('superadmin.tenants') }}"
+         class="nav-item {% if request.endpoint in ['superadmin.tenants'] %}active{% endif %}">
+        <span class="nav-icon"><iconify-icon icon="lucide:users" width="18"></iconify-icon></span>
+        All Tenants
+        {% if tenant_count is defined and tenant_count %}
+          <span class="nav-badge">{{ tenant_count }}</span>
+        {% endif %}
+      </a>
+      <a href="{{ url_for('superadmin.messages_inbox') }}"
+         class="nav-item {% if request.endpoint in ('superadmin.messages_inbox','superadmin.message_thread') %}active{% endif %}">
+        <span class="nav-icon"><iconify-icon icon="lucide:inbox" width="18"></iconify-icon></span>
+        Messages
+      </a>
+      <a href="{{ url_for('superadmin.send_message') }}"
+         class="nav-item {% if request.endpoint == 'superadmin.send_message' %}active{% endif %}">
+        <span class="nav-icon"><iconify-icon icon="lucide:send" width="18"></iconify-icon></span>
+        Send Message
+      </a>
+      <a href="{{ url_for('superadmin.tenant_new') }}"
+         class="nav-item {% if request.endpoint == 'superadmin.tenant_new' %}active{% endif %}">
+        <span class="nav-icon"><iconify-icon icon="lucide:user-plus" width="18"></iconify-icon></span>
+        Add New Tenant
+      </a>
+    </div>
+
+    <!-- System -->
+    <div class="nav-section">
+      <span class="nav-label">Billing</span>
+      <a href="{{ url_for('superadmin.subscription_monitor') }}"
+         class="nav-item {% if request.endpoint == 'superadmin.subscription_monitor' %}active{% endif %}">
+         <span class="nav-icon"><iconify-icon icon="lucide:bar-chart-3" width="18"></iconify-icon></span>
+        Sub Monitor
+      </a>
+      <a href="{{ url_for('superadmin.billing_overview') }}"
+         class="nav-item {% if request.endpoint == 'superadmin.billing_overview' %}active{% endif %}">
+        <span class="nav-icon"><iconify-icon icon="lucide:credit-card" width="18"></iconify-icon></span>
+        Subscriptions
+      </a>
+      <a href="{{ url_for('superadmin.subscription_settings') }}"
+         class="nav-item {% if request.endpoint == 'superadmin.subscription_settings' %}active{% endif %}">
+        <span class="nav-icon"><iconify-icon icon="lucide:layers" width="18"></iconify-icon></span>
+        Plan Settings
+      </a>
+      <a href="{{ url_for('superadmin.billing_payment_methods') }}"
+         class="nav-item {% if request.endpoint in ['superadmin.billing_payment_methods', 'superadmin.billing_payment_method_new', 'superadmin.billing_payment_method_edit'] %}active{% endif %}">
+        <span class="nav-icon"><iconify-icon icon="lucide:wallet" width="18"></iconify-icon></span>
+        Payment Methods
+      </a>
+      <a href="{{ url_for('superadmin.billing_submissions') }}"
+         class="nav-item {% if request.endpoint == 'superadmin.billing_submissions' %}active{% endif %}">
+        <span class="nav-icon"><iconify-icon icon="lucide:inbox" width="18"></iconify-icon></span>
+        Submissions
+      </a>
+    </div>
+    <div class="nav-section">
+      <span class="nav-label">System</span>
+      <a href="{{ url_for('superadmin.logs') }}"
+         class="nav-item {% if request.endpoint == 'superadmin.logs' %}active{% endif %}">
+        <span class="nav-icon"><iconify-icon icon="lucide:scroll-text" width="18"></iconify-icon></span>
+        Activity Logs
+      </a>
+      <a href="{{ url_for('superadmin.media') }}"
+         class="nav-item {% if request.endpoint in ['superadmin.media','superadmin.media_delete','superadmin.media_compress','superadmin.media_delete_orphans'] %}active{% endif %}">
+        <span class="nav-icon"><iconify-icon icon="lucide:image" width="18"></iconify-icon></span>
+        Media &amp; Uploads
+      </a>
+      <a href="{{ url_for('superadmin.settings') }}"
+         class="nav-item {% if request.endpoint == 'superadmin.settings' %}active{% endif %}">
+        <span class="nav-icon"><iconify-icon icon="lucide:settings" width="18"></iconify-icon></span>
+        Settings
+      </a>
+      <a href="{{ url_for('superadmin.email_settings') }}"
+         class="nav-item {% if request.endpoint == 'superadmin.email_settings' %}active{% endif %}">
+        <span class="nav-icon"><iconify-icon icon="lucide:mail" width="18"></iconify-icon></span>
+        Email &amp; Forms
+      </a>
+    </div>
+
+  </nav>
+
+  <div class="sidebar-footer">
+    <a href="{{ url_for('root') }}" target="_blank" class="preview-btn">
+      <span><iconify-icon icon="lucide:external-link" width="16"></iconify-icon></span>
+      View Site
+    </a>
+    <a href="{{ url_for('auth.logout') }}" class="logout-btn">
+      <span><iconify-icon icon="lucide:log-out" width="16"></iconify-icon></span>
+      Sign Out
+    </a>
+  </div>
+</aside>
+
+<!-- ── MAIN CONTENT ────────────────────────────────────────── -->
+<div class="admin-main" id="adminMain">
+  <header class="admin-topbar">
+    <button type="button" class="menu-toggle" id="menuToggle" aria-label="Open sidebar">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
+    <div class="topbar-actions">
+      <a href="{{ url_for('superadmin.tenant_new') }}" class="btn btn-primary btn-sm topbar-cta">
+        <iconify-icon icon="lucide:plus" width="15"></iconify-icon>
+        New Tenant
+      </a>
+      <button type="button" class="theme-switch" id="themeSwitch" aria-label="Toggle admin theme">
+        <iconify-icon icon="lucide:moon" width="18" class="theme-icon moon-icon"></iconify-icon>
+        <iconify-icon icon="lucide:sun" width="18" class="theme-icon sun-icon" style="display:none"></iconify-icon>
+      </button>
+      <span class="sa-topbar-chip">
+        <iconify-icon icon="lucide:shield" width="13"></iconify-icon>
+        SuperAdmin
+      </span>
+    </div>
+  </header>
+
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-container" id="flashContainer">
+        {% for cat, msg in messages %}
+          <div class="flash flash-{{ cat }} toast-flash" role="alert">
+            <span class="flash-icon">
+              {% if cat == 'success' %}<iconify-icon icon="lucide:check-circle" width="18"></iconify-icon>
+              {% elif cat == 'danger' %}<iconify-icon icon="lucide:x-circle" width="18"></iconify-icon>
+              {% elif cat == 'warning' %}<iconify-icon icon="lucide:alert-triangle" width="18"></iconify-icon>
+              {% else %}<iconify-icon icon="lucide:info" width="18"></iconify-icon>{% endif %}
+            </span>
+            <span class="flash-text">{{ msg }}</span>
+            <button type="button" class="flash-close" onclick="this.closest('.toast-flash').remove()">✕</button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="admin-content">
+    {% block content %}{% endblock %}
+  </div>
+</div>
+
+<!-- ── DELETE CONFIRMATION MODAL ──────────────────────────── -->
+<div class="modal-overlay" id="deleteModal" style="display:none;">
+  <div class="modal-card">
+    <div class="modal-icon modal-icon-danger">
+      <iconify-icon icon="lucide:trash-2" width="28"></iconify-icon>
+    </div>
+    <h3 class="modal-title">Delete Tenant?</h3>
+    <p class="modal-body" id="deleteModalBody">
+      This will permanently remove this tenant profile and all associated data. This action cannot be undone.
+    </p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeDeleteModal()">Cancel</button>
+      <form id="deleteModalForm" method="post" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button type="submit" class="btn btn-danger">
+          <iconify-icon icon="lucide:trash-2" width="15"></iconify-icon>
+          Yes, Delete
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+<script>
+// ── Sidebar toggle (v3.4 hardened) ────────────────────────
+(function() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  const menuToggle = document.getElementById('menuToggle');
+  const sidebarClose = document.getElementById('sidebarClose');
+
+  if (!sidebar || !overlay) return; // Guard
+
+  function openSidebar() {
+    sidebar.classList.add('open');
+    overlay.classList.add('active');
+    overlay.classList.add('show');
+    overlay.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+    if (menuToggle) menuToggle.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
+    overlay.classList.remove('show');
+    overlay.style.display = '';
+    document.body.style.overflow = '';
+    if (menuToggle) menuToggle.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleSidebar() {
+    sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+  }
+
+  menuToggle?.addEventListener('click', toggleSidebar);
+  sidebarClose?.addEventListener('click', closeSidebar);
+  overlay?.addEventListener('click', closeSidebar);
+
+  // Close on ESC
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && sidebar.classList.contains('open')) closeSidebar();
+  });
+
+  // On resize: auto-close sidebar if viewport grows above breakpoint
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 900) closeSidebar();
+  });
+})();
+
+// ── Auto-dismiss flash toasts ─────────────────────────────
+document.querySelectorAll('.toast-flash').forEach(el => {
+  setTimeout(() => el.style.opacity = '0', 4200);
+  setTimeout(() => el.remove(), 4700);
+});
+
+// ── Delete confirmation modal ─────────────────────────────
+function confirmDelete(formAction, tenantName) {
+  document.getElementById('deleteModalBody').textContent =
+    `This will permanently remove "${tenantName}" and all its data. This action cannot be undone.`;
+  document.getElementById('deleteModalForm').action = formAction;
+  document.getElementById('deleteModal').style.display = 'flex';
+}
+function closeDeleteModal() {
+  document.getElementById('deleteModal').style.display = 'none';
+}
+document.getElementById('deleteModal')?.addEventListener('click', function(e) {
+  if (e.target === this) closeDeleteModal();
+});
+
+// ── Theme toggle ─────────────────────────────────────────
+const themeToggle = document.getElementById('themeSwitch');
+const THEME_KEY = 'superadmin-theme';
+
+function updateThemeIcons(theme) {
+  document.querySelectorAll('.moon-icon').forEach(el => {
+    el.style.display = theme === 'dark' ? 'inline-block' : 'none';
+  });
+  document.querySelectorAll('.sun-icon').forEach(el => {
+    el.style.display = theme === 'light' ? 'inline-block' : 'none';
+  });
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY) || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  updateThemeIcons(saved);
+}
+
+themeToggle?.addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem(THEME_KEY, next);
+  updateThemeIcons(next);
+});
+
+initTheme();
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

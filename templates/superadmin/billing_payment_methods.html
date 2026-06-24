@@ -1,0 +1,125 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Payment Methods{% endblock %}
+{% block page_title %}Payment Methods{% endblock %}
+
+{% block content %}
+<div class="page-header page-header-premium">
+  <div class="page-header-left">
+    <h1 class="page-heading">Payment Methods</h1>
+    <p class="page-subtext">Manage GCash, Maya, bank transfer, PayMongo display, and other manual payment options for tenants.</p>
+  </div>
+  <div class="page-header-right" style="display:flex;gap:0.5rem;flex-wrap:wrap">
+    <a href="{{ url_for('superadmin.billing_submissions') }}" class="btn btn-outline">
+      <iconify-icon icon="lucide:inbox" width="16"></iconify-icon>
+      Review Submissions
+    </a>
+    <a href="{{ url_for('superadmin.billing_payment_method_new') }}" class="btn btn-primary">
+      <iconify-icon icon="lucide:plus" width="16"></iconify-icon>
+      Add Method
+    </a>
+  </div>
+</div>
+
+<div class="instruction-card" style="margin-bottom:1.5rem;border:2px solid {% if paymongo_enabled %}rgba(16,185,129,0.35){% else %}rgba(255,255,255,0.1){% endif %}">
+  <div class="instruction-card-top">
+    <div>
+      <div class="instruction-method">Online Checkout</div>
+      <h2 class="instruction-title">⚡ PayMongo</h2>
+    </div>
+    <span class="status-pill {% if paymongo_enabled %}status-active{% else %}status-inactive{% endif %}">
+      <span class="status-dot"></span>
+      {{ 'Active' if paymongo_enabled else 'Inactive' }}
+    </span>
+  </div>
+  <p class="instruction-copy">
+    {% if paymongo_configured %}
+      When active, tenants see <strong>Pay with PayMongo</strong> on the billing plans page for instant automated checkout.
+    {% else %}
+      PayMongo API keys are not configured in <code>.env</code>. Set <code>PAYMONGO_SECRET_KEY</code> to enable checkout.
+    {% endif %}
+  </p>
+  <div class="instruction-card-footer" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.75rem">
+    <form method="post" action="{{ url_for('superadmin.billing_paymongo_toggle') }}" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      {% if paymongo_configured %}
+      <button type="submit" class="btn {% if paymongo_enabled %}btn-outline{% else %}btn-primary{% endif %} btn-sm">
+        {{ 'Deactivate PayMongo' if paymongo_enabled else 'Activate PayMongo' }}
+      </button>
+      {% else %}
+      <button type="button" class="btn btn-ghost btn-sm" disabled title="Configure PayMongo keys in .env first">Activate PayMongo</button>
+      {% endif %}
+    </form>
+    <span class="instruction-note">Env default: {{ 'enabled' if config.PAYMONGO_ENABLED else 'disabled' }}</span>
+  </div>
+</div>
+
+{% if methods %}
+<div class="instruction-grid">
+  {% for method in methods %}
+  <article class="instruction-card">
+    <div class="instruction-card-top">
+      <div>
+        <div class="instruction-method">{{ method.type_label }}</div>
+        <h2 class="instruction-title">{{ method.name }}{% if method.is_default %} ★{% endif %}</h2>
+      </div>
+      <span class="status-pill {% if method.is_active %}status-active{% else %}status-inactive{% endif %}">
+        <span class="status-dot"></span>
+        {{ 'Active' if method.is_active else 'Inactive' }}
+      </span>
+    </div>
+
+    {% if method.instructions %}
+    <p class="instruction-copy">{{ method.instructions[:120] }}{% if method.instructions|length > 120 %}…{% endif %}</p>
+    {% endif %}
+
+    <div class="instruction-details">
+      {% if method.account_name %}
+      <div class="instruction-row"><span class="instruction-label">Account</span><span class="instruction-value">{{ method.account_name }}</span></div>
+      {% endif %}
+      {% if method.account_number %}
+      <div class="instruction-row"><span class="instruction-label">Number</span><span class="instruction-value">{{ method.account_number }}</span></div>
+      {% endif %}
+      {% if method.mobile_number %}
+      <div class="instruction-row"><span class="instruction-label">Mobile</span><span class="instruction-value">{{ method.mobile_number }}</span></div>
+      {% endif %}
+      <div class="instruction-row">
+        <span class="instruction-label">Scope</span>
+        <span class="instruction-value">{{ method.tenant.slug if method.tenant else 'Global' }}</span>
+      </div>
+      <div class="instruction-row">
+        <span class="instruction-label">Order</span>
+        <span class="instruction-value">{{ method.display_order }}</span>
+      </div>
+    </div>
+
+    {% if method.qr_image %}
+    <img src="{{ url_for('static', filename='uploads/billing/' ~ method.qr_image) }}"
+         alt="QR for {{ method.name }}" style="max-width:120px;border-radius:8px;margin-top:0.5rem" />
+    {% endif %}
+
+    <div class="instruction-card-footer" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:1rem">
+      <a href="{{ url_for('superadmin.billing_payment_method_edit', method_id=method.id) }}" class="btn btn-outline btn-sm">Edit</a>
+      <form method="post" action="{{ url_for('superadmin.billing_payment_method_toggle', method_id=method.id) }}" style="display:inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button type="submit" class="btn btn-ghost btn-sm">{{ 'Deactivate' if method.is_active else 'Activate' }}</button>
+      </form>
+      {% if not method.is_default %}
+      <form method="post" action="{{ url_for('superadmin.billing_payment_method_set_default', method_id=method.id) }}" style="display:inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button type="submit" class="btn btn-ghost btn-sm">Set Default</button>
+      </form>
+      {% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state-card">
+  <div class="empty-state-content">
+    <h3>No payment methods configured</h3>
+    <p class="page-subtext">Add GCash, Maya, bank transfer, or other methods so tenants can pay manually when PayMongo is unavailable.</p>
+    <a href="{{ url_for('superadmin.billing_payment_method_new') }}" class="btn btn-primary">Add first method</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

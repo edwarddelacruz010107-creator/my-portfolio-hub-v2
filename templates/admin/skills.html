@@ -1,0 +1,69 @@
+{% extends "admin/base.html" %}
+{% block title %}Skills{% endblock %}
+{% block page_title %}Skills{% endblock %}
+
+{% block content %}
+<div class="list-page">
+  <div class="page-hd">
+    <div class="page-hd-left">
+      <h1>Skills <span style="font-size:0.6em;color:var(--text-muted);font-weight:600;vertical-align:middle;">({{ skills|length }})</span></h1>
+      <p>Showcase your technical expertise by category.</p>
+    </div>
+    <div class="page-hd-right">
+      <a href="{{ url_for('admin.new_skill') }}" class="btn btn-primary">
+        <iconify-icon icon="lucide:plus" width="15"></iconify-icon> Add Skill
+      </a>
+    </div>
+  </div>
+
+
+  {% if by_category %}
+    {% for category, cat_skills in by_category.items() %}
+    <div class="skill-category-section">
+      <div class="category-header">
+        <h3 class="category-heading">{{ category }}</h3>
+        <span class="category-count">{{ cat_skills|length }} skill{{ 's' if cat_skills|length != 1 else '' }}</span>
+      </div>
+      <div class="skill-list" data-category="{{ category }}">
+        {% for skill in cat_skills %}
+        <div class="skill-row" data-id="{{ skill.id }}">
+          <div class="skill-drag">⠿</div>
+          <div class="skill-icon-col">
+            <span class="skill-icon">{{ skill.icon or '◇' }}</span>
+          </div>
+          <div class="skill-info">
+            <div class="skill-title-row">
+              <strong>{{ skill.name }}</strong>
+              <span class="skill-cat-badge">{{ skill.category }}</span>
+            </div>
+            <span class="skill-subtitle">{{ skill.proficiency }}% proficiency</span>
+          </div>
+          <div class="skill-bar-col">
+            <div class="skill-bar">
+              <div class="skill-bar-fill" style="width: {{ skill.proficiency }}%"></div>
+            </div>
+            <span class="skill-pct">{{ skill.proficiency }}%</span>
+          </div>
+          <div class="skill-actions">
+            <span class="visibility-badge {% if skill.is_visible %}visible{% else %}hidden{% endif %}">
+              {% if skill.is_visible %}Visible{% else %}Hidden{% endif %}
+            </span>
+            <a href="{{ url_for('admin.edit_skill', id=skill.id) }}" class="icon-btn">✎</a>
+            <button class="icon-btn icon-btn--danger"
+                    onclick="confirmDelete('{{ url_for('admin.delete_skill', id=skill.id) }}',
+                    'Delete skill &quot;{{ skill.name }}&quot;?')">✕</button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-page">
+      <div class="empty-icon">◇</div>
+      <h2>No skills yet</h2>
+      <a href="{{ url_for('admin.new_skill') }}" class="btn btn-primary">Add your first skill</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

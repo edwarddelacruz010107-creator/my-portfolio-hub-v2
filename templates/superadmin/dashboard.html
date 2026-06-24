@@ -1,0 +1,394 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Platform Overview{% endblock %}
+{% block page_title %}Platform Overview{% endblock %}
+
+{% block content %}
+<div class="dashboard-grid">
+
+  {# ── Hero ───────────────────────────────────────────── #}
+  <div class="dashboard-hero">
+    <div class="hero-card">
+      <div class="hero-copy">
+        <span class="section-tag">SuperAdmin — Control Center</span>
+        <h1>Platform Overview</h1>
+        <p>Monitor tenant activity, revenue, and platform health in real time.</p>
+      </div>
+      <div class="hero-actions">
+        <a href="{{ url_for('superadmin.tenant_new') }}" class="btn btn-primary">
+          <iconify-icon icon="lucide:user-plus" width="15"></iconify-icon>
+          New Tenant
+        </a>
+        <a href="{{ url_for('superadmin.settings') }}" class="btn btn-ghost">Settings</a>
+        <a href="{{ url_for('root') }}" class="btn btn-secondary" target="_blank">View Public Site</a>
+      </div>
+    </div>
+  </div>
+
+  {# ── Filter Panel ────────────────────────────────────── #}
+  <div class="dashboard-filter-panel">
+    <form method="get" class="dashboard-filter-form">
+      <div class="filter-row">
+        <input type="search" name="q" value="{{ q }}" placeholder="Search tenants, slug, or email" class="form-input" />
+        <select name="status" class="form-select">
+          <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Statuses</option>
+          <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+        </select>
+        <select name="plan" class="form-select">
+          <option value="all" {% if plan_filter == 'all' %}selected{% endif %}>All Plans</option>
+          {% for plan_name in plan_breakdown.keys()|sort %}
+            <option value="{{ plan_name }}" {% if plan_filter == plan_name %}selected{% endif %}>{{ plan_name }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary">
+          <iconify-icon icon="lucide:filter" width="14"></iconify-icon>
+          Apply
+        </button>
+      </div>
+      <div class="filter-actions">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="exportDashboard('csv')">
+          <iconify-icon icon="lucide:download" width="13"></iconify-icon>
+          Export CSV
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="exportDashboard('excel')">
+          <iconify-icon icon="lucide:table" width="13"></iconify-icon>
+          Export Excel
+        </button>
+      </div>
+    </form>
+  </div>
+
+  {# ── Stats Row ────────────────────────────────────────── #}
+  <div class="stats-row" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
+
+    <div class="stat-card-v2">
+      <div class="stat-header">
+        <div class="stat-icon-wrap info">
+          <iconify-icon icon="lucide:users" width="18"></iconify-icon>
+        </div>
+      </div>
+      <div class="stat-big">{{ stats.total_tenants }}</div>
+      <div class="stat-name">Total Tenants</div>
+      <div class="stat-footer"><span class="stat-sub">Platform profiles</span></div>
+    </div>
+
+    <div class="stat-card-v2">
+      <div class="stat-header">
+        <div class="stat-icon-wrap success">
+          <iconify-icon icon="lucide:user-check" width="18"></iconify-icon>
+        </div>
+      </div>
+      <div class="stat-big">{{ stats.active_tenants }}</div>
+      <div class="stat-name">Active Tenants</div>
+      <div class="stat-footer">
+        {% if stats.total_tenants > 0 %}
+        <span class="trend trend-up">
+          {{ ((stats.active_tenants / stats.total_tenants) * 100) | round | int }}% active
+        </span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="stat-card-v2" style="border-color:rgba(16,185,129,0.2);background:linear-gradient(135deg,var(--bg-2),rgba(16,185,129,0.04))">
+      <div class="stat-header">
+        <div class="stat-icon-wrap success">
+          <iconify-icon icon="lucide:dollar-sign" width="18"></iconify-icon>
+        </div>
+      </div>
+      <div class="stat-big">{{ stats.currency_symbol }}{{ '%.0f'|format(stats.revenue) }}</div>
+      <div class="stat-name">Revenue</div>
+      <div class="stat-footer">
+        <span class="stat-sub">Active subscriptions</span>
+      </div>
+    </div>
+
+    <div class="stat-card-v2">
+      <div class="stat-header">
+        <div class="stat-icon-wrap warn">
+          <iconify-icon icon="lucide:clock" width="18"></iconify-icon>
+        </div>
+      </div>
+      <div class="stat-big">{{ stats.pending_payments }}</div>
+      <div class="stat-name">Pending Payments</div>
+      <div class="stat-footer"><span class="stat-sub">Awaiting review</span></div>
+    </div>
+
+    <div class="stat-card-v2">
+      <div class="stat-header">
+        <div class="stat-icon-wrap warn">
+          <iconify-icon icon="lucide:alert-triangle" width="18"></iconify-icon>
+        </div>
+      </div>
+      <div class="stat-big">{{ stats.expiring_accounts }}</div>
+      <div class="stat-name">Expiring Soon</div>
+      <div class="stat-footer"><span class="stat-sub">Due in 30 days</span></div>
+    </div>
+
+    <div class="stat-card-v2">
+      <div class="stat-header">
+        <div class="stat-icon-wrap danger">
+          <iconify-icon icon="lucide:x-circle" width="18"></iconify-icon>
+        </div>
+      </div>
+      <div class="stat-big">{{ stats.expired_accounts }}</div>
+      <div class="stat-name">Expired</div>
+      <div class="stat-footer"><span class="stat-sub">Past-due subscriptions</span></div>
+    </div>
+
+  </div>
+
+  {# ── Charts Row ───────────────────────────────────────── #}
+  <div class="dashboard-cols">
+
+    <div class="dash-panel">
+      <div class="panel-header">
+        <div>
+          <span class="section-tag">Analytics</span>
+          <h2>Plan Breakdown</h2>
+        </div>
+      </div>
+      {% if plan_breakdown %}
+        {% set total_plans = plan_breakdown.values()|sum %}
+        <div style="display:flex;flex-direction:column;gap:0.25rem">
+          {% for plan_name, count in plan_breakdown.items() %}
+          <div class="chart-bar-row">
+            <span class="chart-bar-label">{{ plan_name }}</span>
+            <div class="chart-bar-track">
+              <div class="chart-bar-fill" style="width:{{ (count / total_plans * 100) if total_plans else 0 }}%"></div>
+            </div>
+            <span class="chart-bar-val">{{ count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state-v2" style="padding:2rem">
+          <div class="empty-icon"><iconify-icon icon="lucide:pie-chart" width="24"></iconify-icon></div>
+          <p>No plan data yet</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="dash-panel">
+      <div class="panel-header">
+        <div>
+          <span class="section-tag">Analytics</span>
+          <h2>Subscription Status</h2>
+        </div>
+      </div>
+      {% if subscription_status %}
+        {% set total_status = subscription_status.values()|sum %}
+        <div style="display:flex;flex-direction:column;gap:0.25rem">
+          {% for status_name, count in subscription_status.items() %}
+          {% set pct = ((count / total_status * 100) if total_status else 0) | round | int %}
+          <div class="chart-bar-row">
+            <span class="chart-bar-label">{{ status_name | title }}</span>
+            <div class="chart-bar-track">
+              <div class="chart-bar-fill"
+                   style="width:{{ pct }}%;
+                   background:{% if status_name == 'active' %}linear-gradient(90deg,var(--success),#34d399)
+                   {% elif status_name == 'expired' %}linear-gradient(90deg,var(--danger),#f87171)
+                   {% elif status_name == 'pending' %}linear-gradient(90deg,var(--warn),#fbbf24)
+                   {% else %}linear-gradient(90deg,var(--accent),var(--accent-light)){% endif %}">
+              </div>
+            </div>
+            <span class="chart-bar-val">{{ count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state-v2" style="padding:2rem">
+          <div class="empty-icon"><iconify-icon icon="lucide:bar-chart-2" width="24"></iconify-icon></div>
+          <p>No subscription data yet</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Recent Tenants + Payments ─────────────────────────── #}
+  <div class="dashboard-cols">
+
+    <div class="dash-panel">
+      <div class="panel-header">
+        <div>
+          <span class="section-tag">Tenants</span>
+          <h2>Recent Tenants</h2>
+        </div>
+        <a href="{{ url_for('superadmin.tenants') }}" class="btn btn-sm btn-primary">
+          <iconify-icon icon="lucide:users" width="13"></iconify-icon>
+          Manage All
+        </a>
+      </div>
+      {% if recent_tenants %}
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Tenant</th>
+                <th>Email</th>
+                <th>Plan</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for tenant in recent_tenants %}
+              <tr>
+                <td>
+                  <div style="display:flex;align-items:center;gap:0.6rem">
+                    <div class="tenant-avatar" style="width:28px;height:28px;font-size:0.7rem">
+                      {{ (tenant.name or 'T')[0].upper() }}
+                    </div>
+                    <div>
+                      <div style="font-weight:500;font-size:0.85rem">{{ tenant.name or 'Untitled' }}</div>
+                      <div style="font-size:0.72rem;color:var(--text-dim)">{{ tenant.tenant_slug }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="muted">{{ tenant.email or '—' }}</td>
+                <td>
+                  <span class="badge-status badge-active" style="font-size:0.68rem">{{ tenant.plan or 'Basic' }}</span>
+                </td>
+                <td class="muted">{{ tenant.updated_at.strftime('%b %d') if tenant.updated_at else '—' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state-v2" style="padding:2rem">
+          <div class="empty-icon"><iconify-icon icon="lucide:users" width="24"></iconify-icon></div>
+          <p>No tenants match the current filter.</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="dash-panel">
+      <div class="panel-header">
+        <div>
+          <span class="section-tag">Payments</span>
+          <h2>Latest Submissions</h2>
+        </div>
+        <a href="{{ url_for('superadmin.billing_submissions') }}" class="btn btn-sm btn-ghost">View All</a>
+      </div>
+      {% if recent_payments %}
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Tenant</th>
+                <th>Method</th>
+                <th>Amount</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for payment in recent_payments %}
+              <tr>
+                <td style="font-weight:500;font-size:0.85rem">
+                  {{ payment.tenant.slug if payment.tenant else 'Unknown' }}
+                </td>
+                <td class="muted">{{ payment.payment_method or 'Manual' }}</td>
+                <td style="font-family:var(--font-display);font-weight:600">
+                  {{ stats.currency_symbol }}{{ '%.2f'|format(payment.amount_paid or 0) }}
+                </td>
+                <td>
+                  <span class="badge-status badge-{{ payment.status | lower if payment.status else 'pending' }}">
+                    {{ payment.status | title if payment.status else 'Pending' }}
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state-v2" style="padding:2rem">
+          <div class="empty-icon"><iconify-icon icon="lucide:credit-card" width="24"></iconify-icon></div>
+          <p>No recent payment submissions.</p>
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+
+
+  {# ── Heartbeat / Uptime ──────────────────────────────── #}
+  <div class="dash-panel heartbeat-panel">
+    <div class="panel-header">
+      <div>
+        <span class="section-tag">Monitoring</span>
+        <h2>Uptime &amp; Heartbeat</h2>
+      </div>
+      <a href="/health" target="_blank" class="btn btn-sm btn-ghost">
+        Full Report
+        <iconify-icon icon="lucide:external-link" width="12"></iconify-icon>
+      </a>
+    </div>
+
+    <div class="heartbeat-grid">
+      <div class="hb-card">
+        <div class="hb-label">Last Heartbeat</div>
+        {% if heartbeat_state.last_heartbeat_at %}
+          <div class="hb-value hb-ok">
+            <span class="hb-dot hb-dot--green"></span>
+            <span class="hb-time" title="{{ heartbeat_state.last_heartbeat_at }}">
+              {{ heartbeat_state.last_heartbeat_at[:19] | replace("T"," ") }} UTC
+            </span>
+          </div>
+        {% else %}
+          <div class="hb-value hb-warn">
+            <span class="hb-dot hb-dot--yellow"></span>
+            <span>No ping yet this session</span>
+          </div>
+        {% endif %}
+      </div>
+      <div class="hb-card">
+        <div class="hb-label">Database</div>
+        {% if heartbeat_state.db_ok is none %}
+          <div class="hb-value hb-neutral"><span class="hb-dot hb-dot--grey"></span> Not checked yet</div>
+        {% elif heartbeat_state.db_ok %}
+          <div class="hb-value hb-ok"><span class="hb-dot hb-dot--green"></span> Connected</div>
+        {% else %}
+          <div class="hb-value hb-error"><span class="hb-dot hb-dot--red"></span> Unreachable</div>
+        {% endif %}
+      </div>
+      <div class="hb-card">
+        <div class="hb-label">Self-Ping</div>
+        {% if heartbeat_state.last_selfping_at %}
+          <div class="hb-value {% if heartbeat_state.selfping_ok %}hb-ok{% else %}hb-error{% endif %}">
+            <span class="hb-dot {% if heartbeat_state.selfping_ok %}hb-dot--green{% else %}hb-dot--red{% endif %}"></span>
+            <span class="hb-time">{{ heartbeat_state.last_selfping_at[:19] | replace("T"," ") }} UTC</span>
+          </div>
+        {% else %}
+          <div class="hb-value hb-neutral"><span class="hb-dot hb-dot--grey"></span> Disabled / not run</div>
+        {% endif %}
+      </div>
+      <div class="hb-card hb-card--links">
+        <div class="hb-label">Endpoints</div>
+        <div class="hb-links">
+          <a href="/heartbeat" target="_blank" class="hb-link">/heartbeat</a>
+          <a href="/api/heartbeat" target="_blank" class="hb-link">/api/heartbeat</a>
+          <a href="/health" target="_blank" class="hb-link">/health</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}{# /block content #}
+
+{% block extra_js %}
+<script>
+function exportDashboard(format) {
+  const form = document.querySelector('.dashboard-filter-form');
+  if (!form) return;
+  const input = document.createElement('input');
+  input.type = 'hidden';
+  input.name = 'export';
+  input.value = format;
+  form.appendChild(input);
+  form.submit();
+  setTimeout(() => { if (input.parentNode) form.removeChild(input); }, 500);
+}
+</script>
+{% endblock %}{# /block extra_js #}

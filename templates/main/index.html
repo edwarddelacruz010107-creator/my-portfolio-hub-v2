@@ -258,7 +258,7 @@
                     <!-- Typing Subtitle -->
                     <div class="hero-subtitle reveal-up" style="--delay: 0.2s">
                         <span class="typing-prefix">I'm a </span>
-                        <span class="typing-text" id="typingText"></span>
+                        <span class="typing-text" id="typingText" data-words="{% if profile and profile.hero_tagline %}{{ profile.hero_tagline }}{% elif profile and profile.title %}{{ profile.title }}{% endif %}"></span>
                         <span class="typing-cursor">|</span>
                     </div>
 

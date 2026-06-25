@@ -120,8 +120,8 @@ ENTRYPOINT ["/app/entrypoint.sh"]
 #   - 60s graceful timeout
 CMD ["gunicorn", \
      "--bind=0.0.0.0:5000", \
-     "--workers=4", \
-     "--threads=4", \
+     "--workers=1", \
+     "--threads=2", \
      "--timeout=30", \
      "--graceful-timeout=60", \
      "--access-logfile=-", \

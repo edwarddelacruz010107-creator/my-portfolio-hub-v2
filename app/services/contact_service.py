@@ -259,8 +259,47 @@ def _dispatch(
     Returns ContactResult with delivery outcome.
     """
     # Determine active provider
-    if not form_settings or not form_settings.is_enabled:
-        provider = 'disabled'
+    # Self-healing: if form_settings is still disabled but the tenant has active
+    # email providers configured via Email Services, auto-upgrade to email_only.
+    # This covers tenants who configured SMTP/Resend/MailerSend in Email Services
+    # but never explicitly set the contact form provider in Settings.
+    if not form_settings or not form_settings.is_enabled or form_settings.provider in ('disabled', ''):
+        if tenant and tenant.id:
+            try:
+                from app.models.core import TenantEmailProvider
+                has_active = TenantEmailProvider.get_ordered_active(tenant.id)
+                if has_active:
+                    # Tenant has live providers — upgrade silently to email_only
+                    if form_settings:
+                        if not form_settings.receiver_email:
+                            from app.models.core import User
+                            au = (User.query
+                                  .filter_by(tenant_id=tenant.id, is_admin=True)
+                                  .order_by(User.id.asc())
+                                  .first())
+                            if au and au.email:
+                                form_settings.receiver_email = au.email
+                        form_settings.provider   = 'email_only'
+                        form_settings.is_enabled = True
+                        try:
+                            from app import db as _db
+                            _db.session.commit()
+                        except Exception:
+                            pass
+                        provider = 'email_only'
+                        logger.info(
+                            'contact[dispatch]: tenant=%s — auto-upgraded disabled form_settings '
+                            'to email_only (active providers exist)', tenant_slug
+                        )
+                    else:
+                        provider = 'email_only'
+                else:
+                    provider = 'disabled'
+            except Exception as _he:
+                logger.warning('contact[dispatch]: self-heal check failed (non-fatal): %s', _he)
+                provider = 'disabled' if (not form_settings or not form_settings.is_enabled) else (form_settings.provider or 'disabled')
+        else:
+            provider = 'disabled'
     else:
         provider = form_settings.provider or 'disabled'
 
@@ -434,15 +473,33 @@ def _dispatch_email_only(*, tenant_slug, tenant, form_settings, inquiry, name, e
     html_body = _build_html_body(name, email, subject, message)
     text_body = f'From: {name} <{email}>\nSubject: {subject or "(no subject)"}\n\n{message}'
 
-    from app.services.mailersend_service import send_email_with_retry
-    ok = send_email_with_retry(
-        to_email=recipient,
-        subject=f'[Portfolio] New message from {name}',
-        html_content=html_body,
-        text_content=text_body,
-        reply_to=email,
-        max_retries=3,
-    )
+    tenant_id = tenant.id if tenant else None
+
+    if tenant_id:
+        # Use the tenant's own Email Services configuration (SMTP/Resend/
+        # MailerSend, tried in the tenant's configured priority order with
+        # automatic failover) — NOT the global MailerSend instance.
+        from app.services.tenant_email_service import send_tenant_email
+        ok, err = send_tenant_email(
+            tenant_id=tenant_id,
+            to=recipient,
+            subject=f'[Portfolio] New message from {name}',
+            html=html_body,
+            text=text_body,
+        )
+    else:
+        # No tenant resolved (shouldn't normally happen for a contact form
+        # submission) — fall back to the global MailerSend instance.
+        from app.services.mailersend_service import send_email_with_retry
+        ok = send_email_with_retry(
+            to_email=recipient,
+            subject=f'[Portfolio] New message from {name}',
+            html_content=html_body,
+            text_content=text_body,
+            reply_to=email,
+            max_retries=3,
+        )
+        err = '' if ok else 'MailerSend delivery failed'
 
     if ok:
         logger.info(
@@ -456,12 +513,12 @@ def _dispatch_email_only(*, tenant_slug, tenant, form_settings, inquiry, name, e
         )
 
     logger.warning(
-        'contact[email_only]: tenant=%s inquiry_id=%s FAILED → inbox fallback',
-        tenant_slug, inquiry.id,
+        'contact[email_only]: tenant=%s inquiry_id=%s FAILED (%s) → inbox fallback',
+        tenant_slug, inquiry.id, err,
     )
     return _inbox_fallback(
         tenant_slug, inquiry.id, 'email_only',
-        'MailerSend delivery failed — message saved to inbox',
+        err or 'Email delivery failed — message saved to inbox',
     )
 
 

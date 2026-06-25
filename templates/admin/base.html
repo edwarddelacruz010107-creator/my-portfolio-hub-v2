@@ -79,7 +79,7 @@
         <span class="nav-icon"><iconify-icon icon="lucide:star" width="18"></iconify-icon></span> Testimonials
       </a>
       <a href="{{ url_for('admin.services') }}"
-         class="nav-item {% if 'service' in (request.endpoint or '') %}active{% endif %}">
+         class="nav-item {% if (request.endpoint or '').endswith('.services') or '.service_' in (request.endpoint or '') %}active{% endif %}">
         <span class="nav-icon"><iconify-icon icon="lucide:briefcase" width="18"></iconify-icon></span> Services
       </a>
       <a href="{{ url_for('admin.messages') }}"
@@ -107,6 +107,10 @@
         <span class="nav-icon"><iconify-icon icon="lucide:credit-card" width="18"></iconify-icon></span> Billing
       </a>
       {% endif %}
+      <a href="{{ url_for('admin.email_services') }}"
+         class="nav-item {% if 'email_service' in (request.endpoint or '') %}active{% endif %}">
+        <span class="nav-icon"><iconify-icon icon="lucide:mail-check" width="18"></iconify-icon></span> Email Services
+      </a>
       <a href="{{ url_for('admin.settings') }}"
          class="nav-item {% if request.endpoint == 'admin.settings' %}active{% endif %}">
         <span class="nav-icon"><iconify-icon icon="lucide:settings" width="18"></iconify-icon></span> Settings

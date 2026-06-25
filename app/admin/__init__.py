@@ -1868,7 +1868,9 @@ def forgot_password_verify():
             _session['_admin_pw_reset_token'] = token
             return redirect(url_for('admin.forgot_password_reset'))
 
-    return render_template('admin/forgot_password_verify.html', email=email)
+    from app.services.password_reset_service import _get_ttl_minutes
+    return render_template('admin/forgot_password_verify.html', email=email,
+                           otp_ttl_minutes=_get_ttl_minutes())
 
 
 @admin.route('/forgot-password/reset', methods=['GET', 'POST'])
@@ -2042,3 +2044,376 @@ def api_notifications_unread_count():
             for n in recent
         ],
     })
+
+# ═════════════════════════════════════════════════════════════════════════════
+# EMAIL SERVICES — v5.9 Multi-Provider Dashboard
+# ═════════════════════════════════════════════════════════════════════════════
+
+@admin.route('/email-services')
+@admin_required
+def email_services():
+    """
+    Email Services dashboard — shows all provider statuses and config forms.
+    Reads provider, SMTP, Resend, and MailerSend settings for the current tenant.
+    Credentials are NEVER passed to the template (only masked indicators).
+    """
+    from app.models.core import (
+        TenantEmailProvider,
+        TenantSmtpSettings,
+        TenantResendSettings,
+        TenantMailerSendSettings,
+    )
+    from app.services.tenant_email_service import get_provider_status, bootstrap_tenant_providers
+
+    tenant_id = current_user.tenant_id
+
+    # Ensure provider records exist
+    bootstrap_tenant_providers(tenant_id)
+
+    # Load settings (for has_* indicators only — no credentials in template)
+    smtp_settings = TenantSmtpSettings.get_or_create(tenant_id)
+    resend_settings = TenantResendSettings.get_or_create(tenant_id)
+    ms_settings = TenantMailerSendSettings.get_or_create(tenant_id)
+
+    # Load ordered provider list
+    providers = (TenantEmailProvider.query
+                 .filter_by(tenant_id=tenant_id)
+                 .order_by(TenantEmailProvider.priority.asc())
+                 .all())
+
+    # Build safe display dict (no secrets)
+    provider_status = get_provider_status(tenant_id)
+
+    smtp_display = {
+        'host':            smtp_settings.smtp_host,
+        'port':            smtp_settings.smtp_port,
+        'username':        smtp_settings.smtp_username,
+        'sender_email':    smtp_settings.sender_email,
+        'sender_name':     smtp_settings.sender_name,
+        'encryption_type': smtp_settings.encryption_type or 'tls',
+        'has_password':    bool(smtp_settings._smtp_password),
+        'is_configured':   smtp_settings.is_configured,
+    }
+    resend_display = {
+        'domain':        resend_settings.domain,
+        'sender_email':  resend_settings.sender_email,
+        'sender_name':   resend_settings.sender_name,
+        'has_api_key':   bool(resend_settings._api_key),
+        'is_configured': resend_settings.is_configured,
+    }
+    ms_display = {
+        'domain':        ms_settings.domain,
+        'sender_email':  ms_settings.sender_email,
+        'sender_name':   ms_settings.sender_name,
+        'has_api_token': bool(ms_settings._api_token),
+        'is_configured': ms_settings.is_configured,
+    }
+
+    # Pass form_settings so the template can warn when contact delivery is disabled
+    from app.models.tenant_form_settings import TenantFormSettings
+    form_settings = TenantFormSettings.get_or_create(tenant_id)
+    # Determine if any provider is configured+active so we can show a warning
+    any_active_configured = any(
+        (p.active and p.status == 'connected') for p in providers
+    )
+    contact_delivery_enabled = (
+        form_settings.is_enabled and
+        form_settings.provider not in ('disabled', '', None)
+    )
+
+    return render_template(
+        'admin/email_services.html',
+        providers=providers,
+        provider_status=provider_status,
+        smtp_display=smtp_display,
+        resend_display=resend_display,
+        ms_display=ms_display,
+        form_settings=form_settings,
+        any_active_configured=any_active_configured,
+        contact_delivery_enabled=contact_delivery_enabled,
+    )
+
+
+@admin.route('/email-services/save/<provider_name>', methods=['POST'])
+@admin_required
+def email_services_save(provider_name: str):
+    """
+    Save provider credentials for the current tenant.
+    Credentials are encrypted server-side via Fernet before DB storage.
+    CSRF protected by Flask-WTF token in all form submissions.
+    """
+    from app.models.core import (
+        TenantEmailProvider,
+        TenantSmtpSettings,
+        TenantResendSettings,
+        TenantMailerSendSettings,
+    )
+    from app import db
+
+    VALID_PROVIDERS = ('smtp', 'resend', 'mailersend')
+    if provider_name not in VALID_PROVIDERS:
+        flash('Invalid provider.', 'danger')
+        return redirect(url_for('admin.email_services'))
+
+    tenant_id = current_user.tenant_id
+
+    try:
+        if provider_name == 'smtp':
+            s = TenantSmtpSettings.get_or_create(tenant_id)
+            s.smtp_host       = request.form.get('smtp_host', '').strip()[:300]
+            s.smtp_port       = int(request.form.get('smtp_port', 587) or 587)
+            s.smtp_username   = request.form.get('smtp_username', '').strip()[:300]
+            s.sender_email    = request.form.get('sender_email', '').strip()[:300]
+            s.sender_name     = request.form.get('sender_name', '').strip()[:200]
+            s.encryption_type = request.form.get('encryption_type', 'tls').strip()[:20]
+
+            # Only update password if a new one was submitted (non-empty)
+            new_password = request.form.get('smtp_password', '').strip()
+            if new_password:
+                s.smtp_password = new_password   # triggers Fernet encryption
+
+            db.session.add(s)
+
+        elif provider_name == 'resend':
+            s = TenantResendSettings.get_or_create(tenant_id)
+            s.domain       = request.form.get('domain', '').strip()[:300]
+            s.sender_email = request.form.get('sender_email', '').strip()[:300]
+            s.sender_name  = request.form.get('sender_name', '').strip()[:200]
+
+            new_key = request.form.get('api_key', '').strip()
+            if new_key:
+                s.api_key = new_key   # triggers Fernet encryption
+
+            db.session.add(s)
+
+        elif provider_name == 'mailersend':
+            s = TenantMailerSendSettings.get_or_create(tenant_id)
+            s.domain       = request.form.get('domain', '').strip()[:300]
+            s.sender_email = request.form.get('sender_email', '').strip()[:300]
+            s.sender_name  = request.form.get('sender_name', '').strip()[:200]
+
+            new_token = request.form.get('api_token', '').strip()
+            if new_token:
+                s.api_token = new_token   # triggers Fernet encryption
+
+            db.session.add(s)
+
+        db.session.commit()
+
+        # ── Auto-enable contact form delivery when provider is first configured ──
+        # If TenantFormSettings is still 'disabled', activating a provider here
+        # means the contact form would still silently fall to inbox-only because
+        # the two systems are independent. Auto-bridge them: set provider=email_only
+        # and populate receiver_email so contact submissions are actually delivered.
+        try:
+            from app.models.tenant_form_settings import TenantFormSettings
+            from app.models.core import TenantEmailProvider
+            form_settings = TenantFormSettings.get_or_create(tenant_id)
+            if form_settings.provider in ('disabled', '') or not form_settings.is_enabled:
+                # Only auto-enable if the saved provider is now configured
+                provider_rec = TenantEmailProvider.get_or_create(tenant_id, provider_name)
+                if s.is_configured:
+                    # Resolve a receiver_email from tenant admin account
+                    if not form_settings.receiver_email:
+                        from app.models.core import User
+                        admin_user = (User.query
+                                      .filter_by(tenant_id=tenant_id, is_admin=True)
+                                      .order_by(User.id.asc())
+                                      .first())
+                        if admin_user and admin_user.email:
+                            form_settings.receiver_email = admin_user.email
+                            # Mirror onto tenant.contact_email for the fallback chain
+                            from app.models.portfolio import Tenant
+                            _tenant = Tenant.query.get(tenant_id)
+                            if _tenant and not _tenant.contact_email:
+                                _tenant.contact_email = admin_user.email
+                    form_settings.provider   = 'email_only'
+                    form_settings.is_enabled = True
+                    db.session.commit()
+                    logger.info(
+                        '[EmailServices] Auto-enabled contact form delivery via email_only '
+                        'for tenant_id=%d on %s save', tenant_id, provider_name
+                    )
+        except Exception as _fe:
+            logger.warning('[EmailServices] form_settings auto-enable failed (non-fatal): %s', _fe)
+
+        log_activity('update', 'email_provider', provider_name, f'Email provider {provider_name} configuration saved')
+        flash(f'{provider_name.title()} settings saved successfully.', 'success')
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error('[EmailServices] Save failed provider=%s tenant=%d: %s', provider_name, tenant_id, str(e))
+        flash(f'Error saving {provider_name} settings. Please try again.', 'danger')
+
+    return redirect(url_for('admin.email_services'))
+
+
+@admin.route('/email-services/toggle/<provider_name>', methods=['POST'])
+@admin_required
+def email_services_toggle(provider_name: str):
+    """
+    Activate or deactivate a provider for the current tenant.
+    JSON endpoint — returns {success, active, status}.
+    """
+    from flask import jsonify
+    from app.models.core import TenantEmailProvider
+    from app import db
+
+    VALID_PROVIDERS = ('smtp', 'resend', 'mailersend')
+    if provider_name not in VALID_PROVIDERS:
+        return jsonify({'success': False, 'error': 'Invalid provider'}), 400
+
+    tenant_id = current_user.tenant_id
+    action    = request.form.get('action', 'toggle')   # activate | deactivate | toggle
+
+    try:
+        rec = TenantEmailProvider.get_or_create(tenant_id, provider_name)
+
+        if action == 'activate':
+            rec.active = True
+        elif action == 'deactivate':
+            rec.active = False
+        else:
+            rec.active = not rec.active
+
+        db.session.commit()
+
+        # ── Auto-enable contact form delivery when provider activated ──────────
+        # Activating a provider here doesn't automatically make contact form
+        # submissions reach the tenant's inbox unless TenantFormSettings.provider
+        # is also set to 'email_only'. Sync them now.
+        form_settings_updated = False
+        if rec.active:
+            try:
+                from app.models.tenant_form_settings import TenantFormSettings
+                form_settings = TenantFormSettings.get_or_create(tenant_id)
+                if form_settings.provider in ('disabled', '') or not form_settings.is_enabled:
+                    if not form_settings.receiver_email:
+                        from app.models.core import User
+                        admin_user = (User.query
+                                      .filter_by(tenant_id=tenant_id, is_admin=True)
+                                      .order_by(User.id.asc())
+                                      .first())
+                        if admin_user and admin_user.email:
+                            form_settings.receiver_email = admin_user.email
+                            from app.models.portfolio import Tenant
+                            _tenant = Tenant.query.get(tenant_id)
+                            if _tenant and not _tenant.contact_email:
+                                _tenant.contact_email = admin_user.email
+                    form_settings.provider   = 'email_only'
+                    form_settings.is_enabled = True
+                    db.session.commit()
+                    form_settings_updated = True
+                    logger.info(
+                        '[EmailServices] Toggle auto-enabled contact form delivery '
+                        'for tenant_id=%d via %s', tenant_id, provider_name
+                    )
+            except Exception as _fe:
+                logger.warning('[EmailServices] Toggle form_settings sync failed (non-fatal): %s', _fe)
+
+        log_activity(
+            'update', 'email_provider', provider_name,
+            f'Provider {provider_name} {"activated" if rec.active else "deactivated"}'
+        )
+        return jsonify({
+            'success':               True,
+            'active':                rec.active,
+            'provider':              provider_name,
+            'status':                rec.status,
+            'form_delivery_enabled': form_settings_updated,
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error('[EmailServices] Toggle failed provider=%s: %s', provider_name, str(e))
+        return jsonify({'success': False, 'error': 'Toggle failed'}), 500
+
+
+@admin.route('/email-services/priority', methods=['POST'])
+@admin_required
+def email_services_priority():
+    """
+    Update provider priority ordering.
+    Expects JSON body: {providers: [{name: 'smtp', priority: 1}, ...]}
+    """
+    from flask import jsonify
+    from app.models.core import TenantEmailProvider
+    from app import db
+
+    tenant_id = current_user.tenant_id
+
+    try:
+        data      = request.get_json(silent=True) or {}
+        providers = data.get('providers', [])
+
+        VALID = ('smtp', 'resend', 'mailersend')
+        for item in providers:
+            name     = item.get('name', '')
+            priority = item.get('priority')
+            if name not in VALID or not isinstance(priority, int):
+                continue
+            rec = TenantEmailProvider.get_or_create(tenant_id, name)
+            rec.priority = max(1, min(99, priority))
+
+        db.session.commit()
+        log_activity('update', 'email_provider', 'priority', 'Email provider priority updated')
+        return jsonify({'success': True})
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error('[EmailServices] Priority update failed: %s', str(e))
+        return jsonify({'success': False, 'error': 'Priority update failed'}), 500
+
+
+@admin.route('/email-services/test', methods=['POST'])
+@admin_required
+def email_services_test():
+    """
+    Send a test email through a specified provider.
+    JSON endpoint — returns {success, message, latency}.
+    """
+    from flask import jsonify
+    from app.services.tenant_email_service import test_provider
+
+    tenant_id     = current_user.tenant_id
+    provider_name = request.form.get('provider', '').strip()
+    to_email      = request.form.get('to_email', '').strip() or current_user.email
+
+    VALID_PROVIDERS = ('smtp', 'resend', 'mailersend')
+    if provider_name not in VALID_PROVIDERS:
+        return jsonify({'success': False, 'message': 'Invalid provider'}), 400
+
+    if not to_email or '@' not in to_email:
+        to_email = current_user.email
+
+    ok, msg, latency = test_provider(tenant_id, provider_name, to_email)
+    log_activity(
+        'update', 'email_provider', provider_name,
+        f'Test email {"succeeded" if ok else "failed"} via {provider_name}'
+    )
+    return jsonify({
+        'success': ok,
+        'message': msg,
+        'latency': round(latency, 2),
+        'provider': provider_name,
+        'to_email': to_email,
+    })
+
+
+@admin.route('/email-services/status')
+@admin_required
+def email_services_status():
+    """JSON health check for all providers — used by dashboard polling."""
+    from flask import jsonify
+    from app.services.tenant_email_service import get_provider_status
+
+    tenant_id = current_user.tenant_id
+    status    = get_provider_status(tenant_id)
+
+    # Serialize datetimes to ISO strings
+    for provider_data in status.values():
+        for key in ('last_tested_at', 'last_sent_at'):
+            val = provider_data.get(key)
+            provider_data[key] = val.isoformat() if val else None
+
+    return jsonify({'success': True, 'providers': status})

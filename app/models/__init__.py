@@ -25,6 +25,11 @@ from app.models.core import (
     TenantCommunicationSettings,
     PasswordResetOTP,
     GlobalEmailConfig,
+    # v5.9 — Tenant Email Services
+    TenantEmailProvider,
+    TenantSmtpSettings,
+    TenantResendSettings,
+    TenantMailerSendSettings,
     Inquiry,
     InquiryReply,
     SubscriptionNotification,
@@ -62,6 +67,7 @@ __all__ = [
     'PlatformSetting', 'TenantCommunicationSettings',
     'PasswordResetOTP', 'GlobalEmailConfig',
     'Inquiry', 'InquiryReply', 'SubscriptionNotification', 'ActivityLog',
+    'TenantEmailProvider', 'TenantSmtpSettings', 'TenantResendSettings', 'TenantMailerSendSettings',
     # tenant_data_db
     'Profile', 'Skill', 'Project', 'Testimonial', 'Service', 'TenantFormSettings',
     # helpers

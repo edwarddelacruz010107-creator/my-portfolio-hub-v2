@@ -407,6 +407,10 @@ def create_app(config_name: str = 'default') -> Flask:
             db.session.execute(db.text("SELECT 1"))
             db.session.remove()
 
+            # Run unconditionally — prevents OperationalError on any env when
+            # migration 0032 has not yet been applied to the live database.
+            _ensure_global_email_config_columns()
+
             if app.debug:
                 _ensure_profile_columns()
                 _ensure_default_tenant()
@@ -723,6 +727,87 @@ def create_app(config_name: str = 'default') -> Flask:
         }, 400
     
     return app
+
+
+# ── GlobalEmailConfig schema patcher (v5.9.1) ─────────────────────────────────
+
+def _ensure_global_email_config_columns():
+    """
+    Defensive schema patcher for global_email_config table.
+
+    Adds columns introduced in migration 0032 (superadmin multi-provider email)
+    when the live database has not yet had `flask db upgrade` applied. Safe for:
+      - Fresh installs  (table may not exist yet → skipped)
+      - Existing DBs    (columns added non-destructively via ALTER TABLE)
+      - Already-migrated DBs (PRAGMA check prevents duplicate ALTERs)
+      - SQLite only — PostgreSQL must use `flask db upgrade`
+    """
+    import sqlite3
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy.exc import OperationalError as SAOperationalError
+
+    if db.engine.dialect.name != 'sqlite':
+        return  # PostgreSQL: rely on proper Alembic migrations
+
+    if not sa_inspect(db.engine).has_table('global_email_config'):
+        return  # Table not yet created — db.create_all() will handle it
+
+    # Columns added by migration 0032 — (column_name, DDL_fragment)
+    REQUIRED_COLUMNS = [
+        ('sa_smtp_host',               "TEXT DEFAULT ''"),
+        ('sa_smtp_port',               "INTEGER DEFAULT 587"),
+        ('sa_smtp_username',           "TEXT DEFAULT ''"),
+        ('sa_smtp_password_encrypted', "TEXT DEFAULT ''"),
+        ('sa_smtp_sender_email',       "TEXT DEFAULT ''"),
+        ('sa_smtp_sender_name',        "TEXT DEFAULT ''"),
+        ('sa_smtp_encryption',         "TEXT DEFAULT 'tls'"),
+        ('sa_smtp_active',             "BOOLEAN DEFAULT 0"),
+        ('sa_resend_api_key_encrypted',"TEXT DEFAULT ''"),
+        ('sa_resend_sender_email',     "TEXT DEFAULT ''"),
+        ('sa_resend_sender_name',      "TEXT DEFAULT ''"),
+        ('sa_resend_active',           "BOOLEAN DEFAULT 0"),
+        ('sa_mailersend_active',       "BOOLEAN DEFAULT 1"),
+        ('sa_provider_priority',       "TEXT DEFAULT '[\"mailersend\",\"smtp\",\"resend\"]'"),
+    ]
+
+    logger.info('[DB MIGRATION] Checking global_email_config schema...')
+
+    added_any = False
+    try:
+        with db.engine.begin() as conn:
+            existing = {
+                row['name']
+                for row in conn.execute(
+                    db.text('PRAGMA table_info(global_email_config)')
+                ).mappings()
+            }
+
+            for col_name, ddl in REQUIRED_COLUMNS:
+                if col_name not in existing:
+                    try:
+                        conn.execute(
+                            db.text(
+                                f'ALTER TABLE global_email_config ADD COLUMN "{col_name}" {ddl}'
+                            )
+                        )
+                        logger.info('[DB MIGRATION] Added missing column: %s', col_name)
+                        added_any = True
+                    except SAOperationalError as exc:
+                        # Column may have been added by a concurrent process — not fatal
+                        if 'duplicate column' in str(exc).lower():
+                            logger.debug('[DB MIGRATION] Column already exists (race): %s', col_name)
+                        else:
+                            logger.error('[DB MIGRATION] Failed to add column %s: %s', col_name, exc)
+                            raise
+
+    except Exception as exc:
+        logger.error('[DB MIGRATION] global_email_config schema patch failed: %s', exc)
+        return
+
+    if added_any:
+        logger.info('[DB MIGRATION] Schema synchronized successfully. Run "flask db upgrade" to record migration state.')
+    else:
+        logger.info('[DB MIGRATION] global_email_config schema already up-to-date.')
 
 
 # ── Default tenant portfolio renderer ─────────────────────────────────────────

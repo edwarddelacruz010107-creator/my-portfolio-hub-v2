@@ -1922,25 +1922,30 @@ def settings():
 @superadmin_required
 def email_settings():
     """
-    Superadmin → Settings → Email & Forms (v5.2)
+    Superadmin → Settings → Email & Forms (v5.9.1)
 
-    Manages GlobalEmailConfig:
-      - MailerSend API key (primary transactional email provider)
-      - Sender name / From email address
-      - OTP expiry / recovery switch
-
-    The MailerSend API key is stored Fernet-encrypted in DB and is NEVER
-    returned to the template or any JSON response. Only the boolean
-    `has_mailersend` flag is exposed to the UI.
+    Multi-provider email configuration for admin/superadmin portal OTP delivery.
+    Supports MailerSend, SMTP (Gmail/custom), and Resend with drag-to-reorder
+    provider priority and per-provider active toggle.
 
     AJAX actions (POST with action=...):
-      validate_mailersend_key  — validate key against MailerSend API
-      send_test_email          — send a test email to superadmin address
+      validate_mailersend_key  — validate against MailerSend API
+      validate_smtp            — test SMTP connection
+      validate_resend          — validate against Resend API
+      send_test_email          — send test through active provider chain
+      save_priority            — update provider priority order
+      toggle_provider          — enable/disable a provider
+      save_mailersend          — save MailerSend credentials
+      save_smtp                — save SMTP credentials
+      save_resend              — save Resend credentials
+      save_otp                 — save OTP expiry / recovery settings
     """
-    from app.models.portfolio import GlobalEmailConfig
-    from app.services.mailersend_service import validate_mailersend_key, send_email
+    from app.models.core import GlobalEmailConfig
+    from app.services.mailersend_service import validate_mailersend_key
+    from app.services.superadmin_email_service import send_email as _sa_send
     from flask import jsonify
     import re as _re
+    import json as _json
 
     cfg = GlobalEmailConfig.get()
 
@@ -1957,83 +1962,208 @@ def email_settings():
             # Never echo back the key in the response
             return jsonify({'ok': valid, 'message': msg})
 
-        # ── AJAX: send test email ──────────────────────────────────────────
+        # ── AJAX: send test email (via active provider chain) ──────────────
         if action == 'send_test_email':
-            if not cfg.has_mailersend:
-                return jsonify({'ok': False, 'message': 'MailerSend API key not configured. Save your key first.'})
             test_to = request.form.get('test_email', '').strip().lower()
             if not test_to or not _re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$', test_to):
                 return jsonify({'ok': False, 'message': 'Invalid test recipient email address.'})
-            ok, result = send_email(
+            ok, result = _sa_send(
                 to=test_to,
-                subject='[Portfolio CMS] MailerSend Test Email',
-                text='This is a test email from Portfolio CMS to confirm MailerSend is correctly configured.',
-                html='<p>This is a <strong>test email</strong> from Portfolio CMS confirming MailerSend is correctly configured.</p>',
+                subject='[Portfolio CMS] Email Delivery Test',
+                html='<p>This is a <strong>test email</strong> from Portfolio CMS confirming your email provider is correctly configured.</p>',
             )
             if ok:
                 current_app.logger.info('Test email sent to %s by superadmin %s', test_to, current_user.username)
                 return jsonify({'ok': True, 'message': f'Test email delivered to {test_to}.'})
             return jsonify({'ok': False, 'message': f'Send failed: {result}'})
 
-        # ── Save settings ─────────────────────────────────────────────────
-        new_mailersend_key = request.form.get('mailersend_api_key', '').strip()
-        sender_name        = request.form.get('sender_name', '').strip()
-        sender_email       = request.form.get('sender_email', '').strip().lower()
-        otp_ttl_raw        = request.form.get('otp_expiry_minutes', '10').strip()
-        recovery_on        = request.form.get('recovery_enabled') == 'on'
+        # ── AJAX: validate MailerSend key ──────────────────────────────────
+        if action == 'validate_mailersend_key':
+            key = request.form.get('mailersend_api_key', '').strip()
+            if not key:
+                return jsonify({'ok': False, 'message': 'No key supplied.'})
+            valid, msg = validate_mailersend_key(key)
+            return jsonify({'ok': valid, 'message': msg})
 
-        # Per-portal fields (v5.6)
-        admin_key          = request.form.get('admin_mailersend_api_key', '').strip()
-        admin_sender_email = request.form.get('admin_sender_email', '').strip().lower()
-        admin_sender_name  = request.form.get('admin_sender_name', '').strip()
-        sa_key             = request.form.get('superadmin_mailersend_api_key', '').strip()
-        sa_sender_email    = request.form.get('superadmin_sender_email', '').strip().lower()
-        sa_sender_name     = request.form.get('superadmin_sender_name', '').strip()
+        # ── AJAX: validate SMTP connection ─────────────────────────────────
+        if action == 'validate_smtp':
+            import smtplib, ssl as _ssl
+            host     = request.form.get('smtp_host', '').strip()
+            port_raw = request.form.get('smtp_port', '587').strip()
+            username = request.form.get('smtp_username', '').strip()
+            password = request.form.get('smtp_password', '').strip()
+            enc      = request.form.get('smtp_encryption', 'tls').lower()
+            if not host or not username or not password:
+                return jsonify({'ok': False, 'message': 'Host, username and password are required.'})
+            try:
+                port = int(port_raw)
+            except ValueError:
+                port = 587
+            try:
+                if enc == 'ssl' or port == 465:
+                    ctx = _ssl.create_default_context()
+                    with smtplib.SMTP_SSL(host, port, context=ctx, timeout=10) as s:
+                        s.login(username, password)
+                else:
+                    with smtplib.SMTP(host, port, timeout=10) as s:
+                        s.ehlo(); s.starttls(context=_ssl.create_default_context()); s.ehlo()
+                        s.login(username, password)
+                return jsonify({'ok': True, 'message': 'SMTP connection successful.'})
+            except smtplib.SMTPAuthenticationError:
+                return jsonify({'ok': False, 'message': 'Authentication failed — check username/password.'})
+            except Exception as e:
+                return jsonify({'ok': False, 'message': f'Connection failed: {str(e)[:120]}'})
 
-        try:
-            otp_ttl = max(1, min(60, int(otp_ttl_raw)))
-        except (ValueError, TypeError):
-            otp_ttl = 10
+        # ── AJAX: validate Resend API key ──────────────────────────────────
+        if action == 'validate_resend':
+            import urllib.request as _ur, urllib.error as _ue
+            key = request.form.get('resend_api_key', '').strip()
+            if not key:
+                return jsonify({'ok': False, 'message': 'No key supplied.'})
+            req = _ur.Request('https://api.resend.com/domains',
+                              headers={'Authorization': f'Bearer {key}'})
+            try:
+                with _ur.urlopen(req, timeout=10) as r:
+                    return jsonify({'ok': True, 'message': 'Resend API key is valid.'})
+            except _ue.HTTPError as e:
+                if e.code == 401:
+                    return jsonify({'ok': False, 'message': 'Invalid Resend API key.'})
+                return jsonify({'ok': False, 'message': f'Resend returned HTTP {e.code}.'})
+            except Exception as e:
+                return jsonify({'ok': False, 'message': f'Connection error: {str(e)[:80]}'})
 
-        if sender_email and not _re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$', sender_email):
-            flash('Invalid sender email format.', 'danger')
+        # ── AJAX: save provider priority order ─────────────────────────────
+        if action == 'save_priority':
+            order_raw = request.form.get('priority_order', '').strip()
+            try:
+                order = _json.loads(order_raw)
+                valid = {'mailersend', 'smtp', 'resend'}
+                order = [p for p in order if p in valid]
+                cfg.set_sa_provider_priority(order)
+                cfg.updated_by = current_user.username
+                db.session.commit()
+                return jsonify({'ok': True, 'message': 'Priority saved.'})
+            except Exception as e:
+                return jsonify({'ok': False, 'message': str(e)[:80]})
+
+        # ── AJAX: toggle a provider on/off ─────────────────────────────────
+        if action == 'toggle_provider':
+            provider = request.form.get('provider', '')
+            active   = request.form.get('active') == '1'
+            if provider == 'mailersend':
+                cfg.sa_mailersend_active = active
+            elif provider == 'smtp':
+                cfg.sa_smtp_active = active
+            elif provider == 'resend':
+                cfg.sa_resend_active = active
+            else:
+                return jsonify({'ok': False, 'message': 'Unknown provider.'})
+            cfg.updated_by = current_user.username
+            db.session.commit()
+            return jsonify({'ok': True, 'message': f'{provider} {"enabled" if active else "disabled"}.'})
+
+        # ── Save MailerSend credentials ────────────────────────────────────
+        if action == 'save_mailersend':
+            key          = request.form.get('mailersend_api_key', '').strip()
+            sender_name  = request.form.get('mailersend_sender_name', '').strip()
+            sender_email = request.form.get('mailersend_sender_email', '').strip().lower()
+            if key:
+                cfg.superadmin_mailersend_api_key = key
+            if sender_name:
+                cfg.superadmin_sender_name = sender_name
+            if sender_email:
+                cfg.superadmin_sender_email = sender_email
+            cfg.updated_by = current_user.username
+            db.session.commit()
+            flash('MailerSend settings saved.', 'success')
             return redirect(url_for('superadmin.email_settings'))
 
-        # Store MailerSend key only if a new value was submitted
-        if new_mailersend_key:
-            cfg.mailersend_api_key = new_mailersend_key
-            current_app.logger.info(
-                'MailerSend API key updated by superadmin %s (key_length=%d)',
-                current_user.username, len(new_mailersend_key),
-            )
+        # ── Save SMTP credentials ──────────────────────────────────────────
+        if action == 'save_smtp':
+            host         = request.form.get('smtp_host', '').strip()
+            port_raw     = request.form.get('smtp_port', '587').strip()
+            username     = request.form.get('smtp_username', '').strip()
+            password     = request.form.get('smtp_password', '').strip()
+            sender_email = request.form.get('smtp_sender_email', '').strip().lower()
+            sender_name  = request.form.get('smtp_sender_name', '').strip()
+            encryption   = request.form.get('smtp_encryption', 'tls')
+            try:
+                port = max(1, min(65535, int(port_raw)))
+            except (ValueError, TypeError):
+                port = 587
+            if host:
+                cfg.sa_smtp_host = host
+            if username:
+                cfg.sa_smtp_username = username
+            if password:
+                cfg.sa_smtp_password = password
+            if sender_email:
+                cfg.sa_smtp_sender_email = sender_email
+            cfg.sa_smtp_sender_name = sender_name or cfg.sa_smtp_sender_name
+            cfg.sa_smtp_port        = port
+            cfg.sa_smtp_encryption  = encryption
+            cfg.updated_by          = current_user.username
+            db.session.commit()
+            flash('SMTP settings saved.', 'success')
+            return redirect(url_for('superadmin.email_settings'))
 
-        # Per-portal keys (only update when a new value is submitted)
-        if admin_key:
-            cfg.admin_mailersend_api_key = admin_key
-        if sa_key:
-            cfg.superadmin_mailersend_api_key = sa_key
+        # ── Save Resend credentials ────────────────────────────────────────
+        if action == 'save_resend':
+            key          = request.form.get('resend_api_key', '').strip()
+            sender_email = request.form.get('resend_sender_email', '').strip().lower()
+            sender_name  = request.form.get('resend_sender_name', '').strip()
+            if key:
+                cfg.sa_resend_api_key = key
+            if sender_email:
+                cfg.sa_resend_sender_email = sender_email
+            cfg.sa_resend_sender_name = sender_name or cfg.sa_resend_sender_name
+            cfg.updated_by = current_user.username
+            db.session.commit()
+            flash('Resend settings saved.', 'success')
+            return redirect(url_for('superadmin.email_settings'))
 
-        cfg.sender_name        = sender_name  or cfg.sender_name
-        cfg.sender_email       = sender_email or cfg.sender_email
-        cfg.admin_sender_email = admin_sender_email or cfg.admin_sender_email
-        cfg.admin_sender_name  = admin_sender_name  or cfg.admin_sender_name
-        cfg.superadmin_sender_email = sa_sender_email or cfg.superadmin_sender_email
-        cfg.superadmin_sender_name  = sa_sender_name  or cfg.superadmin_sender_name
-        cfg.otp_expiry_minutes = otp_ttl
-        cfg.recovery_enabled   = recovery_on
-        cfg.updated_by         = current_user.username
+        # ── Save OTP / recovery settings ──────────────────────────────────
+        if action == 'save_otp':
+            otp_ttl_raw = request.form.get('otp_expiry_minutes', '10').strip()
+            recovery_on = request.form.get('recovery_enabled') == 'on'
+            try:
+                otp_ttl = max(1, min(60, int(otp_ttl_raw)))
+            except (ValueError, TypeError):
+                otp_ttl = 10
+            cfg.otp_expiry_minutes = otp_ttl
+            cfg.recovery_enabled   = recovery_on
+            cfg.updated_by         = current_user.username
+            db.session.commit()
+            flash('OTP settings saved.', 'success')
+            return redirect(url_for('superadmin.email_settings'))
 
-        db.session.commit()
-        flash('Email & Forms settings saved.', 'success')
+        # Legacy catch-all save (backward compat)
+        flash('Unknown action.', 'warning')
         return redirect(url_for('superadmin.email_settings'))
 
-    # GET — pass has_mailersend flag; never pass the raw key
+    # ── GET ────────────────────────────────────────────────────────────────
+    priority = cfg.get_sa_provider_priority()
+    providers_status = {
+        'mailersend': {
+            'configured': cfg.has_superadmin_mailersend or cfg.has_mailersend,
+            'active': cfg.sa_mailersend_active if cfg.sa_mailersend_active is not None else True,
+        },
+        'smtp': {
+            'configured': cfg.has_sa_smtp,
+            'active': cfg.sa_smtp_active or False,
+        },
+        'resend': {
+            'configured': cfg.has_sa_resend,
+            'active': cfg.sa_resend_active or False,
+        },
+    }
     return render_template(
         'superadmin/email_settings.html',
         cfg=cfg,
+        priority=priority,
+        providers_status=providers_status,
         has_mailersend=cfg.has_mailersend,
-        has_resend=False,  # backward-compat — Resend removed in v5.0
-        default_form_provider='internal',
+        has_superadmin_mailersend=cfg.has_superadmin_mailersend,
     )
 
 
@@ -2088,7 +2218,9 @@ def forgot_password_verify():
             return redirect(url_for('superadmin.forgot_password_reset'))
  
     # FIX: was 'superadmin/forgot_password.html' — wrong template, bad resend link
-    return render_template('superadmin/forgot_password_verify.html')
+    from app.services.password_reset_service import _get_ttl_minutes
+    return render_template('superadmin/forgot_password_verify.html',
+                           otp_ttl_minutes=_get_ttl_minutes())
  
  
 # ── CHANGE 2: Full replacement of forgot_password_reset with rate limiter ──

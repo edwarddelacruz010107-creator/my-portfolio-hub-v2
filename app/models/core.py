@@ -131,7 +131,10 @@ def encrypt_secret(plaintext: str) -> str:
 
 
 def decrypt_secret(ciphertext: str) -> str:
-    if not ciphertext:
+    # Use identity/equality checks — never truthiness — to avoid triggering
+    # SQLAlchemy's __bool__ guard when an InstrumentedAttribute is passed
+    # before the ORM has loaded the scalar value from the database.
+    if ciphertext is None or ciphertext == '':
         return ''
     try:
         return _get_fernet().decrypt(ciphertext.encode()).decode()
@@ -707,11 +710,12 @@ class TenantCommunicationSettings(db.Model):
 
     @property
     def has_web3forms(self) -> bool:
-        return bool(self._web3forms_key)
-
-    @property
-    def has_smtp(self) -> bool:
-        return bool(self.smtp_host and self.mail_username and self._mail_password)
+        return len(str(self._web3forms_key or '')) > 0
+        return (
+            len(str(self.smtp_host or '')) > 0
+            and len(str(self.mail_username or '')) > 0
+            and len(str(self.mail_password or '')) > 0
+        )
 
     @property
     def is_configured(self) -> bool:
@@ -825,13 +829,13 @@ class GlobalEmailConfig(db.Model):
 
     @property
     def has_web3forms(self) -> bool:
-        return bool(self._web3forms_key)
+        return len(str(self._web3forms_key or '')) > 0
 
     # ── MailerSend (v5.0 primary provider) ──────────────────────────────────
 
     @property
     def mailersend_api_key(self) -> str:
-        return decrypt_secret(self._mailersend_api_key) if self._mailersend_api_key else ''
+        return decrypt_secret(self._mailersend_api_key) if (self._mailersend_api_key is not None and self._mailersend_api_key != '') else ''
 
     @mailersend_api_key.setter
     def mailersend_api_key(self, value: str):
@@ -839,7 +843,7 @@ class GlobalEmailConfig(db.Model):
 
     @property
     def has_mailersend(self) -> bool:
-        return bool(self._mailersend_api_key)
+        return len(str(self._mailersend_api_key or '')) > 0
 
     # ── Resend shim (deprecated — column retained for zero-downtime migration) ──
 
@@ -860,9 +864,30 @@ class GlobalEmailConfig(db.Model):
 
     @classmethod
     def get(cls):
-        from sqlalchemy.exc import IntegrityError
+        from sqlalchemy.exc import IntegrityError, OperationalError
 
-        config = db.session.get(cls, 1)
+        # Failsafe: if schema is out of sync (missing columns), attempt an
+        # in-process patch before crashing. This covers the case where the
+        # startup patcher ran before the app context was fully established,
+        # or where a new column was added without restarting the process.
+        try:
+            config = db.session.get(cls, 1)
+        except OperationalError as exc:
+            import logging as _logging
+            _log = _logging.getLogger(__name__)
+            _log.warning(
+                '[DB FAILSAFE] GlobalEmailConfig.get() hit OperationalError (%s). '
+                'Attempting inline schema patch...', exc
+            )
+            db.session.rollback()
+            try:
+                from flask import current_app
+                with current_app.app_context():
+                    from app import _ensure_global_email_config_columns
+                    _ensure_global_email_config_columns()
+            except Exception as patch_exc:
+                _log.error('[DB FAILSAFE] Inline schema patch failed: %s', patch_exc)
+            config = db.session.get(cls, 1)
 
         if config is None:
             try:
@@ -902,7 +927,7 @@ class GlobalEmailConfig(db.Model):
 
     @property
     def admin_mailersend_api_key(self) -> str:
-        return decrypt_secret(self._admin_mailersend_api_key) if self._admin_mailersend_api_key else ''
+        return decrypt_secret(self._admin_mailersend_api_key) if (self._admin_mailersend_api_key is not None and self._admin_mailersend_api_key != '') else ''
 
     @admin_mailersend_api_key.setter
     def admin_mailersend_api_key(self, value: str):
@@ -910,11 +935,11 @@ class GlobalEmailConfig(db.Model):
 
     @property
     def has_admin_mailersend(self) -> bool:
-        return bool(self._admin_mailersend_api_key)
+        return len(str(self._admin_mailersend_api_key or '')) > 0
 
     @property
     def superadmin_mailersend_api_key(self) -> str:
-        return decrypt_secret(self._superadmin_mailersend_api_key) if self._superadmin_mailersend_api_key else ''
+        return decrypt_secret(self._superadmin_mailersend_api_key) if (self._superadmin_mailersend_api_key is not None and self._superadmin_mailersend_api_key != '') else ''
 
     @superadmin_mailersend_api_key.setter
     def superadmin_mailersend_api_key(self, value: str):
@@ -922,7 +947,7 @@ class GlobalEmailConfig(db.Model):
 
     @property
     def has_superadmin_mailersend(self) -> bool:
-        return bool(self._superadmin_mailersend_api_key)
+        return len(str(self._superadmin_mailersend_api_key or '')) > 0
 
     def get_portal_key(self, portal: str) -> str:
         """
@@ -986,6 +1011,79 @@ class GlobalEmailConfig(db.Model):
 
     def __repr__(self):
         return f'<GlobalEmailConfig mailersend={"✓" if self.has_mailersend else "✗"}>'
+
+    # ── Superadmin SMTP provider (0032) ──────────────────────────────────────
+    sa_smtp_host               = db.Column(db.String(300), default='', nullable=True)
+    sa_smtp_port               = db.Column(db.Integer, default=587, nullable=True)
+    sa_smtp_username           = db.Column(db.String(300), default='', nullable=True)
+    _sa_smtp_password          = db.Column('sa_smtp_password_encrypted', db.Text, default='', nullable=True)
+    sa_smtp_sender_email       = db.Column(db.String(300), default='', nullable=True)
+    sa_smtp_sender_name        = db.Column(db.String(200), default='', nullable=True)
+    sa_smtp_encryption         = db.Column(db.String(20), default='tls', nullable=True)
+    sa_smtp_active             = db.Column(db.Boolean, default=False, nullable=True)
+
+    # ── Superadmin Resend provider (0032) ────────────────────────────────────
+    _sa_resend_api_key         = db.Column('sa_resend_api_key_encrypted', db.Text, default='', nullable=True)
+    sa_resend_sender_email     = db.Column(db.String(300), default='', nullable=True)
+    sa_resend_sender_name      = db.Column(db.String(200), default='', nullable=True)
+    sa_resend_active           = db.Column(db.Boolean, default=False, nullable=True)
+
+    # ── Superadmin MailerSend toggle + priority (0032) ───────────────────────
+    sa_mailersend_active       = db.Column(db.Boolean, default=True, nullable=True)
+    sa_provider_priority       = db.Column(db.String(200), default='["mailersend","smtp","resend"]', nullable=True)
+
+    @property
+    def sa_smtp_password(self) -> str:
+        return decrypt_secret(self._sa_smtp_password) if (self._sa_smtp_password is not None and self._sa_smtp_password != '') else ''
+
+    @sa_smtp_password.setter
+    def sa_smtp_password(self, value: str):
+        self._sa_smtp_password = encrypt_secret(value) if value else ''
+
+    @property
+    def has_sa_smtp(self) -> bool:
+        # Cast each column value to str via f-string coercion (avoids calling
+        # SQLAlchemy's __bool__ which raises TypeError on InstrumentedAttribute).
+        # Private encrypted columns (_sa_smtp_password) are accessed through
+        # their decrypted @property equivalents to guarantee scalar string output.
+        return (
+            len(str(self.sa_smtp_host or '')) > 0
+            and len(str(self.sa_smtp_username or '')) > 0
+            and len(str(self.sa_smtp_password or '')) > 0
+            and len(str(self.sa_smtp_sender_email or '')) > 0
+        )
+
+    @property
+    def sa_resend_api_key(self) -> str:
+        return decrypt_secret(self._sa_resend_api_key) if (self._sa_resend_api_key is not None and self._sa_resend_api_key != '') else ''
+
+    @sa_resend_api_key.setter
+    def sa_resend_api_key(self, value: str):
+        self._sa_resend_api_key = encrypt_secret(value) if value else ''
+
+    @property
+    def has_sa_resend(self) -> bool:
+        # Access via decrypted @property (returns plain str) to avoid
+        # SQLAlchemy __bool__ TypeError on the raw encrypted column.
+        return (
+            len(str(self.sa_resend_api_key or '')) > 0
+            and len(str(self.sa_resend_sender_email or '')) > 0
+        )
+
+    def get_sa_provider_priority(self) -> list:
+        """Return ordered provider list, defaulting to ['mailersend','smtp','resend']."""
+        import json
+        try:
+            order = json.loads(self.sa_provider_priority or '[]')
+            if isinstance(order, list):
+                return order
+        except (ValueError, TypeError):
+            pass
+        return ['mailersend', 'smtp', 'resend']
+
+    def set_sa_provider_priority(self, order: list):
+        import json
+        self.sa_provider_priority = json.dumps(order)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1172,3 +1270,203 @@ class ActivityLog(db.Model):
 
     def __repr__(self):
         return f'<ActivityLog {self.action} {self.entity_type}>'
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# EMAIL SERVICES v5.9 — Multi-Provider Tenant Email Infrastructure
+# ═════════════════════════════════════════════════════════════════════════════
+
+class TenantEmailProvider(db.Model):
+    """
+    Registry of active/inactive email providers per tenant with priority ordering.
+
+    provider_name values: 'smtp' | 'resend' | 'mailersend'
+    status values: 'connected' | 'disconnected' | 'invalid_credentials' |
+                   'timeout' | 'rate_limited' | 'unconfigured'
+    """
+    __tablename__ = 'tenant_email_providers'
+    __table_args__ = (
+        db.UniqueConstraint('tenant_id', 'provider_name', name='uq_tenant_email_provider'),
+        db.Index('ix_tep_tenant_active', 'tenant_id', 'active'),
+    )
+
+    id                = db.Column(db.Integer, primary_key=True)
+    tenant_id         = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, index=True)
+    provider_name     = db.Column(db.String(50), nullable=False)      # smtp | resend | mailersend
+    active            = db.Column(db.Boolean, default=False, nullable=False)
+    priority          = db.Column(db.Integer, default=99, nullable=False)  # lower = higher priority
+    status            = db.Column(db.String(50), default='unconfigured', nullable=False)
+    last_tested_at    = db.Column(db.DateTime(timezone=True), nullable=True)
+    last_error        = db.Column(db.Text, nullable=True)
+    emails_sent_today = db.Column(db.Integer, default=0, nullable=False)
+    last_sent_at      = db.Column(db.DateTime(timezone=True), nullable=True)
+    created_at        = db.Column(db.DateTime(timezone=True), default=_utcnow)
+    updated_at        = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    tenant = db.relationship('Tenant', backref=db.backref(
+        'email_providers', lazy='dynamic', cascade='all, delete-orphan',
+        passive_deletes=True,
+    ))
+
+    @classmethod
+    def get_ordered_active(cls, tenant_id: int) -> list:
+        """Return active providers ordered by priority (ascending)."""
+        return (cls.query
+                .filter_by(tenant_id=tenant_id, active=True)
+                .order_by(cls.priority.asc())
+                .all())
+
+    @classmethod
+    def get_or_create(cls, tenant_id: int, provider_name: str) -> 'TenantEmailProvider':
+        obj = cls.query.filter_by(tenant_id=tenant_id, provider_name=provider_name).first()
+        if not obj:
+            # Assign sensible default priorities
+            defaults = {'smtp': 2, 'resend': 1, 'mailersend': 3}
+            obj = cls(
+                tenant_id=tenant_id,
+                provider_name=provider_name,
+                priority=defaults.get(provider_name, 99),
+            )
+            db.session.add(obj)
+            db.session.flush()
+        return obj
+
+    def __repr__(self):
+        return f'<TenantEmailProvider tenant={self.tenant_id} provider={self.provider_name} active={self.active}>'
+
+
+class TenantSmtpSettings(db.Model):
+    """Encrypted SMTP credentials for a tenant email provider."""
+    __tablename__ = 'tenant_smtp_settings'
+    __table_args__ = (
+        db.UniqueConstraint('tenant_id', name='uq_tenant_smtp'),
+    )
+
+    id               = db.Column(db.Integer, primary_key=True)
+    tenant_id        = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, index=True)
+    smtp_host        = db.Column(db.String(300), default='')
+    smtp_port        = db.Column(db.Integer, default=587)
+    smtp_username    = db.Column(db.String(300), default='')
+    _smtp_password   = db.Column('smtp_password_encrypted', db.Text, default='')
+    sender_email     = db.Column(db.String(300), default='')
+    sender_name      = db.Column(db.String(200), default='')
+    encryption_type  = db.Column(db.String(20), default='tls')   # tls | ssl | none
+    created_at       = db.Column(db.DateTime(timezone=True), default=_utcnow)
+    updated_at       = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    @property
+    def smtp_password(self) -> str:
+        return decrypt_secret(self._smtp_password) if (self._smtp_password is not None and self._smtp_password != '') else ''
+
+    @smtp_password.setter
+    def smtp_password(self, value: str):
+        self._smtp_password = encrypt_secret(value) if value else ''
+
+    @property
+    def is_configured(self) -> bool:
+        return (
+            len(str(self.smtp_host or '')) > 0
+            and len(str(self.smtp_username or '')) > 0
+            and len(str(self.smtp_password or '')) > 0
+            and len(str(self.sender_email or '')) > 0
+        )
+
+    @classmethod
+    def get_or_create(cls, tenant_id: int) -> 'TenantSmtpSettings':
+        obj = cls.query.filter_by(tenant_id=tenant_id).first()
+        if not obj:
+            obj = cls(tenant_id=tenant_id)
+            db.session.add(obj)
+            db.session.flush()
+        return obj
+
+    def __repr__(self):
+        return f'<TenantSmtpSettings tenant={self.tenant_id} host={self.smtp_host!r}>'
+
+
+class TenantResendSettings(db.Model):
+    """Encrypted Resend API credentials for a tenant."""
+    __tablename__ = 'tenant_resend_settings'
+    __table_args__ = (
+        db.UniqueConstraint('tenant_id', name='uq_tenant_resend'),
+    )
+
+    id            = db.Column(db.Integer, primary_key=True)
+    tenant_id     = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, index=True)
+    _api_key      = db.Column('api_key_encrypted', db.Text, default='')
+    domain        = db.Column(db.String(300), default='')
+    sender_email  = db.Column(db.String(300), default='')
+    sender_name   = db.Column(db.String(200), default='')
+    created_at    = db.Column(db.DateTime(timezone=True), default=_utcnow)
+    updated_at    = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    @property
+    def api_key(self) -> str:
+        return decrypt_secret(self._api_key) if (self._api_key is not None and self._api_key != '') else ''
+
+    @api_key.setter
+    def api_key(self, value: str):
+        self._api_key = encrypt_secret(value) if value else ''
+
+    @property
+    def is_configured(self) -> bool:
+        return (
+            len(str(self.api_key or '')) > 0
+            and len(str(self.sender_email or '')) > 0
+        )
+
+    @classmethod
+    def get_or_create(cls, tenant_id: int) -> 'TenantResendSettings':
+        obj = cls.query.filter_by(tenant_id=tenant_id).first()
+        if not obj:
+            obj = cls(tenant_id=tenant_id)
+            db.session.add(obj)
+            db.session.flush()
+        return obj
+
+    def __repr__(self):
+        return f'<TenantResendSettings tenant={self.tenant_id} domain={self.domain!r}>'
+
+
+class TenantMailerSendSettings(db.Model):
+    """Encrypted MailerSend API credentials for a tenant."""
+    __tablename__ = 'tenant_mailersend_settings'
+    __table_args__ = (
+        db.UniqueConstraint('tenant_id', name='uq_tenant_mailersend'),
+    )
+
+    id            = db.Column(db.Integer, primary_key=True)
+    tenant_id     = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, index=True)
+    _api_token    = db.Column('api_token_encrypted', db.Text, default='')
+    domain        = db.Column(db.String(300), default='')
+    sender_email  = db.Column(db.String(300), default='')
+    sender_name   = db.Column(db.String(200), default='')
+    created_at    = db.Column(db.DateTime(timezone=True), default=_utcnow)
+    updated_at    = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    @property
+    def api_token(self) -> str:
+        return decrypt_secret(self._api_token) if (self._api_token is not None and self._api_token != '') else ''
+
+    @api_token.setter
+    def api_token(self, value: str):
+        self._api_token = encrypt_secret(value) if value else ''
+
+    @property
+    def is_configured(self) -> bool:
+        return (
+            len(str(self.api_token or '')) > 0
+            and len(str(self.sender_email or '')) > 0
+        )
+
+    @classmethod
+    def get_or_create(cls, tenant_id: int) -> 'TenantMailerSendSettings':
+        obj = cls.query.filter_by(tenant_id=tenant_id).first()
+        if not obj:
+            obj = cls(tenant_id=tenant_id)
+            db.session.add(obj)
+            db.session.flush()
+        return obj
+
+    def __repr__(self):
+        return f'<TenantMailerSendSettings tenant={self.tenant_id} domain={self.domain!r}>'

@@ -1,324 +1,616 @@
-{% extends 'superadmin/base.html' %}
-{% block title %}Email &amp; Forms Settings{% endblock %}
-{% block page_title %}Email &amp; Forms Settings{% endblock %}
+{% extends "superadmin/base.html" %}
+{% block title %}Email & Forms Settings{% endblock %}
+{% block page_title %}Email & Forms Settings{% endblock %}
 
 {% block content %}
-<div class="breadcrumb-trail">
-  <a href="{{ url_for('superadmin.settings') }}" class="bc-link">
-    <iconify-icon icon="lucide:settings" width="14"></iconify-icon> Settings
-  </a>
-  <iconify-icon icon="lucide:chevron-right" width="14" class="bc-sep"></iconify-icon>
-  <span class="bc-current">Email &amp; Forms</span>
+<style>
+/* ── Superadmin Email Services — v5.9.1 ───────────────────────────────── */
+.es-header{margin-bottom:1.75rem}
+.es-header h1{font-size:1.5rem;font-weight:700;margin:0 0 .25rem}
+.es-header p{color:var(--text-muted,#9ca3af);margin:0;font-size:.875rem}
+
+.es-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+.es-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.25rem}
+@media(max-width:960px){.es-grid{grid-template-columns:1fr}}
+@media(max-width:768px){.es-grid-3{grid-template-columns:1fr}}
+
+.es-card{background:var(--card-bg,#1a1f2e);border:1px solid var(--border-color,#2d3448);
+  border-radius:12px;padding:1.5rem;transition:box-shadow .2s}
+.es-card:hover{box-shadow:0 4px 20px rgba(0,0,0,.25)}
+.es-card-full{grid-column:1/-1}
+.es-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+.es-card-title{font-size:1rem;font-weight:600;display:flex;align-items:center;gap:.5rem}
+.es-section-label{font-size:.7rem;font-weight:700;color:var(--text-muted);letter-spacing:.1em;
+  text-transform:uppercase;margin-bottom:.75rem;padding-bottom:.4rem;
+  border-bottom:1px solid var(--border-color,#2d3448)}
+
+/* Provider summary cards */
+.provider-card{position:relative;overflow:hidden}
+.provider-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  border-radius:12px 12px 0 0;opacity:0;transition:.3s}
+.provider-card.is-active::before{opacity:1}
+.provider-card.smtp::before{background:#3b82f6}
+.provider-card.mailersend::before{background:#a855f7}
+.provider-card.resend::before{background:#10b981}
+
+.provider-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;
+  justify-content:center;font-size:1.2rem;flex-shrink:0}
+.provider-icon.smtp{background:rgba(59,130,246,.15)}
+.provider-icon.mailersend{background:rgba(168,85,247,.15)}
+.provider-icon.resend{background:rgba(16,185,129,.15)}
+
+/* Status badges */
+.status-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .7rem;
+  border-radius:99px;font-size:.72rem;font-weight:600;letter-spacing:.02em}
+.status-badge.ok{background:rgba(34,197,94,.15);color:#22c55e}
+.status-badge.off{background:rgba(100,116,139,.12);color:#94a3b8}
+.status-badge.warn{background:rgba(245,158,11,.12);color:#f59e0b}
+
+/* Priority drag */
+.priority-list{display:flex;flex-direction:column;gap:.6rem}
+.priority-item{display:flex;align-items:center;gap:.75rem;padding:.6rem 1rem;
+  background:var(--input-bg,#111827);border:1px solid var(--border-color,#2d3448);
+  border-radius:8px;cursor:grab;transition:box-shadow .15s,opacity .15s;user-select:none}
+.priority-item:active{cursor:grabbing;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.priority-item.dragging{opacity:.4}
+.priority-item.drag-over{box-shadow:0 0 0 2px #3b82f6;background:rgba(59,130,246,.07)}
+.priority-handle{display:flex;flex-direction:column;gap:2px;flex-shrink:0;color:#6b7280}
+.priority-handle span{display:block;width:14px;height:2px;background:currentColor;border-radius:1px}
+.priority-num{font-size:.78rem;color:#6b7280;font-weight:700;width:18px;text-align:center;flex-shrink:0}
+.priority-name{flex:1;font-weight:600;font-size:.9rem}
+.priority-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.priority-dot.active{background:#22c55e}
+.priority-dot.inactive{background:#6b7280}
+
+/* Provider toggle */
+.provider-toggle{display:flex;align-items:center;gap:.6rem}
+.toggle-switch{position:relative;width:42px;height:22px;flex-shrink:0}
+.toggle-switch input{opacity:0;width:0;height:0;position:absolute}
+.toggle-track{position:absolute;inset:0;background:#374151;border-radius:11px;transition:.25s;cursor:pointer}
+.toggle-track::before{content:'';position:absolute;height:16px;width:16px;left:3px;bottom:3px;
+  background:#fff;border-radius:50%;transition:.25s}
+.toggle-switch input:checked+.toggle-track{background:#3b82f6}
+.toggle-switch input:checked+.toggle-track::before{transform:translateX(20px)}
+.toggle-label{font-size:.83rem;color:var(--text-muted);font-weight:500}
+
+/* Form elements */
+.es-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+@media(max-width:600px){.es-form-grid{grid-template-columns:1fr}}
+.es-form-group{display:flex;flex-direction:column;gap:.35rem}
+.es-form-group.full{grid-column:1/-1}
+.es-label{font-size:.75rem;font-weight:600;color:var(--text-muted,#9ca3af);text-transform:uppercase;letter-spacing:.04em}
+.es-input{background:var(--input-bg,#111827);border:1px solid var(--border-color,#2d3448);
+  border-radius:8px;padding:.55rem .85rem;color:var(--text-primary,#f1f5f9);font-size:.9rem;
+  transition:border-color .2s;width:100%;box-sizing:border-box}
+.es-input:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+.es-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right .75rem center}
+.es-hint{font-size:.73rem;color:#6b7280;margin-top:.1rem}
+.es-password-group{position:relative}
+.es-password-group .es-input{padding-right:2.5rem}
+.es-password-toggle{position:absolute;right:.7rem;top:50%;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;color:#6b7280;padding:0;display:flex}
+
+/* Buttons */
+.es-actions{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-top:1rem}
+.btn-save{background:#3b82f6;color:#fff;border:none;padding:.5rem 1.1rem;border-radius:8px;
+  font-size:.85rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;transition:background .2s}
+.btn-save:hover{background:#2563eb}
+.btn-validate{background:transparent;color:#3b82f6;border:1px solid #3b82f6;padding:.45rem .9rem;
+  border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;gap:.4rem;transition:all .2s}
+.btn-validate:hover{background:rgba(59,130,246,.08)}
+.btn-test{background:transparent;color:#22c55e;border:1px solid #22c55e;padding:.45rem .9rem;
+  border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;gap:.4rem;transition:all .2s}
+.btn-test:hover{background:rgba(34,197,94,.08)}
+
+/* Status pill bar */
+.pill-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.5rem}
+.pill{display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .8rem;
+  border-radius:99px;font-size:.78rem;font-weight:600;border:1px solid transparent}
+.pill.green{background:rgba(34,197,94,.12);color:#22c55e;border-color:rgba(34,197,94,.2)}
+.pill.gray{background:rgba(100,116,139,.1);color:#94a3b8;border-color:rgba(100,116,139,.2)}
+.pill.amber{background:rgba(245,158,11,.1);color:#f59e0b;border-color:rgba(245,158,11,.2)}
+
+/* Feedback toast */
+#es-toast{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:.5rem}
+.toast-msg{padding:.7rem 1.1rem;border-radius:10px;font-size:.875rem;font-weight:500;
+  display:flex;align-items:center;gap:.5rem;animation:toastIn .25s ease;
+  box-shadow:0 4px 12px rgba(0,0,0,.35)}
+.toast-msg.ok{background:#14532d;color:#bbf7d0;border:1px solid rgba(34,197,94,.25)}
+.toast-msg.err{background:#7f1d1d;color:#fecaca;border:1px solid rgba(239,68,68,.25)}
+@keyframes toastIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* Security sidebar */
+.sec-card{background:var(--card-bg,#1a1f2e);border:1px solid var(--border-color,#2d3448);
+  border-radius:12px;padding:1.25rem}
+.sec-section{margin-bottom:1rem}
+.sec-section:last-child{margin-bottom:0}
+.sec-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem}
+.sec-title.orange{color:#f59e0b}
+.sec-title.blue{color:#38bdf8}
+.sec-title.green{color:#4ade80}
+.sec-list{margin:0;padding-left:1.1rem;color:var(--text-muted,#9ca3af);font-size:.8rem;line-height:1.6}
+</style>
+
+<!-- Pill status bar -->
+<div class="pill-bar">
+  {% if providers_status.mailersend.configured and providers_status.mailersend.active %}
+    <span class="pill green">✓ MailerSend active</span>
+  {% elif providers_status.mailersend.configured %}
+    <span class="pill gray">◎ MailerSend configured, inactive</span>
+  {% endif %}
+  {% if providers_status.smtp.configured and providers_status.smtp.active %}
+    <span class="pill green">✓ SMTP active</span>
+  {% elif providers_status.smtp.configured %}
+    <span class="pill gray">◎ SMTP configured, inactive</span>
+  {% endif %}
+  {% if providers_status.resend.configured and providers_status.resend.active %}
+    <span class="pill green">✓ Resend active</span>
+  {% elif providers_status.resend.configured %}
+    <span class="pill gray">◎ Resend configured, inactive</span>
+  {% endif %}
+  {% if cfg.recovery_enabled %}
+    <span class="pill green">✓ OTP recovery enabled</span>
+  {% else %}
+    <span class="pill amber">⚠ OTP recovery disabled</span>
+  {% endif %}
 </div>
 
-{# Status badges #}
-<div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem;">
-  <span class="tag-sm {{ 'tag-success' if has_mailersend else 'tag-warn' }}">
-    {{ '✓ MailerSend configured' if has_mailersend else '○ MailerSend API key not set' }}
-  </span>
-  <span class="tag-sm {{ 'tag-success' if cfg.recovery_enabled else 'tag-muted' }}">
-    {{ '✓ Recovery enabled' if cfg.recovery_enabled else '✗ Recovery disabled' }}
-  </span>
-</div>
+<div style="display:grid;grid-template-columns:1fr 280px;gap:1.25rem;align-items:start">
+<div>
 
-<form method="POST" action="{{ url_for('superadmin.email_settings') }}" autocomplete="off">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  <input type="hidden" name="action" value="save">
-
-  <div class="content-grid" style="max-width:820px;">
-
-    {# ── EMAIL PROVIDER (MailerSend) ───────────────────────────────────────── #}
-    <div class="form-card">
-      <div class="form-card-header">
-        <iconify-icon icon="lucide:send" width="18"></iconify-icon>
-        <h3>Email Provider — MailerSend</h3>
-      </div>
-      <div class="form-card-body">
-        <p class="field-hint" style="margin-bottom:1.25rem;">
-          MailerSend handles all transactional emails: OTP codes, password reset,
-          welcome emails, subscription notifications, and payment alerts.
-          Get a free API key at <a href="https://www.mailersend.com" target="_blank" rel="noopener">mailersend.com</a>.
-          <strong>The API key is stored encrypted and is never sent to the browser.</strong>
-        </p>
-        <div class="form-group">
-          <label class="form-label" for="mailersend_api_key">
-            MailerSend API Key
-            {% if has_mailersend %}<span class="badge badge-success" style="margin-left:.5rem;">Configured</span>{% endif %}
-          </label>
-          <div class="input-group">
-            <input
-              type="password"
-              id="mailersend_api_key"
-              name="mailersend_api_key"
-              class="form-input"
-              autocomplete="new-password"
-              placeholder="{{ '●●●●●●●●  (set — enter new value to replace)' if has_mailersend else 'Paste your MailerSend API key' }}"
-            >
-            <button type="button" id="validateMailerSendBtn" class="btn btn-ghost btn-sm"
-                    style="white-space:nowrap;">
-              <iconify-icon icon="lucide:check-circle" width="14"></iconify-icon>
-              Validate
-            </button>
-          </div>
-          <span class="field-hint">Leave blank to keep the current key. Find your API key under <strong>API Tokens</strong> in the MailerSend dashboard.</span>
-        </div>
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label" for="sender_name">Sender Display Name</label>
-            <input type="text" id="sender_name" name="sender_name" class="form-input"
-              value="{{ cfg.sender_name or '' }}" placeholder="Portfolio CMS" maxlength="200">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="sender_email">
-              From Email Address
-              <span class="field-hint" style="display:inline;">(must be a verified MailerSend domain)</span>
-            </label>
-            <input type="email" id="sender_email" name="sender_email" class="form-input"
-              value="{{ cfg.sender_email or '' }}" placeholder="noreply@yourdomain.com" maxlength="200">
-          </div>
-        </div>
-        {# Test Email row — only shown when key is configured #}
-        {% if has_mailersend %}
-        <div class="form-group" style="margin-top:1rem;">
-          <label class="form-label">Test Email Delivery</label>
-          <div class="input-group">
-            <input type="email" id="testEmailAddr" class="form-input"
-                   placeholder="your@email.com" maxlength="200">
-            <button type="button" id="testEmailBtn" class="btn btn-ghost btn-sm"
-                    style="white-space:nowrap;">
-              <iconify-icon icon="lucide:send" width="14"></iconify-icon>
-              Send Test
-            </button>
-          </div>
-          <span class="field-hint">Sends a live test via the configured MailerSend key to verify end-to-end delivery.</span>
-        </div>
-        {% endif %}
-        <div id="mailersend-validate-result" style="display:none;margin-top:.75rem;"></div>
-      </div>
-    </div>
-
-    {# ── CONTACT FORM PROVIDER (Basin) ────────────────────────────────────── #}
-    <div class="form-card">
-      <div class="form-card-header">
-        <iconify-icon icon="lucide:layout-panel-top" width="18"></iconify-icon>
-        <h3>Contact Form Provider — Basin</h3>
-      </div>
-      <div class="form-card-body">
-        <p class="field-hint" style="margin-bottom:1.25rem;">
-          Basin (<a href="https://usebasin.com" target="_blank" rel="noopener">usebasin.com</a>)
-          handles portfolio contact form submissions per tenant.
-          Each tenant configures their own Basin endpoint in their admin settings.
-          <br>The default is <strong>Internal CMS</strong> — submissions are stored in the database.
-        </p>
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label">Default Provider</label>
-            <select name="default_form_provider" class="form-input">
-              <option value="internal" {{ 'selected' if default_form_provider == 'internal' else '' }}>Internal CMS (default)</option>
-              <option value="basin"    {{ 'selected' if default_form_provider == 'basin' else '' }}>Basin</option>
-            </select>
-            <span class="field-hint">Applied to new tenants. Existing tenants use their own setting.</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    {# ── OTP & RECOVERY ───────────────────────────────────────────────────── #}
-    <div class="form-card">
-      <div class="form-card-header">
-        <iconify-icon icon="lucide:shield-check" width="18"></iconify-icon>
-        <h3>OTP &amp; Password Recovery</h3>
-      </div>
-      <div class="form-card-body">
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label" for="otp_expiry_minutes">OTP Expiration (minutes)</label>
-            <input type="number" id="otp_expiry_minutes" name="otp_expiry_minutes" class="form-input"
-              value="{{ cfg.otp_expiry_minutes or 10 }}" min="1" max="60">
-            <span class="field-hint">1–60 minutes. Default: 10.</span>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Password Recovery</label>
-            <label class="toggle-row">
-              <input type="checkbox" name="recovery_enabled" id="recovery_enabled"
-                {{ 'checked' if cfg.recovery_enabled else '' }}>
-              <span class="toggle-track"></span>
-              <span class="toggle-label">Enable OTP-based password recovery</span>
-            </label>
-            <span class="field-hint">Disabling blocks all OTP resets across all portals.</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    {# ── PER-PORTAL API CONFIGURATION (v5.6) ───────────────────────────────── #}
-    <div class="form-card">
-      <div class="form-card-header">
-        <iconify-icon icon="lucide:layers" width="18"></iconify-icon>
-        <h3>Per-Portal MailerSend Configuration</h3>
-      </div>
-      <div class="form-card-body">
-        <p class="field-hint" style="margin-bottom:1.25rem;">
-          Optionally configure separate MailerSend API keys, sender emails, and display names for
-          each portal. If left blank, each portal falls back to the shared key and sender above.<br>
-          Env-var fallbacks: <code>ADMIN_MAILERSEND_API_KEY</code>, <code>SUPERADMIN_MAILERSEND_API_KEY</code>,
-          <code>ADMIN_MAIL_FROM</code>, <code>SUPERADMIN_MAIL_FROM</code>, <code>ADMIN_MAIL_NAME</code>, <code>SUPERADMIN_MAIL_NAME</code>.
-        </p>
-
-        {# Admin Portal #}
-        <div style="border:1px solid var(--border-color,#e5e7eb);border-radius:10px;padding:1.25rem;margin-bottom:1.25rem;">
-          <h4 style="margin:0 0 1rem;font-size:.875rem;font-weight:600;display:flex;align-items:center;gap:.5rem;">
-            <iconify-icon icon="lucide:shield" width="16"></iconify-icon>
-            Admin Portal
-            <span class="badge {{ 'badge-success' if cfg.has_admin_mailersend else 'badge-muted' }}" style="margin-left:.5rem;font-size:.7rem;">
-              {{ '✓ Custom key configured' if cfg.has_admin_mailersend else '○ Using shared key' }}
-            </span>
-          </h4>
-          <div class="form-row">
-            <div class="form-col">
-              <label class="form-label" for="admin_mailersend_api_key">API Key</label>
-              <input type="password" id="admin_mailersend_api_key" name="admin_mailersend_api_key"
-                class="form-input" autocomplete="off"
-                placeholder="{{ '●●●●●●●● (set — enter new value to replace)' if cfg.has_admin_mailersend else 'Leave blank to use shared key' }}">
-            </div>
-            <div class="form-col">
-              <label class="form-label" for="admin_sender_email">Sender Email</label>
-              <input type="email" id="admin_sender_email" name="admin_sender_email"
-                class="form-input" value="{{ cfg.admin_sender_email or '' }}"
-                placeholder="Leave blank to use shared sender">
-            </div>
-            <div class="form-col">
-              <label class="form-label" for="admin_sender_name">Sender Name</label>
-              <input type="text" id="admin_sender_name" name="admin_sender_name"
-                class="form-input" value="{{ cfg.admin_sender_name or '' }}"
-                placeholder="Leave blank to use shared name">
-            </div>
-          </div>
-        </div>
-
-        {# Superadmin Portal #}
-        <div style="border:1px solid var(--border-color,#e5e7eb);border-radius:10px;padding:1.25rem;">
-          <h4 style="margin:0 0 1rem;font-size:.875rem;font-weight:600;display:flex;align-items:center;gap:.5rem;">
-            <iconify-icon icon="lucide:shield-check" width="16"></iconify-icon>
-            Superadmin Portal
-            <span class="badge {{ 'badge-success' if cfg.has_superadmin_mailersend else 'badge-muted' }}" style="margin-left:.5rem;font-size:.7rem;">
-              {{ '✓ Custom key configured' if cfg.has_superadmin_mailersend else '○ Using shared key' }}
-            </span>
-          </h4>
-          <div class="form-row">
-            <div class="form-col">
-              <label class="form-label" for="superadmin_mailersend_api_key">API Key</label>
-              <input type="password" id="superadmin_mailersend_api_key" name="superadmin_mailersend_api_key"
-                class="form-input" autocomplete="off"
-                placeholder="{{ '●●●●●●●● (set — enter new value to replace)' if cfg.has_superadmin_mailersend else 'Leave blank to use shared key' }}">
-            </div>
-            <div class="form-col">
-              <label class="form-label" for="superadmin_sender_email">Sender Email</label>
-              <input type="email" id="superadmin_sender_email" name="superadmin_sender_email"
-                class="form-input" value="{{ cfg.superadmin_sender_email or '' }}"
-                placeholder="Leave blank to use shared sender">
-            </div>
-            <div class="form-col">
-              <label class="form-label" for="superadmin_sender_name">Sender Name</label>
-              <input type="text" id="superadmin_sender_name" name="superadmin_sender_name"
-                class="form-input" value="{{ cfg.superadmin_sender_name or '' }}"
-                placeholder="Leave blank to use shared name">
-            </div>
-          </div>
-        </div>
-
-        <p class="field-hint" style="margin-top:.75rem;">
-          <iconify-icon icon="lucide:info" width="13" style="vertical-align:middle;"></iconify-icon>
-          API keys are stored Fernet-encrypted in the database. They are never exposed in any response.
-        </p>
-      </div>
-    </div>
-
-    {# ── Save ──────────────────────────────────────────────────────────────── #}
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">
-        <iconify-icon icon="lucide:save" width="16"></iconify-icon>
-        Save Settings
-      </button>
-    </div>
-
+<!-- ── Provider Priority ─────────────────────────────────────────────── -->
+<div class="es-card" style="margin-bottom:1.25rem">
+  <div class="es-card-header">
+    <div class="es-card-title">⇅ Provider Priority</div>
+    <span style="font-size:.78rem;color:var(--text-muted)">Drag to reorder · Primary provider used first, fallover on failure</span>
   </div>
-</form>
+  <div class="priority-list" id="priorityList">
+    {% for pname in priority %}
+    {% set pinfo = providers_status[pname] %}
+    <div class="priority-item" draggable="true" data-provider="{{ pname }}">
+      <div class="priority-handle"><span></span><span></span><span></span></div>
+      <span class="priority-num">{{ loop.index }}</span>
+      <span class="priority-dot {{ 'active' if pinfo.active else 'inactive' }}"></span>
+      <span class="priority-name">
+        {% if pname == 'mailersend' %}📧 MailerSend
+        {% elif pname == 'smtp' %}📮 SMTP (Gmail / custom)
+        {% elif pname == 'resend' %}✉️ Resend
+        {% endif %}
+      </span>
+      {% if pinfo.configured %}
+        <span class="status-badge {{ 'ok' if pinfo.active else 'off' }}">
+          {{ '✓ Active' if pinfo.active else '◎ Inactive' }}
+        </span>
+      {% else %}
+        <span class="status-badge warn">Not configured</span>
+      {% endif %}
+      <!-- Active toggle -->
+      <label class="provider-toggle" title="Enable / disable this provider" onclick="event.stopPropagation()">
+        <div class="toggle-switch">
+          <input type="checkbox" {{ 'checked' if pinfo.active else '' }}
+                 onchange="toggleProvider('{{ pname }}', this.checked)">
+          <div class="toggle-track"></div>
+        </div>
+      </label>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="es-actions">
+    <button class="btn-save" onclick="savePriority()">💾 Save Priority</button>
+    <!-- Test email across chain -->
+    <div style="display:flex;gap:.5rem;align-items:center;margin-left:auto">
+      <input id="testEmailInput" type="email" class="es-input" placeholder="test@example.com"
+             style="width:220px" value="">
+      <button class="btn-test" onclick="sendTestEmail()">🚀 Send Test</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MailerSend Config ──────────────────────────────────────────────── -->
+<div class="es-card" style="margin-bottom:1.25rem">
+  <div class="es-card-header">
+    <div class="es-card-title">
+      <span class="provider-icon mailersend">📧</span>
+      MailerSend
+    </div>
+    {% if providers_status.mailersend.configured %}
+      <span class="status-badge ok">✓ Configured</span>
+    {% else %}
+      <span class="status-badge warn">Not configured</span>
+    {% endif %}
+  </div>
+  <p style="font-size:.83rem;color:var(--text-muted);margin:0 0 1rem">
+    Primary transactional provider. Get a free API key at <a href="https://mailersend.com" target="_blank" style="color:#a78bfa">mailersend.com</a>.
+    Keys are stored encrypted and never sent to the browser.
+  </p>
+  <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save_mailersend">
+    <div class="es-form-grid">
+      <div class="es-form-group full">
+        <label class="es-label">MailerSend API Key
+          {% if has_superadmin_mailersend or has_mailersend %}
+            <span style="color:#a78bfa;font-size:.7rem;margin-left:.4rem">✓ CONFIGURED</span>
+          {% endif %}
+        </label>
+        <div style="display:flex;gap:.5rem">
+          <input id="msKey" type="password" name="mailersend_api_key" class="es-input"
+                 placeholder="{{ '(set — enter new value to replace)' if has_superadmin_mailersend or has_mailersend else 'Enter MailerSend API key' }}">
+          <button type="button" class="btn-validate" onclick="validateMailerSend()">✓ Validate</button>
+        </div>
+        <span class="es-hint">Leave blank to keep the current key.</span>
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">Sender Display Name</label>
+        <input type="text" name="mailersend_sender_name" class="es-input"
+               value="{{ cfg.superadmin_sender_name or cfg.sender_name or '' }}" placeholder="Portfolio CMS">
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">From Email Address (verified domain)</label>
+        <input type="email" name="mailersend_sender_email" class="es-input"
+               value="{{ cfg.superadmin_sender_email or cfg.sender_email or '' }}"
+               placeholder="noreply@yourdomain.com">
+      </div>
+    </div>
+    <div class="es-actions">
+      <button type="submit" class="btn-save">💾 Save MailerSend</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── SMTP Config ───────────────────────────────────────────────────── -->
+<div class="es-card" style="margin-bottom:1.25rem">
+  <div class="es-card-header">
+    <div class="es-card-title">
+      <span class="provider-icon smtp">📮</span>
+      SMTP — Gmail / Custom
+    </div>
+    {% if providers_status.smtp.configured %}
+      <span class="status-badge ok">✓ Configured</span>
+    {% else %}
+      <span class="status-badge warn">Not configured</span>
+    {% endif %}
+  </div>
+  <p style="font-size:.83rem;color:var(--text-muted);margin:0 0 1rem">
+    For Gmail: use <strong>smtp.gmail.com</strong> · port <strong>587</strong> · TLS, and an
+    <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:#60a5fa">App Password</a>
+    (not your main Gmail password). Credentials stored encrypted.
+  </p>
+  <form method="POST" id="smtpForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save_smtp">
+    <div class="es-form-grid">
+      <div class="es-form-group">
+        <label class="es-label">SMTP Host</label>
+        <input id="smtpHost" type="text" name="smtp_host" class="es-input"
+               value="{{ cfg.sa_smtp_host or '' }}" placeholder="smtp.gmail.com">
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">Port</label>
+        <input id="smtpPort" type="number" name="smtp_port" class="es-input"
+               value="{{ cfg.sa_smtp_port or 587 }}" min="1" max="65535">
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">Username / Email</label>
+        <input id="smtpUser" type="text" name="smtp_username" class="es-input"
+               value="{{ cfg.sa_smtp_username or '' }}" placeholder="you@gmail.com">
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">Password / App Password
+          {% if cfg.has_sa_smtp %}
+            <span style="color:#22c55e;font-size:.7rem;margin-left:.4rem">✓ SET</span>
+          {% endif %}
+        </label>
+        <div class="es-password-group">
+          <input id="smtpPass" type="password" name="smtp_password" class="es-input"
+                 placeholder="{{ '(set — enter new value to replace)' if cfg.has_sa_smtp else 'App password or SMTP password' }}">
+          <button type="button" class="es-password-toggle"
+                  onclick="togglePwd('smtpPass', this)">👁</button>
+        </div>
+        <span class="es-hint">Leave blank to keep existing password.</span>
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">Sender Email</label>
+        <input id="smtpSenderEmail" type="email" name="smtp_sender_email" class="es-input"
+               value="{{ cfg.sa_smtp_sender_email or '' }}" placeholder="noreply@yourdomain.com">
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">Sender Display Name</label>
+        <input type="text" name="smtp_sender_name" class="es-input"
+               value="{{ cfg.sa_smtp_sender_name or '' }}" placeholder="Portfolio CMS">
+      </div>
+      <div class="es-form-group full">
+        <label class="es-label">Encryption</label>
+        <select name="smtp_encryption" class="es-input es-select">
+          <option value="tls" {{ 'selected' if (cfg.sa_smtp_encryption or 'tls') == 'tls' }}>STARTTLS (recommended · port 587)</option>
+          <option value="ssl" {{ 'selected' if cfg.sa_smtp_encryption == 'ssl' }}>SSL/TLS (port 465)</option>
+          <option value="none" {{ 'selected' if cfg.sa_smtp_encryption == 'none' }}>None (not recommended)</option>
+        </select>
+      </div>
+    </div>
+    <div class="es-actions">
+      <button type="button" class="btn-validate" onclick="validateSMTP()">🔌 Test Connection</button>
+      <button type="submit" class="btn-save">💾 Save SMTP</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── Resend Config ─────────────────────────────────────────────────── -->
+<div class="es-card" style="margin-bottom:1.25rem">
+  <div class="es-card-header">
+    <div class="es-card-title">
+      <span class="provider-icon resend">✉️</span>
+      Resend
+    </div>
+    {% if providers_status.resend.configured %}
+      <span class="status-badge ok">✓ Configured</span>
+    {% else %}
+      <span class="status-badge warn">Not configured</span>
+    {% endif %}
+  </div>
+  <p style="font-size:.83rem;color:var(--text-muted);margin:0 0 1rem">
+    Alternative API-based provider. Get a free API key at
+    <a href="https://resend.com" target="_blank" style="color:#34d399">resend.com</a>.
+    Requires a verified domain for the sender address.
+  </p>
+  <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save_resend">
+    <div class="es-form-grid">
+      <div class="es-form-group full">
+        <label class="es-label">Resend API Key
+          {% if providers_status.resend.configured %}
+            <span style="color:#10b981;font-size:.7rem;margin-left:.4rem">✓ CONFIGURED</span>
+          {% endif %}
+        </label>
+        <div style="display:flex;gap:.5rem">
+          <input id="resendKey" type="password" name="resend_api_key" class="es-input"
+                 placeholder="{{ '(set — enter new value to replace)' if providers_status.resend.configured else 're_xxxxxxxx...' }}">
+          <button type="button" class="btn-validate" onclick="validateResend()">✓ Validate</button>
+        </div>
+        <span class="es-hint">Leave blank to keep the current key. Keys start with <code>re_</code>.</span>
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">Sender Display Name</label>
+        <input type="text" name="resend_sender_name" class="es-input"
+               value="{{ cfg.sa_resend_sender_name or '' }}" placeholder="Portfolio CMS">
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">From Email Address (verified domain)</label>
+        <input type="email" name="resend_sender_email" class="es-input"
+               value="{{ cfg.sa_resend_sender_email or '' }}" placeholder="noreply@yourdomain.com">
+      </div>
+    </div>
+    <div class="es-actions">
+      <button type="submit" class="btn-save">💾 Save Resend</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── OTP & Recovery ────────────────────────────────────────────────── -->
+<div class="es-card">
+  <div class="es-card-header">
+    <div class="es-card-title">🔐 OTP & Password Recovery</div>
+  </div>
+  <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save_otp">
+    <div class="es-form-grid">
+      <div class="es-form-group">
+        <label class="es-label">OTP Expiration (minutes)</label>
+        <input type="number" name="otp_expiry_minutes" class="es-input"
+               value="{{ cfg.otp_expiry_minutes }}" min="1" max="60">
+        <span class="es-hint">1–60 minutes. Default: 10.</span>
+      </div>
+      <div class="es-form-group" style="justify-content:flex-end">
+        <label class="es-label">Password Recovery</label>
+        <label class="provider-toggle" style="margin-top:.4rem">
+          <div class="toggle-switch">
+            <input type="checkbox" name="recovery_enabled"
+                   id="recoveryToggle" {{ 'checked' if cfg.recovery_enabled }}>
+            <div class="toggle-track"></div>
+          </div>
+          <span class="toggle-label">Enable OTP-based recovery
+            <span style="font-size:.75rem;color:#6b7280">Disabling blocks all OTP resets</span>
+          </span>
+        </label>
+      </div>
+    </div>
+    <div class="es-actions">
+      <button type="submit" class="btn-save">💾 Save OTP Settings</button>
+    </div>
+  </form>
+</div>
+
+</div><!-- /main col -->
+
+<!-- ── Security Sidebar ──────────────────────────────────────────────── -->
+<div>
+  <div class="sec-card">
+    <div class="sec-section">
+      <div class="sec-title orange">🔒 Credential Storage</div>
+      <ul class="sec-list">
+        <li>Keys encrypted at rest via <strong>Fernet</strong></li>
+        <li>Never displayed in plain text after saving</li>
+        <li>Gmail → use an <strong>App Password</strong></li>
+      </ul>
+    </div>
+    <div class="sec-section">
+      <div class="sec-title blue">🔑 Provider Scope</div>
+      <ul class="sec-list">
+        <li>These providers send <strong>admin + superadmin</strong> portal OTPs</li>
+        <li>Tenant contact form emails use tenant-level settings</li>
+        <li>Priority order controls which provider is tried first</li>
+        <li>Failover is automatic on transient errors</li>
+      </ul>
+    </div>
+    <div class="sec-section">
+      <div class="sec-title green">🌐 SPF / DKIM / DMARC</div>
+      <ul class="sec-list">
+        <li>Configure DNS records for maximum deliverability</li>
+        <li>Check with <a href="https://mail-tester.com" target="_blank" style="color:#4ade80">mail-tester.com</a></li>
+      </ul>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border-color);margin:1rem 0">
+    <div class="sec-section">
+      <div class="sec-title" style="color:#94a3b8">Gmail Quick Setup</div>
+      <ul class="sec-list">
+        <li>Host: <code>smtp.gmail.com</code></li>
+        <li>Port: <code>587</code> · STARTTLS</li>
+        <li>Username: your Gmail address</li>
+        <li>Password: <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:#60a5fa">App Password</a> (16-char, no spaces)</li>
+        <li>2FA must be enabled on Gmail</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+</div><!-- /outer grid -->
+
+<!-- Toast container -->
+<div id="es-toast"></div>
 
 <script>
-/* ── Validate MailerSend key ─────────────────────────────────────────── */
-document.getElementById('validateMailerSendBtn').addEventListener('click', async function() {
-  const key = document.getElementById('mailersend_api_key').value.trim();
-  if (!key) { alert('Enter a MailerSend API key first.'); return; }
+// ── Toast helper ──────────────────────────────────────────────────────────
+function toast(msg, ok = true) {
+  const c = document.getElementById('es-toast');
+  const d = document.createElement('div');
+  d.className = 'toast-msg ' + (ok ? 'ok' : 'err');
+  d.innerHTML = (ok ? '✓ ' : '✗ ') + msg;
+  c.appendChild(d);
+  setTimeout(() => d.remove(), 4000);
+}
 
-  const btn = this;
-  btn.disabled = true;
-  btn.textContent = 'Validating…';
+// ── Password visibility toggle ────────────────────────────────────────────
+function togglePwd(id, btn) {
+  const inp = document.getElementById(id);
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+  else { inp.type = 'password'; btn.textContent = '👁'; }
+}
 
-  const result = document.getElementById('mailersend-validate-result');
-  result.style.display = 'none';
-
-  try {
-    const fd = new FormData();
-    fd.append('csrf_token',         '{{ csrf_token() }}');
-    fd.append('action',             'validate_mailersend_key');
-    fd.append('mailersend_api_key', key);
-
-    const resp = await fetch('{{ url_for("superadmin.email_settings") }}', {
-      method: 'POST', body: fd,
-    });
-    const data = await resp.json();
-
-    result.style.display = 'block';
-    result.className = data.ok ? 'alert alert-success' : 'alert alert-danger';
-    result.textContent = data.message;
-  } catch (e) {
-    result.style.display = 'block';
-    result.className = 'alert alert-danger';
-    result.textContent = 'Validation request failed: ' + e.message;
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<iconify-icon icon="lucide:check-circle" width="14"></iconify-icon> Validate';
-  }
-});
-
-/* ── Send test email ─────────────────────────────────────────────────── */
-const testBtn = document.getElementById('testEmailBtn');
-if (testBtn) {
-  testBtn.addEventListener('click', async function() {
-    const addr = document.getElementById('testEmailAddr').value.trim();
-    if (!addr) { alert('Enter a recipient email address.'); return; }
-
-    const btn = this;
-    btn.disabled = true;
-    btn.textContent = 'Sending…';
-
-    const result = document.getElementById('mailersend-validate-result');
-    result.style.display = 'none';
-
-    try {
-      const fd = new FormData();
-      fd.append('csrf_token',  '{{ csrf_token() }}');
-      fd.append('action',      'send_test_email');
-      fd.append('test_email',  addr);
-
-      const resp = await fetch('{{ url_for("superadmin.email_settings") }}', {
-        method: 'POST', body: fd,
-      });
-      const data = await resp.json();
-
-      result.style.display = 'block';
-      result.className = data.ok ? 'alert alert-success' : 'alert alert-danger';
-      result.textContent = data.message;
-    } catch (e) {
-      result.style.display = 'block';
-      result.className = 'alert alert-danger';
-      result.textContent = 'Request failed: ' + e.message;
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = '<iconify-icon icon="lucide:send" width="14"></iconify-icon> Send Test';
+// ── Priority drag-and-drop ────────────────────────────────────────────────
+let dragged = null;
+document.querySelectorAll('.priority-item').forEach(item => {
+  item.addEventListener('dragstart', e => {
+    dragged = item;
+    setTimeout(() => item.classList.add('dragging'), 0);
+  });
+  item.addEventListener('dragend', () => {
+    item.classList.remove('dragging');
+    document.querySelectorAll('.priority-item').forEach(i => i.classList.remove('drag-over'));
+    renumberPriority();
+  });
+  item.addEventListener('dragover', e => {
+    e.preventDefault();
+    document.querySelectorAll('.priority-item').forEach(i => i.classList.remove('drag-over'));
+    if (item !== dragged) item.classList.add('drag-over');
+  });
+  item.addEventListener('drop', e => {
+    e.preventDefault();
+    if (item !== dragged) {
+      const list = document.getElementById('priorityList');
+      const items = [...list.querySelectorAll('.priority-item')];
+      const di = items.indexOf(dragged), ti = items.indexOf(item);
+      if (di < ti) list.insertBefore(dragged, item.nextSibling);
+      else list.insertBefore(dragged, item);
     }
   });
+});
+
+function renumberPriority() {
+  document.querySelectorAll('.priority-item').forEach((item, i) => {
+    item.querySelector('.priority-num').textContent = i + 1;
+  });
+}
+
+async function savePriority() {
+  const order = [...document.querySelectorAll('.priority-item')].map(i => i.dataset.provider);
+  const fd = new FormData();
+  fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+  fd.append('action', 'save_priority');
+  fd.append('priority_order', JSON.stringify(order));
+  const r = await fetch(window.location.href, { method: 'POST', body: fd });
+  const d = await r.json();
+  toast(d.message, d.ok);
+}
+
+// ── Toggle provider ───────────────────────────────────────────────────────
+async function toggleProvider(name, active) {
+  const fd = new FormData();
+  fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+  fd.append('action', 'toggle_provider');
+  fd.append('provider', name);
+  fd.append('active', active ? '1' : '0');
+  const r = await fetch(window.location.href, { method: 'POST', body: fd });
+  const d = await r.json();
+  toast(d.message, d.ok);
+  // Update dot
+  const item = document.querySelector(`.priority-item[data-provider="${name}"]`);
+  if (item) {
+    const dot = item.querySelector('.priority-dot');
+    dot.className = 'priority-dot ' + (active ? 'active' : 'inactive');
+    const badge = item.querySelector('.status-badge');
+    if (badge && !badge.classList.contains('warn')) {
+      badge.className = 'status-badge ' + (active ? 'ok' : 'off');
+      badge.textContent = active ? '✓ Active' : '◎ Inactive';
+    }
+  }
+}
+
+// ── Validate MailerSend ───────────────────────────────────────────────────
+async function validateMailerSend() {
+  const key = document.getElementById('msKey').value.trim();
+  const fd = new FormData();
+  fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+  fd.append('action', 'validate_mailersend_key');
+  fd.append('mailersend_api_key', key);
+  const r = await fetch(window.location.href, { method: 'POST', body: fd });
+  const d = await r.json();
+  toast(d.message, d.ok);
+}
+
+// ── Validate SMTP ─────────────────────────────────────────────────────────
+async function validateSMTP() {
+  const fd = new FormData();
+  fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+  fd.append('action', 'validate_smtp');
+  fd.append('smtp_host',       document.getElementById('smtpHost').value);
+  fd.append('smtp_port',       document.getElementById('smtpPort').value);
+  fd.append('smtp_username',   document.getElementById('smtpUser').value);
+  fd.append('smtp_password',   document.getElementById('smtpPass').value);
+  fd.append('smtp_encryption', document.querySelector('[name=smtp_encryption]').value);
+  const r = await fetch(window.location.href, { method: 'POST', body: fd });
+  const d = await r.json();
+  toast(d.message, d.ok);
+}
+
+// ── Validate Resend ───────────────────────────────────────────────────────
+async function validateResend() {
+  const key = document.getElementById('resendKey').value.trim();
+  const fd = new FormData();
+  fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+  fd.append('action', 'validate_resend');
+  fd.append('resend_api_key', key);
+  const r = await fetch(window.location.href, { method: 'POST', body: fd });
+  const d = await r.json();
+  toast(d.message, d.ok);
+}
+
+// ── Send test email ───────────────────────────────────────────────────────
+async function sendTestEmail() {
+  const email = document.getElementById('testEmailInput').value.trim();
+  if (!email) { toast('Enter a test recipient email first.', false); return; }
+  const fd = new FormData();
+  fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+  fd.append('action', 'send_test_email');
+  fd.append('test_email', email);
+  toast('Sending test email…', true);
+  const r = await fetch(window.location.href, { method: 'POST', body: fd });
+  const d = await r.json();
+  toast(d.message, d.ok);
 }
 </script>
 {% endblock %}

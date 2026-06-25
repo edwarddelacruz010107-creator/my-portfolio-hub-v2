@@ -154,7 +154,7 @@ def _apply_password_change(user: User, new_password: str) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# A. Superadmin reset — SMTP ONLY
+# A. Superadmin reset — multi-provider (MailerSend / SMTP / Resend) in priority order
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _send_superadmin_otp(
@@ -165,39 +165,39 @@ def _send_superadmin_otp(
     ttl_minutes: int,
 ) -> tuple[bool, str]:
     """
-    Deliver superadmin OTP via SMTP — the ONLY transport for this path.
+    Deliver superadmin OTP via the configured provider chain (v5.9.1).
 
-    ISOLATION CONTRACT:
-        • ONLY called from initiate_superadmin_reset().
-        • NEVER uses send_otp_email(), MailerSend, or Web3Forms.
-        • NEVER touches tenant_slug, tenant_id, or any tenant table.
-        • NEVER reads admin or tenant MailerSend credentials, and never
-          reads GlobalEmailConfig — smtp_service resolves configuration
-          from environment variables only.
-
-    If SMTP_HOST/USERNAME/PASSWORD/FROM_EMAIL are not fully set this is a
-    hard configuration error. smtp_service.send_email() returns
-    (False, <reason>) in that case — logged at ERROR level here. There is
-    NO silent fallback to MailerSend or Web3Forms for the superadmin path.
+    Uses superadmin_email_service which tries providers in priority order
+    (MailerSend → SMTP → Resend or as configured) with automatic failover.
+    Falls back to env-only SMTP (smtp_service) if no DB providers are active.
 
     Returns (sent: bool, error_or_empty: str).
     """
-    ok, err = smtp_service.send_superadmin_otp(
-        email=email,
-        otp=otp,
-        ip_address=ip_address,
-        user_agent=user_agent,
-        ttl_minutes=ttl_minutes,
-    )
+    try:
+        from app.services.superadmin_email_service import send_otp as _multi_send
+        ok, err = _multi_send(
+            email=email,
+            otp=otp,
+            portal='superadmin',
+            ip_address=ip_address,
+            ttl_minutes=ttl_minutes,
+        )
+    except Exception as exc:
+        logger.warning('_send_superadmin_otp: multi-provider import failed (%s) — falling back to SMTP', exc)
+        ok, err = smtp_service.send_superadmin_otp(
+            email=email,
+            otp=otp,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            ttl_minutes=ttl_minutes,
+        )
 
     if ok:
-        logger.info('_send_superadmin_otp: OTP delivered via SMTP to=%s', email)
+        logger.info('_send_superadmin_otp: OTP delivered to=%s', email)
         return True, ''
 
     logger.error(
-        '_send_superadmin_otp: SMTP delivery FAILED for superadmin OTP to=%s '
-        'reason=%s — NO fallback configured (check SMTP_HOST/USERNAME/'
-        'PASSWORD/FROM_EMAIL)',
+        '_send_superadmin_otp: delivery FAILED for to=%s reason=%s',
         email, err,
     )
     return False, err
@@ -413,22 +413,33 @@ def initiate_admin_reset(
     logger.info('[ADMIN RESET] step=otp_generated user_id=%s ttl=%dm', user.id, ttl)
     log_security_event('admin_otp_generated', user, f'Admin OTP record created from ip={ip}', 'info')
 
-    # ── Tier 1: SMTP primary (mirrors superadmin path) ──────────────────────
-    smtp_ok, smtp_err = smtp_service.send_admin_otp(
-        email=user.email,
-        otp=raw_otp,
-        ip_address=ip,
-        user_agent=ua,
-        ttl_minutes=ttl,
-    )
+    # ── Multi-provider delivery (superadmin_email_service) ──────────────────
+    try:
+        from app.services.superadmin_email_service import send_otp as _multi_send
+        smtp_ok, smtp_err = _multi_send(
+            email=user.email,
+            otp=raw_otp,
+            portal='admin',
+            ip_address=ip,
+            ttl_minutes=ttl,
+        )
+    except Exception as exc:
+        logger.warning('[ADMIN RESET] multi-provider import failed (%s) — using SMTP', exc)
+        smtp_ok, smtp_err = smtp_service.send_admin_otp(
+            email=user.email,
+            otp=raw_otp,
+            ip_address=ip,
+            user_agent=ua,
+            ttl_minutes=ttl,
+        )
     logger.info('[ADMIN RESET] step=smtp_result sent=%s user_id=%s', smtp_ok, user.id)
 
     if smtp_ok:
-        log_security_event('admin_otp_sent', user, f'Admin OTP delivered via SMTP from ip={ip}', 'info')
+        log_security_event('admin_otp_sent', user, f'Admin OTP delivered via provider chain from ip={ip}', 'info')
         log_security_event('admin_pw_reset_initiated', user, f'Admin OTP sent from ip={ip}', 'info')
         return True, generic
 
-    # ── Tier 2: MailerSend fallback ──────────────────────────────────────────
+    # ── Fallback: legacy MailerSend direct ──────────────────────────────────
     logger.warning(
         '[ADMIN RESET] step=smtp_failed user_id=%s smtp_err=%s — falling back to MailerSend',
         user.id, smtp_err,
@@ -506,6 +517,67 @@ def complete_admin_reset(token: str, new_password: str) -> tuple[bool, str]:
 # C. Tenant reset — MailerSend primary / SMTP fallback via send_otp_email()
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _send_tenant_otp(
+    tenant_id,
+    recipient_email: str,
+    otp: str,
+    ip_address,
+    user_agent,
+    ttl_minutes: int,
+) -> tuple[bool, str]:
+    """
+    Deliver a tenant password-reset OTP using the tenant's OWN Email Services
+    configuration (SMTP/Resend/MailerSend, tried in their configured priority
+    order with automatic failover — same chain used by the tenant's contact
+    form and "Send Test Email" button).
+
+    Falls back to the global MailerSend/SMTP path (send_otp_email) only when
+    the tenant has no active providers configured yet, so a brand-new tenant
+    isn't locked out of password recovery before they've set anything up.
+
+    Returns (sent: bool, delivery_note: str) for logging.
+    """
+    from app.services.email_service import _build_otp_email_body
+
+    subject, text, html = _build_otp_email_body(otp, 'tenant', ip_address, user_agent, ttl_minutes)
+
+    if tenant_id:
+        try:
+            from app.models.core import TenantEmailProvider
+            if TenantEmailProvider.get_ordered_active(tenant_id):
+                from app.services.tenant_email_service import send_tenant_email
+                ok, err = send_tenant_email(
+                    tenant_id=tenant_id,
+                    to=recipient_email,
+                    subject=subject,
+                    html=html,
+                    text=text,
+                )
+                if ok:
+                    return True, 'tenant_email_services'
+                logger.warning(
+                    '[TENANT RESET] tenant Email Services delivery failed tenant_id=%s err=%s '
+                    '— falling back to global MailerSend/SMTP',
+                    tenant_id, err,
+                )
+        except Exception as exc:
+            logger.warning(
+                '[TENANT RESET] tenant Email Services lookup failed tenant_id=%s err=%s '
+                '— falling back to global MailerSend/SMTP',
+                tenant_id, exc,
+            )
+
+    sent = send_otp_email(
+        recipient_email=recipient_email,
+        otp=otp,
+        user_type='tenant',
+        ip_address=ip_address,
+        user_agent=user_agent,
+        ttl_minutes=ttl_minutes,
+    )
+    return sent, 'global_fallback'
+
+
 def initiate_tenant_reset(
     submitted_email: str,
     username: str | None,
@@ -561,15 +633,18 @@ def initiate_tenant_reset(
     logger.info('[TENANT RESET] step=otp_generated user_id=%s tenant=%s ttl=%dm', user.id, tenant_slug, ttl)
     log_security_event('tenant_otp_generated', user, f'Tenant OTP record created from ip={ip}', 'info')
 
-    sent = send_otp_email(
+    sent, delivery_note = _send_tenant_otp(
+        tenant_id=user.tenant_id,
         recipient_email=user.email,
         otp=raw_otp,
-        user_type='tenant',
         ip_address=ip,
         user_agent=ua,
         ttl_minutes=ttl,
     )
-    logger.info('[TENANT RESET] step=delivery_result sent=%s user_id=%s tenant=%s', sent, user.id, tenant_slug)
+    logger.info(
+        '[TENANT RESET] step=delivery_result sent=%s user_id=%s tenant=%s via=%s',
+        sent, user.id, tenant_slug, delivery_note,
+    )
 
     if sent:
         log_security_event('tenant_otp_sent', user, f'Tenant OTP delivered from ip={ip}', 'info')

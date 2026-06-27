@@ -137,7 +137,7 @@ html[data-theme="light"] .sidebar {
     padding: 0.6rem 1rem;
     transition: all 0.2s ease;
     text-decoration: none;
-    color: var(--text-dim, #4a5068);
+    color: var(--text-dim, #8892a4);
     border: 1px solid transparent;
 }
 .logout-btn:hover {
@@ -677,7 +677,7 @@ html[data-theme="light"] .filter-bar-card {
     border-radius: 999px;
     border: 1px solid rgba(255,255,255,0.08);
     background: transparent;
-    color: var(--text-dim, #4a5068);
+    color: var(--text-dim, #8892a4);
     font-size: 0.78rem;
     font-weight: 600;
     cursor: pointer;
@@ -709,7 +709,7 @@ html[data-theme="light"] .sa-table-card {
 
 .sa-table th:first-child { border-radius: 0; }
 .sa-table td { padding: 0.9rem 1rem; font-size: 0.875rem; }
-.sa-table td.muted { color: var(--text-dim, #4a5068); font-size: 0.82rem; }
+.sa-table td.muted { color: var(--text-dim, #8892a4); font-size: 0.82rem; }
 
 /* ── LICENSE PILL ─────────────────────────────────────────────── */
 .license-pill {
@@ -759,7 +759,7 @@ html[data-theme="light"] .sa-table-card {
     line-height: 1.2;
 }
 .page-subtext {
-    color: var(--text-dim, #4a5068);
+    color: var(--text-dim, #8892a4);
     font-size: 0.875rem;
     margin-top: 0.35rem;
     max-width: 520px;
@@ -791,13 +791,13 @@ html[data-theme="light"] .sa-table-card {
     color: var(--text-1, #e8eaf0);
 }
 .tstat-green { color: #34d399; }
-.tstat-muted { color: var(--text-dim, #4a5068); }
+.tstat-muted { color: var(--text-dim, #8892a4); }
 .tstat-label {
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--text-dim, #4a5068);
+    color: var(--text-dim, #8892a4);
     margin-top: 0.2rem;
 }
 .tstat-divider {
@@ -840,7 +840,7 @@ html[data-theme="light"] .sa-table-card {
     display: inline-flex; align-items: center; justify-content: center;
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.07);
-    color: var(--text-dim, #4a5068);
+    color: var(--text-dim, #8892a4);
     cursor: pointer;
     transition: all 0.2s ease;
     text-decoration: none;

@@ -5,26 +5,45 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="csrf-token" content="{{ csrf_token() }}"/>
   <title>{% block title %}Superadmin{% endblock %} — CMS Control</title>
+
+  <!-- ① PRE-HYDRATION THEME INIT — prevents flash of wrong theme -->
+  <script>(function(){var t=localStorage.getItem('cms_theme')||localStorage.getItem('superadmin-theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
-  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet"/>
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+
+  <!-- ② DESIGN SYSTEM (tokens first) -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/superadmin.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/a11y.css') }}"/>
+  <!-- ③ DESIGN SYSTEM UNIFICATION — loaded last to resolve inconsistencies -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/superadmin-unify.css') }}"/>
   <link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon">
   {% block extra_css %}{% endblock %}
 </head>
 <body class="admin-body">
 
+<!-- Skip navigation -->
+<a href="#adminMain" class="skip-nav">Skip to main content</a>
+
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
 <!-- ── SIDEBAR ─────────────────────────────────────────────── -->
-<aside class="sidebar" id="sidebar">
+<aside class="sidebar" id="sidebar" aria-label="Superadmin navigation">
   <div class="sidebar-header">
     <div class="sidebar-logo">
-      <span class="logo-icon sa-logo-icon">⬡</span>
+      <span class="logo-icon sa-logo-icon" style="background:linear-gradient(135deg,#a855f7,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:1.1rem;width:32px;height:32px;display:grid;place-items:center;border-radius:8px;flex-shrink:0;">⬡</span>
       <span class="logo-text">SuperAdmin</span>
     </div>
-    <button type="button" class="sidebar-close" id="sidebarClose" aria-label="Close sidebar">✕</button>
+    <button type="button" class="sidebar-close" id="sidebarClose" aria-label="Close sidebar">
+      <iconify-icon icon="lucide:x" width="16"></iconify-icon>
+    </button>
   </div>
 
   <!-- Superadmin identity badge -->
@@ -41,96 +60,109 @@
 
   <nav class="sidebar-nav">
 
-    <!-- Platform Overview -->
     <div class="nav-section">
       <span class="nav-label">Platform</span>
       <a href="{{ url_for('superadmin.dashboard') }}"
-         class="nav-item {% if request.endpoint == 'superadmin.dashboard' %}active{% endif %}">
-        <span class="nav-icon"><iconify-icon icon="lucide:layout-dashboard" width="18"></iconify-icon></span>
+         class="nav-item {% if request.endpoint == 'superadmin.dashboard' %}active{% endif %}"
+         {% if request.endpoint == 'superadmin.dashboard' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:layout-dashboard" width="17"></iconify-icon></span>
         Overview
       </a>
     </div>
 
-    <!-- Tenant Management -->
     <div class="nav-section">
-      <span class="nav-label">Tenants
+      <span class="nav-label">
+        Tenants
         {% set tc = tenant_count|default(0) %}
         {% if tc %}<span class="nav-section-badge">{{ tc }}</span>{% endif %}
       </span>
       <a href="{{ url_for('superadmin.tenants') }}"
-         class="nav-item {% if request.endpoint in ['superadmin.tenants'] %}active{% endif %}">
-        <span class="nav-icon"><iconify-icon icon="lucide:users" width="18"></iconify-icon></span>
+         class="nav-item {% if request.endpoint in ['superadmin.tenants'] %}active{% endif %}"
+         {% if request.endpoint in ['superadmin.tenants'] %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:users" width="17"></iconify-icon></span>
         All Tenants
         {% if tenant_count is defined and tenant_count %}
           <span class="nav-badge">{{ tenant_count }}</span>
         {% endif %}
       </a>
       <a href="{{ url_for('superadmin.messages_inbox') }}"
-         class="nav-item {% if request.endpoint in ('superadmin.messages_inbox','superadmin.message_thread') %}active{% endif %}">
-        <span class="nav-icon"><iconify-icon icon="lucide:inbox" width="18"></iconify-icon></span>
+         class="nav-item {% if request.endpoint in ('superadmin.messages_inbox','superadmin.message_thread') %}active{% endif %}"
+         {% if request.endpoint in ('superadmin.messages_inbox','superadmin.message_thread') %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:inbox" width="17"></iconify-icon></span>
         Messages
       </a>
       <a href="{{ url_for('superadmin.send_message') }}"
-         class="nav-item {% if request.endpoint == 'superadmin.send_message' %}active{% endif %}">
-        <span class="nav-icon"><iconify-icon icon="lucide:send" width="18"></iconify-icon></span>
+         class="nav-item {% if request.endpoint == 'superadmin.send_message' %}active{% endif %}"
+         {% if request.endpoint == 'superadmin.send_message' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:send" width="17"></iconify-icon></span>
         Send Message
       </a>
       <a href="{{ url_for('superadmin.tenant_new') }}"
-         class="nav-item {% if request.endpoint == 'superadmin.tenant_new' %}active{% endif %}">
-        <span class="nav-icon"><iconify-icon icon="lucide:user-plus" width="18"></iconify-icon></span>
+         class="nav-item {% if request.endpoint == 'superadmin.tenant_new' %}active{% endif %}"
+         {% if request.endpoint == 'superadmin.tenant_new' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:user-plus" width="17"></iconify-icon></span>
         Add New Tenant
       </a>
     </div>
 
-    <!-- System -->
     <div class="nav-section">
       <span class="nav-label">Billing</span>
       <a href="{{ url_for('superadmin.subscription_monitor') }}"
-         class="nav-item {% if request.endpoint == 'superadmin.subscription_monitor' %}active{% endif %}">
-         <span class="nav-icon"><iconify-icon icon="lucide:bar-chart-3" width="18"></iconify-icon></span>
+         class="nav-item {% if request.endpoint == 'superadmin.subscription_monitor' %}active{% endif %}"
+         {% if request.endpoint == 'superadmin.subscription_monitor' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:bar-chart-3" width="17"></iconify-icon></span>
         Sub Monitor
       </a>
       <a href="{{ url_for('superadmin.billing_overview') }}"
-         class="nav-item {% if request.endpoint == 'superadmin.billing_overview' %}active{% endif %}">
-        <span class="nav-icon"><iconify-icon icon="lucide:credit-card" width="18"></iconify-icon></span>
+         class="nav-item {% if request.endpoint == 'superadmin.billing_overview' %}active{% endif %}"
+         {% if request.endpoint == 'superadmin.billing_overview' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:credit-card" width="17"></iconify-icon></span>
         Subscriptions
       </a>
       <a href="{{ url_for('superadmin.subscription_settings') }}"
-         class="nav-item {% if request.endpoint == 'superadmin.subscription_settings' %}active{% endif %}">
-        <span class="nav-icon"><iconify-icon icon="lucide:layers" width="18"></iconify-icon></span>
+         class="nav-item {% if request.endpoint == 'superadmin.subscription_settings' %}active{% endif %}"
+         {% if request.endpoint == 'superadmin.subscription_settings' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:layers" width="17"></iconify-icon></span>
         Plan Settings
       </a>
       <a href="{{ url_for('superadmin.billing_payment_methods') }}"
-         class="nav-item {% if request.endpoint in ['superadmin.billing_payment_methods', 'superadmin.billing_payment_method_new', 'superadmin.billing_payment_method_edit'] %}active{% endif %}">
-        <span class="nav-icon"><iconify-icon icon="lucide:wallet" width="18"></iconify-icon></span>
+         class="nav-item {% if request.endpoint in ['superadmin.billing_payment_methods','superadmin.billing_payment_method_new','superadmin.billing_payment_method_edit'] %}active{% endif %}"
+         {% if request.endpoint in ['superadmin.billing_payment_methods','superadmin.billing_payment_method_new','superadmin.billing_payment_method_edit'] %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:wallet" width="17"></iconify-icon></span>
         Payment Methods
       </a>
       <a href="{{ url_for('superadmin.billing_submissions') }}"
-         class="nav-item {% if request.endpoint == 'superadmin.billing_submissions' %}active{% endif %}">
-        <span class="nav-icon"><iconify-icon icon="lucide:inbox" width="18"></iconify-icon></span>
+         class="nav-item {% if request.endpoint == 'superadmin.billing_submissions' %}active{% endif %}"
+         {% if request.endpoint == 'superadmin.billing_submissions' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:inbox" width="17"></iconify-icon></span>
         Submissions
       </a>
     </div>
+
     <div class="nav-section">
       <span class="nav-label">System</span>
       <a href="{{ url_for('superadmin.logs') }}"
-         class="nav-item {% if request.endpoint == 'superadmin.logs' %}active{% endif %}">
-        <span class="nav-icon"><iconify-icon icon="lucide:scroll-text" width="18"></iconify-icon></span>
+         class="nav-item {% if request.endpoint == 'superadmin.logs' %}active{% endif %}"
+         {% if request.endpoint == 'superadmin.logs' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:scroll-text" width="17"></iconify-icon></span>
         Activity Logs
       </a>
       <a href="{{ url_for('superadmin.media') }}"
-         class="nav-item {% if request.endpoint in ['superadmin.media','superadmin.media_delete','superadmin.media_compress','superadmin.media_delete_orphans'] %}active{% endif %}">
-        <span class="nav-icon"><iconify-icon icon="lucide:image" width="18"></iconify-icon></span>
+         class="nav-item {% if request.endpoint in ['superadmin.media','superadmin.media_delete','superadmin.media_compress','superadmin.media_delete_orphans'] %}active{% endif %}"
+         {% if request.endpoint in ['superadmin.media','superadmin.media_delete','superadmin.media_compress','superadmin.media_delete_orphans'] %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:image" width="17"></iconify-icon></span>
         Media &amp; Uploads
       </a>
       <a href="{{ url_for('superadmin.settings') }}"
-         class="nav-item {% if request.endpoint == 'superadmin.settings' %}active{% endif %}">
-        <span class="nav-icon"><iconify-icon icon="lucide:settings" width="18"></iconify-icon></span>
+         class="nav-item {% if request.endpoint == 'superadmin.settings' %}active{% endif %}"
+         {% if request.endpoint == 'superadmin.settings' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:settings" width="17"></iconify-icon></span>
         Settings
       </a>
       <a href="{{ url_for('superadmin.email_settings') }}"
-         class="nav-item {% if request.endpoint == 'superadmin.email_settings' %}active{% endif %}">
-        <span class="nav-icon"><iconify-icon icon="lucide:mail" width="18"></iconify-icon></span>
+         class="nav-item {% if request.endpoint == 'superadmin.email_settings' %}active{% endif %}"
+         {% if request.endpoint == 'superadmin.email_settings' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:mail" width="17"></iconify-icon></span>
         Email &amp; Forms
       </a>
     </div>
@@ -138,35 +170,45 @@
   </nav>
 
   <div class="sidebar-footer">
-    <a href="{{ url_for('root') }}" target="_blank" class="preview-btn">
-      <span><iconify-icon icon="lucide:external-link" width="16"></iconify-icon></span>
+    <a href="{{ url_for('root') }}" target="_blank" rel="noopener" class="preview-btn">
+      <iconify-icon icon="lucide:external-link" width="14"></iconify-icon>
       View Site
     </a>
     <a href="{{ url_for('auth.logout') }}" class="logout-btn">
-      <span><iconify-icon icon="lucide:log-out" width="16"></iconify-icon></span>
+      <iconify-icon icon="lucide:log-out" width="14"></iconify-icon>
       Sign Out
     </a>
   </div>
 </aside>
 
 <!-- ── MAIN CONTENT ────────────────────────────────────────── -->
-<div class="admin-main" id="adminMain">
-  <header class="admin-topbar">
-    <button type="button" class="menu-toggle" id="menuToggle" aria-label="Open sidebar">
+<div class="admin-main" id="adminMain" tabindex="-1">
+  <header class="admin-topbar" role="banner">
+    <button type="button" class="menu-toggle" id="menuToggle" aria-label="Open sidebar" aria-expanded="false">
       <span></span><span></span><span></span>
     </button>
     <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
     <div class="topbar-actions">
       <a href="{{ url_for('superadmin.tenant_new') }}" class="btn btn-primary btn-sm topbar-cta">
-        <iconify-icon icon="lucide:plus" width="15"></iconify-icon>
-        New Tenant
+        <iconify-icon icon="lucide:plus" width="14"></iconify-icon>
+        <span class="btn-label">New Tenant</span>
       </a>
-      <button type="button" class="theme-switch" id="themeSwitch" aria-label="Toggle admin theme">
-        <iconify-icon icon="lucide:moon" width="18" class="theme-icon moon-icon"></iconify-icon>
-        <iconify-icon icon="lucide:sun" width="18" class="theme-icon sun-icon" style="display:none"></iconify-icon>
+
+      <!-- Premium animated theme toggle -->
+      <button type="button"
+              class="theme-toggle-pill"
+              id="themeSwitch"
+              data-theme-toggle
+              aria-label="Switch to light mode"
+              title="Toggle theme">
+        <span class="toggle-pill-thumb">
+          <span data-icon-dark>🌙</span>
+          <span data-icon-light style="display:none">☀</span>
+        </span>
       </button>
+
       <span class="sa-topbar-chip">
-        <iconify-icon icon="lucide:shield" width="13"></iconify-icon>
+        <iconify-icon icon="lucide:shield" width="12"></iconify-icon>
         SuperAdmin
       </span>
     </div>
@@ -175,44 +217,51 @@
   <!-- Flash messages -->
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-      <div class="flash-container" id="flashContainer">
+      <div class="flash-container" id="flashContainer" aria-live="polite">
         {% for cat, msg in messages %}
-          <div class="flash flash-{{ cat }} toast-flash" role="alert">
-            <span class="flash-icon">
-              {% if cat == 'success' %}<iconify-icon icon="lucide:check-circle" width="18"></iconify-icon>
-              {% elif cat == 'danger' %}<iconify-icon icon="lucide:x-circle" width="18"></iconify-icon>
-              {% elif cat == 'warning' %}<iconify-icon icon="lucide:alert-triangle" width="18"></iconify-icon>
-              {% else %}<iconify-icon icon="lucide:info" width="18"></iconify-icon>{% endif %}
+          <div class="toast toast-{{ cat }} toast-flash" role="alert">
+            <span class="toast-icon">
+              {% if cat == 'success' %}<iconify-icon icon="lucide:check-circle" width="15"></iconify-icon>
+              {% elif cat == 'danger' %}<iconify-icon icon="lucide:x-circle" width="15"></iconify-icon>
+              {% elif cat == 'warning' %}<iconify-icon icon="lucide:alert-triangle" width="15"></iconify-icon>
+              {% else %}<iconify-icon icon="lucide:info" width="15"></iconify-icon>{% endif %}
             </span>
-            <span class="flash-text">{{ msg }}</span>
-            <button type="button" class="flash-close" onclick="this.closest('.toast-flash').remove()">✕</button>
+            <span class="toast-msg">{{ msg }}</span>
+            <button type="button" class="toast-close" aria-label="Dismiss"
+                    onclick="dismissToast(this.parentElement)">
+              <iconify-icon icon="lucide:x" width="13"></iconify-icon>
+            </button>
           </div>
         {% endfor %}
       </div>
     {% endif %}
   {% endwith %}
 
-  <div class="admin-content">
+  <main class="admin-content page-enter" id="mainContent" role="main">
     {% block content %}{% endblock %}
-  </div>
+  </main>
 </div>
 
 <!-- ── DELETE CONFIRMATION MODAL ──────────────────────────── -->
-<div class="modal-overlay" id="deleteModal" style="display:none;">
-  <div class="modal-card">
-    <div class="modal-icon modal-icon-danger">
-      <iconify-icon icon="lucide:trash-2" width="28"></iconify-icon>
+<div class="modal-overlay" id="deleteModal" role="dialog" aria-modal="true" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-glow);">
+        <iconify-icon icon="lucide:trash-2" width="18"></iconify-icon>
+      </div>
+      <h3>Delete Tenant?</h3>
     </div>
-    <h3 class="modal-title">Delete Tenant?</h3>
-    <p class="modal-body" id="deleteModalBody">
-      This will permanently remove this tenant profile and all associated data. This action cannot be undone.
-    </p>
-    <div class="modal-actions">
+    <div class="modal-body">
+      <p id="deleteModalBody">
+        This will permanently remove this tenant profile and all associated data. This action cannot be undone.
+      </p>
+    </div>
+    <div class="modal-footer">
       <button type="button" class="btn btn-ghost" onclick="closeDeleteModal()">Cancel</button>
-      <form id="deleteModalForm" method="post" style="display:inline;">
+      <form id="deleteModalForm" method="post" class="inline-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <button type="submit" class="btn btn-danger">
-          <iconify-icon icon="lucide:trash-2" width="15"></iconify-icon>
+          <iconify-icon icon="lucide:trash-2" width="14"></iconify-icon>
           Yes, Delete
         </button>
       </form>
@@ -220,103 +269,72 @@
   </div>
 </div>
 
+<!-- Theme engine (synchronous) -->
+<script src="{{ url_for('static', filename='js/theme-engine.js') }}"></script>
 <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard-motion.js') }}"></script>
+
 <script>
-// ── Sidebar toggle (v3.4 hardened) ────────────────────────
+/* ── Sidebar toggle ──────────────────────────────────────────── */
 (function() {
-  const sidebar = document.getElementById('sidebar');
-  const overlay = document.getElementById('sidebarOverlay');
-  const menuToggle = document.getElementById('menuToggle');
-  const sidebarClose = document.getElementById('sidebarClose');
+  const sidebar  = document.getElementById('sidebar');
+  const overlay  = document.getElementById('sidebarOverlay');
+  const menuBtn  = document.getElementById('menuToggle');
+  const closeBtn = document.getElementById('sidebarClose');
+  if (!sidebar || !overlay) return;
 
-  if (!sidebar || !overlay) return; // Guard
-
-  function openSidebar() {
+  function open() {
     sidebar.classList.add('open');
-    overlay.classList.add('active');
     overlay.classList.add('show');
-    overlay.style.display = 'block';
     document.body.style.overflow = 'hidden';
-    if (menuToggle) menuToggle.setAttribute('aria-expanded', 'true');
+    if (menuBtn) menuBtn.setAttribute('aria-expanded', 'true');
   }
-
-  function closeSidebar() {
+  function close() {
     sidebar.classList.remove('open');
-    overlay.classList.remove('active');
     overlay.classList.remove('show');
-    overlay.style.display = '';
     document.body.style.overflow = '';
-    if (menuToggle) menuToggle.setAttribute('aria-expanded', 'false');
+    if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
   }
 
-  function toggleSidebar() {
-    sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
-  }
-
-  menuToggle?.addEventListener('click', toggleSidebar);
-  sidebarClose?.addEventListener('click', closeSidebar);
-  overlay?.addEventListener('click', closeSidebar);
-
-  // Close on ESC
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && sidebar.classList.contains('open')) closeSidebar();
+  menuBtn  && menuBtn.addEventListener('click', () => sidebar.classList.contains('open') ? close() : open());
+  closeBtn && closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', close);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && sidebar.classList.contains('open')) close();
   });
-
-  // On resize: auto-close sidebar if viewport grows above breakpoint
-  window.addEventListener('resize', () => {
-    if (window.innerWidth > 900) closeSidebar();
-  });
+  window.addEventListener('resize', () => window.innerWidth > 900 && close());
 })();
 
-// ── Auto-dismiss flash toasts ─────────────────────────────
-document.querySelectorAll('.toast-flash').forEach(el => {
-  setTimeout(() => el.style.opacity = '0', 4200);
-  setTimeout(() => el.remove(), 4700);
+/* ── Toasts ──────────────────────────────────────────────────── */
+function dismissToast(el) {
+  if (!el) return;
+  el.classList.add('hiding');
+  setTimeout(() => el.remove(), 380);
+}
+document.querySelectorAll('.toast-flash,[data-auto-close]').forEach(el => {
+  setTimeout(() => dismissToast(el), 5000);
 });
 
-// ── Delete confirmation modal ─────────────────────────────
+/* ── Delete modal ────────────────────────────────────────────── */
 function confirmDelete(formAction, tenantName) {
   document.getElementById('deleteModalBody').textContent =
-    `This will permanently remove "${tenantName}" and all its data. This action cannot be undone.`;
+    'This will permanently remove "' + (tenantName || 'this tenant') + '" and all its data. This action cannot be undone.';
   document.getElementById('deleteModalForm').action = formAction;
-  document.getElementById('deleteModal').style.display = 'flex';
+  const modal = document.getElementById('deleteModal');
+  modal.style.display = 'flex';
+  modal.querySelector('.btn-danger').focus();
 }
 function closeDeleteModal() {
   document.getElementById('deleteModal').style.display = 'none';
 }
-document.getElementById('deleteModal')?.addEventListener('click', function(e) {
+document.getElementById('deleteModal').addEventListener('click', function(e) {
   if (e.target === this) closeDeleteModal();
 });
-
-// ── Theme toggle ─────────────────────────────────────────
-const themeToggle = document.getElementById('themeSwitch');
-const THEME_KEY = 'superadmin-theme';
-
-function updateThemeIcons(theme) {
-  document.querySelectorAll('.moon-icon').forEach(el => {
-    el.style.display = theme === 'dark' ? 'inline-block' : 'none';
-  });
-  document.querySelectorAll('.sun-icon').forEach(el => {
-    el.style.display = theme === 'light' ? 'inline-block' : 'none';
-  });
-}
-
-function initTheme() {
-  const saved = localStorage.getItem(THEME_KEY) || 'dark';
-  document.documentElement.setAttribute('data-theme', saved);
-  updateThemeIcons(saved);
-}
-
-themeToggle?.addEventListener('click', () => {
-  const current = document.documentElement.getAttribute('data-theme');
-  const next = current === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem(THEME_KEY, next);
-  updateThemeIcons(next);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeDeleteModal();
 });
-
-initTheme();
 </script>
+
 {% block extra_js %}{% endblock %}
 </body>
 </html>

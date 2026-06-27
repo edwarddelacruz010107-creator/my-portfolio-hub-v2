@@ -265,7 +265,12 @@ def _complete_login(user, remember, next_page, default_next):
     user.last_login_ip = ip
     db.session.commit()
 
-    log_activity('login', 'user', user.username, f'Admin login from {ip}')
+    # v5.9.2 FIX: pass tenant_slug explicitly — this runs before login_user(),
+    # so current_user is still anonymous and log_activity() would resolve
+    # tenant_slug=None, causing the row to be excluded by _tenant_slug_filter()
+    # on the dashboard activity feed (hence logins never appeared in the log).
+    _login_tenant = user.tenant_slug or _DEFAULT_TENANT_SLUG if not user.is_superadmin else None
+    log_activity('login', 'user', user.username, f'Admin login from {ip}', tenant_slug=_login_tenant)
     log_security_event('login', user, f'Successful login from {ip}', 'info')
 
     # Determine tenant for session stamping (v3.7: use stamp_session_tenant for HMAC).
@@ -548,7 +553,8 @@ def verify_2fa():
             user.last_login_ip = ip
             db.session.commit()
 
-            log_activity('login', 'user', user.username, f'2FA verified login from {ip}')
+            log_activity('login', 'user', user.username, f'2FA verified login from {ip}',
+                         tenant_slug=user.tenant_slug or _DEFAULT_TENANT_SLUG if not user.is_superadmin else None)
             log_security_event('2fa_verified', user, f'2FA successfully verified from {ip}', 'info')
 
             if not _is_safe_url(next_page):
@@ -577,7 +583,7 @@ def logout():
     ip     = _get_ip()
     user   = current_user
 
-    log_activity('logout', 'user', user.username)
+    log_activity('logout', 'user', user.username, f'Logout from {ip}')
     log_security_event('logout', user, f'Logout from {ip}', 'info')
 
     try:

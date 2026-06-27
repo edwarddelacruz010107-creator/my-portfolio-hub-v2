@@ -1,0 +1,217 @@
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE — Portfolio CMS Design System
+   Mobile-first breakpoints, sidebar behavior, layout collapse
+═══════════════════════════════════════════════════════════════ */
+
+/* ─── BREAKPOINTS ────────────────────────────────────────────── */
+/* sm:  480px  — phone portrait                                   */
+/* md:  768px  — phone landscape / tablet portrait               */
+/* lg:  900px  — tablet landscape / small desktop                */
+/* xl: 1280px  — desktop                                         */
+
+/* ─── TABLET + MOBILE SIDEBAR ────────────────────────────────── */
+@media (max-width: 900px) {
+  .sidebar {
+    transform: translateX(-100%);
+    box-shadow: none;
+    width: var(--sidebar-w);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 32px rgba(0, 0, 0, 0.45);
+  }
+  .sidebar-close {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+  .admin-main {
+    margin-left: 0 !important;
+  }
+  .menu-toggle {
+    display: flex !important;
+  }
+  .admin-content {
+    padding: var(--space-4);
+  }
+  .admin-topbar {
+    padding: 0 var(--space-4);
+  }
+  .flash-container {
+    right: 0.75rem;
+    left: 0.75rem;
+    max-width: none;
+  }
+  /* Collapse multi-col grids on tablet */
+  .two-col,
+  .three-col {
+    grid-template-columns: 1fr;
+  }
+  .stats-row,
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ─── MOBILE ─────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  :root {
+    --topbar-h: 56px;
+  }
+
+  .admin-content {
+    padding: var(--space-3);
+  }
+
+  /* Hide less critical topbar elements */
+  .topbar-user            { display: none; }
+  .topbar-license-pill    { display: none; }
+
+  /* Card headers stack vertically */
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: var(--space-4);
+  }
+  .card-body  { padding: var(--space-4); }
+  .card-footer{ padding: var(--space-3) var(--space-4); }
+
+  /* Page header stack */
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  /* Stats go single column */
+  .stats-row,
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Stat card compact */
+  .stat-big {
+    font-size: var(--text-2xl);
+  }
+
+  /* Table: force overflow scroll */
+  .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Modal full-screen on mobile */
+  .modal,
+  .modal-card {
+    max-width: 100%;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    animation: slideUpMobile 0.28s var(--ease) both;
+  }
+  @keyframes slideUpMobile {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+  .modal-backdrop,
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  /* Button sizes */
+  .btn { padding: 0.55rem 0.9rem; font-size: var(--text-sm); }
+  .btn-lg { padding: 0.65rem 1.1rem; }
+
+  /* Flash container */
+  .flash-container {
+    top: auto;
+    bottom: var(--space-4);
+    right: var(--space-3);
+    left: var(--space-3);
+  }
+
+  /* Form filters stack */
+  .filter-row {
+    flex-direction: column;
+  }
+  .filter-row .form-input,
+  .filter-row .form-select {
+    width: 100%;
+  }
+
+  /* Hero actions stack */
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hero-actions .btn {
+    justify-content: center;
+  }
+}
+
+/* ─── LARGE DESKTOP ──────────────────────────────────────────── */
+@media (min-width: 1400px) {
+  .admin-content {
+    padding: var(--space-8) 2.5rem;
+  }
+}
+
+/* ─── TABLE RESPONSIVE HELPERS ───────────────────────────────── */
+@media (max-width: 768px) {
+  /* Show fewer columns on small screens via data-mobile-hide */
+  [data-mobile-hide] {
+    display: none;
+  }
+
+  /* Table cells: reduce padding */
+  .table th,
+  .table td {
+    padding: 0.6rem var(--space-3);
+  }
+
+  /* Topbar CTA: icon only on small screens */
+  .topbar-cta .btn-label {
+    display: none;
+  }
+}
+
+/* ─── SIDEBAR WIDTH ADJUSTMENT ───────────────────────────────── */
+@media (max-width: 1100px) and (min-width: 901px) {
+  :root {
+    --sidebar-w: 220px;
+  }
+  .logo-text { max-width: 130px; }
+}
+
+/* ─── PRINT ──────────────────────────────────────────────────── */
+@media print {
+  .sidebar,
+  .admin-topbar,
+  .sidebar-overlay,
+  .flash-container,
+  .modal-backdrop,
+  .modal-overlay,
+  .menu-toggle,
+  .theme-toggle-pill,
+  .theme-switch,
+  .btn-danger,
+  .expiry-warning-banner {
+    display: none !important;
+  }
+  .admin-main {
+    margin-left: 0 !important;
+  }
+  .admin-content {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+}

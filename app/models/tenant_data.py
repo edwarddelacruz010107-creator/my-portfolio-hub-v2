@@ -74,6 +74,11 @@ class Profile(db.Model):
     meta_description= db.Column(db.String(300), default='')
     og_image        = db.Column(db.String(255), default='')
 
+    # Swappable theme engine (v6.3) — id of the theme dir under /themes.
+    # Falls back to 'default' at the app layer if the value is missing,
+    # invalid, or the tenant's plan no longer entitles them to it.
+    selected_theme = db.Column(db.String(64), nullable=False, default='default', server_default='default')
+
     updated_at = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
     # ── Business logic helpers ────────────────────────────────────────────────

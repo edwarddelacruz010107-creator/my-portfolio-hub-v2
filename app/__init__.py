@@ -477,6 +477,13 @@ def create_app(config_name: str = 'default') -> Flask:
     from app.admin      import admin      as admin_blueprint
     from app.superadmin import superadmin as superadmin_blueprint
     from app.main       import main       as main_blueprint
+    # ── Swappable theme engine (v6.3) ───────────────────────────────────────────
+    # Must run before blueprints register (it wraps app.jinja_loader); the
+    # original loader is preserved as the fallback inside the ChoiceLoader,
+    # so admin/auth/superadmin templates are completely unaffected.
+    from app.theme_engine import ThemeEngine
+    ThemeEngine(app)
+
     from app.tenant     import tenant_bp
     from app.webhooks   import webhooks   as webhooks_blueprint
     # NEW-01 FIX: import superadmin_forms here (was in patch file, never applied)
@@ -1071,9 +1078,26 @@ def _render_default_portfolio():
     # Contact URL: use the root contact endpoint
     contact_url = '/contact'
 
-    return render_template(
-        'main/index.html',
+    from app.theme_engine import get_theme_engine
+    from app.theme_context import build_portfolio_view
+
+    portfolio_view, name_parts, categories_themed = build_portfolio_view(
+        profile,
+        projects=featured_projects + other_projects,
+        skills_by_category=skills_by_category,
+        services=services,
+        testimonials=testimonials,
+        stats=stats,
+        tenant_slug=TENANT,
+        contact_url=contact_url,
+    )
+
+    return get_theme_engine().render(
+        profile,
+        'index.html',
         profile=profile,
+        portfolio=portfolio_view,
+        name_parts=name_parts,
         featured_projects=featured_projects,
         other_projects=other_projects,
         skills=skills,

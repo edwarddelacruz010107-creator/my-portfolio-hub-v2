@@ -1,6 +1,26 @@
+/* ═══════════════════════════════════════════════════════════════
+   SUPERADMIN CSS (extends admin.css + design-system.css)
+   TOKEN NOTE: All :root variables are in design-system.css.
+   This file only adds superadmin-specific components.
+═══════════════════════════════════════════════════════════════ */
+
 /* ═══════════════════════════════════════════════════════
    SUPERADMIN PANEL — Extended CSS
-   Builds on admin.css variables. Drop in static/css/superadmin.css
+
+   ARCHITECTURE NOTE (token dependency):
+   This file declares ZERO CSS custom properties of its own.
+   Every var(--*) reference below resolves against the :root
+   block defined in admin.css (--bg, --accent, --radius, etc).
+
+   HARD REQUIREMENT: admin.css MUST be linked before this file
+   in every template that includes superadmin.css. Both
+   templates/admin/base.html and templates/superadmin/base.html
+   already enforce this load order — do not reorder the
+   <link> tags, and do not introduce a duplicate :root block
+   here. If superadmin.css is ever included on a page without
+   admin.css, every var() reference below silently falls back
+   to the browser's initial value (visually broken, not a
+   hard error — so this won't show up in the console).
 ═══════════════════════════════════════════════════════ */
 
 /* ── Superadmin sidebar identity ───────────────────────── */
@@ -324,7 +344,7 @@
 
 .super-message-form .form-input::placeholder,
 .super-message-form .form-textarea::placeholder {
-  color: rgba(255,255,255,0.4);
+  color: rgba(255,255,255,0.55);
 }
 
 .super-message-form .form-select {
@@ -442,7 +462,7 @@
 
 .form-input::placeholder,
 .form-textarea::placeholder {
-  color: rgba(255,255,255,0.4);
+  color: rgba(255,255,255,0.55);
 }
 
 .form-select {

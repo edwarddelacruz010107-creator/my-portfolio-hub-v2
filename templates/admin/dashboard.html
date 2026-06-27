@@ -266,15 +266,19 @@
         <div class="timeline">
           {% for log in recent_activity %}
           {% set action_lower = log.action | lower %}
+          {% set is_login  = 'login'  in action_lower and 'logout' not in action_lower %}
+          {% set is_logout = 'logout' in action_lower %}
           {% set dot_class = 'create' if 'create' in action_lower or 'add' in action_lower
                         else 'update' if 'update' in action_lower or 'edit' in action_lower
                         else 'delete' if 'delete' in action_lower or 'remove' in action_lower
-                        else 'login' if 'login' in action_lower
+                        else 'login'  if is_login
+                        else 'logout' if is_logout
                         else '' %}
           {% set icon = 'lucide:plus-circle' if 'create' in action_lower or 'add' in action_lower
-                   else 'lucide:pencil' if 'update' in action_lower or 'edit' in action_lower
-                   else 'lucide:trash-2' if 'delete' in action_lower
-                   else 'lucide:log-in' if 'login' in action_lower
+                   else 'lucide:pencil'     if 'update' in action_lower or 'edit' in action_lower
+                   else 'lucide:trash-2'    if 'delete' in action_lower
+                   else 'lucide:log-in'     if is_login
+                   else 'lucide:log-out'    if is_logout
                    else 'lucide:activity' %}
           <div class="timeline-item">
             <div class="timeline-dot {{ dot_class }}">
@@ -282,10 +286,25 @@
             </div>
             <div class="timeline-content">
               <div class="timeline-meta">
-                <span class="timeline-action">{{ log.action | title }}</span>
+                <span class="timeline-action">
+                  {% if is_login %}
+                    <iconify-icon icon="lucide:log-in" width="12" style="vertical-align:-1px;margin-right:3px;opacity:.8"></iconify-icon>Login
+                  {% elif is_logout %}
+                    <iconify-icon icon="lucide:log-out" width="12" style="vertical-align:-1px;margin-right:3px;opacity:.8"></iconify-icon>Logout
+                  {% else %}
+                    {{ log.action | title }}
+                  {% endif %}
+                </span>
                 <span class="timeline-time">{{ log.created_at.strftime('%b %d, %H:%M') }}</span>
               </div>
-              {% if log.entity_name %}
+              {% if is_login or is_logout %}
+                <span class="timeline-entity timeline-auth-entry">
+                  <iconify-icon icon="lucide:user" width="11" style="vertical-align:-1px;margin-right:3px;opacity:.6"></iconify-icon>{{ log.entity_name or log.username or '—' }}
+                  {% if log.description %}
+                    <span class="timeline-ip">· {{ log.description | replace('Admin login from ','') | replace('Logout from ','') | replace('2FA verified login from ','') | truncate(20, True, '') }}</span>
+                  {% endif %}
+                </span>
+              {% elif log.entity_name %}
                 <span class="timeline-entity">{{ log.entity_type or '' }} — {{ log.entity_name }}</span>
               {% elif log.entity_type %}
                 <span class="timeline-entity">{{ log.entity_type }}</span>

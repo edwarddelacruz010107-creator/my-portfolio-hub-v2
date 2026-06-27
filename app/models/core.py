@@ -136,6 +136,16 @@ def decrypt_secret(ciphertext: str) -> str:
     # before the ORM has loaded the scalar value from the database.
     if ciphertext is None or ciphertext == '':
         return ''
+    # Guard against SQLAlchemy InstrumentedAttribute/Column descriptor being
+    # passed instead of a scalar string value (happens when a model property
+    # is accessed on an un-refreshed instance in some ORM states).
+    if not isinstance(ciphertext, str):
+        _comm_logger.error(
+            'decrypt_secret received non-str type %s — ORM column not yet loaded. '
+            'Returning empty string to avoid AttributeError.',
+            type(ciphertext).__name__,
+        )
+        return ''
     try:
         return _get_fernet().decrypt(ciphertext.encode()).decode()
     except _InvalidToken:
@@ -1016,7 +1026,7 @@ class GlobalEmailConfig(db.Model):
     sa_smtp_host               = db.Column(db.String(300), default='', nullable=True)
     sa_smtp_port               = db.Column(db.Integer, default=587, nullable=True)
     sa_smtp_username           = db.Column(db.String(300), default='', nullable=True)
-    _sa_smtp_password          = db.Column('sa_smtp_password_encrypted', db.Text, default='', nullable=True)
+    _sa_smtp_password          = db.Column('sa_smtp_password_encrypted', db.Text, nullable=True)
     sa_smtp_sender_email       = db.Column(db.String(300), default='', nullable=True)
     sa_smtp_sender_name        = db.Column(db.String(200), default='', nullable=True)
     sa_smtp_encryption         = db.Column(db.String(20), default='tls', nullable=True)
@@ -1034,7 +1044,13 @@ class GlobalEmailConfig(db.Model):
 
     @property
     def sa_smtp_password(self) -> str:
-        return decrypt_secret(self._sa_smtp_password) if (self._sa_smtp_password is not None and self._sa_smtp_password != '') else ''
+        # Force scalar string — _sa_smtp_password can be an ORM InstrumentedAttribute
+        # descriptor if the instance hasn't been refreshed yet, which causes
+        # decrypt_secret to receive a Column object and raise AttributeError.
+        raw = self._sa_smtp_password
+        if raw is None or raw == '' or not isinstance(raw, str):
+            return ''
+        return decrypt_secret(raw)
 
     @sa_smtp_password.setter
     def sa_smtp_password(self, value: str):
@@ -1042,20 +1058,37 @@ class GlobalEmailConfig(db.Model):
 
     @property
     def has_sa_smtp(self) -> bool:
-        # Cast each column value to str via f-string coercion (avoids calling
-        # SQLAlchemy's __bool__ which raises TypeError on InstrumentedAttribute).
-        # Private encrypted columns (_sa_smtp_password) are accessed through
-        # their decrypted @property equivalents to guarantee scalar string output.
-        return (
-            len(str(self.sa_smtp_host or '')) > 0
-            and len(str(self.sa_smtp_username or '')) > 0
-            and len(str(self.sa_smtp_password or '')) > 0
-            and len(str(self.sa_smtp_sender_email or '')) > 0
-        )
+        """
+        Determine whether SuperAdmin SMTP is fully configured.
+
+        We intentionally check the raw encrypted password column directly
+        instead of decrypting the password because decrypting may fail if:
+        - FERNET_KEY changed
+        - ORM state is stale after commit
+        - password field was not refreshed yet
+
+        If host, username, and encrypted password exist,
+        SMTP should be considered configured.
+        """
+        try:
+            host = (self.sa_smtp_host or '').strip()
+            username = (self.sa_smtp_username or '').strip()
+
+            # Raw encrypted password value
+            raw_pw = self._sa_smtp_password or ''
+            raw_pw = str(raw_pw).strip()
+
+            return bool(host and username and raw_pw)
+
+        except Exception:
+            return False
 
     @property
     def sa_resend_api_key(self) -> str:
-        return decrypt_secret(self._sa_resend_api_key) if (self._sa_resend_api_key is not None and self._sa_resend_api_key != '') else ''
+        raw = self._sa_resend_api_key
+        if raw is None or raw == '' or not isinstance(raw, str):
+            return ''
+        return decrypt_secret(raw)
 
     @sa_resend_api_key.setter
     def sa_resend_api_key(self, value: str):
@@ -1364,11 +1397,14 @@ class TenantSmtpSettings(db.Model):
 
     @property
     def is_configured(self) -> bool:
+        # Check raw encrypted blob for password — never decrypt_secret here,
+        # a decryption failure returns '' and makes configured=False even when
+        # a password IS stored. sender_email excluded: display-only metadata.
+        raw_pw = self._smtp_password
         return (
-            len(str(self.smtp_host or '')) > 0
-            and len(str(self.smtp_username or '')) > 0
-            and len(str(self.smtp_password or '')) > 0
-            and len(str(self.sender_email or '')) > 0
+            isinstance(self.smtp_host, str) and len(self.smtp_host.strip()) > 0
+            and isinstance(self.smtp_username, str) and len(self.smtp_username.strip()) > 0
+            and isinstance(raw_pw, str) and len(raw_pw.strip()) > 0
         )
 
     @classmethod
@@ -1410,10 +1446,8 @@ class TenantResendSettings(db.Model):
 
     @property
     def is_configured(self) -> bool:
-        return (
-            len(str(self.api_key or '')) > 0
-            and len(str(self.sender_email or '')) > 0
-        )
+        raw_key = self._api_key
+        return isinstance(raw_key, str) and len(raw_key.strip()) > 0
 
     @classmethod
     def get_or_create(cls, tenant_id: int) -> 'TenantResendSettings':
@@ -1454,10 +1488,8 @@ class TenantMailerSendSettings(db.Model):
 
     @property
     def is_configured(self) -> bool:
-        return (
-            len(str(self.api_token or '')) > 0
-            and len(str(self.sender_email or '')) > 0
-        )
+        raw_token = self._api_token
+        return isinstance(raw_token, str) and len(raw_token.strip()) > 0
 
     @classmethod
     def get_or_create(cls, tenant_id: int) -> 'TenantMailerSendSettings':

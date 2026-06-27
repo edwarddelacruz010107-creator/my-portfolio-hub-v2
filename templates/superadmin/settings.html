@@ -3,6 +3,13 @@
 {% block page_title %}{{ page_title if page_title is defined else 'Superadmin Settings' }}{% endblock %}
 
 {% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-heading">Superadmin Settings</h1>
+    <p class="page-subtext">Manage your account credentials, password, and two-factor authentication.</p>
+  </div>
+</div>
+
 <div class="settings-grid">
 
   <div class="form-card">
@@ -37,6 +44,7 @@
     {{ account_form.hidden_tag() }}
     <div class="form-card">
       <h3>Update Superadmin Account</h3>
+      {# NOTE: form-card h3 is styled via superadmin-unify.css §3 — uppercase, tracked, muted #}
       <div class="form-group">
         {{ account_form.username.label }}
         {{ account_form.username(class='form-input', placeholder='New username') }}

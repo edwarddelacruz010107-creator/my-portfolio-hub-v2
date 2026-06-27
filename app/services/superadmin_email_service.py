@@ -218,27 +218,48 @@ def _resolve_configs() -> list[dict]:
 
         elif provider == 'smtp':
             active = cfg.sa_smtp_active if cfg is not None and cfg.sa_smtp_active is not None else False
-            if not active:
-                continue
             # DB first, then env
             host     = (cfg.sa_smtp_host if cfg else '') or _e('SUPERADMIN_SMTP_HOST') or _e('SMTP_HOST')
             port_raw = (cfg.sa_smtp_port if cfg else None) or int(_e('SUPERADMIN_SMTP_PORT') or _e('SMTP_PORT') or '587')
             username = (cfg.sa_smtp_username if cfg else '') or _e('SUPERADMIN_SMTP_USERNAME') or _e('SMTP_USERNAME')
-            password = (cfg.sa_smtp_password if cfg else '') or _e('SUPERADMIN_SMTP_PASSWORD') or _e('SMTP_PASSWORD')
+            password = ''
+            try:
+                password = (cfg.sa_smtp_password if cfg else '') or _e('SUPERADMIN_SMTP_PASSWORD') or _e('SMTP_PASSWORD')
+            except Exception:
+                password = _e('SUPERADMIN_SMTP_PASSWORD') or _e('SMTP_PASSWORD')
             sender_email = (cfg.sa_smtp_sender_email if cfg else '') or _e('SUPERADMIN_FROM_EMAIL') or _e('SMTP_FROM_EMAIL')
             sender_name  = (cfg.sa_smtp_sender_name if cfg else '') or _e('SUPERADMIN_FROM_NAME') or _e('SMTP_FROM_NAME', 'Portfolio CMS')
             encryption   = (cfg.sa_smtp_encryption if cfg else '') or 'tls'
-            if host and username and password and sender_email:
-                configs.append({
-                    'provider': 'smtp',
-                    'host': host,
-                    'port': port_raw,
-                    'username': username,
-                    'password': password,
-                    'sender_email': sender_email,
-                    'sender_name': sender_name,
-                    'encryption': encryption,
-                })
+            # Sender email falls back to username when blank (common Gmail setup)
+            sender_email = sender_email or username
+            if host and username and password:
+                if not active:
+                    # Credentials exist but provider not toggled active yet.
+                    # Append as a low-priority fallback so a misconfigured toggle
+                    # doesn't silently block delivery.  Mark with inactive flag
+                    # so callers can log/warn about it.
+                    configs.append({
+                        'provider': 'smtp',
+                        'host': host,
+                        'port': port_raw,
+                        'username': username,
+                        'password': password,
+                        'sender_email': sender_email,
+                        'sender_name': sender_name,
+                        'encryption': encryption,
+                        '_inactive': True,
+                    })
+                else:
+                    configs.append({
+                        'provider': 'smtp',
+                        'host': host,
+                        'port': port_raw,
+                        'username': username,
+                        'password': password,
+                        'sender_email': sender_email,
+                        'sender_name': sender_name,
+                        'encryption': encryption,
+                    })
 
         elif provider == 'resend':
             active = cfg.sa_resend_active if cfg is not None and cfg.sa_resend_active is not None else False
@@ -291,6 +312,11 @@ def send_email(
     last_err = 'No providers configured'
     for pcfg in providers:
         name = pcfg['provider']
+        if pcfg.get('_inactive'):
+            logger.warning(
+                '[SAEmail] Using SMTP credentials that are not toggled active — '
+                'enable SMTP in Email & Forms Settings to suppress this warning.'
+            )
         for attempt in range(1 + _MAX_RETRIES):
             try:
                 if name == 'mailersend':

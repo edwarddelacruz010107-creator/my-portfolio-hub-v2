@@ -237,9 +237,26 @@ def portfolio():
     trial_days_left = profile.trial_days_remaining() if profile else 0
     license_status = profile.license_status() if profile else 'unlicensed'
 
-    return render_template(
-        'main/index.html',
+    from app.theme_engine import get_theme_engine
+    from app.theme_context import build_portfolio_view
+
+    portfolio_view, name_parts, categories_themed = build_portfolio_view(
+        profile,
+        projects=featured_projects + other_projects,
+        skills_by_category=skills_by_category,
+        services=services,
+        testimonials=testimonials,
+        stats=stats,
+        tenant_slug=tenant,
+        contact_url=url_for('tenant.contact', tenant_slug=tenant),
+    )
+
+    return get_theme_engine().render(
+        profile,
+        'index.html',
         profile=profile,
+        portfolio=portfolio_view,
+        name_parts=name_parts,
         featured_projects=featured_projects,
         other_projects=other_projects,
         skills=skills,

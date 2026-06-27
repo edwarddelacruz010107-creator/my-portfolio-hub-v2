@@ -437,7 +437,7 @@ def dashboard():
     recent_activity = (
         _tenant_slug_filter(ActivityLog.query)
         .order_by(ActivityLog.created_at.desc())
-        .limit(10).all()
+        .limit(15).all()
     )
     recent_projects = (
         _tenant_slug_filter(Project.query)
@@ -453,6 +453,9 @@ def dashboard():
         profile=profile,
         subscription=subscription,
         subscription_status=subscription_access_status(profile) if profile else 'none',
+        plan_name=_active_tenant_plan_name(),
+        project_count=stats['total_projects'],
+        unread_messages=stats['unread_messages'],
     )
 
 
@@ -998,6 +1001,148 @@ def edit_profile():
         form=form,
         profile=profile,
         profile_completion=get_profile_completion(profile),
+    )
+
+
+# ── Appearance / Themes (v6.3) ──────────────────────────────────────────────
+
+@admin.route('/appearance/themes')
+@admin_required
+def themes_index():
+    """Theme picker — Appearance -> Themes."""
+    from app.theme_engine import get_theme_engine
+
+    engine = get_theme_engine()
+    profile = _load_tenant_profile()
+
+    all_themes = engine.get_all_themes()
+    active_theme_id = (getattr(profile, 'selected_theme', None) or 'default') if profile else 'default'
+
+    for theme in all_themes:
+        theme['_can_use'] = engine.can_use_theme(profile, theme['id'])
+        theme['_is_active'] = theme['id'] == active_theme_id
+
+    return render_template(
+        'admin/themes/index.html',
+        themes=all_themes,
+        active_theme_id=active_theme_id,
+        plan_name=_active_tenant_plan_name(),
+    )
+
+
+@admin.route('/appearance/themes/apply', methods=['POST'])
+@admin_required
+def apply_theme():
+    """Apply a theme to the active tenant. Never touches portfolio content."""
+    from app.theme_engine import get_theme_engine, is_valid_theme_id
+
+    engine = get_theme_engine()
+    profile = _load_tenant_profile()
+    theme_id = (request.form.get('theme_id') or '').strip()
+
+    def _fail(message, status):
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify(success=False, error=message), status
+        flash(message, 'warning')
+        return redirect(url_for('admin.themes_index'))
+
+    if not profile:
+        return _fail('No profile found for this tenant yet — set up your profile first.', 400)
+    if not is_valid_theme_id(theme_id) or not engine.get_theme_meta(theme_id):
+        return _fail('Theme not found.', 404)
+    if not engine.can_use_theme(profile, theme_id):
+        return _fail('Upgrade your plan to unlock this theme.', 403)
+
+    profile.selected_theme = theme_id
+    db.session.commit()
+    log_activity('update', 'theme', theme_id, f'Theme switched to {theme_id}')
+
+    meta = engine.get_theme_meta(theme_id)
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify(success=True, theme=meta, message=f'Theme "{meta["name"]}" applied!')
+
+    flash(f'Theme "{meta["name"]}" applied! Your live portfolio is now using it.', 'success')
+    return redirect(url_for('admin.themes_index'))
+
+
+@admin.route('/appearance/themes/<theme_id>/preview')
+@admin_required
+def preview_theme(theme_id):
+    """Live, read-only preview of a theme rendered with the tenant's real
+    portfolio content. Never persists — does not call db.session.commit()."""
+    from types import SimpleNamespace
+    from app.theme_engine import get_theme_engine, is_valid_theme_id
+    from app.theme_context import build_portfolio_view
+    from app.models.portfolio import Project, Skill, Testimonial, Service
+
+    if not is_valid_theme_id(theme_id):
+        abort(404)
+
+    engine = get_theme_engine()
+    meta = engine.get_theme_meta(theme_id)
+    if not meta:
+        abort(404)
+
+    profile = _load_tenant_profile()
+    tenant_slug = _active_tenant_slug()
+
+    all_projects = _tenant_slug_filter(Project.query).filter_by(status='published').all()
+    skills = _tenant_slug_filter(Skill.query).order_by(Skill.category.asc(), Skill.order.asc()).all()
+    testimonials = _tenant_slug_filter(Testimonial.query).filter_by(is_visible=True).all()
+    services = _tenant_slug_filter(Service.query).filter_by(is_visible=True).all()
+
+    skills_by_category = {}
+    for skill in skills:
+        skills_by_category.setdefault(skill.category, []).append(skill)
+
+    stats = {
+        'projects_count': len(all_projects),
+        'years_experience': profile.get_years_experience() if profile else 0,
+        'clients_count': profile.clients_count if profile else 0,
+    }
+
+    portfolio_view, name_parts, categories = build_portfolio_view(
+        profile,
+        projects=all_projects,
+        skills_by_category=skills_by_category,
+        services=services,
+        testimonials=testimonials,
+        stats=stats,
+        tenant_slug=tenant_slug,
+        contact_url='#',
+    )
+
+    # Render with the previewed theme without persisting it -- a throwaway
+    # shim object carries the override through resolve_theme() unchanged.
+    preview_profile = SimpleNamespace(
+        selected_theme=theme_id,
+        is_administrator=True,  # preview always bypasses the plan gate visually...
+        plan=getattr(profile, 'plan', 'free') if profile else 'free',
+    )
+    # ...but still block rendering a theme the tenant truly can't use, to
+    # avoid the preview link itself becoming a paywall bypass.
+    if not engine.can_use_theme(profile, theme_id):
+        flash('Upgrade your plan to preview this theme.', 'warning')
+        return redirect(url_for('admin.themes_index'))
+
+    return engine.render(
+        preview_profile,
+        'index.html',
+        profile=profile,
+        portfolio=portfolio_view,
+        name_parts=name_parts,
+        featured_projects=[p for p in all_projects if p.is_featured],
+        other_projects=[p for p in all_projects if not p.is_featured],
+        skills=skills,
+        skills_by_category=skills_by_category,
+        testimonials=testimonials,
+        services=services,
+        stats=stats,
+        categories=categories,
+        tenant_slug=tenant_slug,
+        contact_url='#',
+        is_root_domain=False,
+        preview_mode=True,
     )
 
 
@@ -2199,6 +2344,19 @@ def email_services_save(provider_name: str):
             db.session.add(s)
 
         db.session.commit()
+
+        # ── Update provider record status immediately after save ──────────────
+        # Don't wait for a test-email click — if credentials were just saved,
+        # mark the provider as configured and active right away so the badge
+        # shows "Configured" without requiring an extra step.
+        try:
+            provider_rec = TenantEmailProvider.get_or_create(tenant_id, provider_name)
+            if s.is_configured:
+                provider_rec.status = 'connected'
+                provider_rec.active = True
+                db.session.commit()
+        except Exception as _pe:
+            logger.warning('[EmailServices] provider_rec status update failed (non-fatal): %s', _pe)
 
         # ── Auto-enable contact form delivery when provider is first configured ──
         # If TenantFormSettings is still 'disabled', activating a provider here

@@ -1,56 +1,17 @@
+/* ═══════════════════════════════════════════════════════════════
+   PORTFOLIO CMS — ADMIN CSS  (component styles only)
+   ─────────────────────────────────────────────────────────────
+   TOKEN NOTE: All CSS custom properties (:root, data-theme vars)
+   are now defined in design-system.css which MUST load first.
+   This file only adds or overrides admin-specific components.
+═══════════════════════════════════════════════════════════════ */
+
 /* ═══════════════════════════════════════════════
    PORTFOLIO CMS — ADMIN CSS
    Premium dark panel, indigo accent, Syne + DM Sans
 ═══════════════════════════════════════════════ */
 
-:root {
-  --bg: #080a0f;
-  --bg-1: #0d1117;
-  --bg-2: #12161e;
-  --bg-3: #1a1f2e;
-  --border: rgba(255,255,255,0.07);
-  --border-light: rgba(255,255,255,0.12);
-  --text: #e8eaf0;
-  --text-muted: #7a8094;
-  --text-dim: #4a5068;
-  --accent: #6366f1;
-  --accent-light: #818cf8;
-  --accent-dark: #4f46e5;
-  --accent-glow: rgba(99,102,241,0.25);
-  --shadow-sm: 0 8px 24px rgba(0,0,0,0.3);
-  --shadow-md: 0 12px 40px rgba(0,0,0,0.4);
-  --success: #10b981;
-  --warn: #f59e0b;
-  --danger: #ef4444;
-  --danger-bg: rgba(239,68,68,0.12);
-  --radius: 12px;
-  --radius-lg: 20px;
-  --sidebar-w: 260px;
-  --topbar-h: 72px;
-  --font-display: 'Syne', sans-serif;
-  --font-body: 'DM Sans', sans-serif;
-  --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-html[data-theme="light"] {
-  --bg: #f8fafc;
-  --bg-1: #f1f5f9;
-  --bg-2: #ffffff;
-  --bg-3: #f1f5f9;
-  --border: rgba(15,23,42,0.08);
-  --border-light: rgba(15,23,42,0.12);
-  --text: #0f172a;
-  --text-muted: #475569;
-  --text-dim: #64748b;
-  --accent: #6366f1;
-  --accent-light: #818cf8;
-  --accent-dark: #4f46e5;
-  --accent-glow: rgba(99,102,241,0.08);
-  --success: #059669;
-  --warn: #d97706;
-  --danger: #dc2626;
-  --danger-bg: rgba(220,38,38,0.12);
-}
+/* Tokens moved to design-system.css */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 15px; }
@@ -991,7 +952,8 @@ html[data-theme="light"] .breadcrumb {
 .timeline-dot.create { background: var(--success-bg); border-color: var(--success-border); color: var(--success); }
 .timeline-dot.update { background: var(--info-bg); border-color: var(--info-border); color: var(--info); }
 .timeline-dot.delete { background: var(--danger-bg); border-color: rgba(239,68,68,0.2); color: var(--danger); }
-.timeline-dot.login { background: var(--purple-bg); border-color: rgba(168,85,247,0.2); color: var(--purple); }
+.timeline-dot.login  { background: var(--purple-bg); border-color: rgba(168,85,247,0.2); color: var(--purple); }
+.timeline-dot.logout { background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.22); color: var(--accent-light, #818cf8); }
 .timeline-content {
   flex: 1;
   background: var(--bg-2);
@@ -1017,6 +979,19 @@ html[data-theme="light"] .breadcrumb {
 .timeline-entity {
   font-size: 0.8rem;
   color: var(--text-muted);
+}
+.timeline-auth-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.timeline-ip {
+  font-size: 0.73rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
 /* ── IMPROVED EMPTY STATE ────────────────────────────────────── */
@@ -1818,6 +1793,11 @@ button:focus-visible, a:focus-visible {
   color: #f59e0b;
   border: 1px solid rgba(245,158,11,0.3);
 }
+.license-admin {
+  background: rgba(99,102,241,0.14);
+  color: var(--accent-light, #818cf8);
+  border: 1px solid rgba(99,102,241,0.3);
+}
 .license-pending {
   background: rgba(99,102,241,0.12);
   color: #a5b4fc;
@@ -2009,6 +1989,7 @@ button:focus-visible, a:focus-visible {
 .plan-badge--expired,
 .plan-badge--cancelled{ background: var(--danger-bg); color: var(--danger); border: 1px solid rgba(239,68,68,0.2); }
 .plan-badge--default  { background: var(--bg-3); color: var(--text-dim); border: 1px solid var(--border); }
+.plan-badge--admin    { background: rgba(99,102,241,0.14); color: var(--accent-light, #818cf8); border: 1px solid rgba(99,102,241,0.3); }
 
 /* ── NAV ITEM smooth left-bar transition ─────────────────────── */
 .nav-item {
@@ -2654,3 +2635,93 @@ html.theme-transitioning * {
 /* ══════════════════════════════════════════════════════════════
    END v3.6.1-admin-ui-polish
 ══════════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════
+   DASHBOARD MOTION LAYER — v6.2
+   Staggered entrance + hover elevation for dashboard/grid
+   components. Shared by admin.css and superadmin.css consumers
+   (no JS required for the stagger itself — pure CSS).
+   Counter count-up logic lives in static/js/dashboard-motion.js
+   and targets the same .stat-big elements styled here.
+══════════════════════════════════════════════════════════════ */
+
+/* ── Hover elevation parity ──────────────────────────────────────
+   .action-card already had translateY+shadow on hover; .stat-card-v2
+   only changed border-color. Bringing it up to the same elevation
+   language so every dashboard card behaves consistently on hover. */
+.stat-card-v2 {
+  transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+}
+.stat-card-v2:hover {
+  border-color: var(--border-light);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+.dash-panel {
+  transition: box-shadow var(--transition), transform var(--transition);
+}
+.hb-card {
+  transition: border-color var(--transition), transform var(--transition);
+}
+.hb-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-light);
+}
+
+/* ── Staggered entrance ───────────────────────────────────────── */
+@keyframes dash-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dashboard-hero,
+  .dashboard-filter-panel,
+  .stats-row > *,
+  .dashboard-cols > *,
+  .quick-actions,
+  .heartbeat-panel,
+  .actions-grid > * {
+    animation: dash-fade-up 0.45s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  /* Row-level stagger: each successive grid child enters slightly
+     later. Capped at 10 steps so very long lists don't produce a
+     multi-second cascade. */
+  .stats-row > *:nth-child(1),  .dashboard-cols > *:nth-child(1),  .actions-grid > *:nth-child(1)  { animation-delay: 0.00s; }
+  .stats-row > *:nth-child(2),  .dashboard-cols > *:nth-child(2),  .actions-grid > *:nth-child(2)  { animation-delay: 0.04s; }
+  .stats-row > *:nth-child(3),  .actions-grid > *:nth-child(3)  { animation-delay: 0.08s; }
+  .stats-row > *:nth-child(4),  .actions-grid > *:nth-child(4)  { animation-delay: 0.12s; }
+  .stats-row > *:nth-child(5),  .actions-grid > *:nth-child(5)  { animation-delay: 0.16s; }
+  .stats-row > *:nth-child(6),  .actions-grid > *:nth-child(6)  { animation-delay: 0.20s; }
+  .stats-row > *:nth-child(n+7) { animation-delay: 0.24s; }
+
+  .dashboard-filter-panel { animation-delay: 0.02s; }
+  .quick-actions          { animation-delay: 0.10s; }
+  .heartbeat-panel        { animation-delay: 0.14s; }
+}
+
+/* ── Reduced motion: disable non-essential animation entirely ───
+   Mirrors the convention already established in style.css. */
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-hero,
+  .dashboard-filter-panel,
+  .stats-row > *,
+  .dashboard-cols > *,
+  .quick-actions,
+  .heartbeat-panel,
+  .actions-grid > *,
+  .stat-card-v2,
+  .dash-panel,
+  .hb-card,
+  .action-card {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Count-up target styling hook ────────────────────────────────
+   No visual change — used by dashboard-motion.js to identify which
+   .stat-big elements are safe to animate (pure integers/percentages
+   only; currency and pre-formatted text are left untouched). */
+.stat-big[data-counted] { font-variant-numeric: tabular-nums; }

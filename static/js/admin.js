@@ -1,3 +1,9 @@
+/* ═══════════════════════════════════════════════
+   PORTFOLIO CMS — ADMIN JS
+   NOTE: Theme switching is handled by theme-engine.js
+   which loads before this file.
+═══════════════════════════════════════════════ */
+
 // ═══════════════════════════════════════════════
 //  PORTFOLIO CMS — ADMIN JS
 // ═══════════════════════════════════════════════
@@ -154,57 +160,70 @@ if (tagInput) {
   });
 }
 
-// ── Theme toggle persistence ───────────────────
-const themeSwitch = document.getElementById('themeSwitch');
-const themeIconSun = document.querySelector('.theme-icon-sun');
-const themeIconMoon = document.querySelector('.theme-icon-moon');
-const THEME_KEY = 'cms-admin-theme';
-
-function setTheme(theme) {
-  document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem(THEME_KEY, theme);
-  if (theme === 'light') {
-    themeIconSun.style.display = 'inline-block';
-    themeIconMoon.style.display = 'none';
-  } else {
-    themeIconSun.style.display = 'none';
-    themeIconMoon.style.display = 'inline-block';
-  }
-}
-
-function initTheme() {
-  const saved = localStorage.getItem(THEME_KEY) || 'dark';
-  setTheme(saved);
-}
-
-if (themeSwitch) {
-  themeSwitch.addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme') || 'dark';
-    setTheme(current === 'dark' ? 'light' : 'dark');
-  });
-}
-
-initTheme();
+// Theme is now handled globally by theme-engine.js
 
 /* ═══════════════════════════════════════════════════
    ADMIN JS v2.0 — Design System Extensions
    Submit guards, skeleton loaders, copy helpers
 ═══════════════════════════════════════════════════ */
 
-// ── Submit guard (prevent double-submit on all forms) ─────────
+// ── Submit guard (prevent double-submit on all forms) ─────────────────────────
+// FIX v6.3.1: Forms with multiple submit buttons (e.g. Approve/Reject) must
+// preserve the CLICKED button's name+value before disabling. The original code
+// disabled the first button unconditionally, which caused multi-button forms to
+// send an empty `action` field → "Invalid review action." on the backend.
+//
+// Fix: capture the actually-clicked button via a pointerdown listener, then on
+// submit inject its value into a hidden input so it survives the disable call.
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('form').forEach(form => {
-    // Skip forms with no submit button or already handled
-    const submitBtn = form.querySelector('[type="submit"]');
-    if (!submitBtn || form.dataset.submitGuarded) return;
+    if (form.dataset.submitGuarded) return;
+    const submitBtns = form.querySelectorAll('[type="submit"]');
+    if (!submitBtns.length) return;
     form.dataset.submitGuarded = 'true';
-    form.addEventListener('submit', () => {
-      submitBtn.setAttribute('data-loading', 'true');
-      submitBtn.disabled = true;
-      // Re-enable after 8s as fallback
+
+    // Track which submit button was most recently activated
+    let _clickedBtn = null;
+    submitBtns.forEach(btn => {
+      // pointerdown fires before the form's submit event
+      btn.addEventListener('pointerdown', () => { _clickedBtn = btn; });
+      // keyboard activation (Enter / Space) fires click before submit
+      btn.addEventListener('click', () => { _clickedBtn = btn; });
+    });
+
+    form.addEventListener('submit', (e) => {
+      const clicked = _clickedBtn || submitBtns[0];
+
+      // If the clicked button carries a name+value, inject a hidden input so
+      // the value is still sent even after the button is disabled.
+      if (clicked.name && clicked.value) {
+        // Avoid duplicates on re-submit attempts
+        const existingHidden = form.querySelector(`input[type="hidden"][name="${clicked.name}"][data-submit-guard]`);
+        if (!existingHidden) {
+          const hidden = document.createElement('input');
+          hidden.type = 'hidden';
+          hidden.name = clicked.name;
+          hidden.value = clicked.value;
+          hidden.dataset.submitGuard = 'true';
+          form.appendChild(hidden);
+        }
+      }
+
+      // Disable all submit buttons (prevent double-submit)
+      submitBtns.forEach(btn => {
+        btn.setAttribute('data-loading', 'true');
+        btn.disabled = true;
+      });
+
+      // Re-enable after 8s as fallback (e.g. validation fails, slow page)
       setTimeout(() => {
-        submitBtn.removeAttribute('data-loading');
-        submitBtn.disabled = false;
+        submitBtns.forEach(btn => {
+          btn.removeAttribute('data-loading');
+          btn.disabled = false;
+        });
+        // Remove injected hidden inputs so they don't accumulate
+        form.querySelectorAll('input[data-submit-guard]').forEach(el => el.remove());
+        _clickedBtn = null;
       }, 8000);
     });
   });

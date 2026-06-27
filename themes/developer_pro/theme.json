@@ -1,0 +1,29 @@
+{
+  "id": "developer_pro",
+  "name": "Developer Pro",
+  "version": "1.0.0",
+  "description": "A hacker-aesthetic cyberpunk portfolio with glitch effects, matrix animations, interactive terminal easter egg, animated skill bars, and a live boot sequence preloader. Built for developers who want their portfolio to feel like a sci-fi product.",
+  "author": "Portfolio CMS",
+  "premium": true,
+  "preview_image": "/static/themes/developer_pro/preview.png",
+  "supports_dark_mode": true,
+  "supports_light_mode": false,
+  "supports_animation": true,
+  "supports_custom_colors": false,
+  "supports_blog": false,
+  "supports_testimonials": false,
+  "supports_services": false,
+  "supports_projects": true,
+  "supports_skills": true,
+  "supports_contact_form": true,
+  "compatibility_version": "6.3",
+  "tags": ["dark", "cyberpunk", "hacker", "developer", "animated", "terminal"],
+  "color_scheme": {
+    "primary": "#00ff41",
+    "secondary": "#00f0ff",
+    "accent": "#8b5cf6",
+    "danger": "#ff0040",
+    "background": "#050505",
+    "text": "#e0e0e0"
+  }
+}

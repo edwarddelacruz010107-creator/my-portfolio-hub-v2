@@ -311,6 +311,49 @@
   </div>
 
 
+  {# ── Quick Actions ─────────────────────────────────────── #}
+  <div class="quick-actions">
+    <h2>Quick Actions</h2>
+    <div class="actions-grid">
+      <a href="{{ url_for('superadmin.tenant_new') }}" class="action-card">
+        <span class="action-icon">
+          <iconify-icon icon="lucide:user-plus" width="22"></iconify-icon>
+        </span>
+        <span>New Tenant</span>
+      </a>
+      <a href="{{ url_for('superadmin.send_message') }}" class="action-card">
+        <span class="action-icon">
+          <iconify-icon icon="lucide:send" width="22"></iconify-icon>
+        </span>
+        <span>Send Message</span>
+      </a>
+      <a href="{{ url_for('superadmin.billing_submissions') }}" class="action-card action-card--secondary">
+        <span class="action-icon">
+          <iconify-icon icon="lucide:credit-card" width="22"></iconify-icon>
+        </span>
+        <span>Billing Submissions</span>
+      </a>
+      <a href="{{ url_for('superadmin.media') }}" class="action-card">
+        <span class="action-icon">
+          <iconify-icon icon="lucide:image" width="22"></iconify-icon>
+        </span>
+        <span>Media Library</span>
+      </a>
+      <a href="{{ url_for('superadmin.logs') }}" class="action-card">
+        <span class="action-icon">
+          <iconify-icon icon="lucide:scroll-text" width="22"></iconify-icon>
+        </span>
+        <span>Audit Logs</span>
+      </a>
+      <a href="{{ url_for('superadmin.settings') }}" class="action-card action-card--outline">
+        <span class="action-icon">
+          <iconify-icon icon="lucide:settings" width="22"></iconify-icon>
+        </span>
+        <span>Settings</span>
+      </a>
+    </div>
+  </div>
+
   {# ── Heartbeat / Uptime ──────────────────────────────── #}
   <div class="dash-panel heartbeat-panel">
     <div class="panel-header">

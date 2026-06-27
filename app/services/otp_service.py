@@ -1,5 +1,5 @@
 """
-app/services/otp_service.py — OTP lifecycle management (v3.8)
+app/services/otp_service.py — OTP lifecycle management (v3.9)
 
 Responsibilities:
   • Generate cryptographically secure 6-digit OTPs
@@ -11,21 +11,42 @@ Security properties:
   • Raw OTP never stored — SHA-256 hash only
   • Max 5 wrong attempts before OTP is voided
   • Expiry enforced in DB (expires_at) and at verify time
-  • Tenant isolation enforced for user_type='tenant'
+  • Tenant isolation enforced for user_type='tenant'/'admin'
+
+v3.9 CHANGES — Tenant-aware OTP rate limiting:
+  • check_tenant_otp_rate_limit(tenant_id, user_type) — enforces
+    5 OTP requests per 15 minutes per tenant, independently of the
+    global Flask-Limiter IP-based limit at the route layer.
+  • Rate limit state is kept in an in-process cache (dict + timestamps).
+    For multi-worker deployments the existing Redis-backed Flask-Limiter
+    at the route layer remains the authoritative cross-worker limit;
+    this layer adds a fast in-process guard for single-worker and a
+    defence-in-depth layer for multi-worker.
+  • Rate limit state is never persisted to DB — it resets on worker
+    restart, which is acceptable (short TTL).
 """
 import logging
 import secrets
 import string
+import time
+from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 
 from app import db
-from app.models.portfolio import PasswordResetOTP, GlobalEmailConfig
+from app.models.core import PasswordResetOTP, GlobalEmailConfig
 
 logger = logging.getLogger(__name__)
 
 OTP_LENGTH       = 6
 MAX_ATTEMPTS     = 5
 DEFAULT_TTL_MIN  = 10
+
+# Tenant-aware rate limiting config
+_TENANT_OTP_LIMIT   = 5    # max OTP requests per window
+_TENANT_OTP_WINDOW  = 900  # 15 minutes in seconds
+
+# In-process rate limit store: {(tenant_id, user_type): [timestamp, ...]}
+_tenant_otp_timestamps: dict = defaultdict(list)
 
 
 def _get_ttl() -> int:
@@ -40,6 +61,52 @@ def _get_ttl() -> int:
 def generate_otp() -> str:
     """Return a cryptographically secure 6-digit numeric OTP."""
     return ''.join(secrets.choice(string.digits) for _ in range(OTP_LENGTH))
+
+
+def check_tenant_otp_rate_limit(
+    tenant_id: int | None,
+    user_type: str,
+) -> tuple[bool, str]:
+    """
+    Tenant-aware OTP rate limit: max _TENANT_OTP_LIMIT requests per
+    _TENANT_OTP_WINDOW seconds per (tenant_id, user_type) pair.
+
+    Superadmin (tenant_id=None) is never rate-limited here — its limit
+    is enforced at the route layer by Flask-Limiter.
+
+    Returns (allowed: bool, reason: str).
+      allowed=True  → request should proceed
+      allowed=False → request should be rejected with generic message
+    """
+    if tenant_id is None:
+        return True, ''
+
+    key = (tenant_id, user_type)
+    now = time.monotonic()
+    window_start = now - _TENANT_OTP_WINDOW
+
+    # Evict timestamps older than the window
+    _tenant_otp_timestamps[key] = [
+        ts for ts in _tenant_otp_timestamps[key] if ts > window_start
+    ]
+
+    count = len(_tenant_otp_timestamps[key])
+    if count >= _TENANT_OTP_LIMIT:
+        logger.warning(
+            '[TenantOTPRateLimit] tenant_id=%s user_type=%s requests=%d limit=%d window=%ds — BLOCKED',
+            tenant_id, user_type, count, _TENANT_OTP_LIMIT, _TENANT_OTP_WINDOW,
+        )
+        return False, (
+            f'Too many OTP requests for this account. '
+            f'Please wait before trying again.'
+        )
+
+    _tenant_otp_timestamps[key].append(now)
+    logger.debug(
+        '[TenantOTPRateLimit] tenant_id=%s user_type=%s requests=%d/%d allowed',
+        tenant_id, user_type, count + 1, _TENANT_OTP_LIMIT,
+    )
+    return True, ''
 
 
 def create_otp_record(
@@ -96,6 +163,7 @@ def verify_otp(
     On too many attempts: deletes the record.
 
     Tenant isolation: if tenant_id is supplied the record must match.
+    This prevents cross-tenant OTP collisions and reset hijacking.
     """
     query = PasswordResetOTP.query.filter_by(
         user_type=user_type,
@@ -103,6 +171,7 @@ def verify_otp(
         used=False,
     )
     if tenant_id is not None:
+        # SECURITY: always scope by tenant to prevent cross-tenant OTP reuse
         query = query.filter_by(tenant_id=tenant_id)
 
     record = query.order_by(PasswordResetOTP.created_at.desc()).first()
@@ -129,7 +198,7 @@ def verify_otp(
         return False, f'Incorrect OTP. {remaining} attempt(s) remaining.'
 
     record.used = True
-    logger.info('OTP verified: type=%s user_id=%s', user_type, user_id)
+    logger.info('OTP verified: type=%s user_id=%s tenant_id=%s', user_type, user_id, tenant_id)
     return True, ''
 
 

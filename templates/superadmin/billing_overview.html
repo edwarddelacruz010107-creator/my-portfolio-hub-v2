@@ -15,7 +15,21 @@
 {% block page_title %}Subscription Overview{% endblock %}
 
 {% block content %}
-<div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:2rem">
+<div class="page-header">
+  <div>
+    <h1 class="page-heading">Subscription Overview</h1>
+    <p class="page-subtext">Monitor tenant billing status, webhook events, and subscription health.</p>
+  </div>
+  <div class="page-header-right">
+    <a href="{{ url_for('superadmin.subscription_settings') }}" class="btn btn-secondary btn-sm">
+      <iconify-icon icon="lucide:layers" width="14"></iconify-icon>
+      Plan Settings
+    </a>
+  </div>
+</div>
+
+{# Stats strip — uses .stats-grid which is now unified via superadmin-unify.css §4 #}
+<div class="stats-grid">
   <div class="stat-card">
     <div class="stat-label">MRR</div>
     <div class="stat-value">&#x20B1;{{ '%.0f'|format(metrics.mrr) }}</div>
@@ -34,17 +48,17 @@
   </div>
 </div>
 
-<div class="dash-panel" style="margin-bottom:2rem">
+<div class="dash-panel">
   <div class="panel-header">
     <h2>Webhook Status</h2>
     <a href="{{ url_for('superadmin.subscription_settings') }}" class="btn btn-ghost btn-sm">Plan Settings</a>
   </div>
   {% if metrics.last_webhook %}
-  <p style="font-size:0.9rem;color:var(--text-muted)">
+  <p style="font-size:0.875rem;color:var(--text-muted)">
     Last webhook: <strong>{{ metrics.last_webhook.event_type }}</strong>
     at {{ metrics.last_webhook.received_at.strftime('%Y-%m-%d %H:%M UTC') }}
     {% if metrics.last_webhook.processed %}
-      <span class="badge-status badge-active">processed</span>
+      <span class="badge badge-success">processed</span>
     {% endif %}
   </p>
   {% else %}
@@ -52,7 +66,7 @@
   {% endif %}
 </div>
 
-<div class="dash-panel" style="margin-bottom:2rem">
+<div class="dash-panel">
   <div class="panel-header"><h2>Tenants</h2></div>
   <div class="table-responsive">
     <table class="data-table">
@@ -84,7 +98,7 @@
             <small class="text-muted">{{ row.plan_price_label | default('') }}</small>
           </td>
           <td>
-            <span class="badge-status badge-{{ row.status | default('inactive') }}">
+            <span class="badge badge-{{ row.status | default('inactive') }}">
               {{ row.status | default('inactive') }}
             </span>
           </td>
@@ -147,7 +161,7 @@
             {% else %}—{% endif %}
           </td>
           <td>
-            <span class="badge-status {% if w.processed %}badge-active{% else %}badge-inactive{% endif %}">
+            <span class="badge {% if w.processed %}badge-success{% else %}badge-muted{% endif %}">
               {{ 'ok' if w.processed else 'pending' }}
             </span>
           </td>

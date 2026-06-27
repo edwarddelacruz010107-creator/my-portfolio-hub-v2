@@ -1061,29 +1061,77 @@ def billing_submissions():
 @superadmin.route('/billing/submissions/<int:submission_id>/review', methods=['POST'])
 @superadmin_required
 def billing_submission_review(submission_id):
+    """
+    Process approve/reject for a manual payment submission.
+
+    v6.3.1 hardening:
+      • Explicit VALID_REVIEW_ACTIONS whitelist guard.
+      • Detailed structured logging at entry point.
+      • Service exceptions caught here as last-resort safety net (service also
+        wraps internally, but double-wrapping prevents 500 from reaching user).
+      • Action is read from form field 'action'; the template submits via
+        <button name="action" value="approve|reject"> — the clicked button's
+        value is the one that arrives in the POST body.
+    """
+    VALID_REVIEW_ACTIONS = {'approve', 'reject'}
+
     submission = db.session.get(PaymentSubmission, submission_id)
     if submission is None:
-        flash('Submission not found.', 'danger')
+        logger.warning('[PAYMENT_REVIEW] submission_id=%s not found', submission_id)
+        flash('Payment submission not found.', 'danger')
         return redirect(url_for('superadmin.billing_submissions'))
 
-    action = request.form.get('action', '')
+    # Read action — log raw value to catch empty/malformed submissions
+    action = (request.form.get('action') or '').strip().lower()
     review_notes = (request.form.get('review_notes') or '').strip()
     reviewer = current_user.username
 
-    if action == 'approve':
-        ok, message = approve_payment_submission(
-            submission, reviewer=reviewer, review_notes=review_notes,
-        )
-        flash(message, 'success' if ok else 'danger')
-    elif action == 'reject':
-        ok, message = reject_payment_submission(
-            submission, reviewer=reviewer, review_notes=review_notes,
-        )
-        flash(message, 'success' if ok else 'warning')
-    else:
-        flash('Invalid review action.', 'danger')
+    logger.info(
+        '[PAYMENT_REVIEW] route hit: submission_id=%s action=%r reviewer=%s form_keys=%s',
+        submission_id, action, reviewer, list(request.form.keys()),
+    )
 
-    return redirect(url_for('superadmin.billing_submissions'))
+    if action not in VALID_REVIEW_ACTIONS:
+        logger.warning(
+            '[PAYMENT_REVIEW] Invalid action=%r for submission_id=%s — form keys: %s',
+            action, submission_id, list(request.form.keys()),
+        )
+        flash(
+            f'Invalid review action "{action or "(empty)"}". '
+            'Use the Approve or Reject buttons on the submission row.',
+            'danger',
+        )
+        return redirect(url_for('superadmin.billing_submissions'))
+
+    try:
+        if action == 'approve':
+            ok, message = approve_payment_submission(
+                submission, reviewer=reviewer, review_notes=review_notes,
+            )
+            flash(message, 'success' if ok else 'danger')
+        else:  # action == 'reject'
+            ok, message = reject_payment_submission(
+                submission, reviewer=reviewer, review_notes=review_notes,
+            )
+            flash(message, 'success' if ok else 'warning')
+
+    except Exception as exc:
+        # Last-resort catch — service should have already rolled back
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        logger.exception(
+            '[PAYMENT_REVIEW] Unhandled exception for submission_id=%s action=%s: %s',
+            submission_id, action, exc,
+        )
+        flash(
+            f'An unexpected error occurred during payment review. '
+            f'The submission has not been changed. ({type(exc).__name__})',
+            'danger',                        # ← closing the flash() call
+        )
+
+    return redirect(url_for('superadmin.billing_submissions'))  # ← always redirect
 
 
 # ── Create tenant ─────────────────────────────────────────────────────────────
@@ -1947,79 +1995,96 @@ def email_settings():
     import re as _re
     import json as _json
 
+    # Always expire the cached instance before reading — the identity map
+    # can return a stale object from a previous request in the same session,
+    # causing has_sa_smtp / has_sa_resend to read outdated column values.
+    _cfg_raw = GlobalEmailConfig.get()
+    db.session.expire(_cfg_raw)
     cfg = GlobalEmailConfig.get()
+    db.session.refresh(cfg)
 
     if request.method == 'POST':
         action = request.form.get('action', 'save')
 
         # ── AJAX: validate MailerSend key ──────────────────────────────────
+        # ── AJAX: validate MailerSend key (uses stored key if field blank) ─────────
         if action == 'validate_mailersend_key':
             key = request.form.get('mailersend_api_key', '').strip()
+            # If no new key typed, validate the currently stored key
             if not key:
-                return jsonify({'ok': False, 'message': 'No key supplied.'})
-            # Validate against live MailerSend API (server-side only)
+                key = cfg.get_portal_key('superadmin') if cfg else ''
+            if not key:
+                return jsonify({'ok': False, 'message': 'No MailerSend key configured. Save a key first.'})
             valid, msg = validate_mailersend_key(key)
-            # Never echo back the key in the response
             return jsonify({'ok': valid, 'message': msg})
 
         # ── AJAX: send test email (via active provider chain) ──────────────
         if action == 'send_test_email':
             test_to = request.form.get('test_email', '').strip().lower()
             if not test_to or not _re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$', test_to):
-                return jsonify({'ok': False, 'message': 'Invalid test recipient email address.'})
+                return jsonify({'ok': False, 'message': 'Invalid recipient email address.'})
+            # Pre-flight: check if any provider is active + configured
+            from app.services.superadmin_email_service import _resolve_configs
+            active_providers = _resolve_configs()
+            if not active_providers:
+                return jsonify({'ok': False, 'message': (
+                    'No active providers. Configure and toggle at least one provider ON, then retry.'
+                )})
             ok, result = _sa_send(
                 to=test_to,
                 subject='[Portfolio CMS] Email Delivery Test',
-                html='<p>This is a <strong>test email</strong> from Portfolio CMS confirming your email provider is correctly configured.</p>',
+                html='<p>This is a <strong>test email</strong> from Portfolio CMS confirming your provider is configured.</p>',
             )
             if ok:
                 current_app.logger.info('Test email sent to %s by superadmin %s', test_to, current_user.username)
                 return jsonify({'ok': True, 'message': f'Test email delivered to {test_to}.'})
-            return jsonify({'ok': False, 'message': f'Send failed: {result}'})
+            return jsonify({'ok': False, 'message': f'Delivery failed: {result}'})
 
-        # ── AJAX: validate MailerSend key ──────────────────────────────────
-        if action == 'validate_mailersend_key':
-            key = request.form.get('mailersend_api_key', '').strip()
-            if not key:
-                return jsonify({'ok': False, 'message': 'No key supplied.'})
-            valid, msg = validate_mailersend_key(key)
-            return jsonify({'ok': valid, 'message': msg})
-
-        # ── AJAX: validate SMTP connection ─────────────────────────────────
+        # ── AJAX: validate SMTP (uses stored DB credentials when form fields blank) ──
         if action == 'validate_smtp':
             import smtplib, ssl as _ssl
-            host     = request.form.get('smtp_host', '').strip()
-            port_raw = request.form.get('smtp_port', '587').strip()
-            username = request.form.get('smtp_username', '').strip()
-            password = request.form.get('smtp_password', '').strip()
-            enc      = request.form.get('smtp_encryption', 'tls').lower()
-            if not host or not username or not password:
-                return jsonify({'ok': False, 'message': 'Host, username and password are required.'})
+            # Fall back to stored DB values when form fields are empty
+            host     = request.form.get('smtp_host',     '').strip() or (cfg.sa_smtp_host     or '')
+            port_raw = request.form.get('smtp_port',     '').strip() or str(cfg.sa_smtp_port  or 587)
+            username = request.form.get('smtp_username', '').strip() or (cfg.sa_smtp_username or '')
+            password = request.form.get('smtp_password', '').strip() or cfg.sa_smtp_password
+            enc      = (request.form.get('smtp_encryption', '').strip() or cfg.sa_smtp_encryption or 'tls').lower()
+            if not host:
+                return jsonify({'ok': False, 'message': 'SMTP host not set. Save your SMTP settings first.'})
+            if not username:
+                return jsonify({'ok': False, 'message': 'SMTP username not set.'})
+            if not password:
+                return jsonify({'ok': False, 'message': 'SMTP password not set. Save SMTP settings with a password first.'})
             try:
-                port = int(port_raw)
-            except ValueError:
+                port = max(1, min(65535, int(port_raw)))
+            except (ValueError, TypeError):
                 port = 587
             try:
                 if enc == 'ssl' or port == 465:
                     ctx = _ssl.create_default_context()
                     with smtplib.SMTP_SSL(host, port, context=ctx, timeout=10) as s:
                         s.login(username, password)
+                elif enc == 'none':
+                    with smtplib.SMTP(host, port, timeout=10) as s:
+                        s.login(username, password)
                 else:
                     with smtplib.SMTP(host, port, timeout=10) as s:
                         s.ehlo(); s.starttls(context=_ssl.create_default_context()); s.ehlo()
                         s.login(username, password)
-                return jsonify({'ok': True, 'message': 'SMTP connection successful.'})
+                return jsonify({'ok': True, 'message': f'SMTP connection to {host}:{port} successful.'})
             except smtplib.SMTPAuthenticationError:
-                return jsonify({'ok': False, 'message': 'Authentication failed — check username/password.'})
+                return jsonify({'ok': False, 'message': 'Auth failed — check username and App Password.'})
+            except (TimeoutError, OSError):
+                return jsonify({'ok': False, 'message': f'Connection to {host}:{port} timed out or refused.'})
             except Exception as e:
                 return jsonify({'ok': False, 'message': f'Connection failed: {str(e)[:120]}'})
 
-        # ── AJAX: validate Resend API key ──────────────────────────────────
+        # ── AJAX: validate Resend (uses stored DB key when form field blank) ──────
         if action == 'validate_resend':
             import urllib.request as _ur, urllib.error as _ue
-            key = request.form.get('resend_api_key', '').strip()
+            key = request.form.get('resend_api_key', '').strip() or cfg.sa_resend_api_key
             if not key:
-                return jsonify({'ok': False, 'message': 'No key supplied.'})
+                return jsonify({'ok': False, 'message': 'No Resend API key configured. Save a key first.'})
             req = _ur.Request('https://api.resend.com/domains',
                               headers={'Authorization': f'Bearer {key}'})
             try:
@@ -2027,11 +2092,10 @@ def email_settings():
                     return jsonify({'ok': True, 'message': 'Resend API key is valid.'})
             except _ue.HTTPError as e:
                 if e.code == 401:
-                    return jsonify({'ok': False, 'message': 'Invalid Resend API key.'})
+                    return jsonify({'ok': False, 'message': 'Invalid Resend API key — check your key.'})
                 return jsonify({'ok': False, 'message': f'Resend returned HTTP {e.code}.'})
             except Exception as e:
                 return jsonify({'ok': False, 'message': f'Connection error: {str(e)[:80]}'})
-
         # ── AJAX: save provider priority order ─────────────────────────────
         if action == 'save_priority':
             order_raw = request.form.get('priority_order', '').strip()
@@ -2075,6 +2139,7 @@ def email_settings():
                 cfg.superadmin_sender_email = sender_email
             cfg.updated_by = current_user.username
             db.session.commit()
+            db.session.refresh(cfg)
             flash('MailerSend settings saved.', 'success')
             return redirect(url_for('superadmin.email_settings'))
 
@@ -2091,19 +2156,47 @@ def email_settings():
                 port = max(1, min(65535, int(port_raw)))
             except (ValueError, TypeError):
                 port = 587
-            if host:
-                cfg.sa_smtp_host = host
-            if username:
-                cfg.sa_smtp_username = username
-            if password:
+
+            # Check if a password is already stored by reading the raw encrypted
+            # column directly — never go through decrypt_secret here because a
+            # decryption failure (wrong FERNET_KEY, ORM state) returns '' and
+            # silently makes us think no password exists.
+            existing_pw_blob = cfg._sa_smtp_password
+            has_existing_pw  = isinstance(existing_pw_blob, str) and len(existing_pw_blob.strip()) > 0
+
+            missing = []
+            if not host:
+                missing.append('SMTP Host')
+            if not username:
+                missing.append('Username / Email')
+            if not password and not has_existing_pw:
+                missing.append('Password / App Password (required on first save)')
+            if missing:
+                flash(f'SMTP not saved — missing: {", ".join(missing)}.', 'danger')
+                return redirect(url_for('superadmin.email_settings'))
+
+            # Write all fields unconditionally (non-empty wins over existing)
+            cfg.sa_smtp_host         = host
+            cfg.sa_smtp_username     = username
+            if password:                          # blank = keep existing encrypted blob
                 cfg.sa_smtp_password = password
-            if sender_email:
-                cfg.sa_smtp_sender_email = sender_email
-            cfg.sa_smtp_sender_name = sender_name or cfg.sa_smtp_sender_name
-            cfg.sa_smtp_port        = port
-            cfg.sa_smtp_encryption  = encryption
-            cfg.updated_by          = current_user.username
+            cfg.sa_smtp_sender_email = sender_email or cfg.sa_smtp_sender_email
+            cfg.sa_smtp_sender_name  = sender_name or cfg.sa_smtp_sender_name
+            cfg.sa_smtp_port         = port
+            cfg.sa_smtp_encryption   = encryption
+            # Always enable SMTP when saving credentials — user is actively
+            # configuring it and expects it to be active immediately.
+            cfg.sa_smtp_active       = True
+            cfg.updated_by           = current_user.username
             db.session.commit()
+            db.session.refresh(cfg)
+            current_app.logger.warning(
+                '[SMTP DEBUG] configured=%s host=%s user=%s password_exists=%s',
+                cfg.has_sa_smtp,
+                cfg.sa_smtp_host,
+                cfg.sa_smtp_username,
+                bool(cfg._sa_smtp_password)
+            )
             flash('SMTP settings saved.', 'success')
             return redirect(url_for('superadmin.email_settings'))
 
@@ -2119,6 +2212,7 @@ def email_settings():
             cfg.sa_resend_sender_name = sender_name or cfg.sa_resend_sender_name
             cfg.updated_by = current_user.username
             db.session.commit()
+            db.session.refresh(cfg)
             flash('Resend settings saved.', 'success')
             return redirect(url_for('superadmin.email_settings'))
 

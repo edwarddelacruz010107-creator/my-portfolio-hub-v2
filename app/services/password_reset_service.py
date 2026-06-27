@@ -18,20 +18,41 @@ PATCH v5.7 (Web3Forms eliminated from the superadmin path):
     functions per the v5.7 observability requirement. Behavior unchanged.
   • Zero schema changes.
 
-DELIVERY MATRIX (v5.7):
-    ┌──────────────────────┬─────────────────────────────────────────────┐
-    │ Portal               │ OTP Delivery                                │
-    ├──────────────────────┼─────────────────────────────────────────────┤
-    │ TENANT               │ email_service.send_otp_email()              │
-    │                      │ → MailerSend primary / SMTP fallback        │
-    ├──────────────────────┼─────────────────────────────────────────────┤
-    │ ADMIN                │ smtp_service.send_admin_otp() primary       │
-    │                      │   → email_service.send_otp_email() fallback │
-    │                      │ → MailerSend primary / SMTP fallback        │
-    ├──────────────────────┼─────────────────────────────────────────────┤
-    │ SUPERADMIN           │ smtp_service.send_superadmin_otp()  ONLY     │
-    │                      │ NO MailerSend. NO Web3Forms. NO fallback.   │
-    └──────────────────────┴─────────────────────────────────────────────┘
+DELIVERY MATRIX (v5.9.2):
+    ┌──────────────────────┬──────────────────────────────────────────────────────┐
+    │ Portal               │ OTP Delivery                                         │
+    ├──────────────────────┼──────────────────────────────────────────────────────┤
+    │ TENANT               │ tenant_email_service.send_tenant_email()             │
+    │                      │ → TenantSmtpSettings / Resend / MailerSend           │
+    │                      │ → global send_otp_email() fallback                   │
+    ├──────────────────────┼──────────────────────────────────────────────────────┤
+    │ ADMIN (default)      │ 1. tenant_email_service (TenantSmtpSettings)         │
+    │                      │    → admin's own /email-services SMTP config         │
+    │                      │ 2. superadmin_email_service (GlobalEmailConfig)      │
+    │                      │    → backward compat if Email Services not set up    │
+    │                      │ 3. send_otp_email() global env fallback              │
+    ├──────────────────────┼──────────────────────────────────────────────────────┤
+    │ SUPERADMIN           │ superadmin_email_service (GlobalEmailConfig ONLY)    │
+    │                      │ NO tenant tables. NO Web3Forms. Isolated.            │
+    └──────────────────────┴──────────────────────────────────────────────────────┘
+
+v5.9.3 BUG FIX — Dual-model provider resolution gap (compat layer):
+    _resolve_admin_email_providers() and _ensure_provider_registry_synced() added.
+    See those functions for full rationale.
+
+v5.9.2 BUG FIX — Admin OTP not sending (default admin portal):
+    Root cause: initiate_admin_reset() called superadmin_email_service.send_otp()
+    as primary. That service reads ONLY GlobalEmailConfig (superadmin's keys) and
+    is completely blind to TenantSmtpSettings. When the default admin configures
+    SMTP via /admin/email-services, the credentials go into TenantSmtpSettings
+    (keyed by tenant_id). The superadmin_email_service never found them, silently
+    failed, fell through to send_otp_email() (global env MailerSend), which also
+    had no credentials → OTP never delivered.
+
+    Fix: admin OTP now calls _send_admin_otp_via_tenant_providers() which reads
+    TenantEmailProvider → TenantSmtpSettings first, exactly as the tenant portal
+    does. The superadmin_email_service is kept as fallback chain #2 for admins
+    who haven't set up Email Services yet, preserving backward compatibility.
 
 Three completely isolated reset flows:
     A. Superadmin  — /superadmin/forgot-password
@@ -83,7 +104,7 @@ from flask import current_app, request as flask_request
 from app import db
 from app.models import User
 from app.models.portfolio import Tenant, GlobalEmailConfig
-from app.services.otp_service import create_otp_record, verify_otp
+from app.services.otp_service import create_otp_record, verify_otp, check_tenant_otp_rate_limit
 from app.services.email_service import send_otp_email
 from app.security import log_security_event
 from app.services import smtp_service
@@ -374,13 +395,288 @@ def complete_superadmin_reset(
 #    MailerSend is used as fallback only when SMTP fails or is unconfigured.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────────────────────────────────────────
+# Provider compatibility layer (v5.9.3) — dual-model resolution
+# ─────────────────────────────────────────────────────────────────────────────────
+
+def _ensure_provider_registry_synced(tenant_id: int) -> None:
+    """
+    Auto-heal the TenantEmailProvider registry for a tenant.
+
+    Scans TenantSmtpSettings / TenantResendSettings / TenantMailerSendSettings
+    and ensures a TenantEmailProvider row exists AND is active for any provider
+    whose credential table has valid credentials stored.
+
+    Idempotent.  Only called when get_ordered_active() returns empty, so it does
+    NOT override deliberate admin deactivations in the normal case.
+    """
+    try:
+        from app.models.core import (
+            TenantEmailProvider,
+            TenantSmtpSettings,
+            TenantResendSettings,
+            TenantMailerSendSettings,
+        )
+        from app import db
+
+        credential_map = {
+            'smtp':       TenantSmtpSettings.query.filter_by(tenant_id=tenant_id).first(),
+            'resend':     TenantResendSettings.query.filter_by(tenant_id=tenant_id).first(),
+            'mailersend': TenantMailerSendSettings.query.filter_by(tenant_id=tenant_id).first(),
+        }
+
+        healed = []
+        for provider_name, settings in credential_map.items():
+            if settings is None or not settings.is_configured:
+                continue
+
+            rec = TenantEmailProvider.query.filter_by(
+                tenant_id=tenant_id, provider_name=provider_name
+            ).first()
+
+            if rec is None:
+                defaults = {'smtp': 2, 'resend': 1, 'mailersend': 3}
+                rec = TenantEmailProvider(
+                    tenant_id=tenant_id,
+                    provider_name=provider_name,
+                    priority=defaults.get(provider_name, 99),
+                    active=True,
+                    status='connected',
+                )
+                db.session.add(rec)
+                healed.append('created:' + provider_name)
+            elif not rec.active:
+                rec.active = True
+                rec.status = 'connected'
+                healed.append('activated:' + provider_name)
+
+        if healed:
+            try:
+                db.session.flush()
+                logger.info(
+                    '[ProviderSync] tenant_id=%s registry healed: %s',
+                    tenant_id, ', '.join(healed),
+                )
+            except Exception as flush_exc:
+                db.session.rollback()
+                logger.warning(
+                    '[ProviderSync] flush failed tenant_id=%s err=%s — registry NOT synced',
+                    tenant_id, flush_exc,
+                )
+
+    except Exception as exc:
+        logger.warning(
+            '[ProviderSync] _ensure_provider_registry_synced raised %s for tenant_id=%s',
+            exc, tenant_id,
+        )
+
+
+def _resolve_admin_email_providers(tenant_id) -> list:
+    """
+    Return an ordered list of active TenantEmailProvider records for OTP delivery,
+    with backward-compatibility fallback from raw credential tables.
+
+    Resolution order:
+      1. TenantEmailProvider.get_ordered_active() — fast path (normal case).
+      2. If empty, _ensure_provider_registry_synced() auto-heals the registry
+         from TenantSmtpSettings / TenantResendSettings / TenantMailerSendSettings.
+      3. Retry get_ordered_active().
+      4. If still empty, return [] — caller falls through to superadmin/global chains.
+
+    This is the single resolution point for both admin and tenant OTP flows,
+    replacing the raw get_ordered_active() calls that caused the v5.9.2 bug.
+    """
+    if tenant_id is None:
+        logger.warning('[ProviderResolve] tenant_id is None — cannot resolve providers')
+        return []
+
+    try:
+        from app.models.core import TenantEmailProvider
+
+        providers = TenantEmailProvider.get_ordered_active(tenant_id)
+        current_app.logger.warning(
+            '[ADMIN OTP DEBUG] tenant_id=%s provider_model=TenantEmailProvider '
+            'fast_path_found=%s count=%s',
+            tenant_id, bool(providers), len(providers),
+        )
+        if providers:
+            return providers
+
+        logger.warning(
+            '[ProviderResolve] tenant_id=%s — no active TenantEmailProvider rows; '
+            'attempting registry sync from credential tables',
+            tenant_id,
+        )
+        _ensure_provider_registry_synced(tenant_id)
+
+        providers = TenantEmailProvider.get_ordered_active(tenant_id)
+        current_app.logger.warning(
+            '[ADMIN OTP DEBUG] tenant_id=%s provider_model=TenantEmailProvider '
+            'post_sync_found=%s count=%s',
+            tenant_id, bool(providers), len(providers),
+        )
+        return providers
+
+    except Exception as exc:
+        logger.warning(
+            '[ProviderResolve] exception for tenant_id=%s: %s',
+            tenant_id, exc,
+        )
+        return []
+
+
+def _send_admin_otp_via_tenant_providers(
+    tenant_id,
+    recipient_email: str,
+    otp: str,
+    ip_address: str,
+    user_agent: str,
+    ttl_minutes: int,
+) -> tuple[bool, str]:
+    """
+    FIX v5.9.2 — Admin OTP delivery via the tenant's OWN Email Services config.
+
+    ROOT CAUSE OF BUG:
+    The previous implementation called superadmin_email_service.send_otp() as
+    primary for the admin (default admin) OTP flow.  That service reads ONLY
+    GlobalEmailConfig (the superadmin's MailerSend/SMTP keys stored in the
+    global config table) — it never reads TenantSmtpSettings.
+
+    When the default admin configures SMTP through /admin/email-services, the
+    credentials are stored in TenantSmtpSettings (keyed by tenant_id).  The
+    superadmin_email_service has no awareness of this table, so it never finds
+    the configured SMTP provider, fails silently, and the OTP is never sent.
+
+    DELIVERY CHAIN (v5.9.2):
+        1. PRIMARY — tenant_email_service.send_tenant_email() using the admin's
+           own TenantEmailProvider records (SMTP/Resend/MailerSend as configured
+           in /admin/email-services, tried in their priority order).
+        2. FALLBACK A — superadmin_email_service (GlobalEmailConfig MailerSend/SMTP)
+           — preserves backward compat if tenant hasn't set up Email Services yet.
+        3. FALLBACK B — send_otp_email() (global env-based MailerSend/SMTP)
+           — last resort, same as before.
+
+    ISOLATION CONTRACT:
+        • Default admin uses TenantSmtpSettings (tenant_id-scoped).
+        • Superadmin uses GlobalEmailConfig ONLY — completely separate.
+        • No cross-contamination between the two provider tables.
+
+    Returns (sent: bool, delivery_channel: str).
+    """
+    from app.services.email_service import _build_otp_email_body
+
+    subject, text, html = _build_otp_email_body(otp, 'admin', ip_address, user_agent, ttl_minutes)
+
+    # ── Path 1: Tenant's own Email Services (TenantSmtpSettings) ─────────────
+    if tenant_id is not None:
+        try:
+            # v5.9.3: use compatibility-aware resolver
+            active_providers = _resolve_admin_email_providers(tenant_id)
+            logger.info(
+                '[ADMIN RESET][provider] tenant_id=%s active_provider_count=%d '
+                '(post-compat-resolution)',
+                tenant_id, len(active_providers),
+            )
+            if active_providers:
+                from app.services.tenant_email_service import send_tenant_email
+                ok, err = send_tenant_email(
+                    tenant_id=tenant_id,
+                    to=recipient_email,
+                    subject=subject,
+                    html=html,
+                    text=text,
+                )
+                current_app.logger.warning(
+                    '[ADMIN OTP DEBUG] tenant=%s provider_model=TenantSmtpSettings '
+                    'provider_found=%s configured=%s recipient=%s',
+                    tenant_id, bool(active_providers), ok, recipient_email,
+                )
+                logger.info(
+                    '[ADMIN RESET][provider] tenant Email Services result ok=%s tenant_id=%s err=%r',
+                    ok, tenant_id, err,
+                )
+                if ok:
+                    return True, 'tenant_email_services'
+                logger.warning(
+                    '[ADMIN RESET][provider] tenant Email Services failed tenant_id=%s err=%s '
+                    '— trying superadmin_email_service fallback',
+                    tenant_id, err,
+                )
+            else:
+                logger.warning(
+                    '[ADMIN RESET][provider] no active TenantEmailProvider records for '
+                    'tenant_id=%s — skipping to superadmin_email_service fallback',
+                    tenant_id,
+                )
+        except Exception as exc:
+            logger.warning(
+                '[ADMIN RESET][provider] tenant Email Services lookup raised %s '
+                '— falling back to superadmin_email_service',
+                exc,
+            )
+    else:
+        logger.warning(
+            '[ADMIN RESET][provider] tenant_id is None (bootstrap user?) '
+            '— skipping tenant Email Services, using superadmin_email_service'
+        )
+
+    # ── Path 2: superadmin_email_service (GlobalEmailConfig keys) ─────────────
+    # Preserves backward compat for admins who haven't configured Email Services yet.
+    try:
+        from app.services.superadmin_email_service import send_otp as _multi_send
+        sa_ok, sa_err = _multi_send(
+            email=recipient_email,
+            otp=otp,
+            portal='admin',
+            ip_address=ip_address,
+            ttl_minutes=ttl_minutes,
+        )
+        logger.info(
+            '[ADMIN RESET][provider] superadmin_email_service result ok=%s err=%r',
+            sa_ok, sa_err,
+        )
+        if sa_ok:
+            return True, 'superadmin_email_service'
+        logger.warning(
+            '[ADMIN RESET][provider] superadmin_email_service failed err=%s '
+            '— falling back to global send_otp_email()',
+            sa_err,
+        )
+    except Exception as exc:
+        logger.warning(
+            '[ADMIN RESET][provider] superadmin_email_service import/call failed: %s '
+            '— falling back to global send_otp_email()',
+            exc,
+        )
+
+    # ── Path 3: Global env-based MailerSend/SMTP ──────────────────────────────
+    sent = send_otp_email(
+        recipient_email=recipient_email,
+        otp=otp,
+        user_type='admin',
+        ip_address=ip_address,
+        user_agent=user_agent,
+        ttl_minutes=ttl_minutes,
+    )
+    logger.info('[ADMIN RESET][provider] send_otp_email (global fallback) result ok=%s', sent)
+    return sent, 'global_fallback'
+
+
 def initiate_admin_reset(
     submitted_email: str,
     submitted_username: str = '',
 ) -> tuple[bool, str]:
     """
     Initiate admin (non-superadmin) OTP reset.
-    Delivery: smtp_service.send_admin_otp() (SMTP primary) → send_otp_email() (MailerSend fallback).
+
+    v5.9.2 FIX: Delivery now uses _send_admin_otp_via_tenant_providers() which
+    correctly prioritises the tenant's own TenantSmtpSettings (configured via
+    /admin/email-services) before falling back to GlobalEmailConfig and then
+    the global env-based chain.
+
+    The previous implementation called superadmin_email_service directly, which
+    reads ONLY GlobalEmailConfig — it was blind to TenantSmtpSettings, causing
+    the default admin OTP to silently fail even when SMTP was fully configured.
     """
     if not _recovery_enabled():
         return False, 'Password recovery is currently disabled.'
@@ -401,6 +697,23 @@ def initiate_admin_reset(
 
     ip, ua, ttl = _get_ip(), _get_ua(), _get_ttl_minutes()
 
+    # Resolve tenant_slug for diagnostic logging
+    tenant_slug = getattr(user, 'tenant_slug', None) or 'default'
+
+    logger.info(
+        '[ADMIN RESET] step=user_resolved user_id=%s tenant_id=%s tenant_slug=%r',
+        user.id, user.tenant_id, tenant_slug,
+    )
+
+    # Tenant-aware rate limit: 5 OTP requests / 15 minutes / tenant
+    _rate_ok, _rate_err = check_tenant_otp_rate_limit(user.tenant_id, 'admin')
+    if not _rate_ok:
+        logger.warning(
+            '[ADMIN RESET] step=rate_limited user_id=%s tenant_id=%s tenant_slug=%r',
+            user.id, user.tenant_id, tenant_slug,
+        )
+        return True, generic  # Anti-enumeration: still return generic message
+
     raw_otp = create_otp_record(
         user_type='admin',
         user_id=user.id,
@@ -413,58 +726,43 @@ def initiate_admin_reset(
     logger.info('[ADMIN RESET] step=otp_generated user_id=%s ttl=%dm', user.id, ttl)
     log_security_event('admin_otp_generated', user, f'Admin OTP record created from ip={ip}', 'info')
 
-    # ── Multi-provider delivery (superadmin_email_service) ──────────────────
-    try:
-        from app.services.superadmin_email_service import send_otp as _multi_send
-        smtp_ok, smtp_err = _multi_send(
-            email=user.email,
-            otp=raw_otp,
-            portal='admin',
-            ip_address=ip,
-            ttl_minutes=ttl,
-        )
-    except Exception as exc:
-        logger.warning('[ADMIN RESET] multi-provider import failed (%s) — using SMTP', exc)
-        smtp_ok, smtp_err = smtp_service.send_admin_otp(
-            email=user.email,
-            otp=raw_otp,
-            ip_address=ip,
-            user_agent=ua,
-            ttl_minutes=ttl,
-        )
-    logger.info('[ADMIN RESET] step=smtp_result sent=%s user_id=%s', smtp_ok, user.id)
-
-    if smtp_ok:
-        log_security_event('admin_otp_sent', user, f'Admin OTP delivered via provider chain from ip={ip}', 'info')
-        log_security_event('admin_pw_reset_initiated', user, f'Admin OTP sent from ip={ip}', 'info')
-        return True, generic
-
-    # ── Fallback: legacy MailerSend direct ──────────────────────────────────
-    logger.warning(
-        '[ADMIN RESET] step=smtp_failed user_id=%s smtp_err=%s — falling back to MailerSend',
-        user.id, smtp_err,
-    )
-    ms_sent = send_otp_email(
+    # ── Delivery via correctly-scoped provider chain ──────────────────────────
+    sent, delivery_channel = _send_admin_otp_via_tenant_providers(
+        tenant_id=user.tenant_id,
         recipient_email=user.email,
         otp=raw_otp,
-        user_type='admin',
         ip_address=ip,
         user_agent=ua,
         ttl_minutes=ttl,
     )
-    logger.info('[ADMIN RESET] step=mailersend_result sent=%s user_id=%s', ms_sent, user.id)
 
-    if ms_sent:
-        log_security_event('admin_otp_sent', user, f'Admin OTP delivered via MailerSend fallback from ip={ip}', 'info')
-        log_security_event('admin_pw_reset_initiated', user, f'Admin OTP sent (MailerSend fallback) from ip={ip}', 'info')
+    logger.info(
+        '[ADMIN RESET] step=delivery_result sent=%s user_id=%s tenant_slug=%r channel=%s',
+        sent, user.id, tenant_slug, delivery_channel,
+    )
+
+    if sent:
+        log_security_event(
+            'admin_otp_sent', user,
+            f'Admin OTP delivered via {delivery_channel} from ip={ip}', 'info',
+        )
+        log_security_event(
+            'admin_pw_reset_initiated', user,
+            f'Admin OTP sent from ip={ip}', 'info',
+        )
     else:
         logger.error(
-            '[ADMIN RESET] step=delivery_failed user_id=%s — SMTP and MailerSend both failed. '
-            'Check SMTP_HOST/SMTP_USERNAME/SMTP_PASSWORD/SMTP_FROM_EMAIL and '
-            'MAILERSEND_API_KEY / ADMIN_MAILERSEND_API_KEY.',
-            user.id,
+            '[ADMIN RESET] step=delivery_failed user_id=%s tenant_slug=%r — '
+            'all provider paths exhausted. '
+            'Verify /admin/email-services SMTP is configured AND marked active. '
+            'Check SMTP_HOST/SMTP_USERNAME/SMTP_PASSWORD/SMTP_FROM_EMAIL env vars as fallback. '
+            'tenant_id=%s',
+            user.id, tenant_slug, user.tenant_id,
         )
-        log_security_event('admin_otp_send_failed', user, f'Admin OTP delivery FAILED (all providers) from ip={ip}', 'warning')
+        log_security_event(
+            'admin_otp_send_failed', user,
+            f'Admin OTP delivery FAILED (all providers) from ip={ip}', 'warning',
+        )
 
     return True, generic
 
@@ -543,8 +841,8 @@ def _send_tenant_otp(
 
     if tenant_id:
         try:
-            from app.models.core import TenantEmailProvider
-            if TenantEmailProvider.get_ordered_active(tenant_id):
+            # v5.9.3: use compatibility-aware resolver (same as admin flow)
+            if _resolve_admin_email_providers(tenant_id):
                 from app.services.tenant_email_service import send_tenant_email
                 ok, err = send_tenant_email(
                     tenant_id=tenant_id,
@@ -620,6 +918,15 @@ def initiate_tenant_reset(
         return False, generic_err
 
     ip, ua, ttl = _get_ip(), _get_ua(), _get_ttl_minutes()
+
+    # Tenant-aware rate limit: 5 OTP requests / 15 minutes / tenant
+    _rate_ok, _rate_err = check_tenant_otp_rate_limit(user.tenant_id, 'tenant')
+    if not _rate_ok:
+        logger.warning(
+            '[TENANT RESET] step=rate_limited user_id=%s tenant_id=%s',
+            user.id, user.tenant_id,
+        )
+        return True, generic_ok  # Anti-enumeration: still return generic message
 
     raw_otp = create_otp_record(
         user_type='tenant',

@@ -1,14 +1,16 @@
 """
 Manual payment workflow — method selection, proof upload, superadmin review.
 
-v3.4.1 fixes:
-  • get_active_payment_methods_for_tenant() — canonical function with explicit
-    Global/tenant-scoped merge, ordered by display_order, with debug logging
-    when the result set is empty so ops can diagnose missing method config.
-  • get_active_payment_methods() — kept as thin alias for backward-compat.
-  • get_payment_method_for_tenant() — now accepts None tenant_id gracefully
-    (treats it as "superadmin context"; allows global methods through).
-  • save_billing_upload() — unchanged, kept for completeness.
+v6.3.1 hardening:
+  • approve_payment_submission() and reject_payment_submission() now wrapped in
+    try/except with rollback — no partial activations on DB failure.
+  • approve_payment_submission() validates tenant, profile, and subscription
+    before mutating state; each check returns a descriptive error tuple.
+  • Structured logging added: [PAYMENT_REVIEW] [PAYMENT_APPROVED]
+    [PAYMENT_REJECTED] [SUBSCRIPTION_ACTIVATED] [TRANSACTION_FAILED]
+  • Double-approval guard: returns (False, reason) if already reviewed.
+  • Rejection stores reason correctly and sends in-app notification.
+  • All existing function signatures preserved for backward compatibility.
 """
 
 from __future__ import annotations
@@ -81,7 +83,6 @@ def get_active_payment_methods_for_tenant(tenant_id: int | None) -> list[Payment
         PaymentMethod.name.asc(),
     ).all()
 
-    # Diagnostic logging — helps diagnose "No payment methods configured" in UI
     if not methods:
         logger.warning(
             'BILLING visibility: no active PaymentMethods found for tenant_id=%s. '
@@ -101,20 +102,12 @@ def get_active_payment_methods_for_tenant(tenant_id: int | None) -> list[Payment
 
 
 def get_active_payment_methods(tenant_id: int | None) -> list[PaymentMethod]:
-    """
-    Backward-compatible alias for get_active_payment_methods_for_tenant().
-
-    Callers should migrate to the explicit name; this alias remains so that
-    existing imports in billing_handlers.py and admin/__init__.py continue to work.
-    """
+    """Backward-compatible alias for get_active_payment_methods_for_tenant()."""
     return get_active_payment_methods_for_tenant(tenant_id)
 
 
 def get_manual_payment_methods(tenant_id: int | None) -> list[PaymentMethod]:
-    """
-    Return only non-PayMongo active methods (bank, ewallet, crypto).
-    Use this when building the "manual payment" UI section.
-    """
+    """Return only non-PayMongo active methods (bank, ewallet, crypto)."""
     return [
         m for m in get_active_payment_methods_for_tenant(tenant_id)
         if m.method_type != 'paymongo'
@@ -124,12 +117,6 @@ def get_manual_payment_methods(tenant_id: int | None) -> list[PaymentMethod]:
 def get_payment_method_for_tenant(method_id: int, tenant_id: int | None) -> PaymentMethod | None:
     """
     Load an active PaymentMethod, enforcing tenant isolation.
-
-    Rules:
-      - Global methods (tenant_id IS NULL): accessible by any tenant.
-      - Tenant-specific: only accessible by the owning tenant.
-      - If tenant_id is None (superadmin context), all active methods are allowed.
-
     Returns None when not found, inactive, or cross-tenant access is attempted.
     """
     method = db.session.get(PaymentMethod, method_id)
@@ -139,13 +126,10 @@ def get_payment_method_for_tenant(method_id: int, tenant_id: int | None) -> Paym
             method_id, tenant_id,
         )
         return None
-    # Global methods are accessible to all
     if method.tenant_id is None:
         return method
-    # Superadmin context: bypass isolation check
     if tenant_id is None:
         return method
-    # Tenant-specific: enforce isolation
     if method.tenant_id != tenant_id:
         logger.warning(
             'BILLING isolation violation: tenant_id=%s attempted to access method_id=%s '
@@ -161,12 +145,7 @@ def get_payment_method_for_tenant(method_id: int, tenant_id: int | None) -> Paym
 def save_billing_upload(file_storage, *, image_only: bool = False) -> tuple[str | None, str | None]:
     """
     Validate and save a billing proof upload; returns (filename, error).
-
-    v3.9 FIX #1 + #4:
-      • Always uses validate_billing_proof_upload() (jpg/jpeg/png/webp/pdf only).
-      • Reads leading bytes for magic-byte verification before saving.
-      • image_only param kept for API compatibility but no longer changes the
-        allowed-extension set (billing proofs are always restricted).
+    Enforces jpg/jpeg/png/webp/pdf whitelist + magic-byte check.
     """
     from app.security import FileUploadPolicy
 
@@ -180,7 +159,6 @@ def save_billing_upload(file_storage, *, image_only: bool = False) -> tuple[str 
     data = file_storage.read()
     file_storage.seek(0)
 
-    # FIX #1 + #4: always use billing-proof strict whitelist + magic-byte check
     ok, err = FileUploadPolicy.validate_billing_proof_upload(filename, len(data), file_bytes=data)
     if not ok:
         return None, err
@@ -262,55 +240,146 @@ def approve_payment_submission(
     reviewer: str,
     review_notes: str = '',
 ) -> tuple[bool, str]:
-    """Approve submission: activate subscription and notify tenant."""
-    if submission.status != 'pending':
-        return False, 'Submission already reviewed.'
+    """
+    Approve submission: validate → activate subscription → notify tenant.
 
+    v6.3.1 hardening:
+      • Double-approval guard (idempotent check before any mutation).
+      • Full try/except with rollback to prevent partial state.
+      • Structured logging at each phase.
+      • In-app notification on success.
+    """
+    logger.info(
+        '[PAYMENT_REVIEW] approve_payment_submission called: submission_id=%s tenant_id=%s status=%s reviewer=%s',
+        submission.id, submission.tenant_id, submission.status, reviewer,
+    )
+
+    # ── Guard: already reviewed ───────────────────────────────────────────────
+    if submission.status != 'pending':
+        logger.warning(
+            '[PAYMENT_REVIEW] submission_id=%s already in status=%s — skipping',
+            submission.id, submission.status,
+        )
+        return False, f'Submission already reviewed (status: {submission.status}).'
+
+    # ── Validate profile ──────────────────────────────────────────────────────
     profile = Profile.query.filter_by(tenant_id=submission.tenant_id).first()
     if not profile:
-        return False, 'Tenant profile not found.'
+        logger.error(
+            '[PAYMENT_REVIEW] Profile not found for tenant_id=%s (submission_id=%s)',
+            submission.tenant_id, submission.id,
+        )
+        return False, 'Tenant profile not found — cannot activate subscription.'
 
+    # ── Validate tenant record ────────────────────────────────────────────────
+    if not submission.tenant:
+        logger.error(
+            '[PAYMENT_REVIEW] submission.tenant is None for submission_id=%s', submission.id,
+        )
+        return False, 'Tenant record missing from submission — contact support.'
+
+    # ── Validate subscription ─────────────────────────────────────────────────
     sub = submission.subscription
     if not sub:
         sub = profile.current_subscription()
     if not sub:
-        return False, 'No subscription linked to this submission.'
+        logger.error(
+            '[PAYMENT_REVIEW] No subscription linked to submission_id=%s tenant_id=%s',
+            submission.id, submission.tenant_id,
+        )
+        return False, 'No subscription found to activate. Create a pending subscription first.'
 
-    now = datetime.now(timezone.utc)
-    submission.status = 'approved'
-    submission.reviewed_at = now
-    submission.reviewed_by = reviewer
-    submission.review_notes = review_notes or f'Approved by {reviewer}'
+    # ── Apply changes inside transaction ─────────────────────────────────────
+    try:
+        now = datetime.now(timezone.utc)
 
-    license_key = generate_license_key(submission.plan, profile.tenant_slug)
+        # Mark submission approved
+        submission.status       = 'approved'
+        submission.reviewed_at  = now
+        submission.reviewed_by  = reviewer
+        submission.review_notes = review_notes or f'Approved by {reviewer}'
 
-    activate_subscription(
-        sub,
-        plan=submission.plan,
-        billing_cycle=getattr(sub, 'billing_cycle', 'monthly') or 'monthly',
-    )
-    sub.payment_method = submission.payment_method or 'manual'
+        # Generate license key (informational — stored on Profile)
+        license_key = generate_license_key(submission.plan, profile.tenant_slug)
+        logger.debug(
+            '[PAYMENT_APPROVED] Generated license_key=%s for tenant=%s plan=%s',
+            license_key, profile.tenant_slug, submission.plan,
+        )
 
-    # BUG#1 / BUG#6 FIX: clear trial fields so the tenant never sees
-    # "Trial" status after a paid subscription is activated.
-    profile.free_trial_days = 0
-    profile.free_trial_ends = None
+        # Activate the subscription (sets status=active, started_at, expires_at)
+        activate_subscription(
+            sub,
+            plan=submission.plan,
+            billing_cycle=getattr(sub, 'billing_cycle', 'monthly') or 'monthly',
+        )
+        sub.payment_method = submission.payment_method or 'manual'
 
-    # Sync plan onto tenant/profile rows and bust caches
-    if hasattr(profile, '_current_subscription_cache'):
-        del profile._current_subscription_cache
-    profile.sync_license_from_subscription()
+        logger.info(
+            '[SUBSCRIPTION_ACTIVATED] tenant=%s plan=%s expires_at=%s',
+            profile.tenant_slug, sub.plan, sub.expires_at,
+        )
 
-    db.session.commit()
+        # Clear trial state — tenant is now a paid subscriber
+        profile.free_trial_days = 0
+        profile.free_trial_ends = None
 
-    send_subscription_activated_notification(profile, sub)
+        # Sync plan onto profile row + bust subscription cache
+        if hasattr(profile, '_current_subscription_cache'):
+            del profile._current_subscription_cache
+        profile.sync_license_from_subscription()
+
+        logger.debug(
+            '[PAYMENT_APPROVED] Profile synced: tenant=%s plan=%s',
+            profile.tenant_slug, profile.plan,
+        )
+
+        # Commit the full transaction
+        db.session.commit()
+        logger.info(
+            '[PAYMENT_APPROVED] Transaction committed for submission_id=%s tenant=%s',
+            submission.id, profile.tenant_slug,
+        )
+
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception(
+            '[TRANSACTION_FAILED] approve_payment_submission rolled back: submission_id=%s error=%s',
+            submission.id, exc,
+        )
+        return False, f'Database error during approval — rolled back. Please retry. ({type(exc).__name__})'
+
+    # ── Post-commit: notifications (non-fatal) ────────────────────────────────
+    try:
+        send_subscription_activated_notification(profile, sub)
+    except Exception as exc:
+        logger.warning(
+            '[PAYMENT_APPROVED] Notification failed (non-fatal): tenant=%s error=%s',
+            profile.tenant_slug, exc,
+        )
+
+    try:
+        notify_tenant_billing_message(
+            profile,
+            subject='[Billing] Subscription Activated',
+            message=(
+                f'Your payment has been approved by {reviewer}. '
+                f'Your {submission.plan} subscription is now active. '
+                f'Expires: {sub.expires_at.strftime("%Y-%m-%d") if sub.expires_at else "N/A"}. '
+                f'Thank you for subscribing!'
+            ),
+        )
+    except Exception as exc:
+        logger.warning(
+            '[PAYMENT_APPROVED] In-app notification failed (non-fatal): %s', exc,
+        )
 
     log_billing_event(
         'approve',
         profile.tenant_slug,
         f'Manual payment approved — {submission.plan} activated (submission #{submission.id})',
     )
-    return True, f'Subscription activated for {profile.tenant_slug}.'
+
+    return True, f'Payment approved. {submission.plan} subscription activated for {profile.tenant_slug}.'
 
 
 def reject_payment_submission(
@@ -319,19 +388,68 @@ def reject_payment_submission(
     reviewer: str,
     review_notes: str = '',
 ) -> tuple[bool, str]:
+    """
+    Reject submission: set status, record reason, notify tenant.
+
+    v6.3.1 hardening:
+      • Full try/except with rollback.
+      • In-app rejection notification with reason.
+      • Structured logging.
+    """
+    logger.info(
+        '[PAYMENT_REVIEW] reject_payment_submission called: submission_id=%s tenant_id=%s status=%s reviewer=%s',
+        submission.id, submission.tenant_id, submission.status, reviewer,
+    )
+
     if submission.status != 'pending':
-        return False, 'Submission already reviewed.'
+        logger.warning(
+            '[PAYMENT_REVIEW] submission_id=%s already reviewed (status=%s)',
+            submission.id, submission.status,
+        )
+        return False, f'Submission already reviewed (status: {submission.status}).'
 
-    submission.status = 'rejected'
-    submission.reviewed_at = datetime.now(timezone.utc)
-    submission.reviewed_by = reviewer
-    submission.review_notes = review_notes or f'Rejected by {reviewer}'
-    db.session.commit()
+    reason = review_notes.strip() if review_notes else f'Rejected by {reviewer}'
 
-    profile = Profile.query.filter_by(tenant_id=submission.tenant_id).first()
-    slug = profile.tenant_slug if profile else str(submission.tenant_id)
-    log_billing_event('reject', slug, f'Manual payment rejected (submission #{submission.id})')
-    return True, 'Payment submission rejected.'
+    try:
+        submission.status       = 'rejected'
+        submission.reviewed_at  = datetime.now(timezone.utc)
+        submission.reviewed_by  = reviewer
+        submission.review_notes = reason
+
+        db.session.commit()
+        logger.info(
+            '[PAYMENT_REJECTED] submission_id=%s tenant_id=%s reason=%s',
+            submission.id, submission.tenant_id, reason,
+        )
+
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception(
+            '[TRANSACTION_FAILED] reject_payment_submission rolled back: submission_id=%s error=%s',
+            submission.id, exc,
+        )
+        return False, f'Database error during rejection — rolled back. ({type(exc).__name__})'
+
+    # ── Post-commit: in-app notification (non-fatal) ──────────────────────────
+    try:
+        profile = Profile.query.filter_by(tenant_id=submission.tenant_id).first()
+        if profile:
+            notify_tenant_billing_message(
+                profile,
+                subject='[Billing] Payment Submission Rejected',
+                message=(
+                    f'Your payment submission has been reviewed and rejected. '
+                    f'Reason: {reason}. '
+                    f'Please resubmit with correct proof or contact support.'
+                ),
+            )
+        slug = profile.tenant_slug if profile else str(submission.tenant_id)
+    except Exception as exc:
+        logger.warning('[PAYMENT_REJECTED] In-app notification failed (non-fatal): %s', exc)
+        slug = str(submission.tenant_id)
+
+    log_billing_event('reject', slug, f'Manual payment rejected (submission #{submission.id}): {reason}')
+    return True, f'Payment submission rejected. Tenant notified.'
 
 
 def notify_tenant_billing_message(profile: Profile, subject: str, message: str) -> None:

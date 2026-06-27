@@ -397,9 +397,16 @@ def subscription_access_status(profile) -> str:
 
     Values: 'trial' | 'active' | 'grace' | 'pending' | 'expired' |
             'cancelled' | 'suspended' | 'none'
+
+    v5.9.2 FIX: previously this function never checked Profile.free_trial_ends,
+    so tenants provisioned with a trial window (free_trial_ends set by
+    superadmin) always fell through to 'none' (shown as "No License") because
+    no Subscription row exists during a trial.  Added trial check BEFORE the
+    sub-is-None early return.
     """
     try:
         from app.models.portfolio import Subscription
+        from datetime import datetime, timezone as _tz
 
         if profile is None:
             return "none"
@@ -409,6 +416,18 @@ def subscription_access_status(profile) -> str:
 
         if profile.tenant_id is None:
             return "none"
+
+        # ── Trial check (must run before subscription lookup) ─────────────────
+        # A trialling tenant has no Subscription row yet.  If free_trial_ends is
+        # set and still in the future, report 'trial' regardless of sub state.
+        if getattr(profile, 'free_trial_ends', None):
+            trial_ends = profile.free_trial_ends
+            if trial_ends.tzinfo is None:
+                trial_ends = trial_ends.replace(tzinfo=_tz.utc)
+            if trial_ends > datetime.now(_tz.utc):
+                return "trial"
+            # Trial has expired — fall through to subscription check below.
+            # An active subscription can still save them (e.g. paid during trial).
 
         sub = Subscription.current(profile.tenant_id)
 

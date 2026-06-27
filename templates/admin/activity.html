@@ -2,84 +2,461 @@
 {% block title %}Activity Log{% endblock %}
 {% block page_title %}Activity Log{% endblock %}
 
+{% block extra_css %}
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   Activity Log — v6 UI  (frontend only, no backend changes)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Page wrapper ─────────────────────────────────────────── */
+.activity-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* ── Stat chips row ───────────────────────────────────────── */
+.act-stats {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.act-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 1rem;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.act-stat strong { color: var(--text); font-weight: 700; }
+.act-stat iconify-icon { color: var(--accent-light); flex-shrink: 0; }
+
+/* ── Filter toolbar ───────────────────────────────────────── */
+.act-toolbar {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+}
+.act-toolbar-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.act-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 120px;
+}
+.act-filter-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim, #8892a4);
+}
+.act-filter-input,
+.act-filter-select {
+  height: 36px;
+  padding: 0 0.75rem;
+  background: var(--bg-3, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.82rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  -webkit-appearance: none;
+}
+.act-filter-input:focus,
+.act-filter-select:focus {
+  outline: none;
+  border-color: rgba(99,102,241,0.5);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+}
+.act-filter-input[type="search"] { padding-right: 2rem; }
+
+.act-toolbar-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Log list ─────────────────────────────────────────────── */
+.act-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+/* List header */
+.act-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+.act-list-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.act-count-chip {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  background: rgba(99,102,241,0.1);
+  color: var(--accent-light);
+  font-weight: 600;
+  border: 1px solid rgba(99,102,241,0.2);
+}
+
+/* Individual log row */
+.act-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.9rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+  position: relative;
+}
+.act-row:last-child { border-bottom: none; }
+.act-row:hover { background: rgba(99,102,241,0.03); }
+
+/* Highlight security events */
+.act-row--security {
+  background: rgba(239,68,68,0.025);
+  border-left: 3px solid rgba(239,68,68,0.3);
+}
+.act-row--security:hover { background: rgba(239,68,68,0.05); }
+
+/* Action icon bubble */
+.act-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+  font-size: 0.85rem;
+}
+.act-icon--create  { background: rgba(16,185,129,0.12);  color: #10b981; }
+.act-icon--update  { background: rgba(99,102,241,0.12);  color: var(--accent-light); }
+.act-icon--delete  { background: rgba(239,68,68,0.12);   color: #ef4444; }
+.act-icon--login   { background: rgba(245,158,11,0.12);  color: #f59e0b; }
+.act-icon--logout  { background: rgba(100,116,139,0.12); color: #94a3b8; }
+.act-icon--export  { background: rgba(6,182,212,0.12);   color: #06b6d4; }
+.act-icon--publish { background: rgba(16,185,129,0.12);  color: #10b981; }
+.act-icon--default { background: var(--bg-3, rgba(255,255,255,0.04)); color: var(--text-dim, #8892a4); }
+
+/* Body: action + entity */
+.act-body {
+  flex: 1;
+  min-width: 0;
+}
+.act-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.2rem;
+}
+.act-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.act-pill--create  { background: rgba(16,185,129,0.12);  color: #10b981;  border: 1px solid rgba(16,185,129,0.2); }
+.act-pill--update  { background: rgba(99,102,241,0.12);  color: var(--accent-light); border: 1px solid rgba(99,102,241,0.2); }
+.act-pill--delete  { background: rgba(239,68,68,0.12);   color: #ef4444;  border: 1px solid rgba(239,68,68,0.2); }
+.act-pill--login   { background: rgba(245,158,11,0.12);  color: #f59e0b;  border: 1px solid rgba(245,158,11,0.2); }
+.act-pill--logout  { background: rgba(100,116,139,0.12); color: #94a3b8;  border: 1px solid rgba(100,116,139,0.2); }
+.act-pill--export  { background: rgba(6,182,212,0.12);   color: #06b6d4;  border: 1px solid rgba(6,182,212,0.2); }
+.act-pill--publish { background: rgba(16,185,129,0.12);  color: #10b981;  border: 1px solid rgba(16,185,129,0.2); }
+.act-pill--default { background: rgba(255,255,255,0.04); color: var(--text-dim); border: 1px solid var(--border); }
+
+.act-entity-type {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.act-entity-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.act-desc {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 480px;
+}
+
+/* Timestamp column */
+.act-time {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.act-time-date {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.act-time-clock {
+  font-size: 0.72rem;
+  color: var(--text-dim, #8892a4);
+  font-family: 'DM Mono', 'Courier New', monospace;
+}
+
+/* ── Empty state ──────────────────────────────────────────── */
+.act-empty {
+  padding: 4rem 2rem;
+  text-align: center;
+}
+.act-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: rgba(99,102,241,0.08);
+  border: 1px solid rgba(99,102,241,0.15);
+  display: grid;
+  place-items: center;
+  margin: 0 auto 1.25rem;
+  color: var(--accent-light);
+}
+.act-empty h3 {
+  font-family: var(--font-display, 'Syne', sans-serif);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.4rem;
+}
+.act-empty p {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  max-width: 280px;
+  margin: 0 auto;
+  line-height: 1.55;
+}
+
+/* ── Pagination ───────────────────────────────────────────── */
+.act-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-top: 0.25rem;
+}
+.act-page-info {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.act-page-btns {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Skeleton loaders use the shared .skeleton / .skeleton-text / .skeleton-card
+   system defined in admin.css — do not redefine here (previously this file
+   had a local .skeleton + @keyframes shimmer block that was unused and
+   silently shadowed the shared component with a mismatched timing). */
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .act-desc { display: none; }
+  .act-toolbar-row { flex-direction: column; }
+  .act-filter-group { min-width: 100%; }
+  .act-stats { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 0.25rem; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="list-page">
-  <div class="page-hd">
-    <div class="page-hd-left">
-      <h1>Activity Log</h1>
-      <p>A record of all actions taken in your admin panel.</p>
+<div class="activity-page">
+
+  {# ── Stats strip ───────────────────────────────────────── #}
+  <div class="act-stats">
+    <div class="act-stat">
+      <iconify-icon icon="lucide:list" width="13"></iconify-icon>
+      <strong>{{ logs.total }}</strong> total entries
     </div>
+    <div class="act-stat">
+      <iconify-icon icon="lucide:calendar-days" width="13"></iconify-icon>
+      Page <strong>{{ logs.page }}</strong> of <strong>{{ logs.pages }}</strong>
+    </div>
+    {% if logs.items %}
+    <div class="act-stat">
+      <iconify-icon icon="lucide:clock" width="13"></iconify-icon>
+      Latest: <strong>{{ logs.items[0].created_at.strftime('%b %d, %H:%M') }}</strong>
+    </div>
+    {% endif %}
   </div>
 
+  {# ── Filter toolbar ────────────────────────────────────── #}
+  {# Uncomment and wire GET params if the route supports filtering #}
+  {# <form class="act-toolbar" method="GET" id="filterForm">
+    <div class="act-toolbar-row">
+      <div class="act-filter-group" style="flex:2;min-width:180px;">
+        <span class="act-filter-label">Search</span>
+        <input type="search" name="q" class="act-filter-input"
+               placeholder="Action, entity, description…" value="{{ q|default('') }}">
+      </div>
+      <div class="act-filter-group">
+        <span class="act-filter-label">Action</span>
+        <select name="action" class="act-filter-select">
+          <option value="">All actions</option>
+          {% for a in ['create','update','delete','login','logout','export','publish'] %}
+            <option value="{{ a }}" {% if action_f|default('') == a %}selected{% endif %}>{{ a|title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:0.5rem;">
+        <button type="submit" class="btn btn-primary btn-sm" style="height:36px;">
+          <iconify-icon icon="lucide:filter" width="13"></iconify-icon> Filter
+        </button>
+      </div>
+    </div>
+  </form> #}
+
+  {# ── Log list ──────────────────────────────────────────── #}
   {% if logs.items %}
-  <div class="activity-log-list">
+  <div class="act-list">
+    <div class="act-list-header">
+      <span class="act-list-title">Activity entries</span>
+      <span class="act-count-chip">{{ logs.total }} total</span>
+    </div>
+
     {% for log in logs.items %}
-    <div class="activity-log-row">
-      <div class="log-icon">{{ log.ACTION_ICONS.get(log.action, '•') }}</div>
-      <div class="log-body">
-        <div class="log-summary">
-          <span class="log-action">{{ log.action|title }}</span>
+    {% set ac = (log.action or '') | lower %}
+    {% set is_login  = 'login'  in ac and 'logout' not in ac %}
+    {% set is_logout = 'logout' in ac %}
+    {% set is_create = 'create' in ac or 'add' in ac %}
+    {% set is_update = 'update' in ac or 'edit' in ac %}
+    {% set is_delete = 'delete' in ac or 'remove' in ac %}
+    {% set is_export = 'export' in ac %}
+    {% set is_publish= 'publish' in ac %}
+    {% set is_sec    = is_login or is_logout %}
+
+    {% set cat = 'create'  if is_create
+            else 'update'  if is_update
+            else 'delete'  if is_delete
+            else 'login'   if is_login
+            else 'logout'  if is_logout
+            else 'export'  if is_export
+            else 'publish' if is_publish
+            else 'default' %}
+
+    {% set ico = 'lucide:plus-circle'  if is_create
+            else 'lucide:pencil'       if is_update
+            else 'lucide:trash-2'      if is_delete
+            else 'lucide:log-in'       if is_login
+            else 'lucide:log-out'      if is_logout
+            else 'lucide:download'     if is_export
+            else 'lucide:globe'        if is_publish
+            else 'lucide:activity' %}
+
+    <div class="act-row {{ 'act-row--security' if is_sec else '' }}">
+      <!-- Icon -->
+      <div class="act-icon act-icon--{{ cat }}">
+        <iconify-icon icon="{{ ico }}" width="16"></iconify-icon>
+      </div>
+
+      <!-- Body -->
+      <div class="act-body">
+        <div class="act-summary">
+          <span class="act-pill act-pill--{{ cat }}">
+            {{ log.ACTION_ICONS.get(log.action, '') }}&nbsp;{{ (log.action or 'Action') | title }}
+          </span>
           {% if log.entity_type %}
-            <span class="log-entity">{{ log.entity_type }}</span>
+            <span class="act-entity-type">{{ log.entity_type }}</span>
           {% endif %}
           {% if log.entity_name %}
-            <strong class="log-name">{{ log.entity_name }}</strong>
+            <span class="act-entity-name">{{ log.entity_name | truncate(40) }}</span>
           {% endif %}
         </div>
         {% if log.description %}
-          <div class="log-desc">{{ log.description }}</div>
+          <div class="act-desc" title="{{ log.description }}">{{ log.description }}</div>
         {% endif %}
       </div>
-      <div class="log-time">
-        <span>{{ log.created_at.strftime('%b %d') }}</span>
-        <span class="log-time-sub">{{ log.created_at.strftime('%H:%M') }}</span>
+
+      <!-- Timestamp -->
+      <div class="act-time">
+        <span class="act-time-date">{{ log.created_at.strftime('%b %d') }}</span>
+        <span class="act-time-clock">{{ log.created_at.strftime('%H:%M') }}</span>
       </div>
     </div>
     {% endfor %}
   </div>
 
-  <!-- Pagination -->
+  {# ── Pagination ────────────────────────────────────────── #}
   {% if logs.pages > 1 %}
-  <div class="pagination">
-    {% if logs.has_prev %}
-      <a href="{{ url_for('admin.activity', page=logs.prev_num) }}" class="btn btn-ghost btn-sm">← Prev</a>
-    {% endif %}
-    <span class="page-info">Page {{ logs.page }} of {{ logs.pages }}</span>
-    {% if logs.has_next %}
-      <a href="{{ url_for('admin.activity', page=logs.next_num) }}" class="btn btn-ghost btn-sm">Next →</a>
-    {% endif %}
+  <div class="act-pagination">
+    <span class="act-page-info">
+      Showing page {{ logs.page }} of {{ logs.pages }}
+    </span>
+    <div class="act-page-btns">
+      {% if logs.has_prev %}
+        <a href="{{ url_for('admin.activity', page=logs.prev_num) }}"
+           class="btn btn-ghost btn-sm">
+          <iconify-icon icon="lucide:chevron-left" width="14"></iconify-icon> Prev
+        </a>
+      {% endif %}
+      {% if logs.has_next %}
+        <a href="{{ url_for('admin.activity', page=logs.next_num) }}"
+           class="btn btn-ghost btn-sm">
+          Next <iconify-icon icon="lucide:chevron-right" width="14"></iconify-icon>
+        </a>
+      {% endif %}
+    </div>
   </div>
   {% endif %}
 
   {% else %}
-  <div class="empty-page">
-    <div class="empty-icon">◫</div>
-    <h2>No activity yet</h2>
-    <p>Actions you take in the admin will appear here.</p>
+  {# ── Empty state ───────────────────────────────────────── #}
+  <div class="act-list">
+    <div class="act-empty">
+      <div class="act-empty-icon">
+        <iconify-icon icon="lucide:scroll-text" width="26"></iconify-icon>
+      </div>
+      <h3>No activity yet</h3>
+      <p>Every action taken in your admin panel will be recorded and visible here.</p>
+    </div>
   </div>
   {% endif %}
-</div>
 
-<style>
-.activity-log-list { display: flex; flex-direction: column; gap: 0.35rem; }
-.activity-log-row {
-  display: flex; align-items: flex-start; gap: 1rem;
-  padding: 0.85rem 1.1rem; background: var(--bg-2);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  transition: border-color var(--transition);
-}
-.activity-log-row:hover { border-color: var(--border-light); }
-.log-icon { font-size: 1.1rem; margin-top: 0.05rem; flex-shrink: 0; }
-.log-body { flex: 1; }
-.log-summary { font-size: 0.875rem; display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
-.log-action { color: var(--accent-light); font-weight: 600; }
-.log-entity { color: var(--text-muted); }
-.log-name { color: var(--text); }
-.log-desc { font-size: 0.78rem; color: var(--text-dim); margin-top: 0.2rem; }
-.log-time { display: flex; flex-direction: column; align-items: flex-end; gap: 0.1rem; flex-shrink: 0; }
-.log-time span { font-size: 0.8rem; color: var(--text-muted); }
-.log-time-sub { font-size: 0.72rem; color: var(--text-dim); }
-.pagination { display: flex; align-items: center; gap: 1rem; justify-content: center; padding-top: 1rem; }
-.page-info { font-size: 0.85rem; color: var(--text-muted); }
-</style>
+</div>
 {% endblock %}

@@ -1,0 +1,83 @@
+{% extends "admin/base.html" %}
+{% block title %}Contact Platform Support{% endblock %}
+{% block page_title %}Contact Support{% endblock %}
+
+{% block content %}
+<div class="page-hd" style="margin-bottom:1.5rem;">
+  <div class="page-hd-left">
+    <a href="{{ url_for('admin.messages') }}" class="back-link">
+      <iconify-icon icon="lucide:arrow-left" width="14"></iconify-icon> Inbox
+    </a>
+    <h1 style="margin-top:.4rem;">Message Platform Support</h1>
+    <p style="color:var(--text-muted);font-size:.9rem;margin-top:.25rem;">
+      Send a message directly to the platform superadmin. They'll reply in your inbox.
+    </p>
+  </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}{% for cat, msg in messages %}
+  <div class="alert alert-{{ cat }}" style="max-width:680px;margin-bottom:1rem;">{{ msg }}</div>
+  {% endfor %}{% endif %}
+{% endwith %}
+
+<div class="dash-panel" style="max-width:680px;">
+  <form method="POST" action="{{ url_for('admin.new_message_to_superadmin') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="form-group">
+      <label class="form-label">Subject <span style="color:#f87171">*</span></label>
+      <input
+        type="text"
+        name="subject"
+        class="form-input"
+        placeholder="e.g. Billing question, Feature request…"
+        maxlength="200"
+        value="{{ subject }}"
+        required
+        autofocus
+      >
+    </div>
+
+    <div class="form-group" style="margin-top:1rem;">
+      <label class="form-label">Message <span style="color:#f87171">*</span></label>
+      <textarea
+        name="message"
+        class="form-input"
+        rows="8"
+        placeholder="Describe your question or issue in detail…"
+        minlength="5"
+        maxlength="4000"
+        required
+        style="resize:vertical"
+      ></textarea>
+      <div style="display:flex;justify-content:flex-end;margin-top:.35rem;">
+        <span style="font-size:.75rem;color:var(--text-muted)">Max 4,000 characters</span>
+      </div>
+    </div>
+
+    <div class="form-actions" style="margin-top:1.25rem;display:flex;gap:.75rem;align-items:center;">
+      <button type="submit" class="btn btn-primary">
+        <iconify-icon icon="lucide:send" width="15"></iconify-icon>
+        Send Message
+      </button>
+      <a href="{{ url_for('admin.messages') }}" class="btn btn-ghost">Cancel</a>
+      <span style="font-size:.78rem;color:var(--text-muted);margin-left:auto;">
+        Sending as <strong>{{ current_user.username }}</strong>
+      </span>
+    </div>
+  </form>
+</div>
+
+<style>
+.back-link{display:inline-flex;align-items:center;gap:.4rem;color:var(--text-muted);font-size:.85rem;text-decoration:none}
+.back-link:hover{color:var(--accent)}
+.form-group{display:flex;flex-direction:column;gap:.5rem}
+.form-label{font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em}
+.form-input{padding:.8rem 1rem;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);font-size:.9rem;font-family:inherit;transition:border-color .2s}
+.form-input:focus{outline:none;border-color:rgba(99,102,241,.6);box-shadow:0 0 0 4px rgba(99,102,241,.09)}
+.alert{padding:.8rem 1rem;border-radius:10px;font-size:.875rem}
+.alert-danger{background:rgba(239,68,68,.1);color:#fca5a5;border:1px solid rgba(239,68,68,.2)}
+.alert-success{background:rgba(16,185,129,.1);color:#6ee7b7;border:1px solid rgba(16,185,129,.2)}
+</style>
+{% endblock %}

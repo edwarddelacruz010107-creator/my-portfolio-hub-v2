@@ -29,6 +29,12 @@ from typing import Optional
 
 from flask import render_template, current_app
 
+# ── Plan access: always through ThemeAccessService, never inline ──────────────
+# This is the single import point that fixes the Administrator access bug.
+# OLD code used a local _PLAN_RANK dict without 'administrator' + a fragile
+# getattr(profile, 'is_administrator', False) that always returned False.
+from app.services.plans.theme_access_service import ThemeAccessService as _ThemeAccessSvc
+
 
 THEMES_DIR = os.path.join(os.path.dirname(__file__), '..', 'themes')
 DEFAULT_THEME = 'default'
@@ -44,12 +50,80 @@ def is_valid_theme_id(theme_id: Optional[str]) -> bool:
     return bool(theme_id) and bool(_VALID_THEME_ID.match(theme_id))
 
 
+import time as _time  # used by ThemeRegistry TTL cache
+
+_CACHE_TTL = 60  # seconds — cache entries expire after this; guards against
+                 # cross-worker staleness (clear_cache() only evicts in one worker)
+
+
 class ThemeRegistry:
-    """Discovers and caches all installed themes."""
+    """Discovers and caches all installed themes.
+
+    Cache design:
+        _cache stores {theme_id: (meta_dict, expires_at)} tuples.
+        Entries expire after _CACHE_TTL seconds so that a SuperAdmin
+        change propagated via clear_cache() in one Gunicorn worker will
+        automatically reflect in all other workers within one TTL window.
+    """
 
     def __init__(self, themes_dir: str):
         self.themes_dir = os.path.abspath(themes_dir)
-        self._cache: dict = {}
+        self._cache: dict = {}  # {theme_id: (meta | None, expires_at)}
+
+    def _apply_catalog_override(self, meta: dict, theme_id: str) -> dict:
+        """
+        Overlay a SuperAdmin-managed ThemeCatalogEntry row (if one exists)
+        on top of the theme.json metadata. theme.json stays the source of
+        truth for anything the catalog row doesn't explicitly override --
+        this keeps the file-based engine fully functional even before any
+        migration/sync has run.
+        """
+        try:
+            from app.models.core import ThemeCatalogEntry
+            entry = ThemeCatalogEntry.get_by_slug(theme_id)
+        except Exception:
+            entry = None  # table may not exist yet / outside app context -- degrade gracefully
+
+        meta['catalog_active'] = True
+        meta['catalog_entry_id'] = None
+        meta['thumbnail_url']   = None
+        meta['banner_url']      = None
+        meta['preview_images']  = []
+        meta['theme_author']    = None
+        meta['theme_version']   = None
+        meta['theme_tags']      = []
+        meta['feature_matrix']  = {}
+        meta['is_featured']     = False
+        meta['install_count']   = 0
+        if entry:
+            meta['catalog_entry_id'] = entry.id
+            if entry.name:
+                meta['name'] = entry.name
+            if entry.description:
+                meta['description'] = entry.description
+            if entry.category:
+                meta['category'] = entry.category
+            if entry.is_premium is not None:
+                meta['premium'] = entry.is_premium
+            if entry.required_plan:
+                meta['required_plan'] = entry.required_plan
+            meta['sort_order']    = entry.sort_order or 0
+            meta['catalog_active'] = bool(entry.is_active)
+            try:
+                meta['thumbnail_url']  = entry.thumbnail_url
+                meta['banner_url']     = entry.banner_url
+                meta['preview_images'] = entry.get_preview_images()
+                meta['theme_author']   = entry.theme_author
+                meta['theme_version']  = entry.theme_version
+                meta['theme_tags']     = entry.get_tags()
+                meta['feature_matrix'] = entry.get_feature_matrix()
+                meta['is_featured']    = bool(entry.is_featured)
+                meta['install_count']  = entry.install_count or 0
+            except Exception:
+                pass
+        else:
+            meta.setdefault('sort_order', 0)
+        return meta
 
     def _load_theme_meta(self, theme_id: str) -> Optional[dict]:
         if not is_valid_theme_id(theme_id):
@@ -61,32 +135,51 @@ class ThemeRegistry:
             with open(meta_path, 'r', encoding='utf-8') as f:
                 meta = json.load(f)
             meta['id'] = theme_id  # always authoritative, never trust the file
+            meta = self._apply_catalog_override(meta, theme_id)
             return meta
         except (json.JSONDecodeError, OSError):
             current_app.logger.warning('Theme %s has invalid/corrupted theme.json', theme_id)
             return None
 
-    def all(self) -> list:
-        """Return all installed, renderable themes sorted: free first, then premium."""
+    def all(self, include_inactive: bool = False) -> list:
+        """Return all installed, renderable themes sorted: free first, then premium.
+
+        include_inactive=True is used by the SuperAdmin theme management
+        panel, which needs to show themes a SuperAdmin has deactivated.
+        Tenant-facing listings should keep the default (False).
+
+        Results are written through to the per-theme TTL cache so subsequent
+        get() calls for individual themes (e.g. resolve_theme) avoid redundant
+        DB hits within the same request cycle.
+        """
         themes = []
         if not os.path.isdir(self.themes_dir):
             return themes
-        for entry in os.scandir(self.themes_dir):
-            if entry.is_dir() and not entry.name.startswith('_') and is_valid_theme_id(entry.name):
-                if not self.exists(entry.name):
+        for dir_entry in os.scandir(self.themes_dir):
+            if dir_entry.is_dir() and not dir_entry.name.startswith('_') and is_valid_theme_id(dir_entry.name):
+                if not self.exists(dir_entry.name):
                     continue  # metadata without templates isn't installed -- skip from listings
-                meta = self._load_theme_meta(entry.name)
-                if meta:
+                meta = self._load_theme_meta(dir_entry.name)
+                # Write through to TTL cache — avoids repeat DB hit in get()
+                self._cache[dir_entry.name] = (meta, _time.monotonic() + _CACHE_TTL)
+                if meta and (include_inactive or meta.get('catalog_active', True)):
                     themes.append(meta)
-        themes.sort(key=lambda t: (t.get('premium', False), t.get('name', '')))
+        themes.sort(key=lambda t: (t.get('sort_order', 0), t.get('premium', False), t.get('name', '')))
         return themes
 
     def get(self, theme_id: str) -> Optional[dict]:
         if not is_valid_theme_id(theme_id):
             return None
-        if theme_id not in self._cache:
-            self._cache[theme_id] = self._load_theme_meta(theme_id)
-        return self._cache[theme_id]
+        cached = self._cache.get(theme_id)
+        if cached is not None:
+            meta, expires_at = cached
+            if _time.monotonic() < expires_at:
+                return meta
+            # Entry expired — evict and reload
+            del self._cache[theme_id]
+        meta = self._load_theme_meta(theme_id)
+        self._cache[theme_id] = (meta, _time.monotonic() + _CACHE_TTL)
+        return meta
 
     def exists(self, theme_id: str) -> bool:
         """A theme 'exists' only if it has BOTH metadata and a templates/index.html."""
@@ -97,6 +190,7 @@ class ThemeRegistry:
         return os.path.isdir(template_dir) and os.path.isfile(index_file)
 
     def clear_cache(self):
+        """Evict all cached entries. Call after any ThemeCatalogEntry mutation."""
         self._cache.clear()
 
 
@@ -143,15 +237,36 @@ class ThemeEngine:
 
     # ── Public API ────────────────────────────
 
+    # ── Plan access delegation ─────────────────────────────────────────────────
+    # All plan comparisons are now handled by ThemeAccessService / plan_hierarchy.
+    # The old _PLAN_RANK dict is REMOVED — it had no 'administrator' key and
+    # would rank Administrator tenants as rank 0 (Free), blocking all themes.
+    # Do NOT re-add local plan rank logic here.
+
+    def _plan_meets_requirement(self, plan: str, required_plan: Optional[str]) -> bool:
+        """
+        Deprecated shim — kept for any external callers.
+        Delegates to plan_hierarchy.has_plan_access so Administrator always passes.
+        """
+        from app.services.plans.plan_hierarchy import has_plan_access
+        return has_plan_access(plan, required_plan)
+
     def resolve_theme(self, tenant_profile) -> str:
         """
         Determine the active theme for a tenant's profile.
 
-        Rules:
-          - Administrators        -> always honoured (no restriction)
-          - PRO/premium tenants   -> any theme allowed
-          - FREE tenants          -> only non-premium themes
-          - Missing/invalid/corrupted theme -> DEFAULT_THEME
+        All access logic is delegated to ThemeAccessService which:
+          • Uses plan_hierarchy for rank comparisons (Administrator = rank 999)
+          • Detects Administrator via is_administrator() — works on both
+            Tenant ORM and Profile ORM objects
+          • Never uses a hardcoded plan name list
+
+        Rules (evaluated in ThemeAccessService):
+          1. catalog_active=False → FALLBACK for non-administrators
+          2. Administrator plan → always honoured
+          3. required_plan from catalog/theme.json → hierarchy check
+          4. premium=True flag → requires Pro+
+          5. hidden/internal/beta category → requires Enterprise+
         """
         requested = getattr(tenant_profile, 'selected_theme', None) or DEFAULT_THEME
 
@@ -162,23 +277,7 @@ class ThemeEngine:
         if not meta:
             return FALLBACK_THEME
 
-        if getattr(tenant_profile, 'is_administrator', False):
-            return requested
-
-        # Use effective_plan() so subscription-based upgrades (e.g. tenant upgraded
-        # to PRO via billing while profile.plan column is still 'Basic') are honoured.
-        if callable(getattr(tenant_profile, 'effective_plan', None)):
-            plan = tenant_profile.effective_plan()
-        else:
-            plan = (getattr(tenant_profile, 'plan', None) or 'free')
-
-        if str(plan).lower() in ('pro', 'premium', 'enterprise', 'agency'):
-            return requested
-
-        if meta.get('premium', False):
-            return FALLBACK_THEME
-
-        return requested
+        return _ThemeAccessSvc.resolve_active_theme(tenant_profile, requested, meta)
 
     def render(self, tenant_profile, template_name: str, **context) -> str:
         """
@@ -209,26 +308,26 @@ class ThemeEngine:
             context['theme_id'] = FALLBACK_THEME
             return render_template(f'{FALLBACK_THEME}/{template_name}', **context)
 
-    def get_all_themes(self) -> list:
-        return self.registry.all()
+    def get_all_themes(self, include_inactive: bool = False) -> list:
+        return self.registry.all(include_inactive=include_inactive)
 
     def get_theme_meta(self, theme_id: str) -> Optional[dict]:
         return self.registry.get(theme_id)
 
+    def clear_cache(self) -> None:
+        """Invalidate the theme metadata cache (call after editing a ThemeCatalogEntry)."""
+        self.registry.clear_cache()
+
     def can_use_theme(self, tenant_profile, theme_id: str) -> bool:
+        """
+        True iff tenant_profile may use theme_id.
+        All access logic delegated to ThemeAccessService.
+        Administrator always returns True.
+        """
         meta = self.registry.get(theme_id)
         if not meta:
             return False
-        if getattr(tenant_profile, 'is_administrator', False):
-            return True
-        # Use effective_plan() so subscription upgrades are reflected immediately.
-        if callable(getattr(tenant_profile, 'effective_plan', None)):
-            plan = tenant_profile.effective_plan()
-        else:
-            plan = (getattr(tenant_profile, 'plan', None) or 'free')
-        if str(plan).lower() in ('pro', 'premium', 'enterprise', 'agency'):
-            return True
-        return not meta.get('premium', False)
+        return _ThemeAccessSvc.can_access_theme(tenant_profile, meta)
 
 
 def get_theme_engine() -> ThemeEngine:

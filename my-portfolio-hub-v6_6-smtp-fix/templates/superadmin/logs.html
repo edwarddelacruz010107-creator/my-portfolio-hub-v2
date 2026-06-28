@@ -1,0 +1,424 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Activity Logs{% endblock %}
+{% block page_title %}Activity Logs{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Log page layout ──────────────────────────────────────── */
+.logs-toolbar {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.logs-filter-row {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.logs-filter-row .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 130px;
+}
+.logs-filter-row .filter-group label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.logs-filter-row input,
+.logs-filter-row select {
+  height: 36px;
+  padding: 0 0.7rem;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+.logs-filter-row input[type="date"] { cursor: pointer; }
+.logs-filter-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+.security-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+.security-toggle.active {
+  background: rgba(239,68,68,0.1);
+  border-color: rgba(239,68,68,0.3);
+  color: var(--danger);
+}
+.security-toggle:hover { opacity: 0.85; }
+
+/* ── Log entries ──────────────────────────────────────────── */
+.log-table-wrap {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.log-table th {
+  padding: 0.65rem 1rem;
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-3);
+  white-space: nowrap;
+}
+.log-table td {
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.log-table tbody tr:last-child td { border-bottom: none; }
+.log-table tbody tr:hover { background: var(--bg-3); }
+
+/* Security event highlight */
+.log-row-security { background: rgba(239,68,68,0.04); }
+.log-row-security:hover { background: rgba(239,68,68,0.08) !important; }
+
+.log-action-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.action-create   { background: rgba(16,185,129,0.12); color: #10b981; }
+.action-update   { background: rgba(99,102,241,0.12); color: var(--accent-light); }
+.action-delete   { background: rgba(239,68,68,0.12);  color: var(--danger); }
+.action-login    { background: rgba(245,158,11,0.12); color: var(--warn); }
+.action-logout   { background: rgba(100,116,139,0.12); color: #94a3b8; }
+.action-security { background: rgba(239,68,68,0.18); color: var(--danger); }
+.action-export   { background: rgba(6,182,212,0.12); color: #06b6d4; }
+.action-publish  { background: rgba(16,185,129,0.12); color: #10b981; }
+.action-default  { background: var(--bg-3); color: var(--text-dim); }
+
+.log-tenant-chip {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  background: rgba(99,102,241,0.1);
+  color: var(--accent-light);
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.log-desc {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.log-time { white-space: nowrap; color: var(--text-dim); font-size: 0.75rem; }
+.log-ip   { font-family: monospace; font-size: 0.72rem; color: var(--text-dim); }
+
+/* ── Stats strip ─────────────────────────────────────────── */
+.log-stats-strip {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.log-stat-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.8rem;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.log-stat-chip strong { color: var(--text); }
+
+/* ── Empty ───────────────────────────────────────────────── */
+.logs-empty {
+  padding: 3rem;
+  text-align: center;
+  color: var(--text-dim);
+}
+.logs-empty iconify-icon { display: block; margin: 0 auto 0.75rem; }
+
+/* ── Pagination ─────────────────────────────────────────── */
+.logs-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+.logs-pagination .page-info { font-size: 0.78rem; color: var(--text-dim); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-grid">
+  <div class="content-panel" style="max-width:none">
+
+    <div class="panel-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.75rem;margin-bottom:1.25rem;">
+      <div>
+        <h2>Activity Logs</h2>
+        <p class="field-hint">All actions across every tenant — logins, content changes, billing, 2FA, security events.</p>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <a href="{{ url_for('superadmin.logs', q=q, tenant=tenant_f, action=action_f, date_from=date_from, date_to=date_to, security=security_f, export='csv') }}"
+           class="btn btn-ghost btn-sm">
+          <iconify-icon icon="lucide:download" width="13"></iconify-icon> CSV
+        </a>
+        <a href="{{ url_for('superadmin.logs', q=q, tenant=tenant_f, action=action_f, date_from=date_from, date_to=date_to, security=security_f, export='json') }}"
+           class="btn btn-ghost btn-sm">
+          <iconify-icon icon="lucide:braces" width="13"></iconify-icon> JSON
+        </a>
+      </div>
+    </div>
+
+    {# ── Stats strip ──────────────────────────────────────── #}
+    <div class="log-stats-strip">
+      <div class="log-stat-chip">
+        <iconify-icon icon="lucide:list" width="13"></iconify-icon>
+        <strong>{{ total_filtered }}</strong> matching entries
+      </div>
+      {% if tenant_f %}
+      <div class="log-stat-chip">
+        <iconify-icon icon="lucide:filter" width="13"></iconify-icon>
+        Tenant: <strong>{{ tenant_f }}</strong>
+      </div>
+      {% endif %}
+      {% if action_f %}
+      <div class="log-stat-chip">
+        <iconify-icon icon="lucide:zap" width="13"></iconify-icon>
+        Action: <strong>{{ action_f }}</strong>
+      </div>
+      {% endif %}
+      {% if security_f == '1' %}
+      <div class="log-stat-chip" style="border-color:rgba(239,68,68,0.3);color:var(--danger)">
+        <iconify-icon icon="lucide:shield-alert" width="13"></iconify-icon>
+        Security events only
+      </div>
+      {% endif %}
+    </div>
+
+    {# ── Filters ──────────────────────────────────────────── #}
+    <form method="GET" class="logs-toolbar" id="logsForm">
+      <div class="logs-filter-row">
+        <div class="filter-group" style="flex:2;min-width:200px;">
+          <label>Search</label>
+          <input type="search" name="q" value="{{ q }}" placeholder="username, description, IP…"/>
+        </div>
+        <div class="filter-group">
+          <label>Tenant</label>
+          <select name="tenant">
+            <option value="">All tenants</option>
+            {% for t in all_tenants %}
+            <option value="{{ t }}" {% if tenant_f == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>Action</label>
+          <select name="action">
+            <option value="">All actions</option>
+            {% for a in all_actions %}
+            <option value="{{ a }}" {% if action_f == a %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>From</label>
+          <input type="date" name="date_from" value="{{ date_from }}"/>
+        </div>
+        <div class="filter-group">
+          <label>To</label>
+          <input type="date" name="date_to" value="{{ date_to }}"/>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:0.5rem;">
+          <button type="submit" class="btn btn-primary btn-sm" style="height:36px;">
+            <iconify-icon icon="lucide:filter" width="13"></iconify-icon> Filter
+          </button>
+        </div>
+      </div>
+      <div class="logs-filter-actions">
+        <input type="hidden" name="security" value="{{ security_f }}"/>
+        <button type="button"
+                class="security-toggle {{ 'active' if security_f == '1' else '' }}"
+                onclick="toggleSecurity(this)">
+          <iconify-icon icon="lucide:shield-alert" width="13"></iconify-icon>
+          Security Events Only
+        </button>
+        {% if q or tenant_f or action_f or date_from or date_to or security_f %}
+        <a href="{{ url_for('superadmin.logs') }}" class="btn btn-ghost btn-sm">
+          <iconify-icon icon="lucide:x" width="12"></iconify-icon> Clear filters
+        </a>
+        {% endif %}
+      </div>
+    </form>
+
+    {# ── Table ────────────────────────────────────────────── #}
+    {% if logs.items %}
+    <div class="log-table-wrap">
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Tenant</th>
+            <th>User</th>
+            <th>Action</th>
+            <th>Entity</th>
+            <th>Description</th>
+            <th>IP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs.items %}
+          {% set is_sec = log.action in ('login','logout','security','totp','2fa') %}
+          <tr class="{{ 'log-row-security' if is_sec else '' }}">
+
+            <td class="log-time">
+              {% if log.created_at %}
+                {{ log.created_at.strftime('%Y-%m-%d') }}<br>
+                <span style="font-size:0.7rem">{{ log.created_at.strftime('%H:%M:%S') }}</span>
+              {% else %}—{% endif %}
+            </td>
+
+            <td>
+              {% if log.tenant_slug %}
+              <span class="log-tenant-chip">{{ log.tenant_slug }}</span>
+              {% else %}<span style="color:var(--text-dim)">—</span>{% endif %}
+            </td>
+
+            <td style="white-space:nowrap;font-size:0.8rem">
+              {% if log.username %}
+                <iconify-icon icon="lucide:user" width="11" style="opacity:0.5"></iconify-icon>
+                {{ log.username }}
+              {% else %}<span style="color:var(--text-dim)">system</span>{% endif %}
+            </td>
+
+            <td>
+              {% set ac = log.action or '' %}
+              <span class="log-action-pill action-{{ ac if ac in ('create','update','delete','login','logout','security','export','publish') else 'default' }}">
+                {{ log.ACTION_ICONS.get(ac, '●') }}&nbsp;{{ ac | title }}
+                {% if is_sec %}<iconify-icon icon="lucide:shield" width="10"></iconify-icon>{% endif %}
+              </span>
+            </td>
+
+            <td style="white-space:nowrap;font-size:0.8rem">
+              {% if log.entity_type %}<span style="color:var(--text-dim)">{{ log.entity_type }}</span>{% endif %}
+              {% if log.entity_name %}<br><strong>{{ log.entity_name[:40] }}</strong>{% endif %}
+            </td>
+
+            <td>
+              <span class="log-desc" title="{{ log.description or '' }}">
+                {{ log.description or '—' }}
+              </span>
+            </td>
+
+            <td class="log-ip">{{ log.ip_address or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# ── Pagination ───────────────────────────────────────── #}
+    <div class="logs-pagination">
+      <div class="page-info">
+        Page {{ logs.page }} of {{ logs.pages }}
+        &nbsp;·&nbsp; {{ total_filtered }} total
+      </div>
+      <div style="display:flex;gap:0.5rem;">
+        {% if logs.has_prev %}
+        <a href="{{ url_for('superadmin.logs', page=logs.prev_num,
+                    q=q, tenant=tenant_f, action=action_f,
+                    date_from=date_from, date_to=date_to, security=security_f) }}"
+           class="btn btn-ghost btn-sm">
+          <iconify-icon icon="lucide:chevron-left" width="14"></iconify-icon> Prev
+        </a>
+        {% endif %}
+        {% if logs.has_next %}
+        <a href="{{ url_for('superadmin.logs', page=logs.next_num,
+                    q=q, tenant=tenant_f, action=action_f,
+                    date_from=date_from, date_to=date_to, security=security_f) }}"
+           class="btn btn-ghost btn-sm">
+          Next <iconify-icon icon="lucide:chevron-right" width="14"></iconify-icon>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+
+    {% else %}
+    <div class="log-table-wrap">
+      <div class="logs-empty">
+        <iconify-icon icon="lucide:scroll-text" width="36" style="color:var(--text-dim)"></iconify-icon>
+        <p style="font-size:0.9rem;margin-bottom:0.5rem;color:var(--text-muted)">No log entries match your filters.</p>
+        {% if q or tenant_f or action_f or date_from or date_to or security_f %}
+        <a href="{{ url_for('superadmin.logs') }}" class="btn btn-ghost btn-sm">Clear filters</a>
+        {% else %}
+        <p class="field-hint">Actions will appear here once tenants start using the platform.</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleSecurity(btn) {
+  const input = document.querySelector('input[name="security"]');
+  const isActive = btn.classList.contains('active');
+  if (isActive) {
+    btn.classList.remove('active');
+    input.value = '';
+  } else {
+    btn.classList.add('active');
+    input.value = '1';
+  }
+  document.getElementById('logsForm').submit();
+}
+</script>
+{% endblock %}

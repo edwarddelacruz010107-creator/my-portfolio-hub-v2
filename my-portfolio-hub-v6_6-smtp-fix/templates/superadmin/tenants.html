@@ -1,0 +1,355 @@
+{% extends 'superadmin/base.html' %}
+
+{% block title %}All Tenants{% endblock %}
+{% block page_title %}Tenant Management{% endblock %}
+
+{% block content %}
+<!-- ── PAGE HEADER ──────────────────────────────────────── -->
+<div class="page-header">
+  <div class="page-header-left">
+    <h1 class="page-heading">All Tenants</h1>
+    <p class="page-subtext">
+      Manage portfolio tenants, view their status, and control platform access.
+    </p>
+  </div>
+  <div class="page-header-right">
+    <a href="{{ url_for('superadmin.send_message') }}" class="btn btn-secondary">
+      <iconify-icon icon="lucide:message-circle" width="16"></iconify-icon>
+      Send Message
+    </a>
+    <a href="{{ url_for('superadmin.tenant_new') }}" class="btn btn-primary">
+      <iconify-icon icon="lucide:user-plus" width="16"></iconify-icon>
+      Create New Tenant
+    </a>
+  </div>
+</div>
+
+<!-- ── STATS STRIP ──────────────────────────────────────── -->
+<div class="tenant-stats-strip">
+  <div class="tstat">
+    <span class="tstat-val">{{ tenants.total }}</span>
+    <span class="tstat-label">Total Tenants</span>
+  </div>
+  <div class="tstat-divider"></div>
+  <div class="tstat">
+    <span class="tstat-val tstat-green">{{ active_count|default(tenants.total) }}</span>
+    <span class="tstat-label">Active</span>
+  </div>
+  <div class="tstat-divider"></div>
+  <div class="tstat">
+    <span class="tstat-val tstat-muted">{{ tenants.pages }}</span>
+    <span class="tstat-label">Pages</span>
+  </div>
+</div>
+
+<!-- ── SEARCH + FILTERS ─────────────────────────────────── -->
+<div class="filter-bar-card">
+  <form method="get" action="{{ url_for('superadmin.tenants') }}" class="filter-bar-inner">
+    <div class="search-field-wrap">
+      <iconify-icon icon="lucide:search" width="16" class="search-icon-inner"></iconify-icon>
+      <input
+        type="search"
+        name="q"
+        placeholder="Search by name, slug, or email…"
+        value="{{ q or '' }}"
+        class="search-input-modern"
+        autocomplete="off"
+      />
+    </div>
+    <div class="filter-chips">
+      <input type="hidden" name="status" value="{{ status_filter or 'all' }}" id="statusInput"/>
+      <button type="button"
+              class="filter-chip {% if not status_filter or status_filter == 'all' %}active{% endif %}"
+              onclick="setFilter('all')">All</button>
+      <button type="button"
+              class="filter-chip {% if status_filter == 'active' %}active{% endif %}"
+              onclick="setFilter('active')">Active</button>
+      <button type="button"
+              class="filter-chip {% if status_filter == 'inactive' %}active{% endif %}"
+              onclick="setFilter('inactive')">Inactive</button>
+    </div>
+    <button type="submit" class="btn btn-secondary btn-sm">
+      <iconify-icon icon="lucide:filter" width="14"></iconify-icon>
+      Filter
+    </button>
+    {% if q %}
+    <a href="{{ url_for('superadmin.tenants') }}" class="btn btn-ghost btn-sm">
+      <iconify-icon icon="lucide:x" width="14"></iconify-icon>
+      Clear
+    </a>
+    {% endif %}
+  </form>
+  {% if q %}
+    <div class="search-result-meta">
+      Results for <strong>"{{ q }}"</strong> — {{ tenants.total }} found
+    </div>
+  {% endif %}
+</div>
+
+<!-- ── TENANT TABLE ─────────────────────────────────────── -->
+{% if tenants.items %}
+<div class="sa-table-card">
+  <table class="sa-table">
+    <thead>
+      <tr>
+        <th>Tenant</th>
+        <th>Slug</th>
+        <th>Owner Email</th>
+        <th>Plan</th>
+        <th>Status</th>
+        <th>Projects</th>
+        <th>Last Updated</th>
+        <th>Days Active</th>
+        <th class="th-actions">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tenants.items %}
+      <tr class="sa-table-row" data-tenant-id="{{ t.id }}">
+
+        <!-- Tenant Name + Avatar -->
+        <td class="td-tenant-name">
+          <div class="tenant-name-cell">
+            <div class="tenant-avatar">
+              {{ (t.name or 'T')[0].upper() }}
+            </div>
+            <div class="tenant-name-info">
+              <span class="tenant-name-main">{{ t.name or 'Untitled Tenant' }}</span>
+              {% if t.tenant_slug == 'default' %}
+                <span class="tenant-plan-badge plan-administrator">Administrator</span>
+              {% elif t.plan %}
+                <span class="tenant-plan-badge plan-{{ t.plan|lower }}">{{ t.plan }}</span>
+              {% endif %}
+            </div>
+          </div>
+        </td>
+
+        <!-- Slug -->
+        <td class="td-slug">
+          <code class="slug-code">{{ t.tenant_slug }}</code>
+        </td>
+
+        <!-- Email -->
+        <td class="td-email">
+          {% set owner = tenant_owners.get(t.tenant_slug) if tenant_owners is defined else None %}
+          {% if owner %}
+            <span class="td-email-text">{{ owner.email }}</span>
+          {% elif t.email %}
+            <span class="td-email-text">{{ t.email }}</span>
+          {% else %}
+            <span class="text-dim">—</span>
+          {% endif %}
+        </td>
+
+        <!-- Plan -->
+        <td>
+          <span class="plan-tag plan-{{ (t.plan or 'basic')|lower|replace(' ','_') }}">
+            {{ t.plan or 'Basic' }}
+          </span>
+        </td>
+
+        <!-- Status -->
+        <td>
+          {% set is_active = t.is_available if t.is_available is defined else True %}
+          <span class="status-pill {% if is_active %}status-active{% else %}status-inactive{% endif %}">
+            <span class="status-dot"></span>
+            {{ 'Active' if is_active else 'Inactive' }}
+          </span>
+        </td>
+
+        <!-- Projects Count -->
+        <td class="td-count">
+          {% set pcount = project_counts.get(t.tenant_slug, 0) if project_counts is defined else 0 %}
+          <span class="count-badge">{{ pcount }}</span>
+        </td>
+
+        <!-- Last Updated -->
+        <td class="td-date">
+          {% if t.updated_at %}
+            <span title="{{ t.updated_at.strftime('%Y-%m-%d %H:%M UTC') }}">
+              {{ t.updated_at.strftime('%b %d, %Y') }}
+            </span>
+          {% else %}
+            <span class="text-dim">—</span>
+          {% endif %}
+        </td>
+
+        <!-- Days Active -->
+        <td class="td-count">
+          {% set da = days_active_map.get(t.tenant_slug) if days_active_map is defined else None %}
+          {% if da is not none %}
+            <span class="count-badge" title="Days since last update">{{ da }}d</span>
+          {% else %}
+            <span class="text-dim">—</span>
+          {% endif %}
+        </td>
+
+        <!-- Actions -->
+        <td class="td-actions">
+          <div class="action-group">
+            <a href="{{ url_for('tenant.portfolio', tenant_slug=t.tenant_slug) }}"
+               target="_blank"
+               class="action-btn action-btn-ghost"
+               title="View Portfolio">
+              <iconify-icon icon="lucide:external-link" width="15"></iconify-icon>
+            </a>
+            <a href="{{ url_for('superadmin.tenant_edit', tenant_id=t.id) }}"
+               class="action-btn action-btn-edit"
+               title="Edit Tenant">
+              <iconify-icon icon="lucide:pencil" width="15"></iconify-icon>
+            </a>
+            <a href="{{ url_for('tenant.admin_root', tenant_slug=t.tenant_slug) }}"
+               target="_blank"
+               class="action-btn action-btn-ghost"
+               title="Open Tenant Admin">
+              <iconify-icon icon="lucide:layout" width="15"></iconify-icon>
+            </a>
+            <a href="{{ url_for('superadmin.send_message', tenant_slug=t.tenant_slug) }}"
+               class="action-btn action-btn-secondary"
+               title="Send Message to Tenant Admin">
+              <iconify-icon icon="lucide:mail" width="15"></iconify-icon>
+            </a>
+            {# Reset owner password (superadmin action) #}
+            <form method="post" action="{{ url_for('superadmin.tenant_reset_password', tenant_id=t.id) }}" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <button type="submit" class="action-btn action-btn-warning" title="Reset Tenant Admin Password" onclick="return confirm('Reset admin password for {{ t.name|default(t.tenant_slug) }}?\nA temporary password will be generated and shown to you.')">
+                <iconify-icon icon="lucide:key" width="15"></iconify-icon>
+              </button>
+            </form>
+            {# Suspend / Unsuspend tenant #}
+            
+            <form method="POST" action="{{ url_for('superadmin.impersonate_tenant', tenant_id=t.id) }}"
+                  style="display:inline;"
+                  onsubmit="return confirm('Impersonate admin for {{ t.tenant_slug }}? You will be logged in as their admin account.')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="action-btn action-btn-ghost" title="Impersonate">
+                <iconify-icon icon="lucide:user-round-cog" width="15"></iconify-icon>
+              </button>
+            </form>
+            <form method="post" action="{{ url_for('superadmin.tenant_toggle_suspend', tenant_id=t.id) }}" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              {% if is_active %}
+              <button type="submit" class="action-btn action-btn-danger" title="Suspend Tenant" onclick="return confirm('Suspend {{ t.name|default(t.tenant_slug) }}? This will disable the tenant.')">
+                <iconify-icon icon="lucide:slash" width="15"></iconify-icon>
+              </button>
+              {% else %}
+              <button type="submit" class="action-btn action-btn-secondary" title="Unsuspend Tenant" onclick="return confirm('Unsuspend {{ t.name|default(t.tenant_slug) }}?')">
+                <iconify-icon icon="lucide:check" width="15"></iconify-icon>
+              </button>
+              {% endif %}
+            </form>
+            {% if t.tenant_slug != 'default' %}
+            <form method="post"
+                  action="{{ url_for('superadmin.tenant_delete', tenant_id=t.id) }}"
+                  style="display:inline"
+                  onsubmit="return confirm('Permanently delete {{ t.name|default(t.tenant_slug)|e }} and all its data? This cannot be undone.')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="action-btn action-btn-danger" title="Delete Tenant">
+                <iconify-icon icon="lucide:trash-2" width="15"></iconify-icon>
+              </button>
+            </form>
+            {% else %}
+            <span class="action-btn action-btn-locked" title="Default tenant cannot be deleted">
+              <iconify-icon icon="lucide:lock" width="15"></iconify-icon>
+            </span>
+            {% endif %}
+          </div>
+        </td>
+
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ── PAGINATION ───────────────────────────────────────── -->
+{% if tenants.pages > 1 %}
+<nav class="sa-pagination" aria-label="Tenant pagination">
+  {% if tenants.has_prev %}
+    <a href="{{ url_for('superadmin.tenants', page=tenants.prev_num, q=q, status=status_filter) }}"
+       class="page-btn page-nav">
+      <iconify-icon icon="lucide:chevron-left" width="16"></iconify-icon>
+      Prev
+    </a>
+  {% else %}
+    <span class="page-btn page-nav disabled">
+      <iconify-icon icon="lucide:chevron-left" width="16"></iconify-icon>
+      Prev
+    </span>
+  {% endif %}
+
+  <div class="page-numbers">
+    {% set start = [tenants.page - 2, 1]|max %}
+    {% set end   = [tenants.page + 2, tenants.pages]|min %}
+    {% if start > 1 %}
+      <a href="{{ url_for('superadmin.tenants', page=1, q=q, status=status_filter) }}" class="page-num">1</a>
+      {% if start > 2 %}<span class="page-ellipsis">…</span>{% endif %}
+    {% endif %}
+    {% for p in range(start, end + 1) %}
+      {% if p == tenants.page %}
+        <span class="page-num active">{{ p }}</span>
+      {% else %}
+        <a href="{{ url_for('superadmin.tenants', page=p, q=q, status=status_filter) }}" class="page-num">{{ p }}</a>
+      {% endif %}
+    {% endfor %}
+    {% if end < tenants.pages %}
+      {% if end < tenants.pages - 1 %}<span class="page-ellipsis">…</span>{% endif %}
+      <a href="{{ url_for('superadmin.tenants', page=tenants.pages, q=q, status=status_filter) }}" class="page-num">{{ tenants.pages }}</a>
+    {% endif %}
+  </div>
+
+  {% if tenants.has_next %}
+    <a href="{{ url_for('superadmin.tenants', page=tenants.next_num, q=q, status=status_filter) }}"
+       class="page-btn page-nav">
+      Next
+      <iconify-icon icon="lucide:chevron-right" width="16"></iconify-icon>
+    </a>
+  {% else %}
+    <span class="page-btn page-nav disabled">
+      Next
+      <iconify-icon icon="lucide:chevron-right" width="16"></iconify-icon>
+    </span>
+  {% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<!-- ── EMPTY STATE ──────────────────────────────────────── -->
+<div class="empty-state-card">
+  <div class="empty-state-icon">
+    <iconify-icon icon="lucide:users" width="48"></iconify-icon>
+  </div>
+  <h2 class="empty-state-title">
+    {% if q %}No tenants found{% else %}No tenants yet{% endif %}
+  </h2>
+  <p class="empty-state-text">
+    {% if q %}
+      No tenants matched "<strong>{{ q }}</strong>". Try a different search term.
+    {% else %}
+      Get started by creating your first tenant portfolio.
+    {% endif %}
+  </p>
+  {% if q %}
+    <a href="{{ url_for('superadmin.tenants') }}" class="btn btn-ghost">Clear Search</a>
+  {% else %}
+    <a href="{{ url_for('superadmin.tenant_new') }}" class="btn btn-primary">
+      <iconify-icon icon="lucide:user-plus" width="16"></iconify-icon>
+      Create First Tenant
+    </a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function setFilter(val) {
+  document.getElementById('statusInput').value = val;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  event.target.classList.add('active');
+  // Auto-submit
+  event.target.closest('form').submit();
+}
+</script>
+{% endblock %}

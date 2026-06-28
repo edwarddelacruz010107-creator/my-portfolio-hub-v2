@@ -1794,9 +1794,59 @@ button:focus-visible, a:focus-visible {
   border: 1px solid rgba(245,158,11,0.3);
 }
 .license-admin {
-  background: rgba(99,102,241,0.14);
-  color: var(--accent-light, #818cf8);
-  border: 1px solid rgba(99,102,241,0.3);
+  background: linear-gradient(135deg, rgba(255,215,0,0.18) 0%, rgba(255,165,0,0.12) 100%);
+  color: #ffd700;
+  border: 1px solid rgba(255,215,0,0.45);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 0 12px rgba(255,215,0,0.15);
+}
+
+/* ── Administrator plan — superadmin tenant list badge ──────────── */
+.badge-administrator {
+  background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+  color: #ffd700;
+  border: 1px solid rgba(255,215,0,0.5);
+  border-radius: 20px;
+  padding: 0.3em 0.9em;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  box-shadow: 0 2px 8px rgba(255,215,0,0.2);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  white-space: nowrap;
+}
+
+.badge-administrator::before {
+  content: '👑';
+  font-size: 0.9em;
+}
+
+/* Protected indicator for system-plan tenants */
+.system-plan-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.2em 0.7em;
+}
+
+.system-plan-lock::before {
+  content: '🔒';
+  font-size: 0.8em;
+}
+
+.plan-badge--administrator {
+  background: linear-gradient(135deg, rgba(255,215,0,0.18) 0%, rgba(255,165,0,0.1) 100%);
+  color: #ffd700;
+  border: 1px solid rgba(255,215,0,0.4);
+  box-shadow: 0 0 8px rgba(255,215,0,0.1);
 }
 .license-pending {
   background: rgba(99,102,241,0.12);
@@ -1989,7 +2039,7 @@ button:focus-visible, a:focus-visible {
 .plan-badge--expired,
 .plan-badge--cancelled{ background: var(--danger-bg); color: var(--danger); border: 1px solid rgba(239,68,68,0.2); }
 .plan-badge--default  { background: var(--bg-3); color: var(--text-dim); border: 1px solid var(--border); }
-.plan-badge--admin    { background: rgba(99,102,241,0.14); color: var(--accent-light, #818cf8); border: 1px solid rgba(99,102,241,0.3); }
+.plan-badge--admin    { background: linear-gradient(135deg,rgba(255,215,0,.18),rgba(255,165,0,.10)); color:#ffd700; border:1px solid rgba(255,215,0,.4); box-shadow:0 0 8px rgba(255,215,0,.12); }
 
 /* ── NAV ITEM smooth left-bar transition ─────────────────────── */
 .nav-item {

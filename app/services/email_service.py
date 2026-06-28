@@ -79,7 +79,7 @@ def _smtp_config() -> dict:
         'from_email': os.environ.get('SMTP_FROM_EMAIL', '').strip(),
         'from_name':  os.environ.get('SMTP_FROM_NAME', 'Portfolio CMS').strip(),
         'use_tls':    os.environ.get('SMTP_USE_TLS', 'true').lower() in ('1', 'true', 'yes'),
-        'timeout':    int(os.environ.get('SMTP_TIMEOUT', '10')),
+        'timeout':    int(os.environ.get('SMTP_TIMEOUT', '30')),
     }
 
 

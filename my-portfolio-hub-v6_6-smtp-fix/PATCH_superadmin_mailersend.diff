@@ -1,0 +1,70 @@
+--- a/app/superadmin/__init__.py
++++ b/app/superadmin/__init__.py
+@@ -1771,10 +1771,10 @@ def forbidden_error(e):
+ 
+ @superadmin.route('/settings/email', methods=['GET', 'POST'])
+ @limiter.limit('10 per minute')
+ def email_settings():
+     """
+     Superadmin → Settings → Email & Forms (v5.0 — MailerSend)
+ 
+     Manages GlobalEmailConfig:
+-      - Resend API key (replaces Web3Forms for auth/transactional email)
++      - MailerSend API key (v5.0 sole email provider)
+       - Sender name / email
+       - OTP expiry / recovery switch
+       - Default contact form provider (internal | basin)
+ 
+-    The Resend key is NEVER returned to the template — only has_resend bool.
++    The MailerSend key is NEVER returned to the template — only has_mailersend bool.
+     Validate action returns JSON (used by fetch() in template JS).
+     """
+     from app.models.portfolio import GlobalEmailConfig
+-    from app.services.resend_service import validate_resend_key
++    from app.services.mailersend_service import validate_mailersend_key
+     from flask import jsonify
+     import re as _re
+ 
+     cfg = GlobalEmailConfig.get()
+ 
+     if request.method == 'POST':
+         action = request.form.get('action', 'save')
+ 
+-        # ── AJAX: validate Resend key ──────────────────────────────────────
+-        if action == 'validate_resend_key':
+-            key = request.form.get('resend_api_key', '').strip()
++        # ── AJAX: validate MailerSend key ─────────────────────────────────
++        if action == 'validate_mailersend_key':
++            key = request.form.get('mailersend_api_key', '').strip()
+             if not key:
+                 return jsonify({'ok': False, 'message': 'No key supplied.'})
+-            valid, msg = validate_resend_key(key)
++            valid, msg = validate_mailersend_key(key)
+             return jsonify({'ok': valid, 'message': msg})
+ 
+         # ── Save settings ─────────────────────────────────────────────────
+-        new_resend_key = request.form.get('resend_api_key', '').strip()
++        new_mailersend_key = request.form.get('mailersend_api_key', '').strip()
+         sender_name    = request.form.get('sender_name', '').strip()
+         sender_email   = request.form.get('sender_email', '').strip().lower()
+         otp_ttl_raw    = request.form.get('otp_expiry_minutes', '10').strip()
+@@ -1817,7 +1817,7 @@ def email_settings():
+             flash('Invalid sender email format.', 'danger')
+             return redirect(url_for('superadmin.email_settings'))
+ 
+-        if new_resend_key:
+-            cfg.resend_api_key = new_resend_key
++        if new_mailersend_key:
++            cfg.mailersend_api_key = new_mailersend_key
+ 
+         cfg.sender_name        = sender_name  or cfg.sender_name
+         cfg.sender_email       = sender_email or cfg.sender_email
+@@ -1831,7 +1831,7 @@ def email_settings():
+     # GET
+     return render_template(
+         'superadmin/email_settings.html',
+         cfg=cfg,
+-        has_resend=cfg.has_resend,
++        has_mailersend=cfg.has_mailersend,
+         default_form_provider='internal',  # Platform-level default; tenants override individually
+     )

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>License Activation | {{ profile.name or 'Portfolio' }}</title>
+    <meta name="description" content="Activate your license key for {{ profile.name or 'your portfolio' }}.">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <main class="license-page">
+        <section class="license-card">
+            <div class="license-card-header">
+                <h1>License Activation</h1>
+                <p>Enter the license key provided by your administrator to activate your portfolio.</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <div class="license-card-body">
+                {% if license_status == 'active' %}
+                    <div class="license-summary">
+                        <p>Your portfolio is already licensed for the <strong>{{ profile.license_plan or profile.plan }}</strong> plan.</p>
+                        <p>License activated on {{ profile.license_activated_at.strftime('%b %d, %Y') if profile.license_activated_at else 'the activation date' }}.</p>
+                    </div>
+                {% else %}
+                    {% if license_status == 'trial' %}
+                    <div class="license-summary license-trial">
+                        <p>Your free trial is active for <strong>{{ trial_days_left }} more day{{ '' if trial_days_left == 1 else 's' }}</strong>.</p>
+                        <p>You can still activate a license key anytime at the form below.</p>
+                    </div>
+                    {% elif license_status == 'expired' %}
+                    <div class="license-summary license-expired">
+                        <p>Your free trial has expired. To continue using this portfolio, enter your license key below.</p>
+                    </div>
+                    {% else %}
+                    <div class="license-summary license-unlicensed">
+                        <p>This portfolio does not have an active license yet.</p>
+                    </div>
+                    {% endif %}
+
+                    <form method="post" action="{{ url_for('tenant.license', tenant_slug=tenant_slug) }}" class="license-form">
+                        <label for="license_key">License Key</label>
+                        <input type="text" name="license_key" id="license_key" value="" placeholder="Enter your license key" class="field-input" autocomplete="off" required>
+                        <button type="submit" class="btn btn-primary">Activate License</button>
+                    </form>
+                {% endif %}
+            </div>
+
+            <div class="license-card-footer">
+                <a href="{{ url_for('tenant.portfolio', tenant_slug=tenant_slug) }}" class="btn btn-outline">Return to Portfolio</a>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

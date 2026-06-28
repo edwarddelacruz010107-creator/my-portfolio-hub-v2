@@ -1,0 +1,147 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit' if project else 'New' }} Project{% endblock %}
+{% block page_title %}{{ 'Edit Project' if project else 'New Project' }}{% endblock %}
+
+{% block content %}
+<div class="page-hd" style="margin-bottom:1.5rem;">
+  <div class="page-hd-left">
+    <h1>{{ 'Edit Project' if project else 'New Project' }}</h1>
+    <p>{% if project %}Update project details and publishing settings.{% else %}Add a new project to your portfolio.{% endif %}</p>
+  </div>
+  {% if project %}
+  <div class="page-hd-right">
+    <a href="{{ url_for('admin.projects') }}" class="btn btn-ghost btn-sm">
+      <iconify-icon icon="lucide:arrow-left" width="14"></iconify-icon> Back
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<form data-loading="true" method="POST" enctype="multipart/form-data" class="admin-form">
+  {{ form.hidden_tag() }}
+
+  <div class="form-layout">
+
+    <!-- Left sidebar: image + settings -->
+    <div class="form-sidebar">
+      <div class="image-upload-card">
+        <h3>Project Image</h3>
+        <div class="image-preview" id="imagePreview">
+          {% if project and project.image %}
+            <img src="{{ url_for('static', filename='uploads/projects/' + project.image) }}"
+                 alt="{{ project.title }}" id="projectImg"/>
+          {% else %}
+            <div class="img-placeholder-lg" id="imagePlaceholder">
+              <span>◈</span>
+              <p>No image</p>
+            </div>
+            <img src="" id="projectImg" class="hidden-field"/>
+          {% endif %}
+        </div>
+        <label class="upload-btn" for="project_image_input">↑ Upload Image</label>
+        {{ form.image(id="project_image_input", class_="hidden-field",
+           onchange="previewImage(this)") }}
+        <p class="upload-hint">Recommended: 1200×675px (16:9)</p>
+      </div>
+
+      <div class="form-card">
+        <h3>Settings</h3>
+        <div class="form-group">
+          {{ form.status.label }}
+          {{ form.status(class="form-select") }}
+        </div>
+        <div class="form-group">
+          {{ form.category.label }}
+          {{ form.category(class="form-select") }}
+        </div>
+        <div class="form-group">
+          {{ form.date_completed.label }}
+          {{ form.date_completed(class="form-input") }}
+        </div>
+        <div class="form-group">
+          {{ form.order.label }}
+          {{ form.order(class="form-input", placeholder="0 = first") }}
+        </div>
+        <div class="form-group toggle-group">
+          {{ form.is_featured() }}
+          <label for="{{ form.is_featured.id }}">Featured on homepage</label>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <h3>Links</h3>
+        <div class="form-group">
+          {{ form.live_url.label }}
+          {{ form.live_url(class="form-input", placeholder="https://...") }}
+          {% for e in form.live_url.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+        </div>
+        <div class="form-group">
+          {{ form.github_url.label }}
+          {{ form.github_url(class="form-input", placeholder="https://github.com/...") }}
+          {% for e in form.github_url.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: main fields -->
+    <div class="form-main">
+      <div class="form-card">
+        <h3>Project Details</h3>
+        <div class="form-group">
+          {{ form.title.label }}
+          {{ form.title(class="form-input form-input--lg", placeholder="Project Title") }}
+          {% for e in form.title.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+        </div>
+        <div class="form-group">
+          {{ form.framework.label }}
+          {{ form.framework(class="form-input", placeholder="e.g. React, Next.js, Flask") }}
+        </div>
+        <div class="form-group">
+          {{ form.language.label }}
+          {{ form.language(class="form-input", placeholder="e.g. JavaScript, Python, TypeScript") }}
+        </div>
+        <div class="form-group">
+          {{ form.description_short.label }}
+          {{ form.description_short(class="form-input",
+             placeholder="One-line summary shown in cards (max 300 chars)") }}
+        </div>
+        <div class="form-group">
+          {{ form.description.label }}
+          {{ form.description(class="form-textarea richtext", rows=10,
+             placeholder="Full project description… supports HTML.") }}
+        </div>
+        <div class="form-group">
+          {{ form.tags.label }}
+          {{ form.tags(class="form-input", placeholder="React, TypeScript, Tailwind, PostgreSQL") }}
+          <span class="form-hint">Comma-separated tags</span>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        {{ form.submit(class="btn btn-primary btn-lg") }}
+        <a href="{{ url_for('admin.projects') }}" class="btn btn-ghost">Cancel</a>
+        {% if project %}
+          <a href="{{ url_for('tenant.project_detail', tenant_slug=tenant_slug or active_tenant_slug or 'default', slug=project.slug) }}" target="_blank"
+             class="btn btn-ghost btn-sm">↗ Preview</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+function previewImage(input) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.getElementById('projectImg');
+      const ph = document.getElementById('imagePlaceholder');
+      img.src = e.target.result;
+      img.style.display = 'block';
+      if (ph) ph.style.display = 'none';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+</script>
+{% endblock %}

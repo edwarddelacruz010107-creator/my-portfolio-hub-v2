@@ -1,0 +1,61 @@
+{#
+  templates/themes/components/_cert_card_inner.html
+  Inner markup for a single cert card. Inherited context: cert (Certificate object).
+  Do NOT render standalone — always included from certificates_section.html.
+#}
+<div class="cert-card__image-wrap">
+  <img
+    src="{{ cert.image_url }}"
+    alt="Certificate: {{ cert.title }} from {{ cert.issuer }}"
+    class="cert-card__image"
+    loading="lazy"
+    width="80"
+    height="80"
+  >
+  {% if cert.is_featured %}
+    <span class="cert-card__featured-badge" aria-label="Featured">★</span>
+  {% endif %}
+</div>
+
+<div class="cert-card__body">
+  <h3 class="cert-card__title">{{ cert.title }}</h3>
+  <p class="cert-card__issuer">{{ cert.issuer }}</p>
+
+  {% if cert.description %}
+    <p class="cert-card__desc">{{ cert.description }}</p>
+  {% endif %}
+
+  <div class="cert-card__meta">
+    {% if cert.issue_date %}
+      <span class="cert-card__date">
+        <span class="sr-only">Issued:</span>
+        {{ cert.issue_date.strftime('%b %Y') }}
+      </span>
+    {% endif %}
+    {% if cert.expiry_date %}
+      <span class="cert-card__expiry {% if cert.is_expired %}cert-card__expiry--expired{% endif %}">
+        {% if cert.is_expired %}Expired{% else %}Valid until{% endif %}
+        {{ cert.expiry_date.strftime('%b %Y') }}
+      </span>
+    {% endif %}
+    {% if cert.credential_id %}
+      <span class="cert-card__id">ID: {{ cert.credential_id }}</span>
+    {% endif %}
+  </div>
+
+  {% if cert.credential_url %}
+    <a
+      href="{{ cert.credential_url }}"
+      class="cert-card__verify-link"
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Verify {{ cert.title }} credential (opens in new tab)"
+    >
+      {% if theme_style == 'developer_pro' %}
+        <span aria-hidden="true">⟫</span> Verify Credential
+      {% else %}
+        Verify Credential →
+      {% endif %}
+    </a>
+  {% endif %}
+</div>

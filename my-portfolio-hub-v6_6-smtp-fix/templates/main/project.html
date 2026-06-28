@@ -1,0 +1,718 @@
+{% extends "base.html" %}
+
+{# ── SEO overrides ── #}
+{% block title %}{{ project.title }} — {{ profile.name if profile else 'Portfolio' }}{% endblock %}
+{% block meta_desc %}{{ project.description_short or project.description|striptags|truncate(160) }}{% endblock %}
+{% block meta_robots %}index, follow, max-snippet:-1, max-image-preview:large{% endblock %}
+{% block canonical %}{{ request.host_url.rstrip('/') }}{{ request.path }}{% endblock %}
+
+{% block og_type %}article{% endblock %}
+{% block og_image %}
+{% if project.image %}
+<meta property="og:image" content="{{ url_for('static', filename='uploads/projects/' + project.image, _external=True) }}">
+<meta property="og:image:width"  content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt"    content="{{ project.title }}">
+{% elif profile and profile.profile_image %}
+{% if profile.profile_image.startswith('http') %}
+<meta property="og:image" content="{{ profile.profile_image }}">
+{% else %}
+<meta property="og:image" content="{{ url_for('static', filename='uploads/profiles/' + profile.profile_image, _external=True) }}">
+{% endif %}
+{% endif %}
+{% if project.date_completed %}
+<meta property="article:published_time" content="{{ project.date_completed.isoformat() }}">
+{% endif %}
+{% if profile and profile.name %}
+<meta property="article:author" content="{{ profile.name }}">
+{% endif %}
+{% endblock %}
+
+{% block structured_data %}
+{# ── JSON-LD: CreativeWork ── #}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CreativeWork",
+  "name": "{{ project.title | e }}",
+  "description": "{{ (project.description_short or project.description or '') | striptags | truncate(300) | e }}",
+  "url": "{{ request.host_url.rstrip('/') }}{{ request.path }}",
+  {% if project.image %}
+  "image": "{{ url_for('static', filename='uploads/projects/' + project.image, _external=True) }}",
+  {% endif %}
+  {% if project.date_completed %}
+  "dateCreated": "{{ project.date_completed.strftime('%Y-%m-%d') }}",
+  {% endif %}
+  {% if project.tags %}
+  "keywords": "{{ project.tags | e }}",
+  {% endif %}
+  "author": {
+    "@type": "Person",
+    "name": "{{ (profile.name if profile else '') | e }}",
+    "url": "{{ url_for('tenant.portfolio', tenant_slug=tenant_slug, _external=True) if tenant_slug else request.host_url }}"
+  },
+  "creator": {
+    "@type": "Person",
+    "name": "{{ (profile.name if profile else '') | e }}"
+  }
+}
+</script>
+
+{# ── JSON-LD: BreadcrumbList ── #}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "{{ (profile.name if profile else 'Portfolio') | e }}",
+      "item": "{{ url_for('tenant.portfolio', tenant_slug=tenant_slug, _external=True) if tenant_slug else request.host_url }}"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Projects",
+      "item": "{{ url_for('tenant.portfolio', tenant_slug=tenant_slug, _external=True) if tenant_slug else request.host_url }}#projects"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "{{ project.title | e }}",
+      "item": "{{ request.host_url.rstrip('/') }}{{ request.path }}"
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block body %}
+<nav class="site-nav scrolled" id="siteNav" style="position:fixed;top:0;left:0;right:0;z-index:100;backdrop-filter:blur(20px);background:rgba(8,10,15,0.85);border-bottom:1px solid rgba(255,255,255,0.06);">
+  <div class="container" style="max-width:1200px;margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:68px;">
+    <a href="{% if tenant_slug == 'default' %}{{ url_for('root') }}{% else %}{{ url_for('tenant.portfolio', tenant_slug=tenant_slug) }}{% endif %}#projects" style="display:inline-flex;align-items:center;gap:0.55rem;color:#818cf8;font-family:var(--font-display,'Syne',sans-serif);font-weight:700;font-size:0.875rem;text-decoration:none;padding:0.55rem 1rem;border-radius:12px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);transition:all 0.25s ease;" onmouseover="this.style.background='rgba(99,102,241,0.15)';this.style.transform='translateX(-2px)';" onmouseout="this.style.background='rgba(99,102,241,0.08)';this.style.transform='';">
+      <iconify-icon icon="lucide:arrow-left" width="16"></iconify-icon>
+      Back to Projects
+    </a>
+    <span style="font-family:var(--font-display,'Syne',sans-serif);font-weight:700;font-size:0.875rem;color:rgba(255,255,255,0.5);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ project.title }}</span>
+  </div>
+</nav>
+
+<main style="padding-top:80px;min-height:100vh;">
+  <article style="max-width:1200px;margin:0 auto;padding:0 1.5rem 5rem;">
+
+    <!-- ═══ HERO HEADER ═══ -->
+    <header class="proj-v3-header">
+      <!-- Background accent -->
+      <div class="proj-v3-header-bg"></div>
+
+      <div class="proj-v3-header-inner">
+        <!-- Meta row -->
+        <div class="proj-v3-meta">
+          {% if project.category %}
+          <span class="proj-v3-cat">
+            <iconify-icon icon="lucide:folder" width="13"></iconify-icon>
+            {{ project.category }}
+          </span>
+          {% endif %}
+          {% if project.date_completed %}
+          <span class="proj-v3-date">
+            <iconify-icon icon="lucide:calendar" width="13"></iconify-icon>
+            {{ project.date_completed.strftime('%B %Y') }}
+          </span>
+          {% endif %}
+          {% if project.view_count %}
+          <span class="proj-v3-views">
+            <iconify-icon icon="lucide:eye" width="13"></iconify-icon>
+            {{ project.view_count }} views
+          </span>
+          {% endif %}
+          {% if project.is_featured %}
+          <span class="proj-v3-featured">
+            <iconify-icon icon="lucide:star" width="13"></iconify-icon>
+            Featured
+          </span>
+          {% endif %}
+        </div>
+
+        <!-- Title -->
+        <h1 class="proj-v3-title">{{ project.title }}</h1>
+
+        <!-- Subtitle -->
+        {% if project.description_short %}
+        <p class="proj-v3-subtitle">{{ project.description_short }}</p>
+        {% endif %}
+
+        <!-- CTA links -->
+        <div class="proj-v3-ctas">
+          {% if project.live_url %}
+          <a href="{{ project.live_url }}" target="_blank" rel="noopener" class="btn-proj-live">
+            <iconify-icon icon="lucide:external-link" width="16"></iconify-icon>
+            Live Demo
+          </a>
+          {% endif %}
+          {% if project.github_url %}
+          <a href="{{ project.github_url }}" target="_blank" rel="noopener" class="btn-proj-github">
+            <iconify-icon icon="lucide:github" width="16"></iconify-icon>
+            Source Code
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </header>
+
+    <!-- ═══ HERO IMAGE ═══ -->
+    {% if project.image %}
+    <div class="proj-v3-img-wrap">
+      <img
+        src="{{ url_for('static', filename='uploads/projects/' + project.image) }}"
+        alt="{{ project.title }}"
+        class="proj-v3-img"
+      />
+    </div>
+    {% endif %}
+
+    <!-- ═══ BODY: CONTENT + SIDEBAR ═══ -->
+    <div class="proj-v3-body">
+
+      <!-- Main Content -->
+      <div class="proj-v3-content">
+        <div class="proj-v3-content-card">
+          <h2 class="proj-v3-section-label">
+            <iconify-icon icon="lucide:file-text" width="15"></iconify-icon>
+            Project Overview
+          </h2>
+          {% if project.description %}
+          <div class="proj-v3-description">{{ project.description }}</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <aside class="proj-v3-sidebar">
+
+        <!-- Tags -->
+        {% if project.tags %}
+        <div class="proj-v3-sidebar-card">
+          <h3 class="proj-v3-sidebar-heading">
+            <iconify-icon icon="lucide:tag" width="14"></iconify-icon>
+            Technologies
+          </h3>
+          <div class="proj-v3-tags">
+            {% for tag in project.tags %}
+            <span class="proj-v3-tag">{{ tag }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Links -->
+        {% if project.live_url or project.github_url %}
+        <div class="proj-v3-sidebar-card">
+          <h3 class="proj-v3-sidebar-heading">
+            <iconify-icon icon="lucide:link" width="14"></iconify-icon>
+            Links
+          </h3>
+          <div class="proj-v3-links">
+            {% if project.live_url %}
+            <a href="{{ project.live_url }}" target="_blank" rel="noopener" class="proj-v3-link-row">
+              <span class="proj-v3-link-icon" style="background:rgba(99,102,241,0.1);color:#818cf8;">
+                <iconify-icon icon="lucide:globe" width="14"></iconify-icon>
+              </span>
+              <span>
+                <span style="display:block;font-size:0.8rem;color:var(--text-muted,#7a8094);">Live Site</span>
+                <span style="font-size:0.82rem;font-weight:600;color:#818cf8;">View Demo →</span>
+              </span>
+            </a>
+            {% endif %}
+            {% if project.github_url %}
+            <a href="{{ project.github_url }}" target="_blank" rel="noopener" class="proj-v3-link-row">
+              <span class="proj-v3-link-icon" style="background:rgba(255,255,255,0.05);">
+                <iconify-icon icon="lucide:github" width="14"></iconify-icon>
+              </span>
+              <span>
+                <span style="display:block;font-size:0.8rem;color:var(--text-muted,#7a8094);">Repository</span>
+                <span style="font-size:0.82rem;font-weight:600;color:var(--text,#e8eaf0);">View Code →</span>
+              </span>
+            </a>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Project details card -->
+        <div class="proj-v3-sidebar-card">
+          <h3 class="proj-v3-sidebar-heading">
+            <iconify-icon icon="lucide:info" width="14"></iconify-icon>
+            Details
+          </h3>
+          <dl class="proj-v3-dl">
+            {% if project.category %}
+            <div class="proj-v3-dl-row">
+              <dt>Category</dt>
+              <dd>{{ project.category }}</dd>
+            </div>
+            {% endif %}
+            {% if project.date_completed %}
+            <div class="proj-v3-dl-row">
+              <dt>Completed</dt>
+              <dd>{{ project.date_completed.strftime('%b %Y') }}</dd>
+            </div>
+            {% endif %}
+            <div class="proj-v3-dl-row">
+              <dt>Status</dt>
+              <dd>
+                <span class="proj-v3-status-pill {% if project.status == 'published' %}status-pub{% else %}status-draft{% endif %}">
+                  <iconify-icon icon="{{ 'lucide:check-circle' if project.status == 'published' else 'lucide:edit-3' }}" width="11"></iconify-icon>
+                  {{ project.status | title }}
+                </span>
+              </dd>
+            </div>
+            {% if project.view_count %}
+            <div class="proj-v3-dl-row">
+              <dt>Views</dt>
+              <dd>{{ project.view_count }}</dd>
+            </div>
+            {% endif %}
+          </dl>
+        </div>
+
+        <!-- Share / Back -->
+        <div class="proj-v3-sidebar-card">
+          <h3 class="proj-v3-sidebar-heading">
+            <iconify-icon icon="lucide:share-2" width="14"></iconify-icon>
+            Share
+          </h3>
+          <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
+            <button onclick="navigator.clipboard.writeText(window.location.href).then(()=>alert('Link copied!'))" class="proj-v3-share-btn" title="Copy link">
+              <iconify-icon icon="lucide:link-2" width="14"></iconify-icon>
+              Copy Link
+            </button>
+            <a href="https://twitter.com/intent/tweet?text={{ project.title | urlencode }}&url={{ request.url | urlencode }}" target="_blank" class="proj-v3-share-btn" title="Share on X">
+              <iconify-icon icon="lucide:twitter" width="14"></iconify-icon>
+              Share
+            </a>
+          </div>
+        </div>
+
+      </aside>
+    </div>
+
+    <!-- ═══ RELATED PROJECTS ═══ -->
+    {% if related %}
+    <section class="proj-v3-related">
+      <div class="proj-v3-related-header">
+        <h2 class="proj-v3-related-title">Related <span style="background:linear-gradient(135deg,#818cf8,#6366f1);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">Projects</span></h2>
+        <a href="/#projects" style="font-size:0.85rem;color:#818cf8;text-decoration:none;font-weight:600;">View All →</a>
+      </div>
+      <div class="proj-v3-related-grid">
+        {% for p in related %}
+        <a href="{{ url_for('tenant.project_detail', tenant_slug=tenant_slug or active_tenant_slug or 'default', slug=p.slug) }}" class="proj-v3-rel-card">
+          <div class="proj-v3-rel-img">
+            {% if p.image %}
+            <img src="{{ url_for('static', filename='uploads/projects/' + p.image) }}" alt="{{ p.title }}" loading="lazy"/>
+            {% else %}
+            <div class="proj-v3-rel-placeholder">
+              <iconify-icon icon="lucide:image" width="24" style="color:rgba(255,255,255,0.15);"></iconify-icon>
+            </div>
+            {% endif %}
+            <div class="proj-v3-rel-overlay">
+              <iconify-icon icon="lucide:arrow-right" width="20" style="color:#fff;"></iconify-icon>
+            </div>
+          </div>
+          <div class="proj-v3-rel-body">
+            {% if p.category %}<span class="proj-v3-rel-cat">{{ p.category }}</span>{% endif %}
+            <h3 class="proj-v3-rel-title">{{ p.title }}</h3>
+            {% if p.description_short %}<p class="proj-v3-rel-desc">{{ p.description_short }}</p>{% endif %}
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+  </article>
+</main>
+
+<footer style="background:var(--bg-secondary,#0d1117);border-top:1px solid rgba(255,255,255,0.06);padding:2rem 1.5rem;text-align:center;">
+  <div style="max-width:1200px;margin:0 auto;">
+    <p style="color:var(--text-muted,#7a8094);font-size:0.875rem;">
+      © {{ now.year if now else '2025' }} {{ profile.name if profile else 'Portfolio' }} ·
+      <a href="/#projects" style="color:#818cf8;text-decoration:none;font-weight:600;">Back to Projects</a>
+    </p>
+  </div>
+</footer>
+
+<style>
+/* ── Project Detail v3 Styles ───────────────────────────── */
+.proj-v3-header {
+  position: relative;
+  margin: 2.5rem 0 2rem;
+  padding: 2.5rem;
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(13,17,23,0.7);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+.proj-v3-header-bg {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 70% 60% at 0% 0%, rgba(99,102,241,0.1) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 50% at 100% 100%, rgba(139,92,246,0.07) 0%, transparent 50%);
+  pointer-events: none;
+}
+.proj-v3-header::before {
+  content:'';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(99,102,241,0.5), transparent);
+}
+.proj-v3-header-inner { position: relative; z-index: 1; }
+
+.proj-v3-meta {
+  display: flex; flex-wrap: wrap; gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+.proj-v3-cat, .proj-v3-date, .proj-v3-views, .proj-v3-featured {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.05);
+  color: var(--text-muted, #7a8094);
+  font-size: 0.78rem; font-weight: 500;
+}
+.proj-v3-featured {
+  background: rgba(245,158,11,0.1);
+  border-color: rgba(245,158,11,0.25);
+  color: #fbbf24;
+}
+
+.proj-v3-title {
+  font-family: var(--font-display,'Syne',sans-serif);
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.85rem;
+  color: var(--text, #e8eaf0);
+}
+.proj-v3-subtitle {
+  color: var(--text-muted, #7a8094);
+  font-size: 1.05rem;
+  line-height: 1.65;
+  max-width: 680px;
+  margin-bottom: 1.75rem;
+}
+.proj-v3-ctas {
+  display: flex; flex-wrap: wrap; gap: 0.85rem;
+}
+.btn-proj-live, .btn-proj-github {
+  display: inline-flex; align-items: center; gap: 0.55rem;
+  padding: 0.75rem 1.4rem;
+  border-radius: 14px;
+  font-weight: 700; font-size: 0.9rem;
+  text-decoration: none;
+  transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
+}
+.btn-proj-live {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(99,102,241,0.3);
+}
+.btn-proj-live:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(99,102,241,0.45);
+}
+.btn-proj-github {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text, #e8eaf0);
+}
+.btn-proj-github:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.2);
+  transform: translateY(-2px);
+}
+
+/* Image */
+.proj-v3-img-wrap {
+  border-radius: 20px;
+  overflow: hidden;
+  margin: 0 0 2.5rem;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.4);
+}
+.proj-v3-img {
+  width: 100%; max-height: 560px;
+  object-fit: cover; display: block;
+  transition: transform 0.6s ease;
+}
+.proj-v3-img-wrap:hover .proj-v3-img { transform: scale(1.02); }
+
+/* Body layout */
+.proj-v3-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) 340px;
+  gap: 2rem;
+  align-items: start;
+  padding-bottom: 4rem;
+}
+.proj-v3-content-card {
+  background: rgba(13,17,23,0.6);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 20px;
+  padding: 2rem;
+  backdrop-filter: blur(8px);
+}
+.proj-v3-section-label {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  color: #818cf8;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.proj-v3-description {
+  color: var(--text-muted, #7a8094);
+  line-height: 1.85; font-size: 0.975rem;
+}
+.proj-v3-description p { margin-bottom: 1.1rem; }
+.proj-v3-description h2, .proj-v3-description h3 {
+  font-family: var(--font-display,'Syne',sans-serif);
+  font-weight: 700; letter-spacing: -0.02em;
+  color: var(--text, #e8eaf0);
+  margin: 1.75rem 0 0.75rem;
+}
+.proj-v3-description h2 { font-size: 1.4rem; }
+.proj-v3-description h3 { font-size: 1.15rem; }
+.proj-v3-description ul, .proj-v3-description ol {
+  padding-left: 1.5rem; margin-bottom: 1rem;
+}
+.proj-v3-description li { margin-bottom: 0.4rem; }
+.proj-v3-description code {
+  background: rgba(99,102,241,0.1);
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 6px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.875em;
+  color: #a5b4fc;
+}
+.proj-v3-description pre code {
+  background: rgba(13,17,23,0.8);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 1rem;
+  display: block;
+  overflow-x: auto;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.875rem;
+}
+
+/* Sidebar */
+.proj-v3-sidebar { display: flex; flex-direction: column; gap: 1rem; }
+.proj-v3-sidebar-card {
+  background: rgba(13,17,23,0.6);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 18px;
+  padding: 1.4rem;
+  backdrop-filter: blur(8px);
+  transition: border-color 0.25s ease;
+}
+.proj-v3-sidebar-card:hover { border-color: rgba(255,255,255,0.11); }
+.proj-v3-sidebar-heading {
+  display: flex; align-items: center; gap: 0.45rem;
+  font-size: 0.72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  color: #818cf8;
+  margin-bottom: 1rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+/* Tags */
+.proj-v3-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.proj-v3-tag {
+  display: inline-flex; align-items: center;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(99,102,241,0.08);
+  border: 1px solid rgba(99,102,241,0.18);
+  color: #a5b4fc;
+  font-size: 0.78rem; font-weight: 500;
+  transition: all 0.2s ease;
+}
+.proj-v3-tag:hover {
+  background: rgba(99,102,241,0.15);
+  border-color: rgba(99,102,241,0.35);
+}
+
+/* Links */
+.proj-v3-links { display: flex; flex-direction: column; gap: 0.6rem; }
+.proj-v3-link-row {
+  display: flex; align-items: center; gap: 0.85rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+.proj-v3-link-row:hover {
+  background: rgba(99,102,241,0.07);
+  border-color: rgba(99,102,241,0.2);
+  transform: translateX(2px);
+}
+.proj-v3-link-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  color: var(--text, #e8eaf0);
+}
+
+/* Details DL */
+.proj-v3-dl { display: flex; flex-direction: column; gap: 0; }
+.proj-v3-dl-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 0.85rem;
+}
+.proj-v3-dl-row:last-child { border-bottom: none; }
+.proj-v3-dl-row dt { color: var(--text-muted, #7a8094); }
+.proj-v3-dl-row dd { font-weight: 600; color: var(--text, #e8eaf0); }
+
+.proj-v3-status-pill {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.status-pub  { background:rgba(16,185,129,0.1);color:#34d399;border:1px solid rgba(16,185,129,0.2); }
+.status-draft{ background:rgba(100,116,139,0.1);color:#94a3b8;border:1px solid rgba(100,116,139,0.15); }
+
+/* Share buttons */
+.proj-v3-share-btn {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-muted, #7a8094);
+  font-size: 0.8rem; font-weight: 600;
+  cursor: pointer; text-decoration: none;
+  transition: all 0.2s ease;
+}
+.proj-v3-share-btn:hover {
+  background: rgba(99,102,241,0.1);
+  border-color: rgba(99,102,241,0.25);
+  color: #818cf8;
+}
+
+/* Related */
+.proj-v3-related {
+  padding: 3rem 0 0;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.proj-v3-related-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1.75rem;
+}
+.proj-v3-related-title {
+  font-family: var(--font-display,'Syne',sans-serif);
+  font-size: 1.75rem; font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.proj-v3-related-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+.proj-v3-rel-card {
+  border-radius: 18px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(13,17,23,0.6);
+  text-decoration: none;
+  transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1),
+              box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.proj-v3-rel-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.35), 0 0 0 1px rgba(99,102,241,0.18);
+  border-color: rgba(99,102,241,0.2);
+}
+.proj-v3-rel-img {
+  height: 180px; overflow: hidden; position: relative;
+  background: rgba(255,255,255,0.03);
+}
+.proj-v3-rel-img img {
+  width: 100%; height: 100%; object-fit: cover;
+  transition: transform 0.5s ease;
+}
+.proj-v3-rel-card:hover .proj-v3-rel-img img { transform: scale(1.07); }
+.proj-v3-rel-overlay {
+  position: absolute; inset: 0;
+  background: rgba(6,8,15,0.5);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.proj-v3-rel-card:hover .proj-v3-rel-overlay { opacity: 1; }
+.proj-v3-rel-placeholder {
+  height: 100%;
+  display: flex; align-items: center; justify-content: center;
+}
+.proj-v3-rel-body { padding: 1.1rem; }
+.proj-v3-rel-cat {
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: #818cf8;
+  display: block; margin-bottom: 0.4rem;
+}
+.proj-v3-rel-title {
+  font-family: var(--font-display,'Syne',sans-serif);
+  font-size: 0.975rem; font-weight: 700;
+  color: var(--text, #e8eaf0);
+  margin-bottom: 0.4rem;
+  line-height: 1.3;
+}
+.proj-v3-rel-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted, #7a8094);
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .proj-v3-body {
+    grid-template-columns: 1fr;
+  }
+  .proj-v3-sidebar { order: -1; }
+}
+@media (max-width: 640px) {
+  .proj-v3-header { padding: 1.75rem; border-radius: 18px; }
+  .proj-v3-title { font-size: 2rem; }
+  .proj-v3-ctas { flex-direction: column; }
+  .btn-proj-live, .btn-proj-github { justify-content: center; }
+}
+
+/* Light mode */
+html[data-theme="light"] .proj-v3-header,
+html[data-theme="light"] .proj-v3-content-card,
+html[data-theme="light"] .proj-v3-sidebar-card,
+html[data-theme="light"] .proj-v3-rel-card {
+  background: rgba(255,255,255,0.9);
+  border-color: rgba(15,23,42,0.08);
+}
+html[data-theme="light"] .proj-v3-header-bg {
+  opacity: 0.5;
+}
+</style>
+{% endblock %}

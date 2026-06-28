@@ -99,11 +99,23 @@ _PLAN_ALIASES: dict[str, str] = {
 
 
 def normalize_plan_name(plan: str) -> str:
-    """Return the canonical plan key ('Basic' | 'Pro' | 'Enterprise')."""
-    if not plan:
-        return "Basic"
-    key = plan.strip().lower()
-    return _PLAN_ALIASES.get(key, plan.strip().title())
+    """Return canonical plan key. Delegates to permission_registry."""
+    from app.services.permissions.permission_registry import normalize_plan_name as _norm
+    return _norm(plan)
+
+
+def is_plan_purchasable(plan: str) -> bool:
+    """True iff the plan can be purchased by a tenant. Administrator returns False."""
+    from app.services.permissions.permission_registry import is_purchasable_plan
+    return is_purchasable_plan(plan)
+
+
+def public_billing_plans() -> dict:
+    """
+    Return BILLING_PLANS filtered to purchasable, non-hidden plans only.
+    Administrator is never included. Use this in all billing UI and APIs.
+    """
+    return {k: v for k, v in BILLING_PLANS.items() if is_plan_purchasable(k)}
 
 
 def get_plan_price(plan: str, billing_cycle: str = "monthly") -> float:

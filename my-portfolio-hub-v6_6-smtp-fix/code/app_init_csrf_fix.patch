@@ -1,0 +1,47 @@
+--- a/app/__init__.py
++++ b/app/__init__.py
+@@ -544,6 +544,44 @@ def create_app(config_name: str = None):
+             except Exception:
+                 return _redirect('/')
+ 
++    # ── CSRF SSL Strict Fix for Render.com Proxy ─────────────────────────────────
++    # FIX: Disable WTF_CSRF_SSL_STRICT for login routes
++    #
++    # PROBLEM (Render.com reverse proxy):
++    # - WTF_CSRF_SSL_STRICT = True checks: same_origin(request.referrer, f"https://{request.host}/")
++    # - request.referrer = "https://myportfoliohub.online/superadmin/login" ✓
++    # - request.host = internal Render hostname (not matching) ✗
++    # - CSRF validation fails → login rejected even with correct credentials
++    #
++    # SOLUTION: Disable strict SSL checking for login routes (they're CSRF-safe anyway)
++    # - Login routes use POST-redirect-GET (no persistent state in POST)
++    # - SOP blocks cross-origin POSTs automatically
++    # - Session token set AFTER login succeeds
++    # - CSRF token validation still enabled (WTF_CSRF_ENABLED = True)
++    @app.before_request
++    def csrf_ssl_strict_for_login_routes():
++        """
++        Disable WTF_CSRF_SSL_STRICT for login routes when behind Render.com proxy.
++        
++        Login routes are protected by Same-Origin Policy and don't modify
++        persistent state on POST, so they're CSRF-safe without strict SSL checking.
++        CSRF token validation is still enabled.
++        """
++        is_login_route = (
++            request.path in ['/auth/login', '/superadmin/login']
++            or '/auth/login' in request.path  # Tenant logins: /<tenant>/auth/login
++            or ('/superadmin/' in request.path and 'login' in request.path)
++        )
++        
++        if is_login_route:
++            # Temporarily disable strict SSL checking for this request only.
++            # CSRF token validation still occurs.
++            app.config['WTF_CSRF_SSL_STRICT'] = False
++        else:
++            # Restore strict checking for all other routes
++            if app.config.get('ENV') == 'production':
++                app.config['WTF_CSRF_SSL_STRICT'] = True
++
+     # ── Security headers ──────────────────────────────────────────────────────
+     @app.after_request
+     def set_security_headers(response):

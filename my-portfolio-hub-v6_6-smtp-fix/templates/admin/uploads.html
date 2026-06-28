@@ -1,0 +1,86 @@
+{% extends 'admin/base.html' %}
+
+{% block title %}Uploaded Photos{% endblock %}
+
+{% block page_title %}Uploaded Photos{% endblock %}
+
+{% block content %}
+<div class="page-hd" style="margin-bottom:1.5rem;">
+  <div class="page-hd-left">
+    <h1>Uploaded Photos</h1>
+    <p>Manage photos uploaded to your portfolio.</p>
+  </div>
+</div>
+<div class="content-grid">
+  <div class="content-panel">
+    <div class="panel-header">
+      <h2>Uploaded Photos</h2>
+      <p class="field-hint">Review all tenant images stored in your portfolio and remove any unused files to save storage.</p>
+    </div>
+
+    <div class="list-toolbar" style="margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
+      <div class="summary-card">
+        <strong>{{ total_assets }}</strong>
+        <div>Files</div>
+      </div>
+      <div class="summary-card">
+        <strong>{{ total_size }}</strong>
+        <div>Storage used</div>
+      </div>
+      <form class="search-bar" method="GET" style="flex:1; min-width:220px;">
+        <select name="asset_type" class="form-select">
+          <option value="all" {% if asset_type == 'all' %}selected{% endif %}>All uploads ({{ counts.all }})</option>
+          <option value="profile" {% if asset_type == 'profile' %}selected{% endif %}>Profile Image ({{ counts.profile }})</option>
+          <option value="project" {% if asset_type == 'project' %}selected{% endif %}>Project Images ({{ counts.project }})</option>
+          <option value="testimonial" {% if asset_type == 'testimonial' %}selected{% endif %}>Testimonial Avatars ({{ counts.testimonial }})</option>
+        </select>
+        <button type="submit" class="btn btn-ghost">Filter</button>
+      </form>
+    </div>
+
+    {% if assets %}
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Preview</th>
+              <th>Type</th>
+              <th>Record</th>
+              <th>Filename</th>
+              <th>Size</th>
+              <th class="text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for asset in assets %}
+            <tr>
+              <td class="td-preview">
+                <img src="{{ asset.url }}" alt="{{ asset.label }}" class="thumb-image"/>
+              </td>
+              <td>{{ asset.label }}</td>
+              <td>{{ asset.description }}</td>
+              <td class="mono">{{ asset.filename }}</td>
+              <td>{{ asset.size_text }}</td>
+              <td class="text-right">
+                <form data-loading="true" method="post" action="{{ url_for('admin.delete_upload') }}" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                  <input type="hidden" name="asset_type" value="{{ asset.type }}"/>
+                  <input type="hidden" name="asset_id" value="{{ asset.id }}"/>
+                  <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this uploaded file from storage? This cannot be undone.')">
+                    Delete
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>No uploaded photos were found for this tenant.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,55 @@
+{#
+  templates/themes/components/certificates_section.html
+  Shared certificates section component.
+  Called via: {% include 'themes/components/certificates_section.html' %}
+  Context vars required:
+    certificates  — queryset of Certificate objects (visible, ordered)
+    theme_style   — "clean" | "developer_pro"
+#}
+{% set visible_certs = certificates | selectattr('is_visible') | list %}
+{% if visible_certs %}
+<section
+  id="certificates"
+  class="section-certificates theme-{{ theme_style }}"
+  aria-labelledby="certs-heading"
+>
+  <div class="section-inner">
+    <header class="section-header">
+      {% if theme_style == 'developer_pro' %}
+        <span class="section-eyebrow cyber-label" aria-hidden="true">// CREDENTIALS</span>
+      {% endif %}
+      <h2 id="certs-heading" class="section-title">
+        {% if theme_style == 'developer_pro' %}
+          Certifications &amp; <span class="neon-accent">Achievements</span>
+        {% else %}
+          Certificates &amp; Awards
+        {% endif %}
+      </h2>
+    </header>
+
+    {# Featured certs row (if any) #}
+    {% set featured = visible_certs | selectattr('is_featured') | list %}
+    {% if featured %}
+    <div class="certs-featured" role="list" aria-label="Featured certificates">
+      {% for cert in featured %}
+      <article class="cert-card cert-card--featured" role="listitem">
+        {% include 'themes/components/_cert_card_inner.html' %}
+      </article>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# All certificates grid #}
+    {% set regular = visible_certs | rejectattr('is_featured') | list %}
+    {% if regular %}
+    <div class="certs-grid" role="list" aria-label="All certificates">
+      {% for cert in regular %}
+      <article class="cert-card" role="listitem">
+        {% include 'themes/components/_cert_card_inner.html' %}
+      </article>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}

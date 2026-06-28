@@ -1,0 +1,125 @@
+{#
+  app/templates/admin/themes/_theme_card.html
+  ─────────────────────────────────────────────────────────────────────────────
+  Reusable theme card macro for the Appearance → Themes picker.
+
+  Expected theme dict keys (set by ThemeAccessService.annotate_theme_list()):
+    theme.id              — theme filesystem slug
+    theme.name            — display name
+    theme.description     — short description
+    theme.thumbnail_url   — card image (or None)
+    theme._can_use        — bool: tenant may apply this theme
+    theme._is_active      — bool: currently applied theme
+    theme._show_lock      — bool: show lock icon (NEVER true for Administrator)
+    theme._show_upgrade_cta — bool: show upgrade CTA (NEVER true for Administrator)
+    theme._access_label   — 'FREE' | 'PRO' | 'ENTERPRISE' | 'ADMIN ACCESS'
+    theme._badge_class    — 'badge-free' | 'badge-pro' | … | 'badge-administrator'
+
+  Context variables expected:
+    is_administrator_tenant — bool (from EntitlementService context)
+    entitlements            — dict (from EntitlementService.get_feature_context())
+
+  Usage:
+    {% from 'admin/themes/_theme_card.html' import render_theme_card %}
+    {% for theme in themes %}
+      {{ render_theme_card(theme) }}
+    {% endfor %}
+#}
+
+{% macro render_theme_card(theme) %}
+<div class="card h-100 theme-card
+            {% if theme._is_active %}theme-card-active border-primary{% endif %}
+            {% if is_administrator_tenant %}theme-card-admin admin-unlocked{% endif %}
+            {% if not theme._can_use and not theme._is_active %}theme-card-locked{% endif %}"
+     data-theme-id="{{ theme.id }}"
+     style="position:relative; transition: box-shadow .2s, border-color .2s;">
+
+  {# ── Thumbnail ──────────────────────────────────────────────────────────── #}
+  <div class="theme-card-thumbnail" style="position:relative; overflow:hidden; aspect-ratio:16/9; background:#1a1f2e;">
+    {% if theme.thumbnail_url %}
+      <img src="{{ theme.thumbnail_url }}" alt="{{ theme.name }} preview"
+           class="w-100 h-100" style="object-fit:cover;">
+    {% else %}
+      <div class="w-100 h-100 d-flex align-items-center justify-content-center text-muted fs-sm">
+        No preview
+      </div>
+    {% endif %}
+
+    {# ── Lock overlay — NEVER rendered for Administrator ────────────────── #}
+    {% if theme._show_lock %}
+    <div class="premium-lock-overlay d-flex flex-column align-items-center justify-content-center"
+         style="position:absolute;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(2px);">
+      <div style="font-size:2rem;">🔒</div>
+      <span class="fs-xs text-white mt-1">{{ theme._access_label }} Required</span>
+    </div>
+    {% endif %}
+
+    {# ── Active indicator ────────────────────────────────────────────────── #}
+    {% if theme._is_active %}
+    <div style="position:absolute;top:.5rem;left:.5rem;">
+      <span class="badge bg-primary">Active</span>
+    </div>
+    {% endif %}
+
+    {# ── Plan badge ──────────────────────────────────────────────────────── #}
+    <div style="position:absolute;top:.5rem;right:.5rem;">
+      <span class="{{ theme._badge_class }}">{{ theme._access_label }}</span>
+    </div>
+  </div>
+
+  {# ── Card body ──────────────────────────────────────────────────────────── #}
+  <div class="card-body d-flex flex-column gap-2 p-3">
+    <div class="d-flex align-items-start justify-content-between gap-2">
+      <h6 class="mb-0 fw-semibold" style="font-size:.9rem;">{{ theme.name }}</h6>
+      {% if is_administrator_tenant %}
+        {# Crown indicator — no lock, no upsell #}
+        <span title="Administrator Access" style="font-size:1rem; line-height:1;">👑</span>
+      {% endif %}
+    </div>
+
+    {% if theme.description %}
+    <p class="text-muted mb-0" style="font-size:.78rem; line-height:1.45; -webkit-line-clamp:2; display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden;">
+      {{ theme.description }}
+    </p>
+    {% endif %}
+
+    {# ── Action buttons ──────────────────────────────────────────────────── #}
+    <div class="mt-auto d-flex gap-2 pt-1">
+      {# Preview — always available regardless of plan #}
+      <a href="{{ url_for('admin.preview_theme', theme_id=theme.id) }}"
+         target="_blank"
+         class="btn btn-sm btn-outline-secondary flex-shrink-0">
+        Preview
+      </a>
+
+      {% if theme._is_active %}
+        <button class="btn btn-sm btn-primary flex-grow-1" disabled>✓ Active</button>
+
+      {% elif theme._can_use %}
+        {# Tenant can apply this theme #}
+        <button class="btn btn-sm btn-primary flex-grow-1 btn-apply-theme"
+                data-theme-id="{{ theme.id }}"
+                data-theme-name="{{ theme.name }}">
+          Apply Theme
+        </button>
+
+      {% elif is_administrator_tenant %}
+        {# Should never reach here — administrators always have _can_use=True #}
+        {# Defensive fallback: show Apply anyway #}
+        <button class="btn btn-sm btn-primary flex-grow-1 btn-apply-theme"
+                data-theme-id="{{ theme.id }}"
+                data-theme-name="{{ theme.name }}">
+          Apply Theme
+        </button>
+
+      {% else %}
+        {# Non-administrator tenant without access — show upgrade CTA #}
+        <a href="{{ url_for('admin.billing_plans') }}"
+           class="btn btn-sm btn-outline-warning flex-grow-1">
+          Upgrade to {{ theme._access_label }}
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endmacro %}

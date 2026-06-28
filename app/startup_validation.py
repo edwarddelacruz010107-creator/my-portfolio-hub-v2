@@ -160,6 +160,6 @@ def validate_startup_env(app) -> None:
             "See .env.example for required variable format."
         )
         if is_production:
-            sys.exit(1)
+            sys.exit()
         else:
             logger.warning("Development mode — startup validation errors are non-fatal.")

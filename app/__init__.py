@@ -411,6 +411,12 @@ def create_app(config_name: str = 'default') -> Flask:
             # migration 0032 has not yet been applied to the live database.
             _ensure_global_email_config_columns()
 
+            # Run unconditionally — prevents OperationalError on
+            # /superadmin/themes/sync when migration 0035 has not yet been
+            # applied to the live database (see _ensure_theme_catalog_columns
+            # docstring for full root-cause audit).
+            _ensure_theme_catalog_columns()
+
             if app.debug:
                 _ensure_profile_columns()
                 _ensure_default_tenant()
@@ -817,6 +823,99 @@ def _ensure_global_email_config_columns():
         logger.info('[DB MIGRATION] global_email_config schema already up-to-date.')
 
 
+# ── ThemeCatalogEntry schema patcher (v6.5 / migration 0035) ─────────────────
+
+def _ensure_theme_catalog_columns():
+    """
+    Defensive schema patcher for theme_catalog_entries.
+
+    ROOT CAUSE (audited 2026-06-27): migration 0035_theme_catalog_extended.py
+    is correct and matches the ThemeCatalogEntry model exactly — the columns
+    it defines (thumbnail_url, banner_url, preview_images, theme_author,
+    theme_version, theme_tags, feature_matrix, is_featured, install_count)
+    are all present in app/models/core.py. The failure is that this app had
+    no startup self-healing patcher for this table — unlike
+    global_email_config (0032) and Profile, which already have one. Any
+    live SQLite DB created before 0035 was applied therefore has a
+    theme_catalog_entries table missing those 9 columns, and the first ORM
+    SELECT against the model (e.g. ThemeCatalogEntry.get_by_slug() in the
+    `/superadmin/themes/sync` route) raises OperationalError.
+
+    Mirrors `_ensure_global_email_config_columns()`:
+      - Fresh installs        (table not yet created → skipped, create_all/
+                                migration handles it)
+      - Existing DBs          (missing columns added non-destructively via
+                                ALTER TABLE ADD COLUMN)
+      - Already-migrated DBs  (PRAGMA check prevents duplicate ALTERs)
+      - SQLite only           — PostgreSQL must use `flask db upgrade`
+                                (multi-column batch ALTER is not safely
+                                idempotent outside Alembic on Postgres)
+
+    No tables dropped. No rows touched. No data loss possible — this only
+    ever issues `ALTER TABLE ... ADD COLUMN` for columns that don't exist.
+    """
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy.exc import OperationalError as SAOperationalError
+
+    if db.engine.dialect.name != 'sqlite':
+        return  # PostgreSQL: rely on proper Alembic migrations
+
+    if not sa_inspect(db.engine).has_table('theme_catalog_entries'):
+        return  # Table not yet created — create_all()/migration 0034 handles it
+
+    # Columns added by migration 0035 — (column_name, DDL_fragment)
+    REQUIRED_COLUMNS = [
+        ('thumbnail_url',   "VARCHAR(512)"),
+        ('banner_url',      "VARCHAR(512)"),
+        ('preview_images',  "TEXT"),
+        ('theme_author',    "VARCHAR(120)"),
+        ('theme_version',   "VARCHAR(30)"),
+        ('theme_tags',      "TEXT"),
+        ('feature_matrix',  "TEXT"),
+        ('is_featured',     "BOOLEAN DEFAULT 0 NOT NULL"),
+        ('install_count',   "INTEGER DEFAULT 0 NOT NULL"),
+    ]
+
+    logger.info('[DB MIGRATION] Checking theme_catalog_entries schema...')
+
+    added_any = False
+    try:
+        with db.engine.begin() as conn:
+            existing = {
+                row['name']
+                for row in conn.execute(
+                    db.text('PRAGMA table_info(theme_catalog_entries)')
+                ).mappings()
+            }
+
+            for col_name, ddl in REQUIRED_COLUMNS:
+                if col_name not in existing:
+                    try:
+                        conn.execute(
+                            db.text(
+                                f'ALTER TABLE theme_catalog_entries ADD COLUMN "{col_name}" {ddl}'
+                            )
+                        )
+                        logger.info('[DB MIGRATION] Added missing column: theme_catalog_entries.%s', col_name)
+                        added_any = True
+                    except SAOperationalError as exc:
+                        # Column may have been added by a concurrent worker — not fatal
+                        if 'duplicate column' in str(exc).lower():
+                            logger.debug('[DB MIGRATION] Column already exists (race): %s', col_name)
+                        else:
+                            logger.error('[DB MIGRATION] Failed to add column %s: %s', col_name, exc)
+                            raise
+
+    except Exception as exc:
+        logger.error('[DB MIGRATION] theme_catalog_entries schema patch failed: %s', exc)
+        return
+
+    if added_any:
+        logger.info('[DB MIGRATION] theme_catalog_entries schema synchronized. Run "flask db upgrade" to record migration state.')
+    else:
+        logger.info('[DB MIGRATION] theme_catalog_entries schema already up-to-date.')
+
+
 # ── Default tenant portfolio renderer ─────────────────────────────────────────
 
 def _ensure_profile_columns():
@@ -1145,7 +1244,7 @@ def _ensure_default_tenant():
                 company_name='Default Portfolio',
                 email='hello@example.com',
                 status='active',
-                plan='Basic',
+                plan='Administrator',  # Reserved system plan for platform owner
             )
             db.session.add(tenant)
             db.session.flush()
@@ -1164,6 +1263,13 @@ def _ensure_default_tenant():
             db.session.add(profile)
             db.session.commit()
             logger.info("Created default tenant Profile row")
+
+        # Ensure the default tenant always has the Administrator plan
+        try:
+            from app.services.permissions import ensure_administrator_plan
+            ensure_administrator_plan()
+        except Exception as exc:
+            logger.warning('Could not ensure administrator plan: %s', exc)
 
         # Obj #2: bootstrap TenantFormSettings for the default tenant so the
         # contact form routes to the administrator's email out of the box.

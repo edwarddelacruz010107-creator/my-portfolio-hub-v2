@@ -1,0 +1,79 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Tenant Message Statistics{% endblock %}
+{% block page_title %}Tenant Message Statistics{% endblock %}
+
+{% block content %}
+<div class="breadcrumb-trail">
+  <a href="{{ url_for('superadmin.messages_inbox') }}" class="bc-link">
+    <iconify-icon icon="lucide:mail" width="14"></iconify-icon> Messages
+  </a>
+  <iconify-icon icon="lucide:chevron-right" width="14" class="bc-sep"></iconify-icon>
+  <span class="bc-current">Tenant Stats</span>
+</div>
+
+{# ── Summary row ──────────────────────────────────────────────────────────── #}
+<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+  <div class="stat-card" style="min-width:140px;">
+    <div class="stat-card-label">Tenants</div>
+    <div class="stat-card-value">{{ total_tenants }}</div>
+  </div>
+  <div class="stat-card {% if total_unread %}stat-card--warn{% endif %}" style="min-width:140px;">
+    <div class="stat-card-label">Total Unread</div>
+    <div class="stat-card-value">{{ total_unread }}</div>
+  </div>
+</div>
+
+{# ── Security note ───────────────────────────────────────────────────────── #}
+<div class="alert alert-info" style="margin-bottom:1.25rem;font-size:.875rem;">
+  <iconify-icon icon="lucide:shield" width="14" style="vertical-align:middle;"></iconify-icon>
+  <strong>Isolation active.</strong>
+  This view shows aggregate counts only. Message content is visible only
+  to the tenant's own admin — not to superadmin.
+</div>
+
+{% if not stats %}
+  <div class="empty-state">
+    <iconify-icon icon="lucide:inbox" width="40" style="color:var(--color-text-muted);"></iconify-icon>
+    <p>No tenant messages recorded yet.</p>
+  </div>
+{% else %}
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Tenant</th>
+        <th class="text-right">Unread</th>
+        <th class="text-right">Last 7 Days</th>
+        <th class="text-right">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in stats %}
+      <tr>
+        <td>
+          <span class="monospace">{{ row.tenant_slug }}</span>
+        </td>
+        <td class="text-right">
+          {% if row.unread %}
+            <span class="badge badge-warn">{{ row.unread }}</span>
+          {% else %}
+            <span style="color:var(--color-text-muted);">0</span>
+          {% endif %}
+        </td>
+        <td class="text-right">{{ row.last_7_days }}</td>
+        <td class="text-right">{{ row.total }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div style="margin-top:1rem;">
+  <a href="{{ url_for('superadmin.tenant_message_stats', format='json') }}"
+     class="btn btn-ghost btn-sm" target="_blank" rel="noopener">
+    <iconify-icon icon="lucide:code" width="14"></iconify-icon>
+    JSON Export
+  </a>
+</div>
+{% endblock %}

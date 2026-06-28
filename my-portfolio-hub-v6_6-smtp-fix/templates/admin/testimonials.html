@@ -1,0 +1,57 @@
+{% extends "admin/base.html" %}
+{% block title %}Testimonials{% endblock %}
+{% block page_title %}Testimonials{% endblock %}
+
+{% block content %}
+<div class="list-page">
+  <div class="page-hd">
+    <div class="page-hd-left">
+      <h1>Testimonials <span style="font-size:0.6em;color:var(--text-muted);font-weight:600;vertical-align:middle;">({{ testimonials|length }})</span></h1>
+      <p>Collect and display client feedback to build trust.</p>
+    </div>
+    <div class="page-hd-right">
+      <a href="{{ url_for('admin.new_testimonial') }}" class="btn btn-primary">
+        <iconify-icon icon="lucide:plus" width="15"></iconify-icon> Add Testimonial
+      </a>
+    </div>
+  </div>
+
+  {% if testimonials %}
+  <div class="testimonial-admin-list">
+    {% for t in testimonials %}
+    <div class="testimonial-admin-row">
+      <div class="t-avatar">
+        {% if t.author_avatar %}
+          <img src="{{ url_for('static', filename='uploads/profiles/' + t.author_avatar) }}" alt="{{ t.author_name }}"/>
+        {% else %}
+          <div class="t-avatar-ph">{{ t.author_name[0] }}</div>
+        {% endif %}
+      </div>
+      <div class="t-info">
+        <strong>{{ t.author_name }}</strong>
+        <span class="t-role">{{ t.author_title }}{% if t.author_company %}, {{ t.author_company }}{% endif %}</span>
+        <p class="t-preview">{{ t.content|truncate(100) }}</p>
+      </div>
+      <div class="t-meta">
+        <span class="t-stars">{% for i in range(t.rating) %}★{% endfor %}</span>
+        {% if t.is_featured %}<span class="badge badge-featured">★ Featured</span>{% endif %}
+        {% if not t.is_visible %}<span class="badge badge-archived">Hidden</span>{% endif %}
+      </div>
+      <div class="t-actions">
+        <a href="{{ url_for('admin.edit_testimonial', id=t.id) }}" class="icon-btn">✎</a>
+        <button class="icon-btn icon-btn--danger"
+                onclick="confirmDelete('{{ url_for('admin.delete_testimonial', id=t.id) }}',
+                'Delete testimonial from &quot;{{ t.author_name }}&quot;?')">✕</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-page">
+    <div class="empty-icon">◉</div>
+    <h2>No testimonials yet</h2>
+    <a href="{{ url_for('admin.new_testimonial') }}" class="btn btn-primary">Add first testimonial</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

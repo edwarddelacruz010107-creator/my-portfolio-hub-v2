@@ -1,0 +1,215 @@
+{#
+  app/templates/admin/billing/plans.html  –  Tenant billing plans page
+  Portfolio CMS v3.5 fix
+
+  Key changes vs v3.4:
+    • Plan cards carry data-price-monthly / data-price-yearly attributes.
+    • JS listener on billing_cycle radio updates every card in real-time.
+    • Savings badge shown/hidden per cycle.
+    • Hidden <input> for billing_cycle forwarded to the payment form.
+    • Yearly card shows  ₱XXX.XX/yr  +  "Save ~17%" badge.
+    • Superadmin and tenant views share the same BILLING_PLANS dict via
+      the template context variable `plans` (injected by the view).
+#}
+{% extends "admin/base.html" %}
+
+{% block title %}Billing Plans{% endblock %}
+
+{% block content %}
+<div class="billing-plans-wrapper">
+
+  {# ── Billing cycle toggle ──────────────────────────────────────────────── #}
+  <div class="cycle-toggle" role="group" aria-label="Billing cycle">
+
+    <label class="cycle-option {% if billing_cycle == 'monthly' %}active{% endif %}">
+      <input
+        type="radio"
+        name="billing_cycle"
+        value="monthly"
+        {% if billing_cycle != 'yearly' %}checked{% endif %}
+      >
+      Monthly
+    </label>
+
+    <label class="cycle-option {% if billing_cycle == 'yearly' %}active{% endif %}">
+      <input
+        type="radio"
+        name="billing_cycle"
+        value="yearly"
+        {% if billing_cycle == 'yearly' %}checked{% endif %}
+      >
+      Yearly <span class="save-badge">Save ~17%</span>
+    </label>
+
+  </div>{# /.cycle-toggle #}
+
+
+  {# ── Plan cards ────────────────────────────────────────────────────────── #}
+  <div class="plan-cards">
+    {% for plan_key, plan in plans.items() %}
+    <div
+      class="plan-card {% if plan_key == 'Pro' %}popular{% endif %}"
+      data-plan="{{ plan_key }}"
+      data-price-monthly="{{ plan.price_monthly }}"
+      data-price-yearly="{{ plan.price_yearly }}"
+      data-currency="{{ plan.currency_symbol }}"
+    >
+
+      {% if plan_key == 'Pro' %}
+        <div class="most-popular-badge">MOST POPULAR</div>
+      {% endif %}
+
+      <h2 class="plan-name">{{ plan.label }}</h2>
+
+      {# Price display – updated dynamically by JS #}
+      <div class="plan-price-wrapper">
+        <span class="plan-price" id="price-{{ plan_key | lower }}">
+          {{ plan.currency_symbol }}{{ "%.2f"|format(plan.price_monthly) }}
+        </span>
+        <span class="plan-cycle" id="cycle-label-{{ plan_key | lower }}">
+          /mo
+        </span>
+      </div>
+
+      {# Savings badge (hidden for monthly, visible for yearly) #}
+      <div
+        class="yearly-savings-badge"
+        id="savings-{{ plan_key | lower }}"
+        style="display:none;"
+      >
+        Save ~17%
+      </div>
+
+      <p class="plan-description">{{ plan.description }}</p>
+
+      <ul class="plan-features">
+        {% for feature in plan.features %}
+          <li>{{ feature }}</li>
+        {% endfor %}
+      </ul>
+
+      <div class="plan-select-wrapper">
+        {# Radio for plan selection (existing behaviour unchanged) #}
+        <label class="plan-select-label">
+          <input
+            type="radio"
+            name="selected_plan"
+            value="{{ plan_key }}"
+            class="plan-select-radio"
+            {% if current_plan == plan_key %}checked{% endif %}
+          >
+          Select plan
+        </label>
+      </div>
+
+    </div>{# /.plan-card #}
+    {% endfor %}
+  </div>{# /.plan-cards #}
+
+
+  {# ── Payment section ───────────────────────────────────────────────────── #}
+  <section class="payment-section">
+    <div class="payment-header">
+      <span class="payment-divider-label">MANUAL PAYMENT</span>
+      <span class="payment-eta">⏱ Usually within 24 hours</span>
+    </div>
+
+    <h3>Choose a Payment Method</h3>
+
+    {# Hidden field – updated by JS to match the selected billing_cycle #}
+    <input type="hidden" name="billing_cycle" id="billing_cycle_input" value="{{ billing_cycle or 'monthly' }}">
+
+    {# …rest of payment form… #}
+  </section>
+
+</div>{# /.billing-plans-wrapper #}
+{% endblock %}
+
+
+{% block extra_scripts %}
+<script>
+/**
+ * Billing cycle toggle – dynamically updates plan card prices.
+ *
+ * Each .plan-card has:
+ *   data-price-monthly  – float, e.g. 49
+ *   data-price-yearly   – float, e.g. 487.32
+ *   data-currency       – symbol, e.g. ₱
+ *
+ * When the radio changes:
+ *   1. Update every card's price display.
+ *   2. Show/hide the savings badge.
+ *   3. Update the hidden billing_cycle input so the form submits correctly.
+ *   4. Toggle the .active class on the cycle labels.
+ */
+(function () {
+  "use strict";
+
+  /* ── Helpers ─────────────────────────────────────────────────────────── */
+
+  function fmt(num) {
+    return parseFloat(num).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
+  function updateCards(cycle) {
+    const isYearly = cycle === "yearly";
+
+    document.querySelectorAll(".plan-card").forEach(function (card) {
+      const planKey   = card.dataset.plan.toLowerCase();
+      const monthly   = parseFloat(card.dataset.priceMonthly);
+      const yearly    = parseFloat(card.dataset.priceYearly);
+      const symbol    = card.dataset.currency || "₱";
+
+      const priceEl   = document.getElementById("price-"        + planKey);
+      const cycleEl   = document.getElementById("cycle-label-"  + planKey);
+      const savingsEl = document.getElementById("savings-"      + planKey);
+
+      if (!priceEl) return;
+
+      if (isYearly) {
+        priceEl.textContent  = symbol + fmt(yearly);
+        cycleEl.textContent  = "/yr";
+        if (savingsEl) savingsEl.style.display = "inline-block";
+      } else {
+        priceEl.textContent  = symbol + fmt(monthly);
+        cycleEl.textContent  = "/mo";
+        if (savingsEl) savingsEl.style.display = "none";
+      }
+    });
+
+    /* Keep hidden input in sync so the form submission carries the right value */
+    const hiddenInput = document.getElementById("billing_cycle_input");
+    if (hiddenInput) hiddenInput.value = cycle;
+
+    /* Toggle active class on the cycle labels */
+    document.querySelectorAll(".cycle-option").forEach(function (label) {
+      const radio = label.querySelector("input[type=radio]");
+      if (radio) {
+        label.classList.toggle("active", radio.value === cycle);
+      }
+    });
+  }
+
+  /* ── Attach listeners ────────────────────────────────────────────────── */
+
+  document.addEventListener("DOMContentLoaded", function () {
+    const radios = document.querySelectorAll('input[name="billing_cycle"]');
+
+    radios.forEach(function (radio) {
+      radio.addEventListener("change", function () {
+        updateCards(this.value);
+      });
+    });
+
+    /* Run once on load to ensure the UI matches the initially-checked radio */
+    const checked = document.querySelector('input[name="billing_cycle"]:checked');
+    if (checked) {
+      updateCards(checked.value);
+    }
+  });
+}());
+</script>
+{% endblock %}

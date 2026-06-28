@@ -1,0 +1,333 @@
+{#
+  billing/_plans.html — v3.9 BUG#3/4/8 fix
+  Single-page step flow:
+    Step 1 — Select Plan (radio cards)
+    Step 2 — Billing Cycle (monthly/yearly toggle, shown after plan chosen)
+    Step 3 — Payment Method (shown after plan chosen, direct links to payment page)
+  No duplicate plan grids. Plan selection controls the payment section.
+#}
+
+<div class="page-hd">
+  <div class="page-hd-left">
+    <h1>Choose a Plan</h1>
+    <p>Select your plan, then pay via a manual payment method. Activation is usually within 24 hours.</p>
+  </div>
+  <div class="page-hd-right">
+    <span class="activation-eta-badge">
+      <iconify-icon icon="lucide:clock" width="14"></iconify-icon>
+      {{ activation_eta|default('Usually within 24 hours') }}
+    </span>
+  </div>
+</div>
+
+{# ── Step 1: Plan selector ── #}
+<div class="billing-section" id="step-plan">
+  <div class="billing-section-hd">
+    <span class="step-bubble">1</span>
+    <h2>Select a Plan</h2>
+  </div>
+
+  <div class="plan-cards-grid" id="planCardsGrid">
+    {% for key, details in plans.items() %}
+    {% set is_current = (subscription and subscription.plan == key) or (not subscription and profile and profile.plan == key) %}
+    <label class="plan-card-v2 {% if is_current %}selected{% endif %}" data-plan="{{ key }}">
+      <input type="radio" name="plan_choice" value="{{ key }}"
+             class="plan-radio" {% if is_current %}checked{% endif %}
+             style="position:absolute;opacity:0;pointer-events:none">
+      {% if loop.index == 2 %}<div class="plan-badge-popular">Most Popular</div>{% endif %}
+      <div class="plan-name">{{ key }}</div>
+      <div class="plan-price">
+        <span class="amount price-display"
+              data-monthly="{{ details.currency_symbol|default('₱') }}{{ '%.2f'|format(details.price_monthly) }}/mo"
+              data-yearly="{{ details.currency_symbol|default('₱') }}{{ '%.2f'|format(details.price_yearly) }}/yr">
+          {{ details.currency_symbol|default('₱') }}{{ '%.2f'|format(details.price_monthly) }}/mo
+        </span>
+      </div>
+      <div class="plan-yearly-note" style="display:none">
+        <iconify-icon icon="lucide:tag" width="12"></iconify-icon>
+        Save {{ details.currency_symbol|default('₱') }}{{ '%.2f'|format(details.price_monthly * 12 - details.price_yearly) }} vs monthly
+      </div>
+      <div class="plan-desc">{{ details.description }}</div>
+      <ul class="plan-features">
+        {% set _features = details.features if details.features is iterable and details.features is not string else details.features.splitlines() %}
+        {% for feature in _features %}{% if feature|trim %}<li>{{ feature|trim }}</li>{% endif %}{% endfor %}
+      </ul>
+      <div class="plan-select-indicator">
+        {% if is_current %}<span class="badge-status badge-active">Current Plan</span>{% else %}<span class="plan-pick-cta">Select</span>{% endif %}
+      </div>
+    </label>
+    {% endfor %}
+  </div>
+</div>
+
+{# ── Step 2 + 3: shown after plan is chosen ── #}
+<div class="billing-section" id="step-payment" style="display:none">
+
+  {# Selected plan summary bar #}
+  <div class="selected-plan-bar" id="selectedPlanBar">
+    <div class="spb-left">
+      <iconify-icon icon="lucide:check-circle-2" width="20" style="color:#6ee7b7"></iconify-icon>
+      <div>
+        <div class="spb-label">Selected Plan</div>
+        <div class="spb-name" id="spbPlanName">—</div>
+      </div>
+    </div>
+    <div class="spb-price" id="spbPrice">—</div>
+  </div>
+
+  {# Step 2: Billing cycle #}
+  <div class="billing-section-hd" style="margin-top:1.5rem">
+    <span class="step-bubble">2</span>
+    <h2>Billing Cycle</h2>
+  </div>
+  <div class="billing-cycle-selector">
+    <label class="cycle-toggle" id="cycleMonthly">
+      <input type="radio" name="billing_cycle" value="monthly" checked> Monthly
+    </label>
+    <label class="cycle-toggle" id="cycleYearly">
+      <input type="radio" name="billing_cycle" value="yearly"> Yearly
+      <span class="cycle-save-badge">Save ~17%</span>
+    </label>
+  </div>
+
+  {# Step 3: Payment methods #}
+  <div class="billing-section-hd" style="margin-top:1.5rem">
+    <span class="step-bubble">3</span>
+    <h2>Choose a Payment Method</h2>
+  </div>
+
+  {% if paymongo_enabled|default(false) %}
+  <div class="paymongo-notice">
+    <div class="paymongo-badge">
+      <span>⚡</span>
+      <strong>Instant activation via PayMongo</strong>
+    </div>
+    <p class="pm-desc">Pay online and your subscription activates automatically.</p>
+    <a href="#" id="paymongoBtn" class="btn btn-success" style="margin-top:1rem">
+      <iconify-icon icon="lucide:credit-card" width="16"></iconify-icon>
+      Pay with PayMongo
+    </a>
+  </div>
+  {% endif %}
+
+  {% if payment_methods %}
+  <div class="payment-methods-grid">
+    {% for method in payment_methods %}
+    <div class="payment-method-card {% if method.is_default %}is-default{% endif %}">
+      {% if method.is_default %}<span class="method-default-badge">Default</span>{% endif %}
+      <div class="method-card-header">
+        <iconify-icon icon="{{ method.icon }}" width="22"></iconify-icon>
+        <div>
+          <strong>{{ method.name }}</strong>
+          <div class="method-type-label">{{ method.type_label }}</div>
+        </div>
+      </div>
+      {% if method.qr_image %}
+      <div class="method-qr-wrap">
+        <img src="{{ url_for('static', filename='uploads/billing/' ~ method.qr_image) }}"
+             alt="QR for {{ method.name }}" class="method-qr-img" loading="lazy">
+        <span class="method-qr-hint">Scan to pay</span>
+      </div>
+      {% endif %}
+      <div class="method-details">
+        {% if method.account_name %}<div class="method-detail-row"><span>Account</span><strong>{{ method.account_name }}</strong></div>{% endif %}
+        {% if method.account_number %}<div class="method-detail-row"><span>Number</span><code>{{ method.account_number }}</code></div>{% endif %}
+        {% if method.mobile_number %}<div class="method-detail-row"><span>Mobile</span><code>{{ method.mobile_number }}</code></div>{% endif %}
+        {% if method.bank_name %}<div class="method-detail-row"><span>Bank</span><span>{{ method.bank_name }}</span></div>{% endif %}
+      </div>
+      {% if method.instructions %}<p class="method-instructions">{{ method.instructions }}</p>{% endif %}
+      <a href="{{ url_for('admin.billing_payment', method_id=method.id) }}"
+         class="method-pay-btn js-pay-btn" data-method-id="{{ method.id }}">
+        <iconify-icon icon="lucide:send" width="15"></iconify-icon>
+        Pay via {{ method.name }}
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% elif not paymongo_enabled|default(false) %}
+  <div class="alert alert-warning" style="margin-top:1rem">
+    <iconify-icon icon="lucide:alert-triangle" width="16"></iconify-icon>
+    <span>No payment methods are configured yet. Please contact your administrator.</span>
+  </div>
+  {% endif %}
+</div>
+
+<div style="margin-top:1.5rem">
+  <a href="{{ url_for('admin.billing_index') }}" class="btn btn-ghost">
+    <iconify-icon icon="lucide:arrow-left" width="14"></iconify-icon> Cancel
+  </a>
+</div>
+
+<style>
+.billing-section{margin-bottom:0.5rem}
+.billing-section-hd{display:flex;align-items:center;gap:0.75rem;margin-bottom:1.1rem}
+.billing-section-hd h2{margin:0;font-size:1.1rem;font-weight:700}
+.step-bubble{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:rgba(99,102,241,0.25);border:2px solid #6366f1;font-size:0.82rem;font-weight:800;color:#e0e7ff;flex-shrink:0}
+
+/* Plan cards */
+.plan-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;margin-bottom:1.5rem}
+.plan-card-v2{position:relative;padding:1.25rem 1.1rem 1rem;border:2px solid rgba(255,255,255,0.1);border-radius:14px;background:rgba(255,255,255,0.03);display:flex;flex-direction:column;gap:0.65rem;cursor:pointer;transition:border-color 0.2s,background 0.2s}
+.plan-card-v2:hover{border-color:rgba(99,102,241,0.4)}
+.plan-card-v2.selected{border-color:#6366f1;background:rgba(99,102,241,0.1);box-shadow:0 0 0 3px rgba(99,102,241,0.15)}
+.plan-name{font-size:1.1rem;font-weight:800}
+.plan-price .amount{font-size:1.6rem;font-weight:800;color:#818cf8}
+.plan-yearly-note{display:flex;align-items:center;gap:0.35rem;font-size:0.73rem;color:#6ee7b7;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);border-radius:20px;padding:0.2rem 0.55rem;width:fit-content}
+.plan-desc{font-size:0.82rem;color:var(--text-muted)}
+.plan-features{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.3rem;font-size:0.82rem}
+.plan-features li::before{content:"✓ ";color:#6ee7b7}
+.plan-pick-cta{display:inline-block;padding:0.3rem 0.8rem;border-radius:6px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;font-size:0.8rem;font-weight:600;margin-top:auto}
+.plan-card-v2.selected .plan-pick-cta{background:rgba(99,102,241,0.35);border-color:#6366f1;color:#e0e7ff}
+.plan-badge-popular{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-size:0.7rem;font-weight:700;padding:0.2rem 0.7rem;border-radius:20px;white-space:nowrap}
+
+/* Selected plan bar */
+.selected-plan-bar{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;background:rgba(99,102,241,0.1);border:2px solid rgba(99,102,241,0.35);border-radius:12px;gap:1rem}
+.spb-left{display:flex;align-items:center;gap:0.75rem}
+.spb-label{font-size:0.75rem;color:var(--text-muted)}
+.spb-name{font-size:1rem;font-weight:800;color:#e0e7ff}
+.spb-price{font-size:1.25rem;font-weight:800;color:#818cf8}
+
+/* Cycle selector */
+.billing-cycle-selector{display:flex;gap:0.75rem;margin-bottom:1.25rem}
+.cycle-toggle{display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.6rem 1.25rem;border-radius:10px;border:1px solid rgba(255,255,255,0.1);font-weight:600;font-size:0.9rem;transition:background 0.2s,border-color 0.2s;user-select:none}
+.cycle-toggle:has(input:checked){background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.5)}
+.cycle-toggle input{accent-color:#6366f1}
+.cycle-save-badge{font-size:0.68rem;padding:0.1rem 0.4rem;border-radius:10px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7}
+
+/* PayMongo notice */
+.paymongo-notice{padding:1.1rem 1.25rem;background:rgba(16,185,129,0.07);border:1px solid rgba(16,185,129,0.25);border-radius:12px;margin-bottom:1rem}
+.paymongo-badge{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem;font-size:0.95rem}
+.pm-desc{color:var(--text-muted);font-size:0.85rem;margin:0}
+.btn-success{background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none}
+
+/* Payment method cards */
+.payment-methods-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem}
+.payment-method-card{position:relative;padding:1.1rem;border:1px solid rgba(255,255,255,0.1);border-radius:14px;background:rgba(255,255,255,0.03);display:flex;flex-direction:column;gap:0.7rem;transition:border-color 0.2s}
+.payment-method-card.is-default{border-color:rgba(99,102,241,0.4)}
+.payment-method-card:hover{border-color:rgba(99,102,241,0.35)}
+.method-default-badge{position:absolute;top:0.65rem;right:0.65rem;font-size:0.68rem;padding:0.15rem 0.45rem;border-radius:10px;background:rgba(99,102,241,0.2);color:#a5b4fc}
+.method-card-header{display:flex;align-items:center;gap:0.65rem}
+.method-type-label{font-size:0.78rem;color:var(--text-muted)}
+.method-qr-wrap{text-align:center}
+.method-qr-img{max-width:150px;width:100%;border-radius:8px;border:1px solid rgba(255,255,255,0.1)}
+.method-qr-hint{display:block;font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem}
+.method-details{font-size:0.83rem;display:flex;flex-direction:column;gap:0.3rem}
+.method-detail-row{display:flex;justify-content:space-between;gap:0.5rem}
+.method-instructions{font-size:0.8rem;color:var(--text-muted);margin:0}
+.method-pay-btn{display:flex;align-items:center;justify-content:center;gap:0.5rem;margin-top:auto;width:100%;padding:0.72rem 1rem;border-radius:10px;border:none;cursor:pointer;font-family:inherit;font-size:0.9rem;font-weight:700;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;box-shadow:0 4px 14px rgba(99,102,241,0.35);transition:transform 0.15s,box-shadow 0.15s;text-decoration:none}
+.method-pay-btn:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(99,102,241,0.5)}
+.method-pay-btn:active{transform:translateY(0)}
+.activation-eta-badge{display:inline-flex;align-items:center;gap:0.35rem;font-size:0.82rem;padding:0.35rem 0.75rem;border-radius:20px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);color:#f59e0b}
+
+@media(max-width:600px){
+  .billing-cycle-selector{flex-direction:column}
+  .selected-plan-bar{flex-direction:column;align-items:flex-start}
+}
+</style>
+
+<script>
+(function () {
+  var planCards   = document.querySelectorAll('.plan-card-v2');
+  var stepPayment = document.getElementById('step-payment');
+  var spbName     = document.getElementById('spbPlanName');
+  var spbPrice    = document.getElementById('spbPrice');
+  var cycleRadios = document.querySelectorAll('input[name="billing_cycle"]');
+  var priceEls    = document.querySelectorAll('.price-display');
+  var yearNotes   = document.querySelectorAll('.plan-yearly-note');
+  var payLinks    = document.querySelectorAll('.js-pay-btn');
+  var pmBtn       = document.getElementById('paymongoBtn');
+
+  /* ── Helpers ── */
+  function getSelectedPlan() {
+    var r = document.querySelector('.plan-card-v2.selected');
+    return r ? r.dataset.plan : '';
+  }
+
+  function getSelectedCycle() {
+    var r = document.querySelector('input[name="billing_cycle"]:checked');
+    return r ? r.value : 'monthly';
+  }
+
+  function getPriceForPlan(planName, cycle) {
+    var card = document.querySelector('.plan-card-v2[data-plan="' + planName + '"]');
+    if (!card) return '';
+    var el = card.querySelector('.price-display');
+    if (!el) return '';
+    return cycle === 'yearly' ? el.dataset.yearly : el.dataset.monthly;
+  }
+
+  /* ── Update pay link hrefs ── */
+  function updatePayLinks() {
+    var plan  = getSelectedPlan();
+    var cycle = getSelectedCycle();
+    payLinks.forEach(function (a) {
+      var base = a.href.split('?')[0];
+      var p = new URLSearchParams({ billing_cycle: cycle });
+      if (plan) p.set('plan', plan);
+      a.href = base + '?' + p.toString();
+    });
+    if (pmBtn) {
+      /* PayMongo path — build checkout URL with plan + cycle */
+      var base = pmBtn.href.split('?')[0];
+      var p = new URLSearchParams({ action: 'checkout', plan: plan, billing_cycle: cycle });
+      pmBtn.href = base + '?' + p.toString();
+    }
+  }
+
+  /* ── Update the selected-plan summary bar ── */
+  function updateSummaryBar() {
+    var plan  = getSelectedPlan();
+    var cycle = getSelectedCycle();
+    if (!plan) return;
+    spbName.textContent  = plan;
+    spbPrice.textContent = getPriceForPlan(plan, cycle);
+  }
+
+  /* ── Cycle toggle: swap displayed prices ── */
+  function applyCycle(cycle) {
+    priceEls.forEach(function (el) {
+      el.textContent = cycle === 'yearly' ? el.dataset.yearly : el.dataset.monthly;
+    });
+    yearNotes.forEach(function (el) {
+      el.style.display = cycle === 'yearly' ? 'flex' : 'none';
+    });
+    document.querySelectorAll('.cycle-toggle').forEach(function (l) {
+      var inp = l.querySelector('input');
+      l.style.borderColor = inp && inp.checked ? 'rgba(99,102,241,0.5)' : '';
+    });
+    updateSummaryBar();
+    updatePayLinks();
+  }
+
+  cycleRadios.forEach(function (r) {
+    r.addEventListener('change', function () { applyCycle(this.value); });
+  });
+
+  /* ── Plan card selection ── */
+  function selectPlan(card) {
+    planCards.forEach(function (c) { c.classList.remove('selected'); });
+    card.classList.add('selected');
+    card.querySelector('.plan-radio').checked = true;
+    stepPayment.style.display = '';
+    updateSummaryBar();
+    updatePayLinks();
+    /* Smooth scroll into the payment section */
+    stepPayment.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  planCards.forEach(function (card) {
+    card.addEventListener('click', function () { selectPlan(card); });
+  });
+
+  /* ── Init: if a plan is already selected (current plan), show step 2+3 ── */
+  var preSelected = document.querySelector('.plan-card-v2.selected');
+  if (preSelected) {
+    stepPayment.style.display = '';
+    updateSummaryBar();
+    updatePayLinks();
+  }
+
+  /* Init cycle */
+  var initCycle = document.querySelector('input[name="billing_cycle"]:checked');
+  if (initCycle) applyCycle(initCycle.value);
+})();
+</script>

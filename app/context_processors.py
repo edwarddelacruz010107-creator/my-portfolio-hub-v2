@@ -35,6 +35,7 @@ except Exception:
     _HAS_NOTIF = False
 from app import db
 from app.utils import get_profile_completion
+from app.services.permissions import is_administrator_plan as _is_admin_plan_fn
 from app.tenant_security import resolve_active_tenant
 
 logger = logging.getLogger(__name__)
@@ -159,18 +160,22 @@ def _load_globals(app):
         except Exception:
             pass
 
+    _active_plan = profile.effective_plan() if profile else 'Basic'
     return dict(
         profile=profile,
         project_count=project_count,
         unread_messages=unread_messages,
         unread_superadmin_messages=unread_superadmin_messages,
         profile_completion=profile_completion,
-        active_plan=profile.effective_plan() if profile else 'Basic',
+        active_plan=_active_plan,
         plan_features=profile.plan_features() if profile else {},
         now=datetime.now(timezone.utc),
         web3forms_access_key=app.config.get('WEB3FORMS_ACCESS_KEY'),
         heartbeat_state=heartbeat_state,
         active_tenant_slug=active_tenant_slug,
+        # Administrator plan helpers — available in all templates
+        is_administrator_tenant=_is_admin_plan_fn(_active_plan),
+        is_administrator_plan=_is_admin_plan_fn,
     )
 
 

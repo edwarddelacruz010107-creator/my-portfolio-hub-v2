@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-Factor Authentication — Portfolio CMS</title>
+    <link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+    <script>(function(){ var t=localStorage.getItem('cms-admin-theme')||'dark'; document.documentElement.setAttribute('data-theme',t); })();</script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #060810; --bg-1: #0d1117; --bg-2: #12161e;
+            --text: #e8eaf0; --text-muted: #7a8094;
+            --accent: #6366f1; --accent-light: #818cf8; --accent-dark: #4f46e5;
+            --accent-glow: rgba(99,102,241,0.25);
+            --border: rgba(255,255,255,0.07); --border-light: rgba(255,255,255,0.12);
+            --radius: 14px; --radius-lg: 24px;
+            --shadow: 0 24px 80px rgba(0,0,0,0.5);
+            --font-display: 'Syne', sans-serif;
+            --font-body: 'DM Sans', sans-serif;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        html[data-theme="light"] {
+            --bg: #f0f2f8; --bg-1: #e8ecf5; --bg-2: #ffffff;
+            --text: #0f172a; --text-muted: #475569;
+            --border: rgba(15,23,42,0.08); --border-light: rgba(15,23,42,0.14);
+            --shadow: 0 12px 48px rgba(0,0,0,0.1);
+            --accent-glow: rgba(99,102,241,0.12);
+        }
+        body {
+            font-family: var(--font-body);
+            min-height: 100vh; background: var(--bg); color: var(--text);
+            display: flex; align-items: center; justify-content: center;
+            padding: 24px; -webkit-font-smoothing: antialiased; overflow: hidden;
+            position: relative;
+        }
+        .bg-orb { position: fixed; border-radius: 50%; pointer-events: none; filter: blur(80px); }
+        .bg-orb-1 { width: 500px; height: 500px; background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%); top: -200px; right: -100px; animation: orbDrift 16s ease-in-out infinite; }
+        .bg-orb-2 { width: 400px; height: 400px; background: radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%); bottom: -150px; left: -80px; animation: orbDrift 22s ease-in-out infinite reverse; }
+        @keyframes orbDrift { 0%,100%{transform:translate(0,0)scale(1)} 33%{transform:translate(35px,-25px)scale(1.07)} 66%{transform:translate(-20px,18px)scale(0.95)} }
+        .bg-grid { position: fixed; inset: 0; background-image: linear-gradient(rgba(99,102,241,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,0.03) 1px,transparent 1px); background-size:60px 60px; pointer-events:none; }
+
+        .card-wrap { position: relative; z-index: 1; width: 100%; max-width: 460px; }
+        .card {
+            background: rgba(13,17,23,0.88);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius-lg);
+            padding: 3rem;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(24px) saturate(180%);
+            position: relative; overflow: hidden;
+        }
+        .card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,#6366f1,#8b5cf6,#14b8a6,transparent); border-radius:var(--radius-lg) var(--radius-lg) 0 0; }
+        .card::after { content:''; position:absolute; top:0; left:0; right:0; bottom:0; background:radial-gradient(ellipse 60% 40% at 50% 0%,rgba(99,102,241,0.05) 0%,transparent 60%); pointer-events:none; border-radius:inherit; }
+        html[data-theme="light"] .card { background:rgba(255,255,255,0.92); border-color:rgba(99,102,241,0.1); }
+
+        .card-header { text-align: center; margin-bottom: 2.25rem; position: relative; z-index: 1; }
+        .shield-logo {
+            width: 68px; height: 68px; border-radius: 20px;
+            margin: 0 auto 1.4rem;
+            display: grid; place-items: center;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: #fff; font-size: 1.6rem;
+            box-shadow: 0 8px 32px rgba(99,102,241,0.4), 0 0 0 4px rgba(99,102,241,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .shield-logo:hover { transform: scale(1.05) rotate(-2deg); box-shadow: 0 12px 40px rgba(99,102,241,0.55); }
+        .card-title { font-family: var(--font-display); font-size: 1.9rem; font-weight: 800; letter-spacing: -0.025em; margin-bottom: 0.45rem; background: linear-gradient(135deg, var(--text), rgba(203,213,225,0.8)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+        html[data-theme="light"] .card-title { background:none; -webkit-text-fill-color:unset; color:var(--text); }
+        .card-subtitle { color: var(--text-muted); font-size: 0.9rem; line-height: 1.55; }
+
+        .alert { padding: 0.9rem 1.1rem; border-radius: 12px; font-size: 0.875rem; margin-bottom: 1.25rem; display: flex; align-items: flex-start; gap: 0.6rem; position: relative; z-index: 1; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+        .alert-danger { background:rgba(239,68,68,0.1); color:#fca5a5; border:1px solid rgba(239,68,68,0.2); }
+        .alert-info { background:rgba(99,102,241,0.1); color:var(--accent-light); border:1px solid rgba(99,102,241,0.2); }
+        .alert-success { background:rgba(16,185,129,0.1); color:#6ee7b7; border:1px solid rgba(16,185,129,0.2); }
+
+        .form-section { position: relative; z-index: 1; margin-bottom: 1.5rem; }
+        .section-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); display: block; margin-bottom: 0.7rem; }
+
+        .code-input {
+            width: 100%;
+            padding: 1.1rem 1.25rem;
+            border-radius: 16px;
+            border: 1px solid var(--border-light);
+            background: rgba(255,255,255,0.04);
+            color: var(--text);
+            font-family: 'Courier New', monospace;
+            font-size: 2rem; font-weight: 700;
+            letter-spacing: 0.5em; text-align: center;
+            transition: all var(--transition);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+        }
+        .code-input:focus {
+            outline: none;
+            border-color: rgba(99,102,241,0.7);
+            background: rgba(99,102,241,0.08);
+            box-shadow: 0 0 0 5px rgba(99,102,241,0.12);
+        }
+        .code-input.backup-input { font-size: 1.1rem; letter-spacing: 0.2em; text-transform: uppercase; }
+        html[data-theme="light"] .code-input { background:rgba(99,102,241,0.04); border-color:rgba(99,102,241,0.15); }
+
+        .divider { display:flex; align-items:center; gap:1rem; margin:1.5rem 0; color:var(--text-muted); font-size:0.8rem; font-weight:500; }
+        .divider::before,.divider::after { content:''; flex:1; height:1px; background:var(--border); }
+
+        .submit-btn {
+            display: flex; align-items: center; justify-content: center; gap: 0.55rem;
+            width: 100%; padding: 1rem;
+            border-radius: 999px; border: none;
+            background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+            color: #fff;
+            font-family: var(--font-display); font-weight: 700; font-size: 0.95rem;
+            letter-spacing: 0.04em;
+            box-shadow: 0 8px 28px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.12);
+            transition: all var(--transition); cursor: pointer;
+            position: relative; z-index: 1;
+        }
+        .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 36px rgba(99,102,241,0.5); background: linear-gradient(135deg, #818cf8, var(--accent)); }
+        .submit-btn:active { transform: translateY(0); }
+        .submit-btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+
+        .help-note { font-size: 0.82rem; color: var(--text-muted); line-height: 1.6; padding: 0.85rem 1rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 12px; margin-top: 1rem; position: relative; z-index: 1; }
+        html[data-theme="light"] .help-note { background: rgba(99,102,241,0.04); }
+
+        .back-link { display: flex; align-items: center; justify-content: center; gap: 0.4rem; margin-top: 1.75rem; color: var(--text-muted); font-size: 0.875rem; text-decoration: none; transition: color var(--transition); position: relative; z-index: 1; }
+        .back-link:hover { color: var(--accent-light); }
+
+        .theme-toggle { position: fixed; top: 20px; right: 20px; width: 44px; height: 44px; border-radius: 14px; background: rgba(255,255,255,0.06); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--text-muted); cursor: pointer; transition: all var(--transition); z-index: 100; backdrop-filter: blur(8px); }
+        .theme-toggle:hover { background:rgba(99,102,241,0.12); border-color:rgba(99,102,241,0.3); color:#818cf8; transform:translateY(-1px); }
+
+        @media (max-width:480px) { .card{padding:2rem 1.5rem;} .card-title{font-size:1.6rem;} .code-input{font-size:1.5rem;} }
+    </style>
+</head>
+<body>
+    <div class="bg-orb bg-orb-1"></div>
+    <div class="bg-orb bg-orb-2"></div>
+    <div class="bg-grid"></div>
+
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+        <iconify-icon icon="lucide:moon" width="18" class="moon-icon"></iconify-icon>
+        <iconify-icon icon="lucide:sun" width="18" class="sun-icon" style="display:none"></iconify-icon>
+    </button>
+
+    <div class="card-wrap">
+        <div class="card">
+            <div class="card-header">
+                <div class="shield-logo">
+                    <iconify-icon icon="lucide:shield-check" width="32"></iconify-icon>
+                </div>
+                <h1 class="card-title">Verify Identity</h1>
+                <p class="card-subtitle">Enter the 6-digit code from your authenticator app</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  <div class="alert alert-{{ 'danger' if category == 'danger' else category }}">
+                    <iconify-icon icon="{{ 'lucide:x-circle' if category == 'danger' else 'lucide:info' }}" width="15" style="flex-shrink:0;margin-top:1px;"></iconify-icon>
+                    {{ message }}
+                  </div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('auth.verify_2fa') }}" id="totpForm">
+                {{ form.hidden_tag() }}
+
+                <div class="form-section">
+                    <span class="section-label">Authenticator Code</span>
+                    {{ form.code(
+                        class="code-input",
+                        placeholder="000000",
+                        maxlength=6,
+                        inputmode="numeric",
+                        pattern="[0-9]{6}",
+                        autofocus=True,
+                        id="codeInput"
+                    ) }}
+                </div>
+
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    <iconify-icon icon="lucide:shield-check" width="18" id="submitIcon"></iconify-icon>
+                    <span id="submitText">Verify Code</span>
+                </button>
+
+                <div class="divider">or use a backup code</div>
+
+                <div class="form-section">
+                    <span class="section-label">Backup Code</span>
+                    {{ form.backup_code(
+                        class="code-input backup-input",
+                        placeholder="XXXXX-XXXXX",
+                        maxlength=11,
+                        id="backupInput"
+                    ) }}
+                </div>
+            </form>
+
+            <div class="help-note">
+                <iconify-icon icon="lucide:info" width="13" style="display:inline;vertical-align:middle;margin-right:4px;color:#818cf8;"></iconify-icon>
+                If your code is rejected, sync your phone's clock and try again. A short clock-skew window is allowed.
+            </div>
+
+            <a href="{{ url_for('auth.login') }}" class="back-link">
+                <iconify-icon icon="lucide:arrow-left" width="15"></iconify-icon>
+                Back to sign in
+            </a>
+        </div>
+    </div>
+
+    <script>
+        const THEME_KEY = 'cms-admin-theme';
+        function updateIcons(t) {
+            document.querySelector('.sun-icon').style.display = t==='light'?'inline-block':'none';
+            document.querySelector('.moon-icon').style.display = t==='dark'?'inline-block':'none';
+        }
+        const saved = localStorage.getItem(THEME_KEY)||'dark';
+        document.documentElement.setAttribute('data-theme', saved);
+        updateIcons(saved);
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            const cur = document.documentElement.getAttribute('data-theme');
+            const next = cur==='dark'?'light':'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem(THEME_KEY, next);
+            updateIcons(next);
+        });
+
+        const codeInput   = document.getElementById('codeInput');
+        const backupInput = document.getElementById('backupInput');
+        const form        = document.getElementById('totpForm');
+        const submitBtn   = document.getElementById('submitBtn');
+        const submitIcon  = document.getElementById('submitIcon');
+        const submitText  = document.getElementById('submitText');
+
+        codeInput.addEventListener('input', () => {
+            const v = codeInput.value.replace(/\D/g,'');
+            codeInput.value = v;
+            if (v.length === 6) {
+                backupInput.value = '';
+                setTimeout(() => form.submit(), 120);
+            }
+        });
+        backupInput.addEventListener('input', () => {
+            let v = backupInput.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'');
+            if (v.length > 5 && v[5] !== '-') v = v.slice(0,5)+'-'+v.slice(5);
+            backupInput.value = v;
+        });
+        form.addEventListener('submit', () => {
+            submitBtn.disabled = true;
+            submitIcon.setAttribute('icon','lucide:loader-2');
+            submitText.textContent = 'Verifying…';
+        });
+    </script>
+</body>
+</html>

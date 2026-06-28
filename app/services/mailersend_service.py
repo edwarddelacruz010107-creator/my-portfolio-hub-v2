@@ -260,79 +260,83 @@ def send_email(
     Returns:
         Tuple of (success: bool, message_id_or_error: str).
     """
+    # FIX (v6.6): Removed SDK dependency (response.success is unreliable).
+    # Now uses direct HTTPS requests — HTTP status codes are the source of truth.
     api_key = _get_mailersend_key(portal)
     if not api_key:
         logger.error('mailersend_service: MAILERSEND_API_KEY is not configured for portal=%s.', portal)
         return False, 'MailerSend API key not configured.'
 
+    sender_email = _get_sender_email(portal=portal)
+    sender_name  = _get_sender_name(portal=portal)
+
     try:
-        from mailersend import MailerSendClient, Email, EmailBuilder
-        from mailersend.exceptions import (
-            AuthenticationError,
-            BadRequestError,
-            RateLimitExceeded,
-            ServerError,
-            MailerSendError,
-        )
+        import requests as _req
+        import time as _time
 
-        client = MailerSendClient(api_key=api_key)
-        email_resource = Email(client)
-
-        builder = (
-            EmailBuilder()
-            .from_email(_get_sender_email(portal=portal), _get_sender_name(portal=portal))
-            .to(to, to_name or '')
-            .subject(subject)
-            .text(text)
-        )
-
+        payload: dict = {
+            'from': {'email': sender_email, 'name': sender_name},
+            'to':   [{'email': to, 'name': to_name or ''}],
+            'subject': subject,
+            'text': text,
+        }
         if html:
-            builder = builder.html(html)
-
+            payload['html'] = html
         if reply_to:
-            builder = builder.reply_to(reply_to)
+            payload['reply_to'] = [{'email': reply_to}]
 
-        request = builder.build()
-        response = email_resource.send(request)
+        t0 = _time.monotonic()
+        resp = _req.post(
+            'https://api.mailersend.com/v1/email',
+            json=payload,
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type':  'application/json',
+            },
+            timeout=20,
+        )
+        latency = (_time.monotonic() - t0) * 1000
 
-        if response.success:
-            # MailerSend returns the message-id in the X-Message-Id header
-            msg_id = (
-                response.headers.get('x-message-id')
-                or response.get('id', 'unknown')
-            )
+        if resp.status_code in (200, 202):
+            msg_id = resp.headers.get('x-message-id', '')
+            try:
+                msg_id = msg_id or resp.json().get('id', '')
+            except Exception:
+                pass
             logger.info(
-                'MailerSend[%s]: sent <%s> to %s (message_id=%s)',
-                portal, subject[:60], to, msg_id,
+                'MailerSend[%s]: delivered to=%s subject=%r msg_id=%s latency=%.0fms',
+                portal, to, subject[:60], msg_id, latency,
             )
             return True, str(msg_id)
 
-        # Non-2xx but no SDK exception raised
-        err = f'HTTP {response.status_code}'
-        logger.error(
-            'MailerSend[%s]: unexpected status %s sending <%s> to %s',
-            portal, response.status_code, subject[:60], to,
-        )
-        return False, err
+        try:
+            body = resp.json()
+            detail = body.get('message', '') or str(body)[:200]
+        except Exception:
+            detail = resp.text[:200]
 
-    except AuthenticationError as exc:
-        logger.error('MailerSend[%s]: authentication failed — check API key: %s', portal, exc)
-        return False, 'Authentication failed. Verify MAILERSEND_API_KEY.'
-    except BadRequestError as exc:
-        logger.error('MailerSend[%s]: bad request sending to %s: %s', portal, to, exc)
-        return False, f'Bad request: {exc}'
-    except RateLimitExceeded as exc:
-        logger.warning('MailerSend[%s]: rate limit exceeded sending to %s: %s', portal, to, exc)
-        return False, 'Rate limit exceeded. Will retry via SMTP fallback.'
-    except ServerError as exc:
-        logger.error('MailerSend[%s]: server error sending to %s: %s', portal, to, exc)
-        return False, f'MailerSend server error: {exc}'
-    except MailerSendError as exc:
-        logger.error('MailerSend[%s]: SDK error sending to %s: %s', portal, to, exc)
-        return False, str(exc)
+        logger.error(
+            'MailerSend[%s]: HTTP %d to=%s subject=%r error=%s',
+            portal, resp.status_code, to, subject[:60], detail,
+        )
+
+        if resp.status_code == 401:
+            return False, f'MailerSend: invalid API key (401). {detail}'
+        if resp.status_code == 422:
+            return False, f'MailerSend: unprocessable (422) — check sender domain. {detail}'
+        if resp.status_code == 429:
+            return False, f'MailerSend: rate limit exceeded (429). {detail}'
+        return False, f'MailerSend HTTP {resp.status_code}: {detail}'
+
+    except _req.Timeout:
+        logger.error('MailerSend[%s]: request timed out for to=%s', portal, to)
+        return False, 'MailerSend: request timed out.'
+    except _req.ConnectionError as exc:
+        logger.error('MailerSend[%s]: connection error for to=%s: %s', portal, to, exc)
+        return False, f'MailerSend: connection error — {type(exc).__name__}'
     except Exception as exc:
-        logger.exception('MailerSend[%s]: unexpected error sending to %s: %s', portal, to, exc)
-        return False, str(exc)
+        logger.exception('MailerSend[%s]: unexpected error sending to %s', portal, to)
+        return False, f'MailerSend: unexpected error — {type(exc).__name__}'
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -376,42 +380,31 @@ def _smtp_fallback(to: str, subject: str, body: str) -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def validate_mailersend_key(key: str) -> tuple[bool, str]:
-    """
-    Validate a MailerSend API key by calling the low-cost list_domains endpoint.
-
-    Args:
-        key: Raw API key string entered by the superadmin.
-
-    Returns:
-        Tuple of (valid: bool, human_readable_message: str).
-
-    Note:
-        The key is validated server-side only. This function is called from the
-        superadmin email-settings POST handler and its result is returned as JSON
-        — the key itself is never included in that JSON response.
-    """
-    if not key or len(key) < 10:
-        return False, 'Key too short — MailerSend keys are typically 60+ characters.'
+    if not key:
+        return False, "MailerSend API key missing."
 
     try:
-        from mailersend import MailerSendClient, Domains
-        from mailersend.exceptions import AuthenticationError, MailerSendError
+        import requests
 
-        client = MailerSendClient(api_key=key)
-        domains_resource = Domains(client)
-        response = domains_resource.list_domains()
+        response = requests.get(
+            "https://api.mailersend.com/v1/domains",
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+            },
+            timeout=15,
+        )
 
-        if response.success:
-            return True, 'Connected to MailerSend successfully.'
+        if response.status_code == 200:
+            return True, "MailerSend API key verified successfully."
+
         if response.status_code == 401:
-            return False, 'Invalid API key — authentication failed.'
-        return False, f'Unexpected response: HTTP {response.status_code}'
+            return False, "Invalid MailerSend API key."
 
-    except AuthenticationError:
-        return False, 'Invalid API key — authentication failed.'
-    except Exception as exc:
-        logger.error('validate_mailersend_key: unexpected error: %s', exc)
-        return False, str(exc)
+        return False, f"MailerSend returned HTTP {response.status_code}"
+
+    except Exception as e:
+        return False, str(e)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

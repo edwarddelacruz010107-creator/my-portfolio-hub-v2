@@ -1,0 +1,29 @@
+# ──────────────────────────────────────────────────────────────────
+# ADD THESE LINES TO YOUR .env FILE
+# (Portfolio CMS v5.6 — Superadmin OTP Web3Forms Patch)
+# ──────────────────────────────────────────────────────────────────
+
+# 1. Get your access key at https://web3forms.com
+#    Free tier: 250 submissions/month (sufficient for superadmin resets)
+#    The key routes email to the address registered on your Web3Forms account.
+WEB3FORMS_ACCESS_KEY=your_access_key_here
+
+# 2. The superadmin email address that should RECEIVE the OTP.
+#    If not set, the system falls back to the User.email value from the DB.
+#    Setting this explicitly is recommended — it pins the destination and
+#    prevents any accidental re-routing if the DB record is stale.
+OWNER_EMAIL=owner@yourdomain.com
+
+# ──────────────────────────────────────────────────────────────────
+# HOW TO GET YOUR WEB3FORMS ACCESS KEY
+# ──────────────────────────────────────────────────────────────────
+# 1. Go to https://web3forms.com
+# 2. Enter your email address (same as OWNER_EMAIL above)
+# 3. Click "Create Access Key" — a key is emailed to you instantly
+# 4. Paste the key as WEB3FORMS_ACCESS_KEY above
+# 5. No account signup, no password, no DNS records required
+#
+# The registered email (step 2) is where Web3Forms delivers messages.
+# It does NOT have to match OWNER_EMAIL — but keeping them the same
+# is simplest and avoids confusion.
+# ──────────────────────────────────────────────────────────────────

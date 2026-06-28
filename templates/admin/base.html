@@ -62,23 +62,21 @@
       {% endif %}
     </span>
     <span class="sidebar-plan-badge
-      {% if _sub == 'active' %}plan-badge--active
+      {% if is_administrator_tenant %}plan-badge--admin
+      {% elif _sub == 'active' %}plan-badge--active
       {% elif _sub == 'trial'  %}plan-badge--trial
       {% elif _sub == 'grace'  %}plan-badge--grace
       {% elif _sub == 'pending'%}plan-badge--pending
-      {% elif _sub in ('expired','cancelled') %}
-        {% if active_tenant_slug == 'default' or not active_tenant_slug %}plan-badge--admin{% else %}plan-badge--expired{% endif %}
-      {% else %}
-        {% if active_tenant_slug == 'default' or not active_tenant_slug %}plan-badge--admin{% else %}plan-badge--default{% endif %}
+      {% elif _sub in ('expired','cancelled') %}plan-badge--expired
+      {% else %}plan-badge--default
       {% endif %}">
-      {% if _sub == 'active'   %}✓ {{ profile.effective_plan() }}
+      {% if is_administrator_tenant %}👑 Administrator
+      {% elif _sub == 'active' %}✓ {{ profile.effective_plan() }}
       {% elif _sub == 'trial'  %}⏱ Trial · {{ profile.trial_days_remaining() }}d
       {% elif _sub == 'grace'  %}⚠ Grace
       {% elif _sub == 'pending'%}◉ Pending
-      {% elif _sub in ('expired','cancelled') %}
-        {% if active_tenant_slug == 'default' or not active_tenant_slug %}◈ Admin{% else %}✕ Expired{% endif %}
-      {% else %}
-        {% if active_tenant_slug == 'default' or not active_tenant_slug %}◈ Admin{% else %}○ No License{% endif %}
+      {% elif _sub in ('expired','cancelled') %}✕ Expired
+      {% else %}○ No License
       {% endif %}
     </span>
   </div>
@@ -260,14 +258,14 @@
         {% elif _sub_status == 'trial' %}
           <span class="license-pill license-trial">Trial · {{ profile.trial_days_remaining() }}d</span>
         {% elif _sub_status in ('expired','cancelled') %}
-          {% if active_tenant_slug == 'default' or not active_tenant_slug %}
-            <span class="license-pill license-admin">Administrator</span>
+          {% if is_administrator_tenant %}
+            <span class="license-pill license-admin" title="Reserved internal system plan">👑 Administrator</span>
           {% else %}
             <a href="{{ url_for('admin.billing_index') }}" class="license-pill license-unlicensed">Renew</a>
           {% endif %}
         {% else %}
-          {% if active_tenant_slug == 'default' or not active_tenant_slug %}
-            <span class="license-pill license-admin">Administrator</span>
+          {% if is_administrator_tenant %}
+            <span class="license-pill license-admin" title="Reserved internal system plan">👑 Administrator</span>
           {% else %}
             <a href="{{ url_for('admin.billing_index') }}" class="license-pill license-unlicensed">No license</a>
           {% endif %}

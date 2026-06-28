@@ -1,0 +1,39 @@
+<div class="page-hd">
+  <div class="page-hd-left">
+    <h1>Subscription History</h1>
+    <p>Past and current subscriptions for this tenant.</p>
+  </div>
+</div>
+
+<div class="dash-panel">
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Plan</th>
+          <th>Status</th>
+          <th>Started</th>
+          <th>Expires</th>
+          <th>Amount</th>
+          <th>PayMongo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in subscriptions %}
+        <tr>
+          <td><span class="badge-plan badge-{{ s.plan|lower }}">{{ s.plan }}</span></td>
+          <td><span class="badge-status badge-{{ s.status }}">{{ s.status_label }}</span></td>
+          <td>{{ s.started_at.strftime('%b %d, %Y') if s.started_at else '—' }}</td>
+          <td>{{ s.expires_at.strftime('%b %d, %Y') if s.expires_at else '—' }}</td>
+          <td>₱{{ '%.2f'|format(s.amount_paid or 0) }}</td>
+          <td style="font-size:0.78rem;font-family:monospace">
+            {% if s.paymongo_payment_id %}{{ s.paymongo_payment_id[:12] }}…{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted" style="text-align:center;padding:2rem">No subscription history yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

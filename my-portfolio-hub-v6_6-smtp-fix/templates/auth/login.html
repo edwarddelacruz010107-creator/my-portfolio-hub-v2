@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — Portfolio CMS</title>
+  <link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+  <!-- Inline theme init: prevents flash of wrong theme -->
+  <script>(function(){var t=localStorage.getItem('adminTheme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Token system ──────────────────────────────────────── */
+    :root {
+      --bg:          #060810;
+      --bg-1:        #0d1117;
+      --bg-2:        #12161e;
+      --bg-3:        #1a2030;
+      --text:        #e8eaf0;
+      --text-muted:  #7a8094;
+      --text-dim:    #8892a4;
+      --accent:      #6366f1;
+      --accent-l:    #818cf8;
+      --accent-d:    #4f46e5;
+      --accent-glow: rgba(99,102,241,0.22);
+      --success:     #10b981;
+      --danger:      #ef4444;
+      --border:      rgba(255,255,255,0.07);
+      --border-l:    rgba(255,255,255,0.12);
+      --radius:      14px;
+      --radius-lg:   24px;
+      --shadow:      0 32px 80px rgba(0,0,0,0.55);
+      --font-d:      'Syne', sans-serif;
+      --font-b:      'DM Sans', sans-serif;
+      --ease:        cubic-bezier(0.4, 0, 0.2, 1);
+      --t:           0.22s;
+    }
+    html[data-theme="light"] {
+      --bg:          #f0f4f8;
+      --bg-1:        #e8edf5;
+      --bg-2:        #ffffff;
+      --bg-3:        #f5f7fa;
+      --text:        #0f172a;
+      --text-muted:  #475569;
+      --text-dim:    #94a3b8;
+      --accent-glow: rgba(99,102,241,0.12);
+      --border:      rgba(15,23,42,0.08);
+      --border-l:    rgba(15,23,42,0.14);
+      --shadow:      0 16px 48px rgba(0,0,0,0.12);
+    }
+
+    /* ── Layout: split-screen ──────────────────────────────── */
+    body {
+      font-family: var(--font-b);
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+    }
+
+    /* LEFT: branding panel */
+    .brand-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 4rem 5%;
+      background: linear-gradient(145deg, #0a0d16 0%, #0e1320 40%, #111827 100%);
+      position: relative;
+      overflow: hidden;
+      min-height: 100vh;
+    }
+    html[data-theme="light"] .brand-panel {
+      background: linear-gradient(145deg, #1e1b4b 0%, #312e81 50%, #4f46e5 100%);
+    }
+
+    /* Decorative background mesh */
+    .brand-panel::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(ellipse 70% 60% at 20% 30%, rgba(99,102,241,0.18) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 80% 70%, rgba(139,92,246,0.12) 0%, transparent 55%);
+      pointer-events: none;
+    }
+    .brand-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(99,102,241,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99,102,241,0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+    }
+    .brand-content {
+      position: relative;
+      z-index: 1;
+      max-width: 440px;
+    }
+    .brand-logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 3.5rem;
+    }
+    .brand-logo-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-l));
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-family: var(--font-d);
+      font-size: 1.1rem;
+      font-weight: 800;
+      box-shadow: 0 8px 24px rgba(99,102,241,0.35);
+      flex-shrink: 0;
+    }
+    .brand-logo-text {
+      font-family: var(--font-d);
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.9);
+      letter-spacing: -0.01em;
+    }
+    html[data-theme="light"] .brand-logo-text { color: #fff; }
+
+    .brand-heading {
+      font-family: var(--font-d);
+      font-size: clamp(2rem, 3.5vw, 2.9rem);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      color: #fff;
+      margin-bottom: 1.25rem;
+    }
+    .brand-heading span {
+      background: linear-gradient(90deg, #818cf8, #c4b5fd);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .brand-subtitle {
+      color: rgba(255,255,255,0.52);
+      font-size: 1rem;
+      line-height: 1.65;
+      margin-bottom: 3rem;
+      max-width: 340px;
+    }
+    html[data-theme="light"] .brand-subtitle { color: rgba(255,255,255,0.65); }
+
+    /* Feature list */
+    .feature-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+    .feature-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.875rem;
+      color: rgba(255,255,255,0.6);
+    }
+    .feature-dot {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(99,102,241,0.2);
+      border: 1px solid rgba(99,102,241,0.3);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    html[data-theme="light"] .feature-item { color: rgba(255,255,255,0.75); }
+
+    /* RIGHT: form panel */
+    .form-panel {
+      width: 480px;
+      min-width: 420px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2.5rem;
+      position: relative;
+      background: var(--bg-1);
+      border-left: 1px solid var(--border);
+    }
+    html[data-theme="light"] .form-panel {
+      background: var(--bg-2);
+    }
+
+    .form-inner {
+      width: 100%;
+      max-width: 360px;
+    }
+
+    .form-header {
+      margin-bottom: 2.25rem;
+    }
+    .form-eyebrow {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--accent-l);
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .form-eyebrow::before {
+      content: '';
+      width: 14px;
+      height: 2px;
+      background: var(--accent-l);
+      border-radius: 2px;
+    }
+    .form-title {
+      font-family: var(--font-d);
+      font-size: 1.9rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      line-height: 1.15;
+      margin-bottom: 0.4rem;
+    }
+    .form-sub {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+
+    /* Flash messages */
+    .flash-zone {
+      margin-bottom: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .flash {
+      padding: 0.8rem 1rem;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      animation: slideDown var(--t) var(--ease);
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .flash-danger  { background: rgba(239,68,68,0.1);  color: #fca5a5; border: 1px solid rgba(239,68,68,0.2); }
+    .flash-success { background: rgba(16,185,129,0.1); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.2); }
+    .flash-info    { background: rgba(99,102,241,0.1); color: var(--accent-l); border: 1px solid rgba(99,102,241,0.2); }
+    .flash iconify-icon { flex-shrink: 0; margin-top: 1px; }
+
+    /* Form fields */
+    .field {
+      margin-bottom: 1.1rem;
+    }
+    .field-label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 0.55rem;
+    }
+    .input-wrap {
+      position: relative;
+    }
+    .input-icon-l {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      pointer-events: none;
+      transition: color var(--t);
+    }
+    .input-icon-r {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      transition: color var(--t), background var(--t);
+      border: none;
+      background: transparent;
+      display: flex;
+      align-items: center;
+    }
+    .input-icon-r:hover { color: var(--text-muted); background: var(--bg-3); }
+    .field-input {
+      width: 100%;
+      padding: 0.88rem 2.8rem 0.88rem 2.75rem;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      font-family: var(--font-b);
+      font-size: 0.92rem;
+      transition: border-color var(--t), background var(--t), box-shadow var(--t), transform var(--t);
+      -webkit-appearance: none;
+    }
+    html[data-theme="light"] .field-input {
+      background: var(--bg-3);
+      border-color: var(--border-l);
+    }
+    .field-input::placeholder { color: var(--text-dim); }
+    .field-input:hover {
+      border-color: var(--border-l);
+      background: rgba(99,102,241,0.05);
+    }
+    .field-input:focus {
+      outline: none;
+      border-color: rgba(99,102,241,0.6);
+      background: rgba(99,102,241,0.08);
+      box-shadow: 0 0 0 4px var(--accent-glow);
+      transform: translateY(-1px);
+    }
+    .input-wrap:focus-within .input-icon-l {
+      color: var(--accent-l);
+    }
+    /* Autofill fix */
+    .field-input:-webkit-autofill,
+    .field-input:-webkit-autofill:hover,
+    .field-input:-webkit-autofill:focus {
+      -webkit-text-fill-color: var(--text) !important;
+      -webkit-box-shadow: 0 0 0 1000px #12161e inset !important;
+      caret-color: var(--text);
+    }
+    html[data-theme="light"] .field-input:-webkit-autofill,
+    html[data-theme="light"] .field-input:-webkit-autofill:hover,
+    html[data-theme="light"] .field-input:-webkit-autofill:focus {
+      -webkit-box-shadow: 0 0 0 1000px #f5f7fa inset !important;
+    }
+    .field-error {
+      margin-top: 0.4rem;
+      font-size: 0.78rem;
+      color: #fca5a5;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    /* Row: remember + link */
+    .form-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .checkbox-label input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .forgot-link {
+      font-size: 0.8rem;
+      color: var(--accent-l);
+      text-decoration: none;
+      transition: opacity var(--t);
+    }
+    .forgot-link:hover { opacity: 0.75; }
+
+    /* Submit button */
+    .btn-submit {
+      width: 100%;
+      padding: 0.9rem 1.5rem;
+      border-radius: 999px;
+      border: none;
+      background: linear-gradient(135deg, var(--accent), var(--accent-d));
+      color: #fff;
+      font-family: var(--font-d);
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.55rem;
+      box-shadow: 0 6px 24px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.1);
+      transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease), opacity var(--t);
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-submit::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.07), transparent);
+      border-radius: inherit;
+    }
+    .btn-submit:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 36px rgba(99,102,241,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+    }
+    .btn-submit:active { transform: translateY(0); }
+    .btn-submit:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Loading spinner inside button */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn-submit.loading .spinner { display: block; }
+    .btn-submit.loading .btn-text { display: none; }
+
+    /* Divider */
+    .form-divider {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 1.5rem 0;
+      color: var(--text-dim);
+      font-size: 0.75rem;
+    }
+    .form-divider::before,
+    .form-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Security badge */
+    .security-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+    .security-badge iconify-icon { color: var(--success); }
+
+    /* Theme toggle */
+    .theme-btn {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      display: grid;
+      place-items: center;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background var(--t), border-color var(--t), transform var(--t);
+      z-index: 200;
+      backdrop-filter: blur(8px);
+    }
+    .theme-btn:hover {
+      background: rgba(99,102,241,0.12);
+      border-color: rgba(99,102,241,0.3);
+      transform: scale(1.05);
+    }
+
+    /* ── Responsive: collapse brand panel on small screens ─── */
+    @media (max-width: 860px) {
+      .brand-panel { display: none; }
+      .form-panel {
+        width: 100%;
+        min-width: 0;
+        min-height: 100vh;
+        border-left: none;
+        background: var(--bg);
+        padding: 2rem 1.5rem;
+      }
+      html[data-theme="light"] .form-panel { background: var(--bg); }
+    }
+    @media (max-width: 480px) {
+      .form-panel { padding: 1.75rem 1.25rem; }
+      .form-title  { font-size: 1.6rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Theme toggle -->
+<button class="theme-btn" id="themeBtn" aria-label="Toggle theme">
+  <iconify-icon icon="lucide:moon" width="17" id="moonIco"></iconify-icon>
+  <iconify-icon icon="lucide:sun"  width="17" id="sunIco" style="display:none"></iconify-icon>
+</button>
+
+<!-- LEFT: Brand panel -->
+<div class="brand-panel">
+  <div class="brand-grid"></div>
+  <div class="brand-content">
+    <div class="brand-logo">
+      <div class="brand-logo-icon">◆</div>
+      <span class="brand-logo-text">Portfolio CMS</span>
+    </div>
+    <h1 class="brand-heading">
+      Your portfolio.<br><span>Beautifully managed.</span>
+    </h1>
+    <p class="brand-subtitle">
+      A multi-tenant CMS platform for creative professionals —
+      built for speed, security, and scale.
+    </p>
+    <ul class="feature-list" role="list">
+      <li class="feature-item">
+        <div class="feature-dot">
+          <iconify-icon icon="lucide:shield-check" width="14" style="color:#818cf8"></iconify-icon>
+        </div>
+        Secure multi-tenant isolation
+      </li>
+      <li class="feature-item">
+        <div class="feature-dot">
+          <iconify-icon icon="lucide:mail-check" width="14" style="color:#818cf8"></iconify-icon>
+        </div>
+        Multi-provider email with failover
+      </li>
+      <li class="feature-item">
+        <div class="feature-dot">
+          <iconify-icon icon="lucide:activity" width="14" style="color:#818cf8"></iconify-icon>
+        </div>
+        Full audit log &amp; activity tracking
+      </li>
+    </ul>
+  </div>
+</div>
+
+<!-- RIGHT: Form panel -->
+<div class="form-panel">
+  <div class="form-inner">
+
+    <div class="form-header">
+      <div class="form-eyebrow">Admin Portal</div>
+      <h1 class="form-title">{{ page_title if page_title is defined else 'Welcome back' }}</h1>
+      <p class="form-sub">{{ page_subtitle if page_subtitle is defined else 'Sign in to manage your portfolio' }}</p>
+    </div>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-zone">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ 'danger' if category == 'danger' else category }}">
+              <iconify-icon icon="{{ 'lucide:x-circle' if category == 'danger' else 'lucide:check-circle' if category == 'success' else 'lucide:info' }}" width="15"></iconify-icon>
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <form method="post"
+          action="{{ action_url if action_url is defined else url_for('auth.login') }}"
+          id="loginForm" novalidate>
+      {{ form.hidden_tag() }}
+
+      <!-- Username -->
+      <div class="field">
+        <label class="field-label" for="username">Username or Email</label>
+        <div class="input-wrap">
+          <iconify-icon icon="lucide:user" width="16" class="input-icon-l"></iconify-icon>
+          <input id="username"
+                 name="username"
+                 type="text"
+                 class="field-input"
+                 placeholder="Enter your username"
+                 value="{{ form.username.data or '' }}"
+                 required autofocus
+                 autocomplete="username" />
+        </div>
+        {% if form.username.errors %}
+          <div class="field-error">
+            <iconify-icon icon="lucide:alert-circle" width="13"></iconify-icon>
+            {{ form.username.errors[0] }}
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Password -->
+      <div class="field">
+        <label class="field-label" for="password">Password</label>
+        <div class="input-wrap">
+          <iconify-icon icon="lucide:lock" width="16" class="input-icon-l"></iconify-icon>
+          <input id="password"
+                 name="password"
+                 type="password"
+                 class="field-input"
+                 placeholder="Enter your password"
+                 required
+                 autocomplete="current-password" />
+          <button type="button" class="input-icon-r" id="pwToggle" aria-label="Toggle password visibility">
+            <iconify-icon icon="lucide:eye" width="16" id="eyeIcon"></iconify-icon>
+          </button>
+        </div>
+        {% if form.password.errors %}
+          <div class="field-error">
+            <iconify-icon icon="lucide:alert-circle" width="13"></iconify-icon>
+            {{ form.password.errors[0] }}
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Remember me + Forgot password -->
+      <div class="form-row">
+        <label class="checkbox-label">
+          <input type="checkbox"
+                 id="remember_me"
+                 name="remember_me"
+                 {% if form.remember_me.data %}checked{% endif %} />
+          Remember me
+        </label>
+        <a href="{{ forgot_password_url | default(url_for('auth.forgot_password')) }}"
+           class="forgot-link">
+          Forgot password?
+        </a>
+      </div>
+
+      <!-- Submit -->
+      <button type="submit" class="btn-submit" id="submitBtn">
+        <div class="spinner" id="btnSpinner"></div>
+        <span class="btn-text">
+          <iconify-icon icon="lucide:log-in" width="16"></iconify-icon>
+          Sign In
+        </span>
+      </button>
+    </form>
+
+    <div class="security-badge">
+      <iconify-icon icon="lucide:shield-check" width="14"></iconify-icon>
+      Protected by CSRF + rate limiting
+    </div>
+
+  </div>
+</div>
+
+<script>
+  /* ── Theme toggle ──────────────────────────────────────── */
+  const moonIco = document.getElementById('moonIco');
+  const sunIco  = document.getElementById('sunIco');
+
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    localStorage.setItem('adminTheme', t);
+    moonIco.style.display = t === 'dark' ? 'block' : 'none';
+    sunIco.style.display  = t === 'light' ? 'block' : 'none';
+  }
+
+  document.getElementById('themeBtn').addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+    applyTheme(cur === 'dark' ? 'light' : 'dark');
+  });
+  // Init icons on load (theme already applied via inline script)
+  (function() {
+    const t = document.documentElement.getAttribute('data-theme') || 'dark';
+    moonIco.style.display = t === 'dark' ? 'block' : 'none';
+    sunIco.style.display  = t === 'light' ? 'block' : 'none';
+  })();
+
+  /* ── Password visibility toggle ───────────────────────── */
+  const pwField  = document.getElementById('password');
+  const pwToggle = document.getElementById('pwToggle');
+  const eyeIcon  = document.getElementById('eyeIcon');
+
+  pwToggle.addEventListener('click', () => {
+    const isText = pwField.type === 'text';
+    pwField.type = isText ? 'password' : 'text';
+    eyeIcon.setAttribute('icon', isText ? 'lucide:eye' : 'lucide:eye-off');
+  });
+
+  /* ── Loading state on submit ───────────────────────────── */
+  const form      = document.getElementById('loginForm');
+  const submitBtn = document.getElementById('submitBtn');
+
+  form.addEventListener('submit', () => {
+    submitBtn.disabled = true;
+    submitBtn.classList.add('loading');
+  });
+</script>
+</body>
+</html>

@@ -23,6 +23,7 @@ import csv
 import io
 import logging
 import re
+import requests
 import secrets
 import string
 from datetime import datetime, timezone, timedelta
@@ -450,6 +451,7 @@ def tenants():
         else:
             days_active_map[tenant.tenant_slug] = None
 
+    from app.services.permissions import is_administrator_plan as _is_admin_plan
     return render_template(
         'superadmin/tenants.html',
         tenants=tenant_page,
@@ -459,6 +461,7 @@ def tenants():
         tenant_owners=tenant_owners,
         active_count=active_count,
         days_active_map=days_active_map,
+        is_administrator_plan=_is_admin_plan,
     )
 
 
@@ -1381,6 +1384,21 @@ def tenant_edit(tenant_id):
 
         plan_choice = (form.plan.data or 'Trial').strip()
         normalized_plan = normalize_plan_name(plan_choice)
+
+        # ── Administrator plan protection ──────────────────────────────────────
+        from app.services.permissions import validate_plan_change, is_administrator_plan
+        from flask_login import current_user as _cu
+        _ok, _reason = validate_plan_change(profile.tenant, normalized_plan, _cu)
+        if not _ok:
+            flash(_reason, 'danger')
+            return redirect(url_for('superadmin.tenant_edit', tenant_id=profile.tenant_id))
+
+        # Never allow UI to overwrite Administrator plan except with Administrator itself
+        _current_plan = getattr(profile.tenant, 'plan', '') or ''
+        if is_administrator_plan(_current_plan) and not is_administrator_plan(normalized_plan):
+            flash('The Administrator plan cannot be changed.', 'danger')
+            return redirect(url_for('superadmin.tenant_edit', tenant_id=profile.tenant_id))
+
         profile.plan = normalized_plan
         if profile.tenant:
             profile.tenant.plan = normalized_plan
@@ -1477,10 +1495,17 @@ def tenant_edit(tenant_id):
     if updated_at:
         days_active = max(0, (datetime.now(timezone.utc) - updated_at).days)
 
+    from app.services.permissions import is_administrator_plan, is_protected_tenant
+    _plan = getattr(profile.tenant, 'plan', '') or '' if profile.tenant else ''
+    _is_admin_tenant = is_administrator_plan(_plan)
+    _is_protected = is_protected_tenant(profile.tenant) if profile.tenant else False
+
     return render_template(
         'superadmin/tenant_form.html', form=form,
         page_title='Edit Tenant', tenant_id=tenant_id, profile=profile,
         days_active=days_active,
+        is_administrator_tenant=_is_admin_tenant,
+        is_protected_tenant=_is_protected,
     )
 
 
@@ -1494,8 +1519,11 @@ def tenant_delete(tenant_id):
         from flask import abort
         abort(404)
 
-    if profile.tenant_slug == 'default':
-        flash('The default tenant cannot be deleted.', 'danger')
+    # Use centralized protection rules (covers default tenant + administrator plan)
+    from app.services.permissions import validate_tenant_deletion
+    _del_ok, _del_reason = validate_tenant_deletion(profile.tenant) if profile.tenant else (False, 'Tenant record not found.')
+    if not _del_ok:
+        flash(_del_reason, 'danger')
         return redirect(url_for('superadmin.tenants'))
 
     tenant = profile.tenant
@@ -1995,13 +2023,11 @@ def email_settings():
     import re as _re
     import json as _json
 
-    # Always expire the cached instance before reading — the identity map
-    # can return a stale object from a previous request in the same session,
+    # Always expire ALL session objects before reading — the identity map
+    # can return stale objects from previous requests in the same session,
     # causing has_sa_smtp / has_sa_resend to read outdated column values.
-    _cfg_raw = GlobalEmailConfig.get()
-    db.session.expire(_cfg_raw)
-    cfg = GlobalEmailConfig.get()
-    db.session.refresh(cfg)
+    # Use fresh=True to fully discard the session and re-query from DB.
+    cfg = GlobalEmailConfig.get(fresh=True)
 
     if request.method == 'POST':
         action = request.form.get('action', 'save')
@@ -2010,12 +2036,25 @@ def email_settings():
         # ── AJAX: validate MailerSend key (uses stored key if field blank) ─────────
         if action == 'validate_mailersend_key':
             key = request.form.get('mailersend_api_key', '').strip()
-            # If no new key typed, validate the currently stored key
+            # If no new key typed, validate the currently stored key (decrypted)
             if not key:
-                key = cfg.get_portal_key('superadmin') if cfg else ''
+                try:
+                    key = cfg.get_portal_key('superadmin') if cfg else ''
+                except Exception:
+                    key = ''
             if not key:
                 return jsonify({'ok': False, 'message': 'No MailerSend key configured. Save a key first.'})
-            valid, msg = validate_mailersend_key(key)
+
+            # Also extract sender_email for optional domain validation
+            sender_email = request.form.get('mailersend_sender_email', '').strip()
+            if not sender_email and cfg:
+                try:
+                    sender_email = cfg.get_portal_sender_email('superadmin') or ''
+                except Exception:
+                    sender_email = ''
+
+            from app.services.email_providers import validate_mailersend as _vm
+            valid, msg = _vm(key, sender_email=sender_email or None, validate_sender_domain=bool(sender_email))
             return jsonify({'ok': valid, 'message': msg})
 
         # ── AJAX: send test email (via active provider chain) ──────────────
@@ -2023,22 +2062,31 @@ def email_settings():
             test_to = request.form.get('test_email', '').strip().lower()
             if not test_to or not _re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$', test_to):
                 return jsonify({'ok': False, 'message': 'Invalid recipient email address.'})
-            # Pre-flight: check if any provider is active + configured
-            from app.services.superadmin_email_service import _resolve_configs
-            active_providers = _resolve_configs()
-            if not active_providers:
-                return jsonify({'ok': False, 'message': (
-                    'No active providers. Configure and toggle at least one provider ON, then retry.'
-                )})
-            ok, result = _sa_send(
-                to=test_to,
-                subject='[Portfolio CMS] Email Delivery Test',
-                html='<p>This is a <strong>test email</strong> from Portfolio CMS confirming your provider is configured.</p>',
+
+            # Use new centralized dispatcher with structured diagnostics
+            from app.services.email_providers import send_test_email as _test_send
+            diag = _test_send(to=test_to, portal='superadmin')
+
+            current_app.logger.info(
+                'Test email result: to=%s success=%s provider=%s delivery_mode=%s error=%r (by %s)',
+                test_to, diag.get('success'), diag.get('provider'),
+                diag.get('delivery_mode'), diag.get('error'), current_user.username,
             )
-            if ok:
-                current_app.logger.info('Test email sent to %s by superadmin %s', test_to, current_user.username)
-                return jsonify({'ok': True, 'message': f'Test email delivered to {test_to}.'})
-            return jsonify({'ok': False, 'message': f'Delivery failed: {result}'})
+
+            if diag.get('success'):
+                provider_used = diag.get('provider', 'unknown')
+                msg_id = diag.get('message_id', '')
+                return jsonify({
+                    'ok': True,
+                    'message': f'Test email delivered to {test_to} via {provider_used}.',
+                    'diagnostics': diag,
+                })
+
+            return jsonify({
+                'ok': False,
+                'message': f'Delivery failed: {diag.get("error", "Unknown error")}',
+                'diagnostics': diag,
+            })
 
         # ── AJAX: validate SMTP (uses stored DB credentials when form fields blank) ──
         if action == 'validate_smtp':
@@ -2047,14 +2095,35 @@ def email_settings():
             host     = request.form.get('smtp_host',     '').strip() or (cfg.sa_smtp_host     or '')
             port_raw = request.form.get('smtp_port',     '').strip() or str(cfg.sa_smtp_port  or 587)
             username = request.form.get('smtp_username', '').strip() or (cfg.sa_smtp_username or '')
-            password = request.form.get('smtp_password', '').strip() or cfg.sa_smtp_password
             enc      = (request.form.get('smtp_encryption', '').strip() or cfg.sa_smtp_encryption or 'tls').lower()
+
+            # Password: prefer form value; fall back to decrypted DB value;
+            # if decryption fails but raw blob exists, still allow the test
+            # (the actual SMTP send will fail if the key is wrong, not silently pass).
+            form_password = request.form.get('smtp_password', '').strip()
+            if form_password:
+                password = form_password
+            else:
+                try:
+                    password = cfg.sa_smtp_password or ''
+                except Exception:
+                    password = ''
+                # If decryption returned empty but blob exists, we still have credentials
+                # stored — we just can't decrypt them (Fernet key mismatch).
+                if not password:
+                    raw_blob = getattr(cfg, '_sa_smtp_password', '') or ''
+                    if raw_blob:
+                        return jsonify({'ok': False, 'message': (
+                            'Stored SMTP password cannot be decrypted — the FERNET_KEY may have changed. '
+                            'Re-enter and save your SMTP password to fix this.'
+                        )})
+
             if not host:
                 return jsonify({'ok': False, 'message': 'SMTP host not set. Save your SMTP settings first.'})
             if not username:
                 return jsonify({'ok': False, 'message': 'SMTP username not set.'})
             if not password:
-                return jsonify({'ok': False, 'message': 'SMTP password not set. Save SMTP settings with a password first.'})
+                return jsonify({'ok': False, 'message': 'SMTP password not set. Enter your App Password above or save SMTP settings first.'})
             try:
                 port = max(1, min(65535, int(port_raw)))
             except (ValueError, TypeError):
@@ -2062,40 +2131,48 @@ def email_settings():
             try:
                 if enc == 'ssl' or port == 465:
                     ctx = _ssl.create_default_context()
-                    with smtplib.SMTP_SSL(host, port, context=ctx, timeout=10) as s:
+                    with smtplib.SMTP_SSL(host, port, context=ctx, timeout=15) as s:
                         s.login(username, password)
                 elif enc == 'none':
-                    with smtplib.SMTP(host, port, timeout=10) as s:
+                    with smtplib.SMTP(host, port, timeout=15) as s:
                         s.login(username, password)
-                else:
-                    with smtplib.SMTP(host, port, timeout=10) as s:
-                        s.ehlo(); s.starttls(context=_ssl.create_default_context()); s.ehlo()
+                else:  # tls (STARTTLS)
+                    with smtplib.SMTP(host, port, timeout=15) as s:
+                        s.ehlo()
+                        s.starttls(context=_ssl.create_default_context())
+                        s.ehlo()
                         s.login(username, password)
-                return jsonify({'ok': True, 'message': f'SMTP connection to {host}:{port} successful.'})
+                return jsonify({'ok': True, 'message': f'✓ SMTP connection to {host}:{port} successful. Authentication passed.'})
             except smtplib.SMTPAuthenticationError:
-                return jsonify({'ok': False, 'message': 'Auth failed — check username and App Password.'})
-            except (TimeoutError, OSError):
-                return jsonify({'ok': False, 'message': f'Connection to {host}:{port} timed out or refused.'})
+                hint = ' For Gmail, use an App Password (not your account password).' if 'gmail' in host.lower() else ''
+                return jsonify({'ok': False, 'message': f'Authentication failed — check your username and password.{hint}'})
+            except (TimeoutError, OSError) as e:
+                return jsonify({'ok': False, 'message': f'Connection to {host}:{port} timed out or was refused. Check the host and port.'})
+            except smtplib.SMTPConnectError as e:
+                return jsonify({'ok': False, 'message': f'Could not connect to {host}:{port}. Verify the host is correct.'})
             except Exception as e:
-                return jsonify({'ok': False, 'message': f'Connection failed: {str(e)[:120]}'})
+                safe = str(e)[:120].replace(password, '***') if password else str(e)[:120]
+                return jsonify({'ok': False, 'message': f'Connection failed: {safe}'})
 
         # ── AJAX: validate Resend (uses stored DB key when form field blank) ──────
         if action == 'validate_resend':
-            import urllib.request as _ur, urllib.error as _ue
-            key = request.form.get('resend_api_key', '').strip() or cfg.sa_resend_api_key
+            # Prefer form value; fall back to decrypted DB key (NOT raw blob)
+            key = request.form.get('resend_api_key', '').strip()
             if not key:
-                return jsonify({'ok': False, 'message': 'No Resend API key configured. Save a key first.'})
-            req = _ur.Request('https://api.resend.com/domains',
-                              headers={'Authorization': f'Bearer {key}'})
-            try:
-                with _ur.urlopen(req, timeout=10) as r:
-                    return jsonify({'ok': True, 'message': 'Resend API key is valid.'})
-            except _ue.HTTPError as e:
-                if e.code == 401:
-                    return jsonify({'ok': False, 'message': 'Invalid Resend API key — check your key.'})
-                return jsonify({'ok': False, 'message': f'Resend returned HTTP {e.code}.'})
-            except Exception as e:
-                return jsonify({'ok': False, 'message': f'Connection error: {str(e)[:80]}'})
+                try:
+                    key = cfg.sa_resend_api_key or ''   # decrypts here
+                except Exception:
+                    key = ''
+
+            if not key:
+                return jsonify({
+                    'ok': False,
+                    'message': 'No Resend API key configured. Save a key first.',
+                })
+
+            from app.services.email_providers import validate_resend as _vr
+            valid, msg = _vr(key)
+            return jsonify({'ok': valid, 'message': msg})
         # ── AJAX: save provider priority order ─────────────────────────────
         if action == 'save_priority':
             order_raw = request.form.get('priority_order', '').strip()
@@ -2106,6 +2183,7 @@ def email_settings():
                 cfg.set_sa_provider_priority(order)
                 cfg.updated_by = current_user.username
                 db.session.commit()
+                db.session.expire_all()
                 return jsonify({'ok': True, 'message': 'Priority saved.'})
             except Exception as e:
                 return jsonify({'ok': False, 'message': str(e)[:80]})
@@ -2124,27 +2202,66 @@ def email_settings():
                 return jsonify({'ok': False, 'message': 'Unknown provider.'})
             cfg.updated_by = current_user.username
             db.session.commit()
+            db.session.expire_all()
             return jsonify({'ok': True, 'message': f'{provider} {"enabled" if active else "disabled"}.'})
 
         # ── Save MailerSend credentials ────────────────────────────────────
         if action == 'save_mailersend':
+            import logging as _log_ms
+            _ms_log = _log_ms.getLogger('superadmin.mailersend_save')
+
             key          = request.form.get('mailersend_api_key', '').strip()
             sender_name  = request.form.get('mailersend_sender_name', '').strip()
             sender_email = request.form.get('mailersend_sender_email', '').strip().lower()
+
+            # Require at least a key OR an existing encrypted key already stored
+            existing_blob = getattr(cfg, '_superadmin_mailersend_api_key', '') or ''
+            has_existing  = isinstance(existing_blob, str) and len(existing_blob.strip()) > 0
+
+            if not key and not has_existing:
+                return jsonify({'ok': False, 'message': 'MailerSend API key is required on first save.'})
+
             if key:
                 cfg.superadmin_mailersend_api_key = key
+                # Verify encryption ran
+                blob_after = getattr(cfg, '_superadmin_mailersend_api_key', '') or ''
+                if not str(blob_after).strip():
+                    _ms_log.error('[MS SAVE] Encryption failure — blob empty after setter')
+                    db.session.rollback()
+                    return jsonify({'ok': False, 'message': 'MailerSend key encryption failed. Check FERNET_KEY.'})
+
             if sender_name:
                 cfg.superadmin_sender_name = sender_name
             if sender_email:
                 cfg.superadmin_sender_email = sender_email
             cfg.updated_by = current_user.username
-            db.session.commit()
-            db.session.refresh(cfg)
-            flash('MailerSend settings saved.', 'success')
-            return redirect(url_for('superadmin.email_settings'))
 
-        # ── Save SMTP credentials ──────────────────────────────────────────
+            _ms_log.info('[MS SAVE] Committing (user=%s)', current_user.username)
+            db.session.commit()
+
+            # Fresh-read verification — bypass identity map
+            db.session.remove()
+            from app.models.core import GlobalEmailConfig as _GEC2
+            v = _GEC2.query.execution_options(populate_existing=True).filter_by(id=1).first()
+            configured = bool(v.has_superadmin_mailersend or v.has_mailersend) if v else False
+            _ms_log.info('[MS SAVE] Verified — configured=%s (user=%s)', configured, current_user.username)
+
+            return jsonify({
+                'ok': True,
+                'message': 'MailerSend settings saved.',
+                'providers': {
+                    'mailersend': {
+                        'configured': configured,
+                        'active': bool(v.sa_mailersend_active if v and v.sa_mailersend_active is not None else True),
+                    },
+                },
+            })
+
+        # ── Save SMTP credentials (AJAX — returns JSON) ────────────────────
         if action == 'save_smtp':
+            import logging as _log_smtp
+            _smtp_log = _log_smtp.getLogger('superadmin.smtp_save')
+
             host         = request.form.get('smtp_host', '').strip()
             port_raw     = request.form.get('smtp_port', '587').strip()
             username     = request.form.get('smtp_username', '').strip()
@@ -2169,17 +2286,35 @@ def email_settings():
                 missing.append('SMTP Host')
             if not username:
                 missing.append('Username / Email')
+            if not sender_email:
+                missing.append('Sender Email')
             if not password and not has_existing_pw:
                 missing.append('Password / App Password (required on first save)')
             if missing:
-                flash(f'SMTP not saved — missing: {", ".join(missing)}.', 'danger')
-                return redirect(url_for('superadmin.email_settings'))
+                _smtp_log.warning(
+                    '[SMTP SAVE] Rejected — missing fields: %s (user=%s)',
+                    missing, current_user.username
+                )
+                return jsonify({'ok': False, 'message': f'SMTP not saved — missing: {", ".join(missing)}.'})
 
-            # Write all fields unconditionally (non-empty wins over existing)
+            # ── Phase 1: Write all fields ──────────────────────────────────
             cfg.sa_smtp_host         = host
             cfg.sa_smtp_username     = username
             if password:                          # blank = keep existing encrypted blob
                 cfg.sa_smtp_password = password
+                # ── Phase 2: Verify encryption actually ran ─────────────
+                blob_after_set = getattr(cfg, '_sa_smtp_password', '') or ''
+                if not str(blob_after_set).strip():
+                    _smtp_log.error(
+                        '[SMTP SAVE] Encryption failure — _sa_smtp_password empty after setter '
+                        '(host=%s user=%s)', host, username
+                    )
+                    db.session.rollback()
+                    return jsonify({'ok': False, 'message': (
+                        'SMTP password encryption failed. '
+                        'Check FERNET_KEY configuration and try again.'
+                    )})
+
             cfg.sa_smtp_sender_email = sender_email or cfg.sa_smtp_sender_email
             cfg.sa_smtp_sender_name  = sender_name or cfg.sa_smtp_sender_name
             cfg.sa_smtp_port         = port
@@ -2188,33 +2323,107 @@ def email_settings():
             # configuring it and expects it to be active immediately.
             cfg.sa_smtp_active       = True
             cfg.updated_by           = current_user.username
-            db.session.commit()
-            db.session.refresh(cfg)
-            current_app.logger.warning(
-                '[SMTP DEBUG] configured=%s host=%s user=%s password_exists=%s',
-                cfg.has_sa_smtp,
-                cfg.sa_smtp_host,
-                cfg.sa_smtp_username,
-                bool(cfg._sa_smtp_password)
+
+            _smtp_log.info(
+                '[SMTP SAVE] Committing — host=%s port=%d user=%s sender=%s enc=%s (user=%s)',
+                host, port, username, sender_email or '(keep)', encryption, current_user.username
             )
-            flash('SMTP settings saved.', 'success')
-            return redirect(url_for('superadmin.email_settings'))
+
+            db.session.commit()
+
+            # ── Phase 3: Fresh-read verification ──────────────────────────
+            # Discard session entirely, re-fetch from DB, verify persistence.
+            # This is the critical step that prevents stale ORM cache from
+            # returning a false 'not configured' state on the next status poll.
+            db.session.remove()
+            from app.models.core import GlobalEmailConfig as _GEC
+            verified_cfg = (
+                _GEC.query
+                .execution_options(populate_existing=True)
+                .filter_by(id=1)
+                .first()
+            )
+
+            if verified_cfg is None:
+                _smtp_log.error('[SMTP SAVE] Post-commit read returned None — DB integrity issue')
+                return jsonify({'ok': False, 'message': 'Save appeared to succeed but verification read failed. Contact support.'})
+
+            # ── Phase 4: Verify encrypted blob persisted ──────────────────
+            db_blob = getattr(verified_cfg, '_sa_smtp_password', '') or ''
+            if not str(db_blob).strip():
+                _smtp_log.error(
+                    '[SMTP SAVE] Post-commit verification failed — sa_smtp_password_encrypted '
+                    'is empty in DB after commit (host=%s user=%s)', host, username
+                )
+                return jsonify({'ok': False, 'message': (
+                    'SMTP password did not persist to database. '
+                    'This may indicate a FERNET_KEY or DB transaction issue.'
+                )})
+
+            configured = bool(verified_cfg.has_sa_smtp)
+            _smtp_log.info(
+                '[SMTP SAVE] Verified — has_sa_smtp=%s active=%s (user=%s)',
+                configured, verified_cfg.sa_smtp_active, current_user.username
+            )
+
+            return jsonify({
+                'ok': True,
+                'message': 'SMTP settings saved and verified.',
+                'providers': {
+                    'smtp': {
+                        'configured': configured,
+                        'active': bool(verified_cfg.sa_smtp_active or False),
+                    },
+                },
+            })
 
         # ── Save Resend credentials ────────────────────────────────────────
         if action == 'save_resend':
+            import logging as _log_rs
+            _rs_log = _log_rs.getLogger('superadmin.resend_save')
+
             key          = request.form.get('resend_api_key', '').strip()
             sender_email = request.form.get('resend_sender_email', '').strip().lower()
             sender_name  = request.form.get('resend_sender_name', '').strip()
+
+            existing_blob = getattr(cfg, '_sa_resend_api_key', '') or ''
+            has_existing  = isinstance(existing_blob, str) and len(existing_blob.strip()) > 0
+
+            if not key and not has_existing:
+                return jsonify({'ok': False, 'message': 'Resend API key is required on first save.'})
+
             if key:
                 cfg.sa_resend_api_key = key
+                blob_after = getattr(cfg, '_sa_resend_api_key', '') or ''
+                if not str(blob_after).strip():
+                    _rs_log.error('[RS SAVE] Encryption failure — blob empty after setter')
+                    db.session.rollback()
+                    return jsonify({'ok': False, 'message': 'Resend key encryption failed. Check FERNET_KEY.'})
+
             if sender_email:
                 cfg.sa_resend_sender_email = sender_email
             cfg.sa_resend_sender_name = sender_name or cfg.sa_resend_sender_name
             cfg.updated_by = current_user.username
+
+            _rs_log.info('[RS SAVE] Committing (user=%s)', current_user.username)
             db.session.commit()
-            db.session.refresh(cfg)
-            flash('Resend settings saved.', 'success')
-            return redirect(url_for('superadmin.email_settings'))
+
+            db.session.remove()
+            from app.models.core import GlobalEmailConfig as _GEC3
+            v = _GEC3.query.execution_options(populate_existing=True).filter_by(id=1).first()
+            configured = bool(v.has_sa_resend) if v else False
+            _rs_log.info('[RS SAVE] Verified — configured=%s (user=%s)', configured, current_user.username)
+
+            return jsonify({
+                'ok': True,
+                'message': 'Resend settings saved.',
+                'providers': {
+                    'resend': {
+                        'configured': configured,
+                        'active': bool(v.sa_resend_active) if v else False,
+                    },
+                },
+            })
 
         # ── Save OTP / recovery settings ──────────────────────────────────
         if action == 'save_otp':
@@ -2228,12 +2437,7 @@ def email_settings():
             cfg.recovery_enabled   = recovery_on
             cfg.updated_by         = current_user.username
             db.session.commit()
-            flash('OTP settings saved.', 'success')
-            return redirect(url_for('superadmin.email_settings'))
-
-        # Legacy catch-all save (backward compat)
-        flash('Unknown action.', 'warning')
-        return redirect(url_for('superadmin.email_settings'))
+            return jsonify({'ok': True, 'message': f'OTP settings saved. Expiry: {otp_ttl} min, Recovery: {"on" if recovery_on else "off"}.'})
 
     # ── GET ────────────────────────────────────────────────────────────────
     priority = cfg.get_sa_provider_priority()
@@ -2259,6 +2463,81 @@ def email_settings():
         has_mailersend=cfg.has_mailersend,
         has_superadmin_mailersend=cfg.has_superadmin_mailersend,
     )
+
+
+
+
+@superadmin.route('/settings/email/provider-status')
+@superadmin_required
+def email_provider_status():
+    """AJAX: return real-time provider configured+active status (v6.6).
+
+    Called by the email settings page on load and after every save/validate
+    so badges always reflect the actual backend state.
+
+    Uses GlobalEmailConfig.get(fresh=True) which removes the current session
+    and issues a SELECT with populate_existing=True — this guarantees we read
+    the committed DB state, never a stale identity-map cache object.
+    """
+    from flask import jsonify
+    # Use centralized registry — always reads fresh from DB, never stale identity map
+    from app.services.email_providers import get_provider_status
+    status = get_provider_status(portal='superadmin')
+    return jsonify({
+        'ok': True,
+        'providers': status['providers'],
+        'priority': status['priority'],
+    })
+
+
+@superadmin.route('/settings/email/diagnostics')
+@superadmin_required
+def email_provider_diagnostics():
+    """AJAX: return detailed backend state for debugging SMTP desync issues.
+
+    Returns the raw configuration state without exposing secret values.
+    Useful during development and support — can be removed in prod by setting
+    EMAIL_DIAGNOSTICS_DISABLED=1 in the environment.
+    """
+    import os as _os_diag
+    from app.models.core import GlobalEmailConfig, decrypt_secret
+    from flask import jsonify
+
+    if _os_diag.environ.get('EMAIL_DIAGNOSTICS_DISABLED', '').strip() == '1':
+        return jsonify({'ok': False, 'message': 'Diagnostics disabled in this environment.'}), 403
+
+    cfg = GlobalEmailConfig.get(fresh=True)
+
+    # Test decryptability without exposing the value
+    smtp_decryptable = False
+    smtp_decrypt_error = None
+    raw_blob = getattr(cfg, '_sa_smtp_password', '') or ''
+    if raw_blob:
+        try:
+            decrypted = decrypt_secret(raw_blob)
+            smtp_decryptable = bool(decrypted)
+        except Exception as e:
+            smtp_decrypt_error = type(e).__name__
+
+    fernet_key_set = bool(_os_diag.environ.get('FERNET_KEY', '').strip())
+
+    return jsonify({
+        'ok': True,
+        'smtp': {
+            'host': cfg.sa_smtp_host or '',
+            'port': cfg.sa_smtp_port,
+            'username': cfg.sa_smtp_username or '',
+            'sender_email': cfg.sa_smtp_sender_email or '',
+            'encryption': cfg.sa_smtp_encryption or 'tls',
+            'active': bool(cfg.sa_smtp_active),
+            'encrypted_password_blob_exists': bool(str(raw_blob).strip()),
+            'encrypted_password_decryptable': smtp_decryptable,
+            'decrypt_error': smtp_decrypt_error,
+            'has_sa_smtp': bool(cfg.has_sa_smtp),
+        },
+        'fernet_key_set': fernet_key_set,
+        'priority': cfg.get_sa_provider_priority(),
+    })
 
 
 @superadmin.route('/forgot-password/request', methods=['GET', 'POST'])
@@ -3004,3 +3283,12 @@ def subscription_monitor():
         recent_notifications=recent_notifications,
         now=now,
     )
+
+
+# ── Theme Catalog (v6.4) ──────────────────────────────────────────────────────
+# Registers /superadmin/themes* routes onto this same blueprint instance.
+# Imported at the bottom of the file (after `superadmin` and
+# `superadmin_required` are defined above) to avoid a circular import --
+# app/superadmin/themes.py does `from app.superadmin import superadmin,
+# superadmin_required`.
+from app.superadmin import themes as _themes  # noqa: E402,F401

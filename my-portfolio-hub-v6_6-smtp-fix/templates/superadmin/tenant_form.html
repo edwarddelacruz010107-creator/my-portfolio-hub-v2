@@ -1,0 +1,423 @@
+{% extends 'superadmin/base.html' %}
+
+{% block title %}{{ page_title }}{% endblock %}
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<!-- ── BREADCRUMB ───────────────────────────────────────── -->
+<div class="breadcrumb-trail">
+  <a href="{{ url_for('superadmin.tenants') }}" class="bc-link">
+    <iconify-icon icon="lucide:users" width="14"></iconify-icon>
+    All Tenants
+  </a>
+  <iconify-icon icon="lucide:chevron-right" width="14" class="bc-sep"></iconify-icon>
+  <span class="bc-current">{{ page_title }}</span>
+</div>
+
+<!-- ── FORM LAYOUT ──────────────────────────────────────── -->
+<div class="form-layout-grid">
+
+  <!-- ── LEFT: MAIN FORM ─────────────────────────────────── -->
+  <div class="form-main-col">
+    <form method="post" id="tenantForm">
+      {{ form.hidden_tag() }}
+
+      <!-- Tenant Identity -->
+      <div class="form-card">
+        <div class="form-card-header">
+          <iconify-icon icon="lucide:building-2" width="18"></iconify-icon>
+          <h3>Tenant Identity</h3>
+        </div>
+        <div class="form-card-body">
+
+          <div class="form-field">
+            {{ form.name.label(class='field-label') }}
+            {{ form.name(
+                class='field-input' + (' field-error' if form.name.errors else ''),
+                placeholder='e.g. John Doe Portfolio',
+                id='tenantName',
+                autocomplete='off'
+            ) }}
+            {% if form.name.errors %}
+              <div class="field-err">{{ form.name.errors[0] }}</div>
+            {% endif %}
+            <div class="field-hint">Display name for this tenant's portfolio.</div>
+          </div>
+
+          <div class="form-field">
+            {{ form.tenant_slug.label(class='field-label') }}
+            <div class="slug-input-wrap">
+              <span class="slug-prefix">{{ request.host }}/</span>
+              {{ form.tenant_slug(
+                  class='field-input slug-field' + (' field-error' if form.tenant_slug.errors else ''),
+                  placeholder='e.g. john-doe',
+                  id='tenantSlug',
+                  autocomplete='off'
+              ) }}
+            </div>
+            {% if form.tenant_slug.errors %}
+              <div class="field-err">{{ form.tenant_slug.errors[0] }}</div>
+            {% endif %}
+            <div class="field-hint">
+              URL identifier — lowercase, hyphens only. Must be unique.
+              <button type="button" class="btn-inline-link" onclick="regenerateSlug()">
+                <iconify-icon icon="lucide:refresh-cw" width="12"></iconify-icon>
+                Auto-generate
+              </button>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-field">
+              {{ form.plan.label(class='field-label') }}
+              {{ form.plan(class='field-input field-select') }}
+            </div>
+            <div class="form-field">
+              {{ form.monthly_rate.label(class='field-label') }}
+              {{ form.monthly_rate(
+                  class='field-input',
+                  placeholder='e.g. 29.00'
+              ) }}
+            </div>
+          </div>
+
+          <div class="form-field">
+            {{ form.free_trial_days.label(class='field-label') }}
+            {{ form.free_trial_days(
+                class='field-input' + (' field-error' if form.free_trial_days.errors else ''),
+                placeholder='e.g. 14'
+            ) }}
+            {% if form.free_trial_days.errors %}
+              <div class="field-err">{{ form.free_trial_days.errors[0] }}</div>
+            {% endif %}
+            <div class="field-hint">
+              For <strong>Trial</strong> tenants: days before subscription is required. Defaults to 14 if left at 0.
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Owner Account -->
+      <div class="form-card">
+        <div class="form-card-header">
+          <iconify-icon icon="lucide:user-cog" width="18"></iconify-icon>
+          <h3>Owner Account</h3>
+        </div>
+        <div class="form-card-body">
+
+          <div class="form-row-2">
+            <div class="form-field">
+              {{ form.admin_username.label(class='field-label') }}
+              {{ form.admin_username(
+                  class='field-input' + (' field-error' if form.admin_username.errors else ''),
+                  placeholder='e.g. johndoe',
+                  autocomplete='off'
+              ) }}
+              {% if form.admin_username.errors %}
+                <div class="field-err">{{ form.admin_username.errors[0] }}</div>
+              {% endif %}
+            </div>
+            <div class="form-field">
+              {{ form.admin_email.label(class='field-label') }}
+              {{ form.admin_email(
+                  class='field-input' + (' field-error' if form.admin_email.errors else ''),
+                  placeholder='owner@example.com',
+                  autocomplete='off'
+              ) }}
+              {% if form.admin_email.errors %}
+                <div class="field-err">{{ form.admin_email.errors[0] }}</div>
+              {% endif %}
+            </div>
+            {# ── Contact Email (v3.8) — destination for contact form + OTP recovery ── #}
+            <div class="form-field">
+              {{ form.contact_email.label(class='field-label') }}
+              {{ form.contact_email(
+                  class='field-input' + (' field-error' if form.contact_email.errors else ''),
+                  placeholder='contact@example.com',
+                  autocomplete='off',
+                  value=(profile.tenant.contact_email if profile and profile.tenant else '')
+              ) }}
+              <small class="field-hint" style="color:var(--text-muted);font-size:.78rem;margin-top:.3rem;display:block;">
+                Receives contact-form submissions and password-recovery OTPs.
+                Defaults to Admin Email if left blank.
+              </small>
+              {% if form.contact_email.errors %}
+                <div class="field-err">{{ form.contact_email.errors[0] }}</div>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if not tenant_id %}
+          <!-- Only shown for NEW tenants -->
+          <div class="form-field">
+            <label class="field-label" for="admin_password">
+              Initial Password <span class="field-required">*</span>
+            </label>
+            <div class="password-input-wrap">
+              <input type="password" name="admin_password" id="admin_password"
+                     class="field-input"
+                     placeholder="Min. 8 characters"
+                     autocomplete="new-password"/>
+              <button type="button" class="password-toggle" onclick="togglePassword()">
+                <iconify-icon icon="lucide:eye" width="16" id="passEyeIcon"></iconify-icon>
+              </button>
+            </div>
+            <div class="field-hint">
+              Tenant owner will use this to log in for the first time.
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label class="field-label" for="admin_password_confirm">Confirm Password</label>
+            <input type="password" name="admin_password_confirm" id="admin_password_confirm"
+                   class="field-input"
+                   placeholder="Repeat password"
+                   autocomplete="new-password"/>
+          </div>
+          {% else %}
+          <div class="info-box">
+            <iconify-icon icon="lucide:info" width="16"></iconify-icon>
+            To change the owner's password, use the password reset tool in Settings.
+          </div>
+          {% endif %}
+
+        </div>
+      </div>
+
+      <!-- Internal Notes -->
+      <div class="form-card">
+        <div class="form-card-header">
+          <iconify-icon icon="lucide:file-text" width="18"></iconify-icon>
+          <h3>Internal Notes</h3>
+          <span class="optional-chip">Optional</span>
+        </div>
+        <div class="form-card-body">
+          <div class="form-field">
+            {{ form.internal_notes(
+                class='field-input field-textarea',
+                placeholder='Notes about this tenant — billing history, special requirements, etc.',
+                rows=4
+            ) }}
+            <div class="field-hint">Not visible to the tenant. Superadmin-only.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="form-actions-bar">
+        <a href="{{ url_for('superadmin.tenants') }}" class="btn btn-ghost">
+          <iconify-icon icon="lucide:arrow-left" width="15"></iconify-icon>
+          Cancel
+        </a>
+        <button type="submit" class="btn btn-primary" id="submitBtn">
+          <iconify-icon icon="lucide:save" width="15"></iconify-icon>
+          {{ 'Save Changes' if tenant_id else 'Create Tenant' }}
+        </button>
+      </div>
+
+    </form>
+  </div>
+
+  <!-- ── RIGHT: SIDEBAR PANELS ─────────────────────────── -->
+  <div class="form-side-col">
+
+    <!-- Status Toggle -->
+    <div class="form-card">
+      <div class="form-card-header">
+        <iconify-icon icon="lucide:toggle-right" width="18"></iconify-icon>
+        <h3>Status</h3>
+      </div>
+      <div class="form-card-body">
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <div class="toggle-label">Active</div>
+            <div class="toggle-desc">Tenant portfolio is publicly accessible</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" name="is_active" id="isActive"
+                   {% if not tenant_id or (profile and profile.is_available) %}checked{% endif %}>
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Info (edit mode) -->
+    {% if tenant_id and profile %}
+    <div class="form-card">
+      <div class="form-card-header">
+        <iconify-icon icon="lucide:info" width="18"></iconify-icon>
+        <h3>Tenant Info</h3>
+      </div>
+      <div class="form-card-body">
+        <div class="info-row">
+          <span class="info-row-label">ID</span>
+          <span class="info-row-val">#{{ profile.id }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-row-label">Last Updated</span>
+          <span class="info-row-val">
+            {{ profile.updated_at.strftime('%b %d, %Y') if profile.updated_at else '—' }}
+          </span>
+        </div>
+        {% if days_active is not none %}
+        <div class="info-row">
+          <span class="info-row-label">Days Active</span>
+          <span class="info-row-val"><strong>{{ days_active }}</strong> days</span>
+        </div>
+        {% endif %}
+        {% if owner %}
+        <div class="info-row">
+          <span class="info-row-label">Owner</span>
+          <span class="info-row-val">{{ owner.username }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-row-label">Last Login</span>
+          <span class="info-row-val">
+            {% if owner.last_login %}
+              {{ owner.last_login.strftime('%b %d, %Y') }}
+            {% else %}
+              <span class="text-dim">Never</span>
+            {% endif %}
+          </span>
+        </div>
+        {% endif %}
+        {% if profile.license_key or profile.free_trial_ends is defined %}
+        <div class="info-row">
+          <span class="info-row-label">License Status</span>
+          <span class="info-row-val">
+            {% if profile.license_active %}
+              Active
+            {% elif profile.is_trial_active() %}
+              Trial ({{ profile.trial_days_remaining() }} days left)
+            {% elif profile.free_trial_ends %}
+              Expired
+            {% else %}
+              Unlicensed
+            {% endif %}
+          </span>
+        </div>
+        {% endif %}
+        {% if profile.license_key %}
+        <div class="info-row">
+          <span class="info-row-label">License Key</span>
+          <span class="info-row-val">{{ profile.license_key }}</span>
+        </div>
+        {% endif %}
+        <div class="info-row">
+          <span class="info-row-label">Portfolio</span>
+          <a href="{{ url_for('tenant.portfolio', tenant_slug=profile.tenant_slug) }}"
+             target="_blank"
+             class="info-row-link">
+            View Live <iconify-icon icon="lucide:external-link" width="12"></iconify-icon>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    {# ── Reset Password card (edit mode only) ── #}
+    <div class="form-card">
+      <div class="form-card-header">
+        <iconify-icon icon="lucide:key" width="18"></iconify-icon>
+        <h3>Reset Password</h3>
+      </div>
+      <div class="form-card-body">
+        <p class="field-hint" style="margin-bottom:12px">
+          Generate a new temporary password for this tenant's admin account.
+          The password will be shown immediately after reset.
+        </p>
+        <form method="post"
+              action="{{ url_for('superadmin.tenant_reset_password', tenant_id=tenant_id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <button type="submit"
+                  class="btn btn-secondary btn-sm"
+                  style="width:100%"
+                  onclick="return confirm('Reset admin password for {{ profile.name|default(profile.tenant_slug)|replace("'", "&#39;") }}?\nA temporary password will be shown to you.')">
+            <iconify-icon icon="lucide:key" width="15"></iconify-icon>
+            Reset Admin Password
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Help card -->
+    <div class="form-card form-card-muted">
+      <div class="form-card-body">
+        <div class="help-icon">
+          <iconify-icon icon="lucide:lightbulb" width="22"></iconify-icon>
+        </div>
+        <div class="help-text">
+          <strong>Slug tip:</strong> Use lowercase letters, numbers, and hyphens only.
+          The slug becomes the URL for this portfolio:
+          <code class="help-code">yourdomain.com/&lt;slug&gt;</code>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Auto-generate slug from name ───────────────────────────
+const nameInput = document.getElementById('tenantName');
+const slugInput = document.getElementById('tenantSlug');
+let slugManuallyEdited = slugInput?.value?.length > 0;
+
+nameInput?.addEventListener('input', function() {
+  if (slugManuallyEdited) return;
+  slugInput.value = toSlug(this.value);
+});
+
+slugInput?.addEventListener('input', function() {
+  slugManuallyEdited = this.value.length > 0;
+  this.value = toSlug(this.value);
+});
+
+function toSlug(val) {
+  return val.toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function regenerateSlug() {
+  if (nameInput?.value) {
+    slugInput.value = toSlug(nameInput.value);
+    slugManuallyEdited = false;
+  }
+}
+
+// ── Password visibility toggle ────────────────────────────
+function togglePassword() {
+  const inp = document.getElementById('admin_password');
+  const icon = document.getElementById('passEyeIcon');
+  if (!inp) return;
+  const show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  icon.setAttribute('icon', show ? 'lucide:eye-off' : 'lucide:eye');
+}
+
+// ── Client-side password match validation ─────────────────
+document.getElementById('tenantForm')?.addEventListener('submit', function(e) {
+  const p1 = document.getElementById('admin_password');
+  const p2 = document.getElementById('admin_password_confirm');
+  if (p1 && p2 && p1.value && p1.value !== p2.value) {
+    e.preventDefault();
+    alert('Passwords do not match.');
+    p2.focus();
+    return;
+  }
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('submitBtn').innerHTML =
+    '<iconify-icon icon="lucide:loader-2" width="15"></iconify-icon> Saving…';
+});
+</script>
+{% endblock %}

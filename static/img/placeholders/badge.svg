@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <rect width="80" height="80" rx="8" fill="#0d1526"/>
+  <polygon points="40,8 52,20 68,20 68,36 56,48 40,72 24,48 12,36 12,20 28,20"
+           fill="none" stroke="#b44fff" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle cx="40" cy="34" r="10" fill="#b44fff" fill-opacity="0.15" stroke="#b44fff" stroke-width="1"/>
+  <text x="40" y="39" text-anchor="middle" font-family="monospace" font-size="12" font-weight="bold" fill="#b44fff">★</text>
+  <text x="40" y="78" text-anchor="middle" font-family="monospace" font-size="7" fill="#b44fff" fill-opacity="0.6">BADGE</text>
+</svg>

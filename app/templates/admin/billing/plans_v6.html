@@ -18,6 +18,32 @@
 {% block content %}
 <div class="container-fluid py-4">
 
+  {# ── Administrator Plan — Locked Billing Notice ───────────────────────── #}
+  {% if is_administrator_tenant %}
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card border-0" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border: 1px solid #ffd700 !important;">
+        <div class="card-body p-4 d-flex align-items-center gap-4">
+          <div style="font-size:3rem; line-height:1;">👑</div>
+          <div>
+            <h4 class="mb-1 fw-bold" style="color:#ffd700;">Administrator Plan</h4>
+            <p class="mb-0 text-white-50">
+              This is the reserved internal system plan for the platform owner.
+              It provides unlimited access to all features with no restrictions.
+              Billing is not applicable to this account.
+            </p>
+          </div>
+          <div class="ms-auto">
+            <span class="badge px-3 py-2" style="background:#ffd700; color:#1a1a2e; font-size:0.85rem; border-radius:20px;">
+              🔒 Root Access
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+
   {# ── Current Plan Banner ─────────────────────────────────────────────── #}
   <div class="row mb-4">
     <div class="col-12">
@@ -220,4 +246,5 @@
 .fs-sm  { font-size: 0.83rem; }
 .fs-xs  { font-size: 0.72rem; }
 </style>
+  {% endif %}{# end non-administrator billing UI #}
 {% endblock %}

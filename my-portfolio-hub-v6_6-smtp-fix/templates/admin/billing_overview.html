@@ -1,0 +1,178 @@
+{% extends "admin/base.html" %}
+
+{% block page_title %}Billing &amp; Subscription{% endblock %}
+
+{% block content %}
+
+{% set sub = subscription %}
+{% set status = subscription_status | default(license_status) | default('none') %}
+{% set is_active  = status == 'active' %}
+{% set is_trial   = status == 'trial' %}
+{% set is_grace   = status == 'grace' %}
+{% set is_pending = status == 'pending' %}
+{% set is_expired = status in ('expired', 'none', 'unlicensed') %}
+
+{# ── Page header ── #}
+<div class="page-hd">
+  <div class="page-hd-left">
+    <h1>Billing &amp; Subscription</h1>
+    <p>Manage your plan and payment method.</p>
+  </div>
+  <div class="page-hd-right">
+    {% if trial_days_left is defined and trial_days_left and is_trial %}
+    <span class="activation-eta-badge" style="background:rgba(245,158,11,0.12);border-color:rgba(245,158,11,0.35);color:#f59e0b">
+      <iconify-icon icon="lucide:clock" width="14"></iconify-icon>
+      Trial — {{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }} left
+    </span>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Alert banners ── #}
+{% if is_trial %}
+<div class="alert alert-warning" style="margin-bottom:1.5rem">
+  <iconify-icon icon="lucide:clock" width="16"></iconify-icon>
+  <span><strong>{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</strong> left in your trial.
+    <a href="{{ url_for('admin.billing_plans') }}" style="font-weight:600">Subscribe now</a> to avoid interruption.</span>
+</div>
+{% elif is_grace %}
+<div class="alert alert-warning" style="margin-bottom:1.5rem">
+  <iconify-icon icon="lucide:alert-triangle" width="16"></iconify-icon>
+  <span>Your subscription expired but you're in the <strong>grace period</strong>. Renew now to avoid suspension.</span>
+</div>
+{% elif is_expired %}
+<div class="alert alert-danger" style="margin-bottom:1.5rem">
+  <iconify-icon icon="lucide:alert-triangle" width="16"></iconify-icon>
+  <span>Your subscription has expired. Choose a plan to restore access.</span>
+</div>
+{% elif is_pending %}
+<div class="alert alert-info" style="margin-bottom:1.5rem">
+  <iconify-icon icon="lucide:credit-card" width="16"></iconify-icon>
+  <span>Payment submitted and pending review. Usually approved within 24 hours.</span>
+</div>
+{% endif %}
+
+{# ── Current subscription card ── #}
+<div class="subscription-status-card
+  {% if is_active %}status-active
+  {% elif is_trial %}status-trial
+  {% elif is_grace %}status-awaiting
+  {% elif is_expired %}status-expired
+  {% else %}status-awaiting{% endif %}"
+  style="margin-bottom:1.75rem">
+
+  <div>
+    <div class="sub-status-label">Current Plan</div>
+    <div class="sub-status-name">
+      {{ sub.plan if sub else profile.plan or 'Basic' }}
+      <span class="badge-status
+        {% if is_active %}badge-active
+        {% elif is_trial %}badge-trial
+        {% elif is_grace %}badge-warning
+        {% elif is_pending %}badge-warning
+        {% elif is_expired %}badge-expired
+        {% else %}badge-inactive{% endif %}"
+        style="vertical-align:middle;margin-left:0.5rem">
+        {% if is_active %}Active
+        {% elif is_trial %}Trial
+        {% elif is_grace %}Grace Period
+        {% elif is_pending %}Pending Review
+        {% elif is_expired %}Expired
+        {% else %}Inactive{% endif %}
+      </span>
+    </div>
+
+    <div class="sub-status-meta" style="margin-top:0.75rem">
+      {% if sub %}
+        {% if sub.expires_at and is_active %}
+        <div class="sub-meta-item">
+          <span class="sub-meta-key">Next Billing</span>
+          <span class="sub-meta-val">{{ sub.expires_at.strftime('%b %d, %Y') }}</span>
+        </div>
+        {% endif %}
+        {% if sub.billing_cycle %}
+        <div class="sub-meta-item">
+          <span class="sub-meta-key">Billing Cycle</span>
+          <span class="sub-meta-val">{{ sub.billing_cycle | capitalize }}</span>
+        </div>
+        {% endif %}
+        {% if sub.started_at and is_active %}
+        <div class="sub-meta-item">
+          <span class="sub-meta-key">Started</span>
+          <span class="sub-meta-val">{{ sub.started_at.strftime('%b %d, %Y') }}</span>
+        </div>
+        {% endif %}
+      {% endif %}
+      {% if is_trial and trial_days_left is defined %}
+      <div class="sub-meta-item">
+        <span class="sub-meta-key">Trial Remaining</span>
+        <span class="sub-meta-val" style="color:var(--warn,#f59e0b)">
+          {{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}
+        </span>
+      </div>
+      {% endif %}
+      <div class="sub-meta-item">
+        <span class="sub-meta-key">Payment</span>
+        <span class="sub-meta-val">Manual</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="sub-actions">
+    <a href="{{ url_for('admin.billing_plans') }}" class="btn btn-primary btn-sm">
+      <iconify-icon icon="lucide:layers" width="14"></iconify-icon>
+      {% if is_active %}Change Plan{% else %}Subscribe{% endif %}
+    </a>
+    <a href="{{ url_for('admin.billing_history') }}" class="btn btn-ghost btn-sm">
+      <iconify-icon icon="lucide:history" width="14"></iconify-icon>
+      Payment History
+    </a>
+  </div>
+</div>
+
+{# ── Available plans (read-only preview) ── #}
+<div class="dash-panel">
+  <div class="panel-header">
+    <div>
+      <span class="section-tag">Plans</span>
+      <h2>Available Plans</h2>
+    </div>
+    <span class="activation-eta-badge">
+      <iconify-icon icon="lucide:clock" width="14"></iconify-icon>
+      Manual review — usually within 24 hours
+    </span>
+  </div>
+
+  <div class="plan-cards-grid">
+    {% for key, details in plans.items() %}
+    {% set is_current = (sub and sub.plan == key) or (not sub and profile and profile.plan == key) %}
+    <div class="plan-card-v2 {% if is_current %}selected{% endif %}">
+      {% if loop.index == 2 %}<div class="plan-badge-popular">Most Popular</div>{% endif %}
+      <div class="plan-name">{{ key }}</div>
+      <div class="plan-price">
+        <span class="amount price-monthly"
+              data-monthly="₱{{ '%.2f'|format(details.price_monthly) }}/mo"
+              data-yearly="₱{{ '%.2f'|format(details.price_yearly) }}/yr">
+          ₱{{ '%.2f'|format(details.price_monthly) }}/mo
+        </span>
+      </div>
+      <div class="plan-desc">{{ details.description }}</div>
+      <ul class="plan-features">
+        {% set _features = details.features if details.features is iterable and details.features is not string else details.features.splitlines() %}
+        {% for feature in _features %}
+          {% if feature | trim %}<li>{{ feature | trim }}</li>{% endif %}
+        {% endfor %}
+      </ul>
+      {% if is_current and is_active %}
+        <span class="badge-status badge-active" style="align-self:flex-start;margin-top:auto">Current Plan</span>
+      {% else %}
+        <a href="{{ url_for('admin.billing_plans') }}" class="btn btn-ghost btn-sm" style="align-self:flex-start;margin-top:auto">
+          {% if is_current %}Renew{% else %}Select Plan{% endif %}
+        </a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}

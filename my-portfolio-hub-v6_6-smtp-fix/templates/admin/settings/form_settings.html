@@ -1,0 +1,353 @@
+{% extends 'admin/base.html' %}
+{% block title %}Form Settings{% endblock %}
+{% block page_title %}Contact Form Settings{% endblock %}
+
+{% block content %}
+
+<div class="breadcrumb-trail">
+  <a href="{{ url_for('admin.settings') }}" class="bc-link">
+    <iconify-icon icon="lucide:settings" width="14"></iconify-icon>
+    Settings
+  </a>
+  <iconify-icon icon="lucide:chevron-right" width="14" class="bc-sep"></iconify-icon>
+  <span class="bc-current">Contact Form</span>
+</div>
+
+{# ── Status Bar ───────────────────────────────────────────────────────────── #}
+<div class="status-bar">
+  {% if settings.status_label == 'connected' %}
+    <span class="tag-sm tag-success">
+      <iconify-icon icon="lucide:circle-check" width="13"></iconify-icon>
+      Connected — {{ settings.provider | title }}
+    </span>
+  {% elif settings.status_label == 'needs_setup' %}
+    <span class="tag-sm tag-warn">
+      <iconify-icon icon="lucide:circle-alert" width="13"></iconify-icon>
+      Needs Setup — {{ settings.provider | title }} key required
+    </span>
+  {% else %}
+    <span class="tag-sm tag-muted">
+      <iconify-icon icon="lucide:circle-x" width="13"></iconify-icon>
+      Disabled — using CMS inbox
+    </span>
+  {% endif %}
+
+  {% if validation_ok %}
+    <span class="tag-sm tag-success">
+      <iconify-icon icon="lucide:shield-check" width="13"></iconify-icon>
+      Config valid
+    </span>
+  {% endif %}
+</div>
+
+{# ── Provider Cards ───────────────────────────────────────────────────────── #}
+<div class="provider-picker">
+
+  <label class="provider-card {% if settings.provider == 'disabled' %}provider-card--active{% endif %}"
+         onclick="selectProvider('disabled')">
+    <input type="radio" name="_provider_pick" value="disabled"
+           {% if settings.provider == 'disabled' %}checked{% endif %} style="display:none;">
+    <div class="provider-card-icon" style="background:rgba(148,163,184,.1);">
+      <iconify-icon icon="lucide:inbox" width="22"></iconify-icon>
+    </div>
+    <div class="provider-card-body">
+      <div class="provider-card-name">Internal CMS</div>
+      <div class="provider-card-desc">Store submissions in the CMS messages inbox. No external account needed.</div>
+    </div>
+    <span class="provider-card-check"><iconify-icon icon="lucide:check" width="14"></iconify-icon></span>
+  </label>
+
+  <label class="provider-card {% if settings.provider == 'basin' %}provider-card--active{% endif %}"
+         onclick="selectProvider('basin')">
+    <input type="radio" name="_provider_pick" value="basin"
+           {% if settings.provider == 'basin' %}checked{% endif %} style="display:none;">
+    <div class="provider-card-icon" style="background:rgba(16,185,129,.12);">
+      <iconify-icon icon="lucide:layout-panel-top" width="22"></iconify-icon>
+    </div>
+    <div class="provider-card-body">
+      <div class="provider-card-name">Basin</div>
+      <div class="provider-card-desc">Serverless form backend. Get a free endpoint at usebasin.com.</div>
+    </div>
+    <span class="provider-card-check"><iconify-icon icon="lucide:check" width="14"></iconify-icon></span>
+  </label>
+
+  <label class="provider-card {% if settings.provider == 'email_only' %}provider-card--active{% endif %}"
+         onclick="selectProvider('email_only')">
+    <input type="radio" name="_provider_pick" value="email_only"
+           {% if settings.provider == 'email_only' %}checked{% endif %} style="display:none;">
+    <div class="provider-card-icon" style="background:rgba(99,102,241,.12);">
+      <iconify-icon icon="lucide:mail" width="22"></iconify-icon>
+    </div>
+    <div class="provider-card-body">
+      <div class="provider-card-name">Email Only</div>
+      <div class="provider-card-desc">Deliver submissions to an email address via MailerSend. No external account needed.</div>
+    </div>
+    <span class="provider-card-check"><iconify-icon icon="lucide:check" width="14"></iconify-icon></span>
+  </label>
+
+</div>
+
+{# ── Settings Form ────────────────────────────────────────────────────────── #}
+<form method="POST" action="{{ url_for('admin_forms.form_settings') }}" autocomplete="off">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="content-grid" style="max-width: 780px;">
+
+    {# ── Provider config ──────────────────────────────────────────────────── #}
+    <div class="form-card" id="basinConfig"
+         style="{{ 'display:none;' if settings.provider != 'basin' else '' }}">
+      <div class="form-card-header">
+        <iconify-icon icon="lucide:layout-panel-top" width="18"></iconify-icon>
+        <h3>Basin Configuration</h3>
+        <span class="tag-sm tag-success" style="margin-left:auto;">
+          <iconify-icon icon="lucide:external-link" width="12"></iconify-icon>
+          <a href="https://usebasin.com" target="_blank" rel="noopener" style="color:inherit;">usebasin.com</a>
+        </span>
+      </div>
+      <div class="form-card-body">
+        <div class="form-group">
+          <label class="form-label" for="form_endpoint">
+            Basin Endpoint URL
+            {% if settings.form_endpoint %}
+              <span class="badge badge-success" style="margin-left:.5rem;">Set</span>
+            {% endif %}
+          </label>
+          <input
+            type="url"
+            id="form_endpoint"
+            name="form_endpoint"
+            class="form-input"
+            value="{{ settings.form_endpoint or '' }}"
+            placeholder="https://usebasin.com/f/your-form-id"
+            maxlength="500"
+          >
+          <span class="field-hint">Find your endpoint URL in the Basin dashboard → Forms → Endpoint.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-card" id="emailOnlyConfig"
+         style="{{ 'display:none;' if settings.provider != 'email_only' else '' }}">
+      <div class="form-card-header">
+        <iconify-icon icon="lucide:mail" width="18"></iconify-icon>
+        <h3>Email Only Configuration</h3>
+      </div>
+      <div class="form-card-body">
+        <p class="field-hint" style="margin-bottom:1rem;">
+          Contact form submissions are delivered by email to the recipient address below
+          using the platform's MailerSend configuration. Messages are always saved
+          to the CMS inbox regardless of delivery status.
+        </p>
+      </div>
+    </div>
+
+    {# ── Shared settings ──────────────────────────────────────────────────── #}
+    <div class="form-card" id="sharedConfig"
+         style="{{ 'display:none;' if settings.provider == 'disabled' else '' }}">
+      <div class="form-card-header">
+        <iconify-icon icon="lucide:mail" width="18"></iconify-icon>
+        <h3>Delivery Settings</h3>
+      </div>
+      <div class="form-card-body">
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label" for="receiver_email">Receiver Email</label>
+            <input
+              type="email"
+              id="receiver_email"
+              name="receiver_email"
+              class="form-input"
+              value="{{ settings.receiver_email or '' }}"
+              placeholder="you@example.com"
+              maxlength="200"
+            >
+            <span class="field-hint">Where contact form submissions are delivered.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="sender_name">Sender Display Name</label>
+            <input
+              type="text"
+              id="sender_name"
+              name="sender_name"
+              class="form-input"
+              value="{{ settings.sender_name or '' }}"
+              placeholder="Your Portfolio"
+              maxlength="200"
+            >
+            <span class="field-hint">Shown in the From field of emails.</span>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:.75rem;">
+          <label class="toggle-row">
+            <input type="checkbox" name="is_enabled" id="is_enabled"
+                   {{ 'checked' if settings.is_enabled else '' }}>
+            <span class="toggle-track"></span>
+            <span class="toggle-label">Enable contact form submissions</span>
+          </label>
+          <span class="field-hint">Disabling routes all submissions to the internal CMS inbox instead.</span>
+        </div>
+      </div>
+    </div>
+
+    {# ── Hidden provider value ─────────────────────────────────────────────── #}
+    <input type="hidden" name="provider" id="providerInput" value="{{ settings.provider }}">
+
+    {# ── Actions ──────────────────────────────────────────────────────────── #}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">
+        <iconify-icon icon="lucide:save" width="16"></iconify-icon>
+        Save Settings
+      </button>
+      <button type="button" id="testBtn"
+              class="btn btn-ghost"
+              style="{{ 'display:none;' if settings.provider == 'disabled' else '' }}"
+              onclick="testProvider()">
+        <iconify-icon icon="lucide:send" width="16"></iconify-icon>
+        Send Test Email
+      </button>
+    </div>
+
+    {# ── Test result ───────────────────────────────────────────────────────── #}
+    <div id="testResult" style="display:none;" class="form-card"></div>
+
+  </div>
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token() }}';
+const TEST_URL = '{{ url_for("admin_forms.test_form_provider") }}';
+
+function selectProvider(p) {
+  document.getElementById('providerInput').value = p;
+
+  document.querySelectorAll('.provider-card').forEach(c => c.classList.remove('provider-card--active'));
+  document.querySelectorAll('[name="_provider_pick"]').forEach(r => {
+    if (r.value === p) {
+      r.checked = true;
+      r.closest('.provider-card').classList.add('provider-card--active');
+    }
+  });
+
+  document.getElementById('basinConfig').style.display      = p === 'basin'      ? '' : 'none';
+  document.getElementById('emailOnlyConfig').style.display  = p === 'email_only'  ? '' : 'none';
+  document.getElementById('sharedConfig').style.display     = p !== 'disabled'    ? '' : 'none';
+  document.getElementById('testBtn').style.display          = p !== 'disabled'    ? '' : 'none';
+}
+
+async function testProvider() {
+  const btn = document.getElementById('testBtn');
+  const res = document.getElementById('testResult');
+
+  btn.disabled = true;
+  btn.innerHTML = '<iconify-icon icon="lucide:loader" width="16"></iconify-icon> Sending…';
+
+  try {
+    const fd = new FormData();
+    fd.append('csrf_token', CSRF);
+
+    const r = await fetch(TEST_URL, { method: 'POST', body: fd });
+    const d = await r.json();
+
+    res.style.display = '';
+    res.className = 'form-card form-card--' + (d.ok ? 'success' : 'danger');
+    res.innerHTML = `
+      <div class="form-card-body" style="display:flex;align-items:center;gap:.6rem;">
+        <iconify-icon icon="${d.ok ? 'lucide:circle-check' : 'lucide:circle-x'}" width="18"></iconify-icon>
+        <span>${d.message}</span>
+      </div>`;
+  } catch(e) {
+    res.style.display = '';
+    res.className = 'form-card form-card--danger';
+    res.innerHTML = `<div class="form-card-body">Request failed: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<iconify-icon icon="lucide:send" width="16"></iconify-icon> Send Test Email';
+    setTimeout(() => { res.style.display = 'none'; }, 8000);
+  }
+}
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.status-bar {
+  display: flex;
+  gap: .75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+/* ── Provider picker ─────────────────────────────────────────────────────── */
+.provider-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+  max-width: 780px;
+}
+
+.provider-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+  padding: 1.1rem 1rem;
+  background: var(--card-bg, #1e2433);
+  border: 1px solid var(--border-color, rgba(255,255,255,.07));
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  user-select: none;
+}
+.provider-card:hover {
+  border-color: rgba(99,102,241,.35);
+  background: rgba(99,102,241,.04);
+}
+.provider-card--active {
+  border-color: rgba(99,102,241,.6) !important;
+  background: rgba(99,102,241,.06) !important;
+}
+.provider-card-icon {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-primary, #f1f5f9);
+}
+.provider-card-name {
+  font-weight: 600;
+  font-size: .9rem;
+  color: var(--text-primary, #f1f5f9);
+}
+.provider-card-desc {
+  font-size: .78rem;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.4;
+}
+.provider-card-check {
+  display: none;
+  position: absolute;
+  top: .75rem; right: .75rem;
+  color: #818cf8;
+}
+.provider-card--active .provider-card-check { display: block; }
+
+/* ── Form card variants for test result ──────────────────────────────────── */
+.form-card--success {
+  border-color: rgba(16,185,129,.3) !important;
+  background: rgba(16,185,129,.06) !important;
+}
+.form-card--success .form-card-body { color: #34d399; }
+.form-card--danger {
+  border-color: rgba(239,68,68,.3) !important;
+  background: rgba(239,68,68,.06) !important;
+}
+.form-card--danger .form-card-body { color: #f87171; }
+
+@media (max-width: 600px) {
+  .provider-picker { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}

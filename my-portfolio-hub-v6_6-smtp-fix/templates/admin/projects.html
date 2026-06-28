@@ -1,0 +1,147 @@
+{% extends "admin/base.html" %}
+{% block title %}Projects{% endblock %}
+{% block page_title %}Projects{% endblock %}
+
+{% block content %}
+<div class="list-page">
+
+  <!-- Toolbar -->
+  <div class="page-hd">
+    <div class="page-hd-left">
+      <h1>Projects</h1>
+      <p>Manage and publish your portfolio projects.</p>
+    </div>
+    <div class="page-hd-right">
+      <a href="{{ url_for('admin.new_project') }}" class="btn btn-primary">
+        <iconify-icon icon="lucide:plus" width="15"></iconify-icon> New Project
+      </a>
+    </div>
+  </div>
+
+  <div class="list-toolbar">
+    <form class="search-bar" method="GET">
+      <input type="text" name="q" value="{{ q }}" class="form-input search-input"
+             placeholder="Search projects…"/>
+      <select name="status" class="form-select">
+        <option value="all" {% if status_filter=='all' %}selected{% endif %}>All Status</option>
+        <option value="published" {% if status_filter=='published' %}selected{% endif %}>Published</option>
+        <option value="draft" {% if status_filter=='draft' %}selected{% endif %}>Draft</option>
+        <option value="archived" {% if status_filter=='archived' %}selected{% endif %}>Archived</option>
+      </select>
+      <select name="category" class="form-select">
+        <option value="all">All Categories</option>
+        {% for cat in categories %}
+        <option value="{{ cat }}" {% if category_filter==cat %}selected{% endif %}>{{ cat }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-ghost">Filter</button>
+    </form>
+  </div>
+
+  {% if projects %}
+  <div class="project-grid" id="projectGrid">
+    {% for p in projects %}
+    <div class="project-card" data-id="{{ p.id }}">
+      <div class="project-card-img">
+        {% if p.image %}
+          <img src="{{ url_for('static', filename='uploads/projects/' + p.image) }}" alt="{{ p.title }}"/>
+        {% else %}
+          <div class="img-placeholder-lg">◈</div>
+        {% endif %}
+        <div class="project-card-badges">
+          {% if p.is_featured %}
+            <span class="badge badge-featured">★ Featured</span>
+          {% endif %}
+          <span class="badge badge-{{ p.status }}">{{ p.status }}</span>
+        </div>
+      </div>
+      <div class="project-card-body">
+        <div class="project-card-drag">⠿</div>
+        <h3>{{ p.title }}</h3>
+        <p class="project-card-desc">{{ p.description_short or p.description|truncate(100) }}</p>
+        <div class="project-card-tags">
+          {% for tag in p.tags[:4] %}
+            <span class="chip">{{ tag }}</span>
+          {% endfor %}
+        </div>
+        <div class="project-card-meta">
+          <span class="meta-cat">{{ p.category }}</span>
+          {% if p.framework %}
+            <span class="meta-framework">{{ p.framework }}</span>
+          {% endif %}
+          {% if p.language %}
+            <span class="meta-language">{{ p.language }}</span>
+          {% endif %}
+          {% if p.date_completed %}
+            <span class="meta-date">{{ p.date_completed.strftime('%b %Y') }}</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="project-card-actions">
+        <button class="icon-btn icon-btn--toggle {% if p.is_featured %}active{% endif %}"
+                title="Toggle featured"
+                onclick="toggleFeatured({{ p.id }}, this)">★</button>
+        <button class="icon-btn icon-btn--status"
+                title="Toggle publish"
+                data-status="{{ p.status }}"
+                onclick="togglePublish({{ p.id }}, this)">
+          {% if p.status == 'published' %}◉{% else %}○{% endif %}
+        </button>
+        {% if p.live_url %}
+          <a href="{{ p.live_url }}" target="_blank" class="icon-btn" title="Live demo">↗</a>
+        {% endif %}
+        <a href="{{ url_for('admin.edit_project', id=p.id) }}" class="icon-btn" title="Edit">✎</a>
+        <button class="icon-btn icon-btn--danger" title="Delete"
+                onclick="confirmDelete('{{ url_for('admin.delete_project', id=p.id) }}',
+                'Delete project &quot;{{ p.title }}&quot;? This cannot be undone.')">✕</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state-v2" style="margin-top:2rem;">
+    <div class="empty-icon"><iconify-icon icon="lucide:folder-open" width="28"></iconify-icon></div>
+      <h3>No projects yet</h3>
+    <p>Create your first project to showcase your work.</p>
+    <a href="{{ url_for('admin.new_project') }}" class="btn btn-primary">Add Project</a>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function toggleFeatured(id, btn) {
+  const res = await fetch(`/admin/projects/${id}/toggle-featured`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
+  });
+  const data = await res.json();
+  btn.classList.toggle('active', data.featured);
+  showToast(data.featured ? '★ Marked as featured' : 'Removed from featured');
+}
+
+async function togglePublish(id, btn) {
+  const res = await fetch(`/admin/projects/${id}/toggle`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
+  });
+  const data = await res.json();
+  btn.textContent = data.status === 'published' ? '◉' : '○';
+  btn.dataset.status = data.status;
+  const badge = btn.closest('.project-card').querySelector('.badge-published, .badge-draft');
+  if (badge) { badge.textContent = data.status; badge.className = `badge badge-${data.status}`; }
+  showToast(`"${data.title}" is now ${data.status}`);
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast toast-success';
+  t.innerHTML = `<span class="toast-icon">✓</span><span class="toast-msg">${msg}</span>`;
+  document.body.appendChild(t);
+  setTimeout(() => t.style.opacity = '0', 2500);
+  setTimeout(() => t.remove(), 3000);
+}
+</script>
+{% endblock %}

@@ -134,6 +134,22 @@ class Profile(db.Model):
             return normalize_plan_name(sub.plan)
         return normalize_plan_name(self.plan or 'Basic')
 
+    @property
+    def is_administrator(self) -> bool:
+        """
+        True iff this profile's tenant holds the Administrator reserved plan.
+
+        This property is used by ThemeEngine.resolve_theme() and
+        ThemeEngine.can_use_theme() via ThemeAccessService.can_access_theme().
+        Without it, getattr(profile, 'is_administrator', False) always returned
+        False, causing Administrator tenants to be treated as Free tier.
+
+        NOTE: uses get_effective_plan() from plan_hierarchy so that the
+        'administrator' alias map is always applied.
+        """
+        from app.services.plans.plan_hierarchy import is_administrator as _is_admin
+        return _is_admin(self.effective_plan())
+
     def plan_features(self) -> dict:
         from app.models.core import get_plan_features
         return get_plan_features(self.effective_plan())

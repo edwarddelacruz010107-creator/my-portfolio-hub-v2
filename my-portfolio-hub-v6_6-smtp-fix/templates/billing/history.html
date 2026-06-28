@@ -1,0 +1,81 @@
+{% extends "billing/base.html" %}
+{% block billing_title %}Billing History{% endblock %}
+{% block billing_page_title %}Billing — History{% endblock %}
+
+{% block billing_content %}
+<div class="page-hd">
+  <div class="page-hd-left">
+    <h1>Billing History</h1>
+    <p>Review all past payments, receipts, and subscription changes.</p>
+  </div>
+</div>
+
+{% if submissions %}
+<div class="data-table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Plan</th>
+        <th>Method</th>
+        <th>Amount</th>
+        <th>Status</th>
+        <th>Reference</th>
+        <th>Receipt</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in submissions %}
+      <tr>
+        <td class="muted">{{ s.submitted_at.strftime('%b %d, %Y') if s.submitted_at else '—' }}</td>
+        <td><strong>{{ s.plan or '—' }}</strong></td>
+        <td class="muted">{{ s.payment_method or 'Manual' }}</td>
+        <td style="font-family:var(--font-display);font-weight:600">
+          {% if s.amount_paid %}${{ '%.2f'|format(s.amount_paid) }}{% else %}—{% endif %}
+        </td>
+        <td>
+          <span class="badge-status badge-{{ s.status | lower if s.status else 'pending' }}">
+            {{ s.status | title if s.status else 'Pending' }}
+          </span>
+        </td>
+        <td class="muted" style="font-size:0.78rem;font-family:var(--font-display)">
+          {{ s.payment_reference or '—' }}
+        </td>
+        <td>
+          {% if s.payment_proof %}
+          <a href="{{ url_for('static', filename='uploads/billing/' ~ s.payment_proof) }}"
+             target="_blank"
+             class="btn btn-ghost btn-sm"
+             style="padding:0.2rem 0.6rem;font-size:0.75rem">
+            <iconify-icon icon="lucide:external-link" width="12"></iconify-icon>
+            View
+          </a>
+          {% else %}
+          <span class="muted">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% else %}
+<div class="dash-panel">
+  <div class="empty-state-v2">
+    <div class="empty-icon">
+      <iconify-icon icon="lucide:receipt" width="28"></iconify-icon>
+    </div>
+    <h3>No payment history yet</h3>
+    <p>Once you submit a payment, all your receipts and subscription records will appear here.</p>
+    <div class="empty-actions">
+      <a href="{{ billing_url('main.billing_payment') }}" class="btn btn-primary">
+        <iconify-icon icon="lucide:upload" width="14"></iconify-icon>
+        Upload First Payment
+      </a>
+      <a href="{{ billing_url('main.billing_plans') }}" class="btn btn-ghost">View Plans</a>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

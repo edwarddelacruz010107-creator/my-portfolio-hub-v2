@@ -1,0 +1,83 @@
+{#
+  templates/themes/components/testimonials_section.html
+  Shared testimonials section component.
+  Context: testimonials (queryset), theme_style
+#}
+{% set visible_testimonials = testimonials | selectattr('is_visible') | list if testimonials else [] %}
+{% if visible_testimonials %}
+<section
+  id="testimonials"
+  class="section-testimonials theme-{{ theme_style }}"
+  aria-labelledby="testimonials-heading"
+>
+  <div class="section-inner">
+    <header class="section-header">
+      {% if theme_style == 'developer_pro' %}
+        <span class="section-eyebrow cyber-label" aria-hidden="true">// CLIENT FEEDBACK</span>
+      {% endif %}
+      <h2 id="testimonials-heading" class="section-title">
+        {% if theme_style == 'developer_pro' %}
+          What Clients <span class="neon-accent">Say</span>
+        {% else %}
+          Testimonials
+        {% endif %}
+      </h2>
+    </header>
+
+    <div class="testimonials-grid" role="list" aria-label="Client testimonials">
+      {% for t in visible_testimonials %}
+      <article
+        class="testimonial-card {% if loop.first %}testimonial-card--featured{% endif %}"
+        role="listitem"
+      >
+        {# Star rating #}
+        {% if t.rating %}
+        <div class="testimonial-card__rating" aria-label="Rating: {{ t.rating }} out of 5">
+          {% for i in range(1, 6) %}
+            <span
+              class="star {% if i <= t.rating %}star--filled{% endif %}"
+              aria-hidden="true"
+            >★</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <blockquote class="testimonial-card__quote">
+          <p>{{ t.quote }}</p>
+        </blockquote>
+
+        <footer class="testimonial-card__footer">
+          {% if t.avatar_filename %}
+            <img
+              src="/uploads/{{ t.tenant_id }}/avatars/{{ t.avatar_filename }}"
+              alt="Photo of {{ t.client_name }}"
+              class="testimonial-card__avatar"
+              loading="lazy"
+              width="48"
+              height="48"
+            >
+          {% else %}
+            <span class="testimonial-card__avatar-placeholder" aria-hidden="true">
+              {{ t.client_name[0] | upper }}
+            </span>
+          {% endif %}
+
+          <div class="testimonial-card__author">
+            <cite class="testimonial-card__name">{{ t.client_name }}</cite>
+            {% if t.role or t.company %}
+              <p class="testimonial-card__meta">
+                {{ t.role }}{% if t.role and t.company %} · {% endif %}{{ t.company }}
+              </p>
+            {% endif %}
+          </div>
+
+          {% if t.project_reference %}
+            <span class="testimonial-card__project">re: {{ t.project_reference }}</span>
+          {% endif %}
+        </footer>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}

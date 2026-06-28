@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "portfolio-cms"
+version = "2.4.0"
+description = "Production-grade Flask portfolio CMS with PostgreSQL/Supabase"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+readme = "README.md"
+
+# ── Black ─────────────────────────────────────────────────────────────────────
+[tool.black]
+line-length    = 100
+target-version = ["py312"]
+skip-magic-trailing-comma = false
+
+# ── Ruff ──────────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length    = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "S",   # bandit (security)
+    "N",   # pep8-naming
+]
+ignore = [
+    "S101",  # Use of assert (OK in tests)
+    "S105",  # Possible hardcoded password (lots of false positives in Flask)
+    "B008",  # Do not perform function calls in default arguments (WTForms pattern)
+    "N818",  # Exception name should end in Error (Flask exception classes)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"run.py"   = ["S603", "S607"]   # subprocess calls in CLI commands
+"tests/*"  = ["S101", "S106"]   # Asserts and passwords in test fixtures
+
+# ── mypy ──────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version   = "3.12"
+warn_return_any  = true
+warn_unused_configs = true
+ignore_missing_imports = true   # Flask/SQLAlchemy stubs are incomplete
+
+# ── pytest ────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths    = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+# ── coverage ──────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source   = ["app"]
+omit     = ["*/tests/*", "*/__pycache__/*", "*/migrations/*"]
+
+[tool.coverage.report]
+show_missing  = true
+skip_covered  = false
+fail_under    = 70   # Minimum coverage threshold

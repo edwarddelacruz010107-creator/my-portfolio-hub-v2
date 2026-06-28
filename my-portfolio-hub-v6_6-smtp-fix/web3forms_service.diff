@@ -1,0 +1,533 @@
+--- output/app/services/web3forms_service.py.orig	2026-06-23 07:43:02.701609701 +0000
++++ output/app/services/web3forms_service.py	2026-06-23 07:44:08.100344606 +0000
+@@ -1,37 +1,51 @@
+ """
+-app/services/web3forms_service.py — Web3Forms email relay for Superadmin OTP (v1.0)
++app/services/web3forms_service.py — Web3Forms email relay for Superadmin OTP (v2.0)
+ 
+-SCOPE: Strictly limited to superadmin password-reset OTP delivery.
+-       No other flow touches this module.
+-
+-Why Web3Forms for this path:
+-  • The SMTP / MailerSend stack shares a single outbound quota that may be
+-    exhausted or rate-limited at the provider level ("too many requests").
+-  • Web3Forms operates as a completely independent HTTP relay — different
+-    transport, different quota, zero dependency on smtplib or MailerSend.
+-  • Free tier supports 250 submissions/month — more than enough for a
+-    single-owner superadmin that resets passwords infrequently.
+-
+-Security properties:
+-  • Access key read from environment variable only — never hardcoded.
+-  • Recipient fixed to OWNER_EMAIL env var — cannot be redirected by caller.
+-  • OTP is the only sensitive field; never logged at DEBUG/INFO level.
+-  • Timeout enforced (8 s) — no blocking indefinitely on network issues.
+-  • Exception boundary: all errors surface as (False, "safe message") tuple.
+-  • No retry loop here — retries belong at the route level with user-visible
+-    feedback (prevent silent duplicate OTP sends).
++SCOPE:  Strictly limited to superadmin password-reset OTP delivery.
++        NO other flow touches this module.
++        Admin / tenant flows use MailerSend via email_service.py — untouched.
++
++Architecture:
++    SUPERADMIN RESET → Web3Forms HTTP API (this file)
++    ADMIN RESET      → MailerSend via email_service.send_otp_email()  [DO NOT TOUCH]
++    TENANT RESET     → MailerSend via email_service.send_otp_email()  [DO NOT TOUCH]
++
++Why Web3Forms for the superadmin path:
++    • Zero dependency on MailerSend quota, credentials, or sender-domain setup.
++    • Works even when MailerSend API key is expired / revoked.
++    • Free tier (250/month) is ample for a single-owner superadmin account.
++    • Independent transport: different HTTP endpoint, different rate-limit bucket.
++
++Security properties (v2.0):
++    • Access key read ONLY from environment variable — never from DB, never hardcoded.
++    • Recipient resolved from OWNER_EMAIL env var first, then User.email from DB.
++      This prevents DB-tamper attacks redirecting OTP to an attacker address.
++    • Raw OTP never logged at any level.
++    • 15-second request timeout.
++    • 3 automatic retries with exponential back-off (1 s → 2 s → 4 s).
++    • All exceptions caught; return value is always (bool, str) — never raises.
++    • health_check() available for /health/email endpoint.
+ 
+ Configuration (.env):
+-  WEB3FORMS_ACCESS_KEY=<your-key-from-web3forms.com>
+-  OWNER_EMAIL=<superadmin-email-that-receives-the-OTP>
++    WEB3FORMS_ACCESS_KEY=<your-key-from-web3forms.com>
++    OWNER_EMAIL=<superadmin-email-that-receives-the-OTP>
++
++If OWNER_EMAIL is absent, the function falls back to the email argument
++supplied by the caller (User.email resolved from the database).
+ 
+-If OWNER_EMAIL is not set, falls back to the `email` argument supplied by
+-the caller (the User.email resolved from the database).
++Audit log events emitted:
++    w3f_otp_delivered   — Web3Forms accepted the submission
++    w3f_otp_rejected    — Web3Forms returned success=false
++    w3f_rate_limited    — 429 from Web3Forms
++    w3f_timeout         — request timed out
++    w3f_connection_err  — network error
++    w3f_not_configured  — WEB3FORMS_ACCESS_KEY absent at call time
+ """
+ from __future__ import annotations
+ 
+ import logging
+ import os
++import time
+ from datetime import datetime, timezone
+ from typing import Optional
+ 
+@@ -39,31 +53,74 @@
+ 
+ logger = logging.getLogger(__name__)
+ 
+-# Web3Forms public submission endpoint (no auth header — key in payload)
+-_W3F_ENDPOINT = "https://api.web3forms.com/submit"
+-_REQUEST_TIMEOUT = 8  # seconds — aggressive but avoids blocking gunicorn workers
++# ─────────────────────────────────────────────────────────────────────────────
++# Constants
++# ─────────────────────────────────────────────────────────────────────────────
++
++_W3F_ENDPOINT      = "https://api.web3forms.com/submit"
++_REQUEST_TIMEOUT   = 15          # seconds (spec: 15 s)
++_MAX_RETRIES       = 3           # spec: retry 3 times
++_RETRY_BASE_DELAY  = 1.0         # seconds; doubles each retry (1 → 2 → 4)
+ 
+ 
++# ─────────────────────────────────────────────────────────────────────────────
++# Internal helpers
++# ─────────────────────────────────────────────────────────────────────────────
++
+ def _get_access_key() -> str:
+-    """Resolve Web3Forms access key from environment."""
++    """Resolve Web3Forms access key from environment. Never from DB."""
+     return os.environ.get("WEB3FORMS_ACCESS_KEY", "").strip()
+ 
+ 
+ def _get_owner_email(fallback: str = "") -> str:
+     """
+-    Resolve the destination address for superadmin OTP.
++    Resolve the OTP destination address.
+ 
+     Priority:
+-      1. OWNER_EMAIL env var (explicit, recommended)
+-      2. Caller-supplied fallback (User.email from DB)
++        1. OWNER_EMAIL env var (explicit, recommended — tamper-proof)
++        2. Caller-supplied fallback (User.email from DB)
+ 
+     Using OWNER_EMAIL as an env-level pin ensures that even if a DB record
+-    is tampered with, OTP delivery cannot be redirected to an attacker address.
++    is compromised, OTP delivery cannot be redirected to an attacker address.
+     """
+     return os.environ.get("OWNER_EMAIL", "").strip() or fallback
+ 
+ 
+-def send_superadmin_otp_web3forms(
++def _build_payload(access_key: str, body: str, now_str: str) -> dict:
++    """Construct the Web3Forms POST payload."""
++    return {
++        "access_key": access_key,
++        "subject": f"[Portfolio CMS] Superadmin Password Reset OTP — {now_str}",
++        "from_name": "Portfolio CMS Security",
++        "message": body,
++        # Suppress Web3Forms' own thank-you redirect (irrelevant for server-side calls)
++        "redirect": "false",
++    }
++
++
++def _build_body(otp: str, ip_address: Optional[str], user_agent: Optional[str],
++                ttl_minutes: int, now_str: str) -> str:
++    """Build the plain-text email body. OTP appears exactly once."""
++    return (
++        f"A password reset was requested for the Portfolio CMS superadmin account.\n\n"
++        f"Your one-time password (OTP) is:\n\n"
++        f"    {otp}\n\n"
++        f"This OTP expires in {ttl_minutes} minute(s).\n"
++        f"Do NOT share it with anyone.\n\n"
++        f"Request details:\n"
++        f"  IP address : {ip_address or 'unknown'}\n"
++        f"  User agent : {(user_agent or 'unknown')[:120]}\n"
++        f"  Time (UTC) : {now_str}\n\n"
++        f"If you did not request this, secure your account immediately.\n\n"
++        f"— Portfolio CMS Security"
++    )
++
++
++# ─────────────────────────────────────────────────────────────────────────────
++# Public API
++# ─────────────────────────────────────────────────────────────────────────────
++
++def send_superadmin_otp(
+     email: str,
+     otp: str,
+     ip_address: Optional[str] = None,
+@@ -73,26 +130,28 @@
+     """
+     Send superadmin OTP via Web3Forms HTTP API.
+ 
++    Primary entry point — called exclusively from
++    password_reset_service._send_superadmin_otp().
++
+     Args:
+-        email:       User.email from the DB — used as fallback recipient if
+-                     OWNER_EMAIL env var is not set.
+-        otp:         Raw 6-digit OTP (not logged).
+-        ip_address:  Request IP for context in the email body.
+-        user_agent:  Request UA for context in the email body.
+-        ttl_minutes: OTP validity window to display in the body.
++        email:       User.email from DB — used as fallback recipient when
++                     OWNER_EMAIL env var is absent.
++        otp:         Raw 6-digit OTP.  Never logged.
++        ip_address:  Request IP — included in email body for audit context.
++        user_agent:  Request UA — truncated to 120 chars in email body.
++        ttl_minutes: OTP validity window to display.
+ 
+     Returns:
+-        (True, "delivered") on success.
+-        (False, "safe user-facing message") on any failure.
++        (True, "delivered")            on acceptance by Web3Forms.
++        (False, "safe user-facing msg") on any failure.
+ 
+-    Raises:
+-        Nothing — all exceptions are caught and returned as (False, msg).
++    Never raises — all exceptions are caught internally.
+     """
+     access_key = _get_access_key()
+     if not access_key:
+         logger.error(
+-            "web3forms_service: WEB3FORMS_ACCESS_KEY is not set — "
+-            "superadmin OTP delivery impossible"
++            "web3forms_service [w3f_not_configured]: WEB3FORMS_ACCESS_KEY is not set — "
++            "superadmin OTP delivery impossible via Web3Forms"
+         )
+         return False, "Email service is not configured. Contact your system administrator."
+ 
+@@ -104,33 +163,157 @@
+         )
+         return False, "Unable to resolve OTP recipient address."
+ 
+-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
++    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
++    body    = _build_body(otp, ip_address, user_agent, ttl_minutes, now_str)
++    payload = _build_payload(access_key, body, now_str)
++
++    # ── Retry loop (spec: retry 3 times) ─────────────────────────────────────
++    last_error: str = "Unknown error"
++    for attempt in range(1, _MAX_RETRIES + 1):
++        if attempt > 1:
++            delay = _RETRY_BASE_DELAY * (2 ** (attempt - 2))  # 1 s, 2 s, 4 s
++            logger.warning(
++                "web3forms_service: retry %d/%d after %.0fs delay (previous: %s)",
++                attempt, _MAX_RETRIES, delay, last_error,
++            )
++            time.sleep(delay)
++
++        try:
++            resp = requests.post(
++                _W3F_ENDPOINT,
++                json=payload,
++                timeout=_REQUEST_TIMEOUT,
++                headers={"Accept": "application/json"},
++            )
++
++            if resp.status_code == 200:
++                data = resp.json()
++                if data.get("success"):
++                    logger.info(
++                        "web3forms_service [w3f_otp_delivered]: OTP accepted "
++                        "for delivery attempt=%d recipient=%s",
++                        attempt, recipient,
++                    )
++                    return True, "delivered"
++
++                # 200 but success=false — bad key, domain restriction, etc.
++                reason = data.get("message", "unknown")
++                logger.error(
++                    "web3forms_service [w3f_otp_rejected]: API rejected submission "
++                    "attempt=%d reason=%s key_prefix=%s",
++                    attempt, reason,
++                    access_key[:6] + "…" if len(access_key) > 6 else "(short)",
++                )
++                # Config error — retrying won't help; break immediately.
++                return False, "Unable to send OTP right now. Please try again later."
++
++            elif resp.status_code == 429:
++                logger.warning(
++                    "web3forms_service [w3f_rate_limited]: rate-limited (429) "
++                    "attempt=%d — too many submissions from this access key",
++                    attempt,
++                )
++                last_error = "rate_limited"
++                # Rate limit — wait before retrying (already handled by retry delay).
++                continue
++
++            else:
++                logger.error(
++                    "web3forms_service: unexpected HTTP %s attempt=%d body=%s",
++                    resp.status_code, attempt, resp.text[:200],
++                )
++                last_error = f"http_{resp.status_code}"
++                continue
++
++        except requests.exceptions.Timeout:
++            logger.error(
++                "web3forms_service [w3f_timeout]: request timed out "
++                "after %ds attempt=%d",
++                _REQUEST_TIMEOUT, attempt,
++            )
++            last_error = "timeout"
++            continue
++
++        except requests.exceptions.ConnectionError as exc:
++            logger.error(
++                "web3forms_service [w3f_connection_err]: connection error "
++                "attempt=%d — %s",
++                attempt, exc,
++            )
++            last_error = "connection_error"
++            continue
++
++        except requests.exceptions.RequestException as exc:
++            logger.error(
++                "web3forms_service: requests error attempt=%d type=%s",
++                attempt, type(exc).__name__,
++            )
++            last_error = type(exc).__name__
++            continue
++
++        except Exception:  # noqa: BLE001
++            logger.exception(
++                "web3forms_service: unexpected error attempt=%d", attempt
++            )
++            last_error = "unexpected_error"
++            continue
++
++    # All retries exhausted
++    logger.error(
++        "web3forms_service: ALL %d ATTEMPTS FAILED for superadmin OTP "
++        "last_error=%s recipient=%s",
++        _MAX_RETRIES, last_error, recipient,
++    )
++    return False, "Unable to send OTP right now. Please try again later."
++
++
++def send_superadmin_security_alert(
++    email: str,
++    event_type: str,
++    description: str,
++    ip_address: Optional[str] = None,
++) -> tuple[bool, str]:
++    """
++    Send a security alert to the superadmin via Web3Forms.
++
++    Used for high-severity events (failed OTP brute-force, suspicious login,
++    password change from unexpected IP, etc.)
++
++    Args:
++        email:       User.email — fallback recipient if OWNER_EMAIL unset.
++        event_type:  Short event identifier (e.g. 'brute_force_otp').
++        description: Human-readable description of the alert.
++        ip_address:  Source IP of the triggering request.
++
++    Returns:
++        (True, "delivered") on success, (False, msg) on failure.
++    """
++    access_key = _get_access_key()
++    if not access_key:
++        logger.warning(
++            "web3forms_service: WEB3FORMS_ACCESS_KEY absent — security alert not sent "
++            "event=%s", event_type,
++        )
++        return False, "Email service not configured."
++
++    recipient = _get_owner_email(fallback=email)
++    now_str   = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+ 
+-    # Plain-text body — Web3Forms renders `message` as-is in the relay email.
+     body = (
+-        f"A password reset was requested for the Portfolio CMS superadmin account.\n\n"
+-        f"Your one-time password (OTP) is:\n\n"
+-        f"    {otp}\n\n"
+-        f"This OTP expires in {ttl_minutes} minute(s).\n"
+-        f"Do NOT share it with anyone.\n\n"
+-        f"Request details:\n"
+-        f"  IP address : {ip_address or 'unknown'}\n"
+-        f"  User agent : {(user_agent or 'unknown')[:120]}\n"
+-        f"  Time (UTC) : {now}\n\n"
+-        f"If you did not request this, secure your account immediately.\n\n"
++        f"SECURITY ALERT — Portfolio CMS Superadmin\n\n"
++        f"Event     : {event_type}\n"
++        f"Time (UTC): {now_str}\n"
++        f"IP address: {ip_address or 'unknown'}\n\n"
++        f"Details:\n{description}\n\n"
++        f"If this was not you, change your password and review your account immediately.\n\n"
+         f"— Portfolio CMS Security"
+     )
+ 
+-    payload: dict = {
++    payload = {
+         "access_key": access_key,
+-        "subject": f"[Portfolio CMS] Superadmin Password Reset OTP — {now}",
++        "subject": f"[Portfolio CMS] SECURITY ALERT: {event_type} — {now_str}",
+         "from_name": "Portfolio CMS Security",
+-        # Web3Forms sends TO the address registered with the access key
+-        # (the Web3Forms account email).  We include `email` in the body
+-        # for audit purposes; routing is controlled by the access key owner.
+         "message": body,
+-        # Redirect the Web3Forms confirmation page away from default — not
+-        # visible to the backend caller, but avoids a misleading redirect.
+         "redirect": "false",
+     }
+ 
+@@ -141,77 +324,96 @@
+             timeout=_REQUEST_TIMEOUT,
+             headers={"Accept": "application/json"},
+         )
+-
+-        # Web3Forms returns 200 + {"success": true} on delivery acceptance.
+-        # Non-200 codes indicate config/auth errors.
+-        if resp.status_code == 200:
+-            data = resp.json()
+-            if data.get("success"):
+-                logger.info(
+-                    "web3forms_service: OTP accepted for delivery recipient=%s",
+-                    recipient,
+-                )
+-                return True, "delivered"
+-
+-            # success=false with 200 — invalid key, domain mismatch, etc.
+-            reason = data.get("message", "unknown")
+-            logger.error(
+-                "web3forms_service: API rejected submission — reason=%s "
+-                "access_key_prefix=%s",
+-                reason,
+-                access_key[:6] + "…" if len(access_key) > 6 else "(short)",
+-            )
+-            return False, "Unable to send OTP right now. Please try again later."
+-
+-        elif resp.status_code == 429:
+-            logger.warning(
+-                "web3forms_service: rate-limited (429) — "
+-                "too many recent submissions from this access key"
++        if resp.status_code == 200 and resp.json().get("success"):
++            logger.info(
++                "web3forms_service: security alert delivered event=%s recipient=%s",
++                event_type, recipient,
+             )
+-            return False, "OTP request rate limit reached. Please wait a moment and try again."
++            return True, "delivered"
+ 
+-        else:
+-            logger.error(
+-                "web3forms_service: unexpected HTTP %s from API — body=%s",
+-                resp.status_code,
+-                resp.text[:200],
+-            )
+-            return False, "Unable to send OTP right now. Please try again later."
++        logger.warning(
++            "web3forms_service: security alert not delivered event=%s status=%s",
++            event_type, resp.status_code,
++        )
++        return False, "Alert delivery failed."
+ 
+-    except requests.exceptions.Timeout:
++    except Exception as exc:  # noqa: BLE001
+         logger.error(
+-            "web3forms_service: request timed out after %ds", _REQUEST_TIMEOUT
++            "web3forms_service: security alert exception event=%s error=%s",
++            event_type, exc,
+         )
+-        return False, "OTP delivery timed out. Please try again."
++        return False, "Alert delivery failed."
+ 
+-    except requests.exceptions.ConnectionError as exc:
+-        logger.error("web3forms_service: connection error — %s", exc)
+-        return False, "Unable to send OTP right now. Please check your connection."
+ 
+-    except requests.exceptions.RequestException as exc:
+-        logger.error("web3forms_service: requests error — %s", type(exc).__name__)
+-        return False, "Unable to send OTP right now. Please try again later."
+-
+-    except Exception:  # noqa: BLE001
+-        logger.exception("web3forms_service: unexpected error")
+-        return False, "Unable to send OTP right now. Please try again later."
++def health_check() -> dict:
++    """
++    Return Web3Forms configuration health status.
+ 
++    Used by /health/email endpoint and startup_validation.py.
+ 
+-def validate_web3forms_config() -> list[str]:
+-    """
+-    Return a list of config warning strings.
+-    Called at startup by init_email_services() if desired.
+-    Empty list = fully configured.
++    Returns a dict suitable for JSON serialisation:
++        {
++            "provider": "web3forms",
++            "configured": bool,
++            "access_key_set": bool,
++            "owner_email_set": bool,
++            "warnings": [str, ...]
++        }
+     """
++    access_key  = _get_access_key()
++    owner_email = os.environ.get("OWNER_EMAIL", "").strip()
+     warnings: list[str] = []
+-    if not _get_access_key():
++
++    if not access_key:
+         warnings.append(
+             "WEB3FORMS_ACCESS_KEY is not set — "
+             "superadmin OTP delivery via Web3Forms will fail"
+         )
+-    if not os.environ.get("OWNER_EMAIL", "").strip():
++    if not owner_email:
+         warnings.append(
+             "OWNER_EMAIL is not set — "
+-            "superadmin OTP will fall back to User.email from DB"
++            "superadmin OTP will fall back to User.email from DB "
++            "(less secure: DB tamper could redirect OTP)"
+         )
+-    return warnings
++
++    return {
++        "provider":        "web3forms",
++        "configured":      bool(access_key),
++        "access_key_set":  bool(access_key),
++        "owner_email_set": bool(owner_email),
++        "warnings":        warnings,
++    }
++
++
++def validate_web3forms_config() -> list[str]:
++    """
++    Return a list of config warning strings.
++    Empty list means fully configured.
++    Called by startup_validation.py init_email_services().
++    """
++    return health_check()["warnings"]
++
++
++# ─────────────────────────────────────────────────────────────────────────────
++# Backward-compatibility alias
++# (password_reset_service v3.9 called send_superadmin_otp_web3forms)
++# ─────────────────────────────────────────────────────────────────────────────
++
++def send_superadmin_otp_web3forms(
++    email: str,
++    otp: str,
++    ip_address: Optional[str] = None,
++    user_agent: Optional[str] = None,
++    ttl_minutes: int = 10,
++) -> tuple[bool, str]:
++    """
++    Alias retained for backward compatibility with password_reset_service v3.9.
++    Delegates to send_superadmin_otp() — the canonical function name per spec.
++    """
++    return send_superadmin_otp(
++        email=email,
++        otp=otp,
++        ip_address=ip_address,
++        user_agent=user_agent,
++        ttl_minutes=ttl_minutes,
++    )

@@ -1,0 +1,70 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit' if skill else 'New' }} Skill{% endblock %}
+{% block page_title %}{{ 'Edit Skill' if skill else 'New Skill' }}{% endblock %}
+
+{% block content %}
+<div class="page-hd" style="margin-bottom:1.5rem;">
+  <div class="page-hd-left">
+    <h1>{{ 'Edit Skill' if skill else 'New Skill' }}</h1>
+    <p>{% if skill %}Update this skill's details.{% else %}Add a skill to your expertise list.{% endif %}</p>
+  </div>
+  <div class="page-hd-right">
+    <a href="{{ url_for('admin.skills') }}" class="btn btn-ghost btn-sm">
+      <iconify-icon icon="lucide:arrow-left" width="14"></iconify-icon> Back
+    </a>
+  </div>
+</div>
+
+<form data-loading="true" method="POST" class="admin-form form-narrow">
+  {{ form.hidden_tag() }}
+  <div class="form-card">
+    <div class="form-row">
+      <div class="form-group">
+        {{ form.name.label }}
+        {{ form.name(class="form-input", placeholder="e.g. React") }}
+        {% for e in form.name.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+      <div class="form-group">
+        {{ form.category.label }}
+        {{ form.category(class="form-select") }}
+      </div>
+    </div>
+
+    <div class="form-group">
+      {{ form.proficiency.label }}
+      <div class="range-group">
+        {{ form.proficiency(class="form-range", id="proficiencyRange",
+           min=0, max=100, oninput="document.getElementById('profVal').textContent=this.value") }}
+        <span class="range-value" id="profVal">{{ form.proficiency.data or 80 }}</span>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        {{ form.icon.label }}
+        {{ form.icon(class="form-input", placeholder="emoji or CSS class") }}
+      </div>
+      <div class="form-group">
+        {{ form.color.label }}
+        {{ form.color(class="form-input", placeholder="#6366f1") }}
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        {{ form.order.label }}
+        {{ form.order(class="form-input", placeholder="0") }}
+      </div>
+      <div class="form-group toggle-group toggle-group--bottom">
+        {{ form.is_visible() }}
+        <label for="{{ form.is_visible.id }}">Visible on portfolio</label>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      {{ form.submit(class="btn btn-primary") }}
+      <a href="{{ url_for('admin.skills') }}" class="btn btn-ghost">Cancel</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

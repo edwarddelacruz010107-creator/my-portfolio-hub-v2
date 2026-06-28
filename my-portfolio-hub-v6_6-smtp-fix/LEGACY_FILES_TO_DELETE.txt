@@ -1,0 +1,57 @@
+LEGACY FILES SAFE TO DELETE — Portfolio CMS v5.8
+═══════════════════════════════════════════════════════════════════════════════
+Verified: None of these files are imported anywhere in the active codebase.
+Run `grep -rn "from <module>\|import <module>"` before deleting to re-confirm.
+
+ROOT-LEVEL DUPLICATES (shadowed by app/ equivalents)
+─────────────────────────────────────────────────────
+forms/tenant_forms.py
+    Duplicate of app/forms/tenant_forms.py. Zero imports. Safe to delete.
+
+models/tenant_form_settings.py
+    Duplicate of app/models/tenant_form_settings.py. Zero imports. Safe to delete.
+
+DEAD PATCH FILES (never applied, stranded from old refactors)
+──────────────────────────────────────────────────────────────
+app/__init__.patch.py
+    Old partial patch for app init. Superseded. Zero imports. Safe to delete.
+
+app/app_init_registration.patch.py
+    Old partial patch for blueprint registration. Superseded. Zero imports.
+
+app/fix_user_imports.py
+    One-time migration script. Already applied. Safe to delete.
+
+app/services/email_service_example.py
+    Documentation example. Not imported. Safe to delete.
+
+code/app_init_FIXED.py              (if present)
+    Old snapshot. Not imported. Safe to delete.
+
+app/forms_patch/billing_forms.py    (if present)
+    Old patch file. Not imported. Safe to delete.
+
+HOW TO DELETE (PowerShell — Windows)
+──────────────────────────────────────
+Remove-Item forms\tenant_forms.py
+Remove-Item models\tenant_form_settings.py
+Remove-Item app\__init__.patch.py
+Remove-Item app\app_init_registration.patch.py
+Remove-Item app\fix_user_imports.py
+Remove-Item app\services\email_service_example.py
+
+HOW TO DELETE (Bash — Linux/Mac/Render)
+─────────────────────────────────────────
+rm forms/tenant_forms.py
+rm models/tenant_form_settings.py
+rm app/__init__.patch.py
+rm app/app_init_registration.patch.py
+rm app/fix_user_imports.py
+rm app/services/email_service_example.py
+
+DO NOT DELETE
+──────────────
+app/services/EMAIL_SERVICE_INSTRUCTIONS.txt   → documentation
+app/models/CORE_MODEL_INSTRUCTIONS.txt        → documentation
+app/superadmin/ROUTE_HANDLER_INSTRUCTIONS.txt → documentation
+migrations/                                   → all migration files must be preserved

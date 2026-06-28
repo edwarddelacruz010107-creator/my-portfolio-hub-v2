@@ -1,0 +1,199 @@
+{% extends 'admin/base.html' %}
+{% block title %}License Activation{% endblock %}
+{% block content %}
+
+{# ── Page header ─────────────────────────────────────────────────────── #}
+<div class="page-header page-header-spaced">
+  <h2>License Activation</h2>
+  <p class="muted">Activate your subscription by entering the license key provided by your administrator.</p>
+</div>
+
+{# ── Progress stepper ─────────────────────────────────────────────────── #}
+{% set step =
+    4 if license_status == 'active'
+    else 3 if license_status == 'awaiting_activation'
+    else 2 if (subscription and subscription.payment_status in ('pending', 'paid'))
+    else 1
+%}
+<div class="billing-stepper" style="margin-bottom:2rem">
+  {% for n, label in [(1,'Select Plan'),(2,'Submit Proof'),(3,'Awaiting Key'),(4,'Activated')] %}
+  <div class="stepper-step {% if loop.index < step %}done{% elif loop.index == step %}active{% endif %}">
+    <div class="step-circle">
+      {% if loop.index < step %}<iconify-icon icon="lucide:check" width="14"></iconify-icon>
+      {% else %}{{ loop.index }}{% endif %}
+    </div>
+    <span class="step-label">{{ label }}</span>
+  </div>
+  {% if not loop.last %}<div class="stepper-divider"></div>{% endif %}
+  {% endfor %}
+</div>
+
+{# ── Status banner ────────────────────────────────────────────────────── #}
+{% if license_status == 'active' %}
+<div class="alert alert-success" style="margin-bottom:1.5rem">
+  <iconify-icon icon="lucide:check-circle" width="16"></iconify-icon>
+  <strong>License Active</strong> — Your {{ subscription.plan if subscription else 'plan' }} plan is activated
+  {% if license_expires_at %}until <strong>{{ license_expires_at.strftime('%b %d, %Y') }}</strong>{% endif %}.
+</div>
+{% elif license_status == 'awaiting_activation' %}
+<div class="alert alert-info" style="margin-bottom:1.5rem">
+  <iconify-icon icon="lucide:key" width="16"></iconify-icon>
+  <strong>Key Ready</strong> — Your payment was approved. Enter the license key below to activate your subscription.
+</div>
+{% elif subscription and subscription.payment_status == 'pending' %}
+<div class="alert alert-warning" style="margin-bottom:1.5rem">
+  <iconify-icon icon="lucide:clock" width="16"></iconify-icon>
+  <strong>Under Review</strong> — Your payment proof has been submitted and is being reviewed. Check back soon.
+</div>
+{% else %}
+<div class="alert alert-default" style="margin-bottom:1.5rem">
+  <iconify-icon icon="lucide:info" width="16"></iconify-icon>
+  No active license. <a href="{{ url_for('admin.billing_plans') }}">Select a plan</a> and submit payment proof to get started.
+</div>
+{% endif %}
+
+<div class="license-page-grid">
+  {# ── License overview ───────────────────────────────────────────────── #}
+  <section class="license-summary-panel card shadow-panel">
+    <div class="panel-heading">
+      <p class="panel-title">License Overview</p>
+      <p class="panel-subtitle">Current plan details and subscription state.</p>
+    </div>
+    <div class="license-detail-list">
+      <div class="detail-row">
+        <span>Tenant</span>
+        <strong>{{ profile.tenant_slug }}</strong>
+      </div>
+      <div class="detail-row">
+        <span>Plan</span>
+        <strong>{{ subscription.plan if subscription else plan_details.label }}</strong>
+      </div>
+      <div class="detail-row">
+        <span>Amount</span>
+        <strong>
+          {% if subscription and subscription.amount_paid %}
+            ₱{{ "%.2f"|format(subscription.amount_paid) }}
+          {% else %}
+            ₱{{ plan_details.price }} / {{ plan_details.duration_days }} days
+          {% endif %}
+        </strong>
+      </div>
+      <div class="detail-row">
+        <span>Subscription</span>
+        <strong>
+          {% set ss = subscription.status if subscription else license_status %}
+          <span class="status-pill
+            {% if ss == 'active' %}active
+            {% elif ss in ('awaiting_activation','pending') %}pending
+            {% else %}inactive{% endif %}">
+            {{ subscription.status_label if subscription else license_status | title }}
+          </span>
+        </strong>
+      </div>
+      <div class="detail-row">
+        <span>Payment</span>
+        <strong>
+          {% if subscription %}
+            <span class="status-pill
+              {% if subscription.payment_status == 'paid' %}active
+              {% elif subscription.payment_status == 'pending' %}pending
+              {% else %}inactive{% endif %}">
+              {{ subscription.payment_status_label }}
+            </span>
+          {% else %}—{% endif %}
+        </strong>
+      </div>
+      <div class="detail-row">
+        <span>Expires</span>
+        <strong>
+          {% if subscription and subscription.expires_at %}
+            {{ subscription.expires_at.strftime('%b %d, %Y') }}
+            {% if license_expires_in is not none %}
+              <span class="muted small">({{ license_expires_in }}d left)</span>
+            {% endif %}
+          {% elif license_expires_at %}
+            {{ license_expires_at.strftime('%b %d, %Y') }}
+          {% else %}
+            Not yet active
+          {% endif %}
+        </strong>
+      </div>
+      <div class="detail-row">
+        <span>Method</span>
+        <strong>{{ subscription.payment_method if subscription and subscription.payment_method else 'N/A' }}</strong>
+      </div>
+    </div>
+  </section>
+
+  {# ── Activation form ────────────────────────────────────────────────── #}
+  <section class="license-form-panel card shadow-panel">
+    <div class="panel-heading">
+      <p class="panel-title">Activate License</p>
+      <p class="panel-subtitle">
+        {% if license_status == 'active' %}
+          Your license is already active — no action required.
+        {% elif license_status == 'awaiting_activation' %}
+          Enter the license key sent to you by your administrator.
+        {% else %}
+          You'll receive a license key once your payment is approved.
+        {% endif %}
+      </p>
+    </div>
+
+    {% if license_status == 'active' %}
+    <div class="activation-success">
+      <iconify-icon icon="lucide:shield-check" width="48" style="color:var(--success)"></iconify-icon>
+      <p>Your <strong>{{ subscription.plan if subscription else current_plan }}</strong> plan is active.</p>
+      <a href="{{ url_for('admin.dashboard') }}" class="btn btn-primary btn-sm">Go to Dashboard</a>
+    </div>
+
+    {% elif license_status == 'awaiting_activation' %}
+    <form data-loading="true" method="post" class="license-activation-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="form-group">
+        <label for="license_key">License Key <span class="required">*</span></label>
+        <input
+          id="license_key" name="license_key" type="text"
+          class="form-input font-mono"
+          placeholder="BSC-TENANT-…  or  PRO-TENANT-…"
+          autocomplete="off" autocorrect="off" spellcheck="false"
+          required
+        />
+        <p class="field-hint">Copy-paste the key exactly as received — it is case-sensitive.</p>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary btn-lg btn-full" type="submit">
+          <iconify-icon icon="lucide:key" width="16"></iconify-icon>
+          Activate License
+        </button>
+      </div>
+    </form>
+
+    {% else %}
+    <div class="activation-pending">
+      <iconify-icon icon="lucide:clock" width="48" style="color:var(--warn)"></iconify-icon>
+      <p>
+        {% if subscription and subscription.payment_status == 'pending' %}
+          Your payment proof is under review. You'll be able to enter your key once it's approved.
+        {% else %}
+          <a href="{{ url_for('admin.billing_payment') }}">Submit your payment proof</a> to receive a license key.
+        {% endif %}
+      </p>
+    </div>
+    {% endif %}
+  </section>
+</div>
+
+{# ── Quick-links to billing pages ─────────────────────────────────────── #}
+<div class="billing-quick-links" style="margin-top:1.5rem">
+  <a href="{{ url_for('admin.billing_index') }}" class="btn btn-ghost btn-sm">
+    <iconify-icon icon="lucide:credit-card" width="14"></iconify-icon> Billing Overview
+  </a>
+  <a href="{{ url_for('admin.billing_plans') }}" class="btn btn-ghost btn-sm">
+    <iconify-icon icon="lucide:layers" width="14"></iconify-icon> Change Plan
+  </a>
+  <a href="{{ url_for('admin.billing_history') }}" class="btn btn-ghost btn-sm">
+    <iconify-icon icon="lucide:history" width="14"></iconify-icon> Payment History
+  </a>
+</div>
+{% endblock %}

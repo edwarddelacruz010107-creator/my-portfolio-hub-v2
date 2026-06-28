@@ -1018,15 +1018,20 @@ def themes_index():
     all_themes = engine.get_all_themes()
     active_theme_id = (getattr(profile, 'selected_theme', None) or 'default') if profile else 'default'
 
+    categories = set()
     for theme in all_themes:
         theme['_can_use'] = engine.can_use_theme(profile, theme['id'])
         theme['_is_active'] = theme['id'] == active_theme_id
+        cat = (theme.get('category') or '').strip()
+        if cat:
+            categories.add(cat)
 
     return render_template(
         'admin/themes/index.html',
         themes=all_themes,
         active_theme_id=active_theme_id,
         plan_name=_active_tenant_plan_name(),
+        theme_categories=sorted(categories),
     )
 
 
@@ -1054,6 +1059,17 @@ def apply_theme():
         return _fail('Upgrade your plan to unlock this theme.', 403)
 
     profile.selected_theme = theme_id
+
+    # Increment install analytics counter on the catalog entry (if present).
+    # Must be done before commit so both writes land in the same transaction.
+    try:
+        from app.models.core import ThemeCatalogEntry
+        catalog_entry = ThemeCatalogEntry.get_by_slug(theme_id)
+        if catalog_entry:
+            catalog_entry.increment_installs()
+    except Exception:
+        pass  # analytics are non-critical — never block a theme switch
+
     db.session.commit()
     log_activity('update', 'theme', theme_id, f'Theme switched to {theme_id}')
 

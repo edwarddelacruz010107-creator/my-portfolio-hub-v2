@@ -1,0 +1,154 @@
+{#
+  templates/themes/default_clean/portfolio.html
+  DEFAULT CLEAN THEME — Full portfolio with certificates & badges added.
+
+  PATCH NOTES (v6.6):
+  - Added {% set theme_style = 'clean' %} at top (required by shared components)
+  - Added certificates section after testimonials
+  - Added badges section after certificates
+
+  This is the FULL portfolio template. Replace existing default_clean/portfolio.html.
+#}
+{% extends "themes/default_clean/base.html" %}
+
+{% block portfolio_content %}
+{# Required context variable for shared components #}
+{% set theme_style = 'clean' %}
+
+{# ── HERO ──────────────────────────────────────────────────────────────────── #}
+<section id="hero" class="dc-hero" aria-label="Introduction">
+  <div class="dc-hero__inner">
+    {% if profile.avatar_url %}
+      <div class="dc-hero__avatar-wrap">
+        <img
+          src="{{ profile.avatar_url }}"
+          alt="{{ profile.full_name or 'Portfolio owner' }}"
+          class="dc-hero__avatar"
+          width="120" height="120"
+        >
+      </div>
+    {% endif %}
+
+    <div class="dc-hero__text">
+      <h1 class="dc-hero__name">
+        {{ profile.full_name or 'Portfolio' }}
+      </h1>
+      {% if profile.tagline %}
+        <p class="dc-hero__tagline">{{ profile.tagline }}</p>
+      {% endif %}
+      {% if profile.bio %}
+        <p class="dc-hero__bio">{{ profile.bio }}</p>
+      {% endif %}
+
+      <div class="dc-hero__cta-group">
+        <a href="#projects" class="dc-btn dc-btn--primary">View Projects</a>
+        <a href="#contact" class="dc-btn dc-btn--outline">Contact</a>
+        {% if profile.resume_url %}
+          <a href="{{ profile.resume_url }}" class="dc-btn dc-btn--outline" target="_blank" rel="noopener noreferrer">
+            Download CV
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── SKILLS ────────────────────────────────────────────────────────────────── #}
+{% if skills %}
+<section id="skills" class="dc-section" aria-labelledby="skills-heading">
+  <div class="dc-section__inner">
+    <h2 id="skills-heading" class="dc-section__title">Skills</h2>
+    <div class="dc-skills-list" role="list">
+      {% for skill in skills %}{% if skill.is_visible %}
+        <span class="dc-skill-pill" role="listitem">{{ skill.name }}</span>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{# ── EXPERIENCE ────────────────────────────────────────────────────────────── #}
+{% if experiences %}
+<section id="experience" class="dc-section" aria-labelledby="experience-heading">
+  <div class="dc-section__inner">
+    <h2 id="experience-heading" class="dc-section__title">Experience</h2>
+    <div class="dc-timeline" role="list">
+      {% for exp in experiences %}{% if exp.is_visible %}
+      <article class="dc-timeline__item" role="listitem">
+        <div class="dc-timeline__dot" aria-hidden="true"></div>
+        <div class="dc-timeline__content">
+          <div class="dc-timeline__header">
+            <h3 class="dc-timeline__role">{{ exp.role }}</h3>
+            <span class="dc-timeline__period">
+              {{ exp.start_date.strftime('%b %Y') if exp.start_date else '' }}
+              —
+              {% if exp.is_current %}Present{% elif exp.end_date %}{{ exp.end_date.strftime('%b %Y') }}{% endif %}
+            </span>
+          </div>
+          <p class="dc-timeline__company">{{ exp.company }}</p>
+          {% if exp.description %}<p class="dc-timeline__desc">{{ exp.description }}</p>{% endif %}
+        </div>
+      </article>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{# ── PROJECTS ──────────────────────────────────────────────────────────────── #}
+{% if projects %}
+<section id="projects" class="dc-section" aria-labelledby="projects-heading">
+  <div class="dc-section__inner">
+    <h2 id="projects-heading" class="dc-section__title">Projects</h2>
+    <div class="dc-projects-grid" role="list">
+      {% for project in projects %}{% if project.is_visible %}
+      <article class="dc-project-card" role="listitem">
+        {% if project.thumbnail %}
+          <img src="{{ project.thumbnail }}" alt="{{ project.title }}" class="dc-project-card__image" loading="lazy">
+        {% endif %}
+        <div class="dc-project-card__body">
+          <h3 class="dc-project-card__title">{{ project.title }}</h3>
+          {% if project.description %}<p class="dc-project-card__desc">{{ project.description }}</p>{% endif %}
+          <div class="dc-project-card__links">
+            {% if project.live_url %}<a href="{{ project.live_url }}" target="_blank" rel="noopener noreferrer" class="dc-btn dc-btn--sm dc-btn--primary">Live</a>{% endif %}
+            {% if project.github_url %}<a href="{{ project.github_url }}" target="_blank" rel="noopener noreferrer" class="dc-btn dc-btn--sm dc-btn--outline">Code</a>{% endif %}
+          </div>
+        </div>
+      </article>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{# ── SERVICES ──────────────────────────────────────────────────────────────── #}
+{% include 'themes/components/services_section.html' %}
+
+{# ── TESTIMONIALS ──────────────────────────────────────────────────────────── #}
+{% include 'themes/components/testimonials_section.html' %}
+
+{# ── CERTIFICATES ──────────────────────────────────────────────────────────── #}
+{% include 'themes/components/certificates_section.html' %}
+
+{# ── BADGES ────────────────────────────────────────────────────────────────── #}
+{% include 'themes/components/badges_section.html' %}
+
+{# ── CONTACT ───────────────────────────────────────────────────────────────── #}
+<section id="contact" class="dc-section" aria-labelledby="contact-heading">
+  <div class="dc-section__inner">
+    <h2 id="contact-heading" class="dc-section__title">Contact</h2>
+    <div class="dc-contact">
+      {% if profile.email %}
+        <a href="mailto:{{ profile.email }}" class="dc-contact__item">{{ profile.email }}</a>
+      {% endif %}
+      {% if profile.phone %}
+        <a href="tel:{{ profile.phone }}" class="dc-contact__item">{{ profile.phone }}</a>
+      {% endif %}
+      {% if profile.website %}
+        <a href="{{ profile.website }}" target="_blank" rel="noopener noreferrer" class="dc-contact__item">{{ profile.website }}</a>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{% endblock portfolio_content %}

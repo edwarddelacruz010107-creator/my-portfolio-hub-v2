@@ -38,18 +38,25 @@ def _utcnow():
     return datetime.now(timezone.utc)
 
 
-SUBSCRIPTION_PLAN_ORDER = {'Basic': 1, 'Pro': 2, 'Enterprise': 3}
+# ── Plan hierarchy ────────────────────────────────────────────────────────────
+# Use the centralized permission registry as the single source of truth.
+# Keep legacy dicts here for backward compatibility with old callers.
 
-_PLAN_ALIASES = {
-    'basic': 'Basic',
-    'pro': 'Pro',
-    'professional': 'Pro',
-    'enterprise': 'Enterprise',
-    'trial': 'Trial',
-    'administrator': 'Administrator',
+SUBSCRIPTION_PLAN_ORDER = {
+    'Trial': 0,
+    'Basic': 10,
+    'Pro': 20,
+    'Business': 30,
+    'Enterprise': 40,
+    'Administrator': 999,  # RESERVED SYSTEM PLAN — above all others
 }
 
-PAID_PLAN_NAMES = frozenset({'Basic', 'Pro', 'Enterprise'})
+# ADMINISTRATOR is a reserved internal system plan.
+# DO NOT add it to PAID_PLAN_NAMES or expose it in billing flows.
+PAID_PLAN_NAMES = frozenset({'Basic', 'Pro', 'Business', 'Enterprise'})
+
+# Reserved constant for the platform-owner plan
+PLAN_ADMINISTRATOR = 'Administrator'
 
 PLAN_FEATURES = {
     'Basic': {
@@ -85,18 +92,39 @@ PLAN_FEATURES = {
         'api_access': True,
         'theme_customization': True,
     },
+    # Administrator has all features with no restrictions
+    'Administrator': {
+        'max_projects': None,
+        'max_skills': None,
+        'max_media_uploads': None,
+        'custom_domain': True,
+        'analytics': True,
+        'white_label': True,
+        'team_members': True,
+        'api_access': True,
+        'theme_customization': True,
+        # Administrator-exclusive flags
+        'is_system_plan': True,
+        'is_hidden': True,
+        'is_purchasable': False,
+        'is_internal': True,
+        'platform_diagnostics': True,
+        'experimental_features': True,
+        'root_settings': True,
+    },
 }
 
 
 def normalize_plan_name(plan: str) -> str:
-    if not plan:
-        return 'Basic'
-    normalized = (plan or '').strip().lower()
-    return _PLAN_ALIASES.get(normalized, plan.strip().title())
+    """Return canonical plan key. Delegates to permission_registry."""
+    from app.services.permissions.permission_registry import normalize_plan_name as _norm
+    return _norm(plan)
 
 
 def get_plan_features(plan: str) -> dict:
-    return PLAN_FEATURES.get(normalize_plan_name(plan), PLAN_FEATURES['Basic'])
+    """Return feature dict for a plan. Administrator gets the full feature set."""
+    key = normalize_plan_name(plan)
+    return PLAN_FEATURES.get(key, PLAN_FEATURES['Basic'])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -199,12 +227,25 @@ class Tenant(db.Model):
         return normalize_plan_name(self.plan)
 
     def effective_plan(self) -> str:
-        """Current plan from active subscription, else tenant.plan."""
+        """
+        Current plan from active subscription, else tenant.plan.
+
+        ADMINISTRATOR tenants are never overridden by a subscription record —
+        the plan column is the authoritative source for root-plan tenants.
+        """
+        # Administrator is immutable — subscriptions cannot override it
+        if normalize_plan_name(self.plan) == PLAN_ADMINISTRATOR:
+            return PLAN_ADMINISTRATOR
         active = next(
             (s for s in self.subscriptions if s.is_active()),
             None,
         )
         return normalize_plan_name(active.plan) if active else self.normalized_plan
+
+    @property
+    def is_administrator_tenant(self) -> bool:
+        """True iff this tenant holds the reserved Administrator plan."""
+        return normalize_plan_name(self.plan) == PLAN_ADMINISTRATOR
 
     @property
     def subscription_status(self) -> str:
@@ -873,7 +914,20 @@ class GlobalEmailConfig(db.Model):
         return False
 
     @classmethod
-    def get(cls):
+    def get(cls, *, fresh: bool = False):
+        """Return the singleton GlobalEmailConfig row (id=1).
+
+        Parameters
+        ----------
+        fresh : bool
+            When True (or when called from a status/save endpoint that must
+            reflect the just-committed state) the SQLAlchemy identity map is
+            bypassed entirely by issuing a SELECT … with populate_existing=True
+            after removing the current session.  This prevents the stale-ORM
+            cache bug where `has_sa_smtp` evaluates False immediately after a
+            successful commit because the session still holds the pre-commit
+            InstrumentedAttribute values.
+        """
         from sqlalchemy.exc import IntegrityError, OperationalError
 
         # Failsafe: if schema is out of sync (missing columns), attempt an
@@ -881,7 +935,19 @@ class GlobalEmailConfig(db.Model):
         # startup patcher ran before the app context was fully established,
         # or where a new column was added without restarting the process.
         try:
-            config = db.session.get(cls, 1)
+            if fresh:
+                # Completely discard the current session so SQLAlchemy is
+                # forced to issue a real SELECT rather than returning the
+                # cached identity-map object.
+                db.session.remove()
+                config = (
+                    cls.query
+                    .execution_options(populate_existing=True)
+                    .filter_by(id=1)
+                    .first()
+                )
+            else:
+                config = db.session.get(cls, 1)
         except OperationalError as exc:
             import logging as _logging
             _log = _logging.getLogger(__name__)
@@ -957,7 +1023,17 @@ class GlobalEmailConfig(db.Model):
 
     @property
     def has_superadmin_mailersend(self) -> bool:
-        return len(str(self._superadmin_mailersend_api_key or '')) > 0
+        """Raw blob check — avoids decrypt failures giving false-negative configured state."""
+        try:
+            raw_key = self._superadmin_mailersend_api_key
+            if raw_key is None:
+                raw_key = ''
+            raw_key = str(raw_key).strip()
+            sender  = str(self.superadmin_sender_email or '').strip()
+            # Key alone is sufficient — sender falls back to shared sender_email
+            return bool(raw_key)
+        except Exception:
+            return False
 
     def get_portal_key(self, portal: str) -> str:
         """
@@ -1061,25 +1137,38 @@ class GlobalEmailConfig(db.Model):
         """
         Determine whether SuperAdmin SMTP is fully configured.
 
-        We intentionally check the raw encrypted password column directly
-        instead of decrypting the password because decrypting may fail if:
-        - FERNET_KEY changed
-        - ORM state is stale after commit
-        - password field was not refreshed yet
+        Checks the raw encrypted blob directly — never goes through
+        decrypt_secret — because decryption can fail after key rotation
+        or when the ORM instance is accessed before a session refresh,
+        which would produce a false-negative 'not configured' state.
 
-        If host, username, and encrypted password exist,
-        SMTP should be considered configured.
+        A provider is considered configured when ALL of:
+          • host is set
+          • username is set
+          • encrypted password blob exists (non-empty string)
+          • sender_email is set
+          • port is a valid integer > 0
         """
         try:
-            host = (self.sa_smtp_host or '').strip()
-            username = (self.sa_smtp_username or '').strip()
+            host    = str(self.sa_smtp_host    or '').strip()
+            user    = str(self.sa_smtp_username or '').strip()
+            sender  = str(self.sa_smtp_sender_email or '').strip()
+            port    = self.sa_smtp_port
 
-            # Raw encrypted password value
-            raw_pw = self._sa_smtp_password or ''
+            # Read raw encrypted blob — avoid decrypt path entirely
+            raw_pw = self._sa_smtp_password
+            if raw_pw is None:
+                raw_pw = ''
             raw_pw = str(raw_pw).strip()
 
-            return bool(host and username and raw_pw)
-
+            return bool(
+                host
+                and user
+                and raw_pw
+                and sender
+                and port
+                and int(port) > 0
+            )
         except Exception:
             return False
 
@@ -1096,12 +1185,21 @@ class GlobalEmailConfig(db.Model):
 
     @property
     def has_sa_resend(self) -> bool:
-        # Access via decrypted @property (returns plain str) to avoid
-        # SQLAlchemy __bool__ TypeError on the raw encrypted column.
-        return (
-            len(str(self.sa_resend_api_key or '')) > 0
-            and len(str(self.sa_resend_sender_email or '')) > 0
-        )
+        """
+        Check whether a Resend API key exists (raw encrypted blob check).
+
+        FIX (v6.6): Previously required BOTH raw_key AND sender — this caused
+        'Not Configured' even when an API key was stored but sender_email was
+        set separately. Key alone is sufficient to consider Resend 'configured';
+        the sender field is validated separately before sending.
+        """
+        try:
+            raw_key = self._sa_resend_api_key
+            if raw_key is None:
+                raw_key = ''
+            return bool(str(raw_key).strip())
+        except Exception:
+            return False
 
     def get_sa_provider_priority(self) -> list:
         """Return ordered provider list, defaulting to ['mailersend','smtp','resend']."""
@@ -1502,3 +1600,123 @@ class TenantMailerSendSettings(db.Model):
 
     def __repr__(self):
         return f'<TenantMailerSendSettings tenant={self.tenant_id} domain={self.domain!r}>'
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Theme Catalog (SuperAdmin Theme CRUD — v6.4)
+# ─────────────────────────────────────────────────────────────────────────────
+# DB-backed overlay on top of the filesystem-discovered themes (theme.json
+# files under /themes/<slug>/). This table does NOT replace the filesystem
+# as the source of truth for "does this theme physically exist and have
+# renderable templates" — that check stays in ThemeRegistry.exists().
+#
+# Instead it gives SuperAdmin a place to manage the *gating/listing* concerns
+# that previously could only be edited by hand-editing theme.json on disk:
+# active/inactive, premium flag, required plan, sort order, and a
+# superadmin-editable display name/description/category.
+#
+# A theme with no ThemeCatalogEntry row still works exactly as before —
+# ThemeEngine falls back to the theme.json metadata. The row is only an
+# override when present.
+
+# Plans that can be set as 'required_plan' on a ThemeCatalogEntry.
+# Must stay in sync with ThemeEngine._PLAN_RANK in theme_engine.py.
+VALID_REQUIRED_PLANS = ('free', 'basic', 'pro', 'premium', 'enterprise', 'agency')
+
+
+class ThemeCatalogEntry(db.Model):
+    """SuperAdmin-managed catalog row overlaying a filesystem theme (v6.5)."""
+    __tablename__ = 'theme_catalog_entries'
+
+    id            = db.Column(db.Integer, primary_key=True)
+    slug          = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    name          = db.Column(db.String(150), nullable=True)
+    description   = db.Column(db.Text, nullable=True)
+    category      = db.Column(db.String(60), nullable=True)
+    is_active     = db.Column(db.Boolean, nullable=False, default=True)
+    is_premium    = db.Column(db.Boolean, nullable=True)  # None = defer to theme.json
+    required_plan = db.Column(db.String(20), nullable=True)  # 'free' | 'pro' | 'enterprise'
+    sort_order    = db.Column(db.Integer, nullable=False, default=0)
+    created_at    = db.Column(db.DateTime(timezone=True), default=_utcnow)
+    updated_at    = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    # ── v6.5 Extended fields (migration 0035) ────────────────────────────────
+    thumbnail_url  = db.Column(db.String(512), nullable=True)
+    banner_url     = db.Column(db.String(512), nullable=True)
+    preview_images = db.Column(db.Text, nullable=True)   # JSON array of URLs
+    theme_author   = db.Column(db.String(120), nullable=True)
+    theme_version  = db.Column(db.String(30), nullable=True)
+    theme_tags     = db.Column(db.Text, nullable=True)    # JSON array of strings
+    feature_matrix = db.Column(db.Text, nullable=True)   # JSON object
+    is_featured    = db.Column(db.Boolean, nullable=False, default=False)
+    install_count  = db.Column(db.Integer, nullable=False, default=0)
+
+    # ── Helpers ──────────────────────────────────────────────────────────────
+
+    _DEFAULT_FEATURE_MATRIX = {
+        'hero': True, 'about': True, 'projects': True, 'skills': True,
+        'services': True, 'testimonials': True, 'timeline': True,
+        'resume': True, 'contact': True, 'gallery': True,
+        'blog': False, 'shop': False,
+    }
+
+    def get_preview_images(self) -> list:
+        import json
+        try:
+            imgs = json.loads(self.preview_images or '[]')
+            return [i for i in imgs if isinstance(i, str) and i.strip()]
+        except Exception:
+            return []
+
+    def set_preview_images(self, urls: list):
+        import json
+        self.preview_images = json.dumps([u for u in urls if u and u.strip()])
+
+    def get_feature_matrix(self) -> dict:
+        import json
+        base = dict(self._DEFAULT_FEATURE_MATRIX)
+        try:
+            stored = json.loads(self.feature_matrix or '{}')
+            if isinstance(stored, dict):
+                base.update({k: bool(v) for k, v in stored.items()})
+        except Exception:
+            pass
+        return base
+
+    def set_feature_matrix(self, matrix: dict):
+        import json
+        self.feature_matrix = json.dumps({k: bool(v) for k, v in matrix.items()})
+
+    def get_tags(self) -> list:
+        import json
+        try:
+            tags = json.loads(self.theme_tags or '[]')
+            return [t for t in tags if isinstance(t, str) and t.strip()]
+        except Exception:
+            return []
+
+    def set_tags(self, tags: list):
+        import json
+        self.theme_tags = json.dumps([t.strip() for t in tags if t and t.strip()])
+
+    def increment_installs(self):
+        self.install_count = (self.install_count or 0) + 1
+
+    @classmethod
+    def get_by_slug(cls, slug):
+        if not slug:
+            return None
+        return cls.query.filter_by(slug=slug).first()
+
+    @classmethod
+    def get_or_create(cls, slug, defaults=None):
+        entry = cls.get_by_slug(slug)
+        if entry:
+            return entry
+        entry = cls(slug=slug, **(defaults or {}))
+        db.session.add(entry)
+        db.session.flush()
+        return entry
+
+    def __repr__(self):
+        return f'<ThemeCatalogEntry slug={self.slug!r} active={self.is_active}>'

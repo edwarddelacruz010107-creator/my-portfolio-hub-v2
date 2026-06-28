@@ -226,6 +226,22 @@ def get_or_create_pending_subscription(
 
     norm = normalize_plan_name(plan)
 
+    # Guard: Administrator plan cannot be purchased or assigned via billing
+    from app.services.permissions import is_purchasable_plan, is_administrator_plan
+    if not is_purchasable_plan(norm):
+        raise ValueError(
+            f'Plan {norm!r} is not purchasable and cannot be assigned via billing. '
+            'The Administrator plan is a reserved system plan.'
+        )
+
+    # Guard: check that the tenant is not an Administrator-plan tenant
+    from app.models.core import Tenant
+    _tenant = db_session.get(Tenant, int(tenant_id))
+    if _tenant and is_administrator_plan(getattr(_tenant, 'plan', '') or ''):
+        raise ValueError(
+            'The Administrator plan tenant cannot be enrolled in billing subscriptions.'
+        )
+
     # 1. Active subscription — update plan/cycle for next renewal, return it
     active_sub = (
         db_session.query(Subscription)

@@ -56,18 +56,27 @@ def billing_plans_context(profile, *, tenant_slug: str | None, billing_routes: d
             profile.tenant_id,
         )
 
+    from app.utils import public_billing_plans
+    from app.services.permissions import is_administrator_plan
+
+    _current_plan = subscription.plan if subscription else (profile.plan or 'Basic')
+    _is_admin = is_administrator_plan(_current_plan)
+
     return dict(
         profile=profile,
         subscription=subscription,
         form=form,
-        plans=BILLING_PLANS,
+        # Only expose purchasable, non-hidden plans in the billing UI
+        plans=public_billing_plans(),
         tenant_slug=tenant_slug,
         billing_routes=billing_routes,
-        paymongo_enabled=paymongo_enabled,
-        payment_methods=manual_methods,
-        manual_payment_enabled=bool(manual_methods),
+        paymongo_enabled=paymongo_enabled if not _is_admin else False,
+        payment_methods=[] if _is_admin else manual_methods,
+        manual_payment_enabled=False if _is_admin else bool(manual_methods),
         show_billing_tabs=False,
         activation_eta='Usually within 24 hours',
+        # Administrator flag — template can use this to show a locked message
+        is_administrator_tenant=_is_admin,
     )
 
 
@@ -96,6 +105,17 @@ def handle_billing_plans_post(
       - Build explicit success_url / cancel_url from APP_BASE_URL
     """
     selected_plan = normalize_plan_name(request.form.get('plan') or profile.plan or 'Basic')
+
+    # Block purchase of the Administrator plan via any billing flow
+    from app.services.permissions import is_administrator_plan, is_purchasable_plan
+    if not is_purchasable_plan(selected_plan):
+        flash('That plan cannot be purchased.', 'danger')
+        return None, ValueError(f'Plan {selected_plan!r} is not purchasable.')
+    # Block downgrade of Administrator tenant
+    _current = getattr(profile.tenant, 'plan', 'Basic') or 'Basic'
+    if is_administrator_plan(_current) and not is_administrator_plan(selected_plan):
+        flash('The Administrator plan cannot be changed through billing.', 'danger')
+        return None, ValueError('Administrator plan is protected.')
     billing_cycle = request.form.get('billing_cycle', 'monthly')
     action = request.form.get('action', 'checkout')
 

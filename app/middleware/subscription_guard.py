@@ -100,8 +100,14 @@ def compute_subscription_state(tenant) -> str:
 
     current_state = getattr(tenant, 'subscription_state', 'active') or 'active'
 
-    # 1. Hard suspension (superadmin override)
-    if getattr(tenant, 'status', 'active') == 'suspended':
+    # 0. ADMINISTRATOR plan — always active, never suspended, never readonly
+    from app.services.permissions import is_administrator_plan
+    _plan = getattr(tenant, 'plan', '') or ''
+    if is_administrator_plan(_plan):
+        new_state = 'active'
+
+    # 1. Hard suspension (superadmin override — blocked for protected tenants)
+    elif getattr(tenant, 'status', 'active') == 'suspended':
         new_state = 'suspended'
 
     # 2. Active paid subscription

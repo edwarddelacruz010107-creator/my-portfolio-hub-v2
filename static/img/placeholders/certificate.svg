@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <rect width="80" height="80" rx="8" fill="#1a1a2e"/>
+  <rect x="12" y="20" width="56" height="40" rx="4" fill="none" stroke="#00f0ff" stroke-width="1.5" stroke-dasharray="4 2"/>
+  <circle cx="40" cy="32" r="6" fill="#00f0ff" fill-opacity="0.3" stroke="#00f0ff" stroke-width="1"/>
+  <rect x="20" y="44" width="40" height="3" rx="1.5" fill="#00f0ff" fill-opacity="0.4"/>
+  <rect x="24" y="51" width="32" height="2" rx="1" fill="#00f0ff" fill-opacity="0.2"/>
+  <text x="40" y="75" text-anchor="middle" font-family="monospace" font-size="7" fill="#00f0ff" fill-opacity="0.6">CERT</text>
+</svg>

@@ -82,20 +82,35 @@ _RETRY_BACKOFF   = 1.5       # seconds, multiplied per attempt
 
 def _config() -> dict:
     """
-    Resolve SMTP configuration strictly from environment variables.
+    Resolve SMTP configuration from environment variables.
 
-    No DB lookups. No cross-module imports. This is intentional: the
-    superadmin recovery path must not depend on anything that itself
-    depends on a working database session beyond the OTP record already
-    written by otp_service.create_otp_record().
+    Checks SUPERADMIN_SMTP_* vars first, falls back to SMTP_* vars for
+    backward compatibility. No DB lookups — intentional. The superadmin
+    recovery path must not depend on a working DB session beyond the OTP
+    record already written by otp_service.create_otp_record().
+
+    Priority: SUPERADMIN_SMTP_<key>  →  SMTP_<key>  →  default
     """
+    def _e(sa_key: str, shared_key: str, default: str = '') -> str:
+        return (
+            os.environ.get(sa_key, '').strip()
+            or os.environ.get(shared_key, '').strip()
+            or default
+        )
+
+    port_raw = _e('SUPERADMIN_SMTP_PORT', 'SMTP_PORT', '587')
+    try:
+        port = int(port_raw)
+    except (ValueError, TypeError):
+        port = 587
+
     return {
-        'host':       os.environ.get('SMTP_HOST', '').strip(),
-        'port':       int(os.environ.get('SMTP_PORT', '587') or 587),
-        'username':   os.environ.get('SMTP_USERNAME', '').strip(),
-        'password':   os.environ.get('SMTP_PASSWORD', '').strip(),
-        'from_email': os.environ.get('SMTP_FROM_EMAIL', '').strip(),
-        'from_name':  os.environ.get('SMTP_FROM_NAME', 'Portfolio CMS').strip(),
+        'host':       _e('SUPERADMIN_SMTP_HOST',     'SMTP_HOST'),
+        'port':       port,
+        'username':   _e('SUPERADMIN_SMTP_USERNAME', 'SMTP_USERNAME'),
+        'password':   _e('SUPERADMIN_SMTP_PASSWORD', 'SMTP_PASSWORD'),
+        'from_email': _e('SUPERADMIN_FROM_EMAIL',    'SMTP_FROM_EMAIL'),
+        'from_name':  _e('SUPERADMIN_FROM_NAME',     'SMTP_FROM_NAME', 'Portfolio CMS'),
         'timeout':    _DEFAULT_TIMEOUT,
     }
 
@@ -110,10 +125,14 @@ def validate_configuration() -> list[str]:
     cfg = _config()
     missing = [k for k in ('host', 'username', 'password', 'from_email') if not cfg[k]]
     if missing:
-        return [
-            f'smtp_service: missing required env var(s): '
-            f'{", ".join("SMTP_" + m.upper() for m in missing)}'
-        ]
+        _SA_KEYS = {
+            'host':       ('SUPERADMIN_SMTP_HOST',     'SMTP_HOST'),
+            'username':   ('SUPERADMIN_SMTP_USERNAME', 'SMTP_USERNAME'),
+            'password':   ('SUPERADMIN_SMTP_PASSWORD', 'SMTP_PASSWORD'),
+            'from_email': ('SUPERADMIN_FROM_EMAIL',    'SMTP_FROM_EMAIL'),
+        }
+        pairs = [f'{_SA_KEYS[k][0]} or {_SA_KEYS[k][1]}' for k in missing]
+        return [f'smtp_service: missing required env var(s) — set either: {", ".join(pairs)}']
     return []
 
 
@@ -426,13 +445,19 @@ def health_check() -> dict:
         t0 = time.monotonic()
         if use_ssl:
             ctx = ssl.create_default_context()
-            with smtplib.SMTP_SSL(cfg['host'], cfg['port'], timeout=5, context=ctx):
-                pass
+            with smtplib.SMTP_SSL(cfg['host'], cfg['port'], timeout=5, context=ctx) as server:
+                server.login(cfg['username'], cfg['password'])   # verify credentials, not just TCP
         else:
-            with smtplib.SMTP(cfg['host'], cfg['port'], timeout=5) as s:
-                s.ehlo()
+            with smtplib.SMTP(cfg['host'], cfg['port'], timeout=5) as server:
+                server.ehlo()
+                server.starttls(context=ssl.create_default_context())
+                server.ehlo()
+                server.login(cfg['username'], cfg['password'])   # verify credentials, not just TCP
         result['status'] = 'ok'
         result['latency_ms'] = round((time.monotonic() - t0) * 1000)
+    except smtplib.SMTPAuthenticationError:
+        result['status'] = 'error: authentication_failed'
+        result['warnings'].append('SMTP credentials rejected by server — check SMTP_USERNAME / SMTP_PASSWORD')
     except Exception as exc:
         result['status'] = f'error: {type(exc).__name__}'
 

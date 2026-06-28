@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Subscription Expired — {{ profile.name if profile else 'Portfolio' }}</title>
+  <link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <script src="https://code.iconify.design/iconify-icon/1.0.8/iconify-icon.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: 'Inter', system-ui, sans-serif;
+      padding: 2rem 1rem;
+    }
+
+    .suspended-card {
+      max-width: 520px;
+      width: 100%;
+      background: rgba(22, 27, 34, 0.95);
+      border: 1px solid rgba(240, 100, 80, 0.3);
+      border-radius: 20px;
+      padding: 3rem 2.5rem;
+      text-align: center;
+      box-shadow:
+        0 0 0 1px rgba(240, 100, 80, 0.08),
+        0 25px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .suspended-icon {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 1.5rem;
+      background: rgba(240, 100, 80, 0.12);
+      border: 2px solid rgba(240, 100, 80, 0.35);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.75rem;
+      color: #f0f6fc;
+    }
+
+    .suspended-sub {
+      color: rgba(230, 237, 243, 0.6);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin-bottom: 2rem;
+    }
+
+    {% if trial_days_left is defined and trial_days_left == 0 %}
+    .trial-info {
+      display: block;
+      margin-bottom: 1.5rem;
+      padding: 0.75rem 1rem;
+      background: rgba(240, 100, 80, 0.08);
+      border: 1px solid rgba(240, 100, 80, 0.2);
+      border-radius: 10px;
+      font-size: 0.85rem;
+      color: rgba(240,100,80,0.9);
+    }
+    {% endif %}
+
+    .btn-subscribe {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 0.85rem 2rem;
+      font-size: 1rem;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+      margin-bottom: 1rem;
+      width: 100%;
+      justify-content: center;
+    }
+
+    .btn-subscribe:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    .btn-login {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      color: rgba(230, 237, 243, 0.5);
+      text-decoration: none;
+      font-size: 0.88rem;
+      transition: color 0.2s;
+    }
+    .btn-login:hover { color: rgba(230, 237, 243, 0.85); }
+
+    .powered-by {
+      margin-top: 2.5rem;
+      font-size: 0.78rem;
+      color: rgba(230, 237, 243, 0.25);
+    }
+  </style>
+</head>
+<body>
+  <div class="suspended-card">
+    <div class="suspended-icon">⏰</div>
+
+    <h1>Subscription Expired</h1>
+
+    {% if license_status == 'trial' %}
+      <p class="suspended-sub">
+        Your free trial for <strong>{{ profile.name if profile else tenant_slug }}</strong> has ended.
+        Upgrade to keep your portfolio live and accessible to visitors.
+      </p>
+    {% else %}
+      <p class="suspended-sub">
+        The subscription for <strong>{{ profile.name if profile else tenant_slug }}</strong>
+        has expired or been suspended.
+        Please renew to restore access.
+      </p>
+    {% endif %}
+
+    {% if trial_days_left is defined %}
+    <span class="trial-info">
+      <iconify-icon icon="lucide:clock" width="14" style="vertical-align:middle"></iconify-icon>
+      Trial period has ended — 0 days remaining
+    </span>
+    {% endif %}
+
+    <a href="{{ url_for('tenant.billing_plans', tenant_slug=tenant_slug) }}" class="btn-subscribe">
+      <iconify-icon icon="lucide:zap" width="18"></iconify-icon>
+      Upgrade Subscription
+    </a>
+
+    <br>
+
+    <a href="{{ url_for('admin.dashboard') }}" class="btn-login">
+      <iconify-icon icon="lucide:arrow-left" width="14"></iconify-icon>
+      Go to Admin Dashboard
+    </a>
+
+    <p class="powered-by">Portfolio CMS · Powered by PayMongo</p>
+  </div>
+</body>
+</html>

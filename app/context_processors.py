@@ -145,6 +145,7 @@ def _load_globals(app):
         profile_completion = get_profile_completion(profile)
 
     except Exception:
+        db.session.rollback()
         logger.exception('Context processor DB query failed')
 
     # ── Heartbeat state: SUPERADMIN ONLY (OWASP A01 — Broken Access Control) ──

@@ -97,11 +97,25 @@ def google_callback():
 
     try:
         token = client.authorize_access_token()
+        userinfo = token.get('userinfo') or client.userinfo(token=token)
+        email = (userinfo or {}).get('email', '').strip().lower()
+        if not userinfo or not email:
+            raise ValueError('no usable userinfo from Google')
+        if not userinfo.get('email_verified'):
+            flash('Your Google account email is not verified. Please sign in with your password instead.', 'danger')
+            return redirect(url_for('auth.login'))
+
+        google_sub = userinfo.get('sub')
+        user = User.query.filter_by(google_id=google_sub).first() if google_sub else None
+        if user is None:
+            user = User.query.filter_by(email=email).first()
+        # ... rest of existing logic unchanged ...
+
     except Exception as exc:
-        # Covers state mismatch, denied consent, expired code, network errors.
-        logger.warning('Google OAuth: token exchange failed from %s: %s', ip, exc)
-        log_security_event('oauth_failed', None, f'Google token exchange failed from {ip}', 'warning')
-        flash('Google Sign-In failed or was cancelled. Please try again, or use your password.', 'danger')
+        db.session.rollback()          # ← critical: prevents the aborted-transaction cascade into error-page rendering
+        logger.exception('Google OAuth callback failed from %s: %s', ip, exc)
+        log_security_event('oauth_failed', None, f'Google callback error from {ip}: {exc}', 'warning')
+        flash('Google Sign-In failed. Please try again, or use your password.', 'danger')
         return redirect(url_for('auth.login'))
 
     userinfo = token.get('userinfo')

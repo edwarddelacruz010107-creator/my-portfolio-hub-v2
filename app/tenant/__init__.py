@@ -36,7 +36,7 @@ from app import db, csrf, limiter, cache
 from app.forms import PlanSelectionForm
 from app.security import FileUploadPolicy, log_security_event
 from app.models.portfolio import (
-    Profile, Project, Skill, Testimonial, Service,
+    Profile, Project, Skill, Testimonial, Service, Certificate,
     Inquiry, Subscription, TenantCommunicationSettings,
     normalize_plan_name,
 )
@@ -215,6 +215,12 @@ def portfolio():
         .order_by(Testimonial.order.asc())
         .all()
     )
+    certificates = (
+        Certificate.query
+        .filter_by(is_visible=True, tenant_slug=tenant)
+        .order_by(Certificate.display_order.asc(), Certificate.id.asc())
+        .all()
+    )
     services = (
         Service.query
         .filter_by(is_visible=True, tenant_slug=tenant)
@@ -246,6 +252,7 @@ def portfolio():
         skills_by_category=skills_by_category,
         services=services,
         testimonials=testimonials,
+        certificates=certificates,
         stats=stats,
         tenant_slug=tenant,
         contact_url=url_for('tenant.contact', tenant_slug=tenant),
@@ -262,6 +269,7 @@ def portfolio():
         skills=skills,
         skills_by_category=skills_by_category,
         testimonials=testimonials,
+        certificates=certificates,
         services=services,
         stats=stats,
         categories=categories,
@@ -706,6 +714,8 @@ def auth_forgot_password_verify():
 
 
 @tenant_bp.route('/auth/forgot-password/reset', methods=['GET', 'POST'])
+@limiter.limit('5 per minute; 15 per hour',
+               key_func=lambda: f"tenant-fpw-reset:{g.get('tenant_slug','?')}:{request.remote_addr}")
 def auth_forgot_password_reset():
     """Step 3: New password + tenant isolation enforcement."""
     if current_user.is_authenticated:

@@ -134,22 +134,6 @@ class Profile(db.Model):
             return normalize_plan_name(sub.plan)
         return normalize_plan_name(self.plan or 'Basic')
 
-    @property
-    def is_administrator(self) -> bool:
-        """
-        True iff this profile's tenant holds the Administrator reserved plan.
-
-        This property is used by ThemeEngine.resolve_theme() and
-        ThemeEngine.can_use_theme() via ThemeAccessService.can_access_theme().
-        Without it, getattr(profile, 'is_administrator', False) always returned
-        False, causing Administrator tenants to be treated as Free tier.
-
-        NOTE: uses get_effective_plan() from plan_hierarchy so that the
-        'administrator' alias map is always applied.
-        """
-        from app.services.plans.plan_hierarchy import is_administrator as _is_admin
-        return _is_admin(self.effective_plan())
-
     def plan_features(self) -> dict:
         from app.models.core import get_plan_features
         return get_plan_features(self.effective_plan())
@@ -498,6 +482,75 @@ class Service(db.Model):
 
     def __repr__(self):
         return f'<Service {self.title}>'
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Certificate
+# ═════════════════════════════════════════════════════════════════════════════
+# Certificates & Badges (v6.7). Same dual-DB isolation contract as
+# Testimonial/Service above: no ForeignKey to tenants.id (different physical
+# database under the 'tenant' bind) — isolation is enforced at the
+# application layer via tenant_id / tenant_slug filtering, never by the ORM.
+
+class Certificate(db.Model):
+    __bind_key__ = 'tenant'
+    __tablename__ = 'certificates'
+    __table_args__ = (
+        db.Index('ix_certificates_tenant_id', 'tenant_id'),
+        db.Index('ix_certificates_tenant_visible', 'tenant_id', 'is_visible'),
+        db.Index('ix_certificates_tenant_order', 'tenant_id', 'display_order'),
+        db.Index('ix_certificates_tenant_featured', 'tenant_id', 'is_featured'),
+    )
+
+    id                = db.Column(db.Integer, primary_key=True)
+    tenant_id         = db.Column(db.Integer, nullable=False)
+    tenant_slug       = db.Column(db.String(120), nullable=False, index=True, default='default')
+
+    title             = db.Column(db.String(255), nullable=False)
+    issuer            = db.Column(db.String(255), nullable=False)
+    description       = db.Column(db.Text, default='')
+
+    credential_id     = db.Column(db.String(255), default='')
+    verification_url  = db.Column(db.String(500), default='')
+
+    image_path        = db.Column(db.String(255), default='')   # certificate image, uploads/certificates/
+    badge_path        = db.Column(db.String(255), default='')   # badge image, uploads/certificates/
+
+    issue_date        = db.Column(db.Date, nullable=True)
+    expiration_date   = db.Column(db.Date, nullable=True)
+
+    skills            = db.Column(db.Text, default='')           # comma-separated, mirrors Project.tags convention
+
+    is_featured       = db.Column(db.Boolean, default=False)
+    is_visible        = db.Column(db.Boolean, default=True)
+    display_order     = db.Column(db.Integer, default=0)
+
+    created_at        = db.Column(db.DateTime(timezone=True), default=_utcnow)
+    updated_at        = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    @property
+    def skills_list(self) -> list[str]:
+        return [s.strip() for s in (self.skills or '').split(',') if s.strip()]
+
+    @property
+    def is_expired(self) -> bool:
+        if not self.expiration_date:
+            return False
+        return self.expiration_date < date_type.today()
+
+    def to_dict(self) -> dict:
+        d = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        for k, v in d.items():
+            if isinstance(v, datetime):
+                d[k] = v.isoformat()
+            elif isinstance(v, date_type):
+                d[k] = v.isoformat()
+        d['skills_list'] = self.skills_list
+        d['is_expired'] = self.is_expired
+        return d
+
+    def __repr__(self):
+        return f'<Certificate {self.title!r} issuer={self.issuer!r}>'
 
 
 # ═════════════════════════════════════════════════════════════════════════════

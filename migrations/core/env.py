@@ -31,6 +31,7 @@ from app.models.core import (
     PlatformSetting, TenantCommunicationSettings,
     PasswordResetOTP, GlobalEmailConfig,
     Inquiry, InquiryReply, SubscriptionNotification, ActivityLog,
+    DiscountCampaign, DiscountRedemption,
 )
 
 config = context.config

@@ -31,7 +31,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
-from app import db
+from app import db, limiter
 from app.models.core import Tenant
 from app.models.core_additions import MediaUpload, PlanUsageLog
 from app.services.storage_service import (
@@ -59,6 +59,7 @@ def _get_tenant() -> Tenant:
 @uploads_bp.route('/upload', methods=['POST'])
 @login_required
 @require_active_subscription
+@limiter.limit('20 per minute')
 def upload_file():
     """
     Generic file upload endpoint.
@@ -148,6 +149,7 @@ def upload_file():
 
 @uploads_bp.route('/upload/<int:upload_id>', methods=['DELETE'])
 @login_required
+@limiter.limit('30 per minute')
 def delete_file(upload_id: int):
     """
     Delete an uploaded file and reclaim quota.

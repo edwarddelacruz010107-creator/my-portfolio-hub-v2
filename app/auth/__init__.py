@@ -210,8 +210,9 @@ def _is_safe_url(target: str) -> bool:
     return parsed.scheme in ('http', 'https') and parsed.netloc == host_p.netloc
 
 
-def _render_login_page(form, action_url, title, subtitle):
+def _render_login_page(form, action_url, title, subtitle, allow_google=True):
     from flask import request as _req
+    from flask import current_app
     # Determine the correct forgot-password URL based on which portal is serving the login.
     # v5.6 FIX: The root /auth/login page (admin portal) previously routed to
     # auth.forgot_password which uses the LINK-based flow (send_verification_email +
@@ -230,6 +231,10 @@ def _render_login_page(form, action_url, title, subtitle):
         # Default admin portal → admin blueprint OTP flow (v5.6: was auth.forgot_password)
         forgot_url = url_for('admin.forgot_password')
 
+    # Google Sign-In is NEVER offered on the superadmin portal, regardless of
+    # GOOGLE_OAUTH_ENABLED — superadmin auth stays password + TOTP only.
+    show_google = allow_google and bool(current_app.config.get('GOOGLE_OAUTH_ENABLED'))
+
     return render_template(
         'auth/login.html',
         form=form,
@@ -237,6 +242,9 @@ def _render_login_page(form, action_url, title, subtitle):
         page_title=title,
         page_subtitle=subtitle,
         forgot_password_url=forgot_url,
+        show_google_login=show_google,
+        google_login_url=url_for('auth.google_login', next=request.args.get('next'))
+            if show_google else None,
     )
 
 
@@ -316,7 +324,8 @@ def _complete_login(user, remember, next_page, default_next):
 def _handle_login(require_admin: bool = False, require_superadmin: bool = False,
                   default_next: str = None, action_url: str = None,
                   page_title: str = 'Admin Portal',
-                  page_subtitle: str = 'Sign in to manage your portfolio'):
+                  page_subtitle: str = 'Sign in to manage your portfolio',
+                  allow_google: bool = None):
     """
     Core login handler shared by /auth/login and /<tenant_slug>/auth/login.
     Reads tenant_slug from g (tenant blueprint) or session (direct /auth/login).
@@ -327,6 +336,8 @@ def _handle_login(require_admin: bool = False, require_superadmin: bool = False,
     tenant_slug = getattr(g, 'tenant_slug', None) or session.get('tenant_slug')
     form = LoginForm()
     ip   = _get_ip()
+    # Default: Google is offered everywhere EXCEPT the superadmin portal.
+    _allow_google = (not require_superadmin) if allow_google is None else allow_google
 
     if form.validate_on_submit():
         username_or_email = form.username.data.strip()
@@ -344,7 +355,7 @@ def _handle_login(require_admin: bool = False, require_superadmin: bool = False,
                 'danger',
             )
             log_security_event('lockout_attempted', user, f'Locked-out login attempt from {ip}', 'warning')
-            return _render_login_page(form, action_url or request.path, page_title, page_subtitle)
+            return _render_login_page(form, action_url or request.path, page_title, page_subtitle, allow_google=_allow_google)
 
         password_valid = user and user.verify_password(form.password.data)
 
@@ -366,43 +377,61 @@ def _handle_login(require_admin: bool = False, require_superadmin: bool = False,
             else:
                 flash('Invalid credentials.', 'danger')
                 log_security_event('failed_login', None, f'Failed login for unknown user from {ip}', 'info')
-            return _render_login_page(form, action_url or request.path, page_title, page_subtitle)
+            return _render_login_page(form, action_url or request.path, page_title, page_subtitle, allow_google=_allow_google)
 
-        if require_superadmin and not user.is_superadmin:
-            flash('Superadmin access required.', 'danger')
-            AccountLockout.record_failed_attempt(user, db)
-            log_security_event('unauthorized_role', user, f'Non-superadmin access attempt from {ip}', 'warning')
-            return _render_login_page(form, action_url or request.path, page_title, page_subtitle)
-
-        if require_admin and not (user.is_admin or user.is_superadmin):
-            flash('Admin access required.', 'danger')
-            AccountLockout.record_failed_attempt(user, db)
-            log_security_event('unauthorized_role', user, f'Non-admin access attempt from {ip}', 'warning')
-            return _render_login_page(form, action_url or request.path, page_title, page_subtitle)
-
-        # Tenant isolation: non-superadmin user must belong to the tenant being logged into.
-        # Skip this check if tenant_slug is 'default' and user has no tenant_slug (bootstrapped admin).
-        if (tenant_slug and not _is_default_tenant(tenant_slug)
-                and not user.is_superadmin
-                and user.tenant_slug != tenant_slug):
-            flash('Tenant access denied.', 'danger')
-            AccountLockout.record_failed_attempt(user, db)
-            log_security_event('unauthorized_tenant', user, f'Wrong tenant access attempt from {ip}', 'warning')
-            return _render_login_page(form, action_url or request.path, page_title, page_subtitle)
-
-        if user.require_password_reset:
-            session['_pending_password_reset_user_id'] = user.id
-            flash('You must reset your password before continuing.', 'warning')
-            return redirect(url_for('admin.reset_password_required'))
-
-        return _complete_login(
-            user,
+        return _authorize_and_login(
+            user, tenant_slug, ip,
+            require_admin=require_admin, require_superadmin=require_superadmin,
             remember=form.remember_me.data,
             next_page=request.args.get('next'),
             default_next=default_next or url_for('admin.dashboard'),
+            on_denied=lambda: _render_login_page(form, action_url or request.path, page_title, page_subtitle, allow_google=_allow_google),
         )
 
-    return _render_login_page(form, action_url or request.path, page_title, page_subtitle)
+    return _render_login_page(form, action_url or request.path, page_title, page_subtitle, allow_google=_allow_google)
+
+
+def _authorize_and_login(user, tenant_slug, ip, *, require_admin, require_superadmin,
+                          remember, next_page, default_next, on_denied):
+    """
+    Shared post-authentication authorization gate.
+
+    Extracted from _handle_login() so BOTH the password flow and the Google
+    OAuth flow (app/auth/oauth.py) enforce the EXACT same rules: role
+    checks, tenant isolation, and forced-password-reset — no duplicated,
+    divergence-prone copies of this logic.
+
+    `on_denied` is a zero-arg callable returning the response to use when
+    a check fails (password flow re-renders the login form; the OAuth flow
+    flashes + redirects instead, since there's no form to re-render).
+    """
+    if require_superadmin and not user.is_superadmin:
+        flash('Superadmin access required.', 'danger')
+        AccountLockout.record_failed_attempt(user, db)
+        log_security_event('unauthorized_role', user, f'Non-superadmin access attempt from {ip}', 'warning')
+        return on_denied()
+
+    if require_admin and not (user.is_admin or user.is_superadmin):
+        flash('Admin access required.', 'danger')
+        AccountLockout.record_failed_attempt(user, db)
+        log_security_event('unauthorized_role', user, f'Non-admin access attempt from {ip}', 'warning')
+        return on_denied()
+
+    # Tenant isolation: non-superadmin user must belong to the tenant being logged into.
+    if (tenant_slug and not _is_default_tenant(tenant_slug)
+            and not user.is_superadmin
+            and user.tenant_slug != tenant_slug):
+        flash('Tenant access denied.', 'danger')
+        AccountLockout.record_failed_attempt(user, db)
+        log_security_event('unauthorized_tenant', user, f'Wrong tenant access attempt from {ip}', 'warning')
+        return on_denied()
+
+    if user.require_password_reset:
+        session['_pending_password_reset_user_id'] = user.id
+        flash('You must reset your password before continuing.', 'warning')
+        return redirect(url_for('admin.reset_password_required'))
+
+    return _complete_login(user, remember=remember, next_page=next_page, default_next=default_next)
 
 
 @auth.route('/login', methods=['GET', 'POST'])
@@ -634,6 +663,8 @@ def forgot_password():
 
 
 @auth.route('/reset-password/<token>', methods=['GET', 'POST'])
+@limiter.limit('5 per minute', error_message='Too many requests. Please wait a moment and try again.')
+@limiter.limit('10 per hour', error_message='Too many requests. Please try again later.')
 def reset_password(token: str):
     """Step 2: validate token and set a new password."""
     if current_user.is_authenticated:
@@ -691,3 +722,11 @@ def reset_password(token: str):
         return redirect(url_for('auth.login'))
 
     return render_template('auth/reset_password.html', token=token)
+
+
+# Importing app.auth.oauth registers @auth.route(...) google_login /
+# google_callback against this blueprint object. Same pattern as
+# app/admin/routes/__init__.py and app/superadmin/routes/__init__.py.
+# Must be the LAST line: oauth.py imports `auth` and `_authorize_and_login`
+# back from this (already-initialized-up-to-here) module.
+from app.auth import oauth as _oauth_routes  # noqa: E402,F401

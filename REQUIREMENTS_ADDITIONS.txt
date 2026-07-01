@@ -1,0 +1,2 @@
+# Auth upgrade dependency additions — append to requirements.txt
+Authlib>=1.3.0

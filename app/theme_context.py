@@ -33,6 +33,7 @@ def build_portfolio_view(
     skills_by_category=None,
     services=None,
     testimonials=None,
+    certificates=None,
     stats=None,
     tenant_slug='default',
     contact_url='#',
@@ -48,6 +49,7 @@ def build_portfolio_view(
     projects = projects or []
     services = services or []
     testimonials = testimonials or []
+    certificates = certificates or []
     skills_by_category = skills_by_category or {}
     stats = stats or {}
 
@@ -108,6 +110,24 @@ def build_portfolio_view(
         for t in testimonials
     ]
 
+    certificate_views = [
+        SimpleNamespace(
+            title=getattr(c, 'title', ''),
+            issuer=getattr(c, 'issuer', '') or '',
+            description=getattr(c, 'description', '') or '',
+            credential_id=getattr(c, 'credential_id', '') or '',
+            verification_url=getattr(c, 'verification_url', '') or '',
+            image_path=getattr(c, 'image_path', '') or '',
+            badge_path=getattr(c, 'badge_path', '') or '',
+            issue_date=getattr(c, 'issue_date', None),
+            expiration_date=getattr(c, 'expiration_date', None),
+            skills=getattr(c, 'skills_list', None) or [],
+            is_featured=bool(getattr(c, 'is_featured', False)),
+            is_expired=bool(getattr(c, 'is_expired', False)),
+        )
+        for c in certificates
+    ]
+
     bio = getattr(profile, 'bio', '') or '' if profile else ''
     bio_short = getattr(profile, 'bio_short', '') or '' if profile else ''
 
@@ -135,6 +155,7 @@ def build_portfolio_view(
         experiences=[],
         services=service_views,
         testimonials=testimonial_views,
+        certificates=certificate_views,
         typing_phrases=[getattr(profile, 'hero_tagline', None) or 'Building digital experiences.'] if profile else ['Building digital experiences.'],
         footer_tagline=getattr(profile, 'subtitle', '') or '' if profile else '',
         about_highlight=None,

@@ -37,6 +37,11 @@ from app.models.core import (
     # v6.4 — Theme Catalog (SuperAdmin Theme CRUD)
     ThemeCatalogEntry,
     VALID_REQUIRED_PLANS,
+    # v6.6 — Discount & Promotion Manager
+    DiscountCampaign,
+    DiscountRedemption,
+    # v7.7 — Invoice accounting record
+    Invoice,
     # Crypto helpers (consumed by services)
     encrypt_secret,
     decrypt_secret,
@@ -53,6 +58,7 @@ from app.models.tenant_data import (
     Project,
     Testimonial,
     Service,
+    Certificate,
 )
 
 # ── Form settings (core_db — canonical owner: app/models/tenant_form_settings.py) ──
@@ -72,8 +78,9 @@ __all__ = [
     'Inquiry', 'InquiryReply', 'SubscriptionNotification', 'ActivityLog',
     'TenantEmailProvider', 'TenantSmtpSettings', 'TenantResendSettings', 'TenantMailerSendSettings',
     'ThemeCatalogEntry', 'VALID_REQUIRED_PLANS',
+    'DiscountCampaign', 'DiscountRedemption', 'Invoice',
     # tenant_data_db
-    'Profile', 'Skill', 'Project', 'Testimonial', 'Service', 'TenantFormSettings',
+    'Profile', 'Skill', 'Project', 'Testimonial', 'Service', 'Certificate', 'TenantFormSettings',
     # helpers
     'encrypt_secret', 'decrypt_secret',
     'normalize_plan_name', 'get_plan_features',

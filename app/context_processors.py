@@ -28,6 +28,7 @@ from flask import g
 from flask_login import current_user
 
 from app.models.portfolio import Project, Profile, Inquiry
+from app.repositories import profile_repository
 try:
     from app.services.notification_service import get_unread_count as _get_notif_count, get_expiry_warning as _get_expiry_warning
     _HAS_NOTIF = True
@@ -35,7 +36,6 @@ except Exception:
     _HAS_NOTIF = False
 from app import db
 from app.utils import get_profile_completion
-from app.services.permissions import is_administrator_plan as _is_admin_plan_fn
 from app.tenant_security import resolve_active_tenant
 
 logger = logging.getLogger(__name__)
@@ -107,7 +107,7 @@ def _load_globals(app):
         # ── Profile + counters ────────────────────────────────────────────────
 
         if tenant_slug:
-            profile = Profile.query.filter_by(tenant_slug=tenant_slug).first()
+            profile = profile_repository.get_by_tenant_slug(tenant_slug)
             project_count   = Project.query.filter_by(status='published', tenant_slug=tenant_slug).count()
             # Count unread: original messages not read + threads with new superadmin replies
             unread_messages = Inquiry.query.filter(
@@ -137,7 +137,7 @@ def _load_globals(app):
             # Superadmin / unauthenticated root: cosmetic display only.
             # Profile.query.first() is acceptable here because no admin write
             # actions are performed on superadmin or public routes.
-            profile         = Profile.query.first()
+            profile         = profile_repository.get_first()
             project_count   = Project.query.filter_by(status='published').count()
             unread_messages = Inquiry.query.filter_by(is_read=False).count()
             unread_superadmin_messages = 0
@@ -160,22 +160,18 @@ def _load_globals(app):
         except Exception:
             pass
 
-    _active_plan = profile.effective_plan() if profile else 'Basic'
     return dict(
         profile=profile,
         project_count=project_count,
         unread_messages=unread_messages,
         unread_superadmin_messages=unread_superadmin_messages,
         profile_completion=profile_completion,
-        active_plan=_active_plan,
+        active_plan=profile.effective_plan() if profile else 'Basic',
         plan_features=profile.plan_features() if profile else {},
         now=datetime.now(timezone.utc),
         web3forms_access_key=app.config.get('WEB3FORMS_ACCESS_KEY'),
         heartbeat_state=heartbeat_state,
         active_tenant_slug=active_tenant_slug,
-        # Administrator plan helpers — available in all templates
-        is_administrator_tenant=_is_admin_plan_fn(_active_plan),
-        is_administrator_plan=_is_admin_plan_fn,
     )
 
 

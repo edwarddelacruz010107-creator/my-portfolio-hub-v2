@@ -99,23 +99,11 @@ _PLAN_ALIASES: dict[str, str] = {
 
 
 def normalize_plan_name(plan: str) -> str:
-    """Return canonical plan key. Delegates to permission_registry."""
-    from app.services.permissions.permission_registry import normalize_plan_name as _norm
-    return _norm(plan)
-
-
-def is_plan_purchasable(plan: str) -> bool:
-    """True iff the plan can be purchased by a tenant. Administrator returns False."""
-    from app.services.permissions.permission_registry import is_purchasable_plan
-    return is_purchasable_plan(plan)
-
-
-def public_billing_plans() -> dict:
-    """
-    Return BILLING_PLANS filtered to purchasable, non-hidden plans only.
-    Administrator is never included. Use this in all billing UI and APIs.
-    """
-    return {k: v for k, v in BILLING_PLANS.items() if is_plan_purchasable(k)}
+    """Return the canonical plan key ('Basic' | 'Pro' | 'Enterprise')."""
+    if not plan:
+        return "Basic"
+    key = plan.strip().lower()
+    return _PLAN_ALIASES.get(key, plan.strip().title())
 
 
 def get_plan_price(plan: str, billing_cycle: str = "monthly") -> float:
@@ -145,8 +133,140 @@ def get_plan_price_label(plan: str, billing_cycle: str = "monthly") -> str:
     symbol = data.get("currency_symbol", "₱")
     price = get_plan_price(plan, billing_cycle)
     if billing_cycle == "yearly":
-        return f"{symbol}{price:,.2f}/yr (Save ~17%)"
+        pct = get_yearly_discount_percent(plan)
+        pct_str = f"{pct:g}"
+        return f"{symbol}{price:,.2f}/yr (Save ~{pct_str}%)"
     return f"{symbol}{price:,.2f}/mo"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# YEARLY BILLING DISCOUNT  (superadmin-editable, persisted in PlatformSetting)
+#
+# YEARLY_DISCOUNT above is the hardcoded fallback (~17% off) used only when
+# no superadmin override has ever been saved. Once the superadmin edits the
+# rate on the Discounts & Promotions page, it's persisted here — either as
+# one platform-wide rate, or as a per-plan override that beats the global
+# rate for that one plan.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_YEARLY_DISCOUNT_GLOBAL_KEY = "yearly_discount_global"
+_YEARLY_DISCOUNT_PLAN_KEY_PREFIX = "yearly_discount_plan_"
+
+
+def _yearly_discount_plan_key(plan: str) -> str:
+    return _YEARLY_DISCOUNT_PLAN_KEY_PREFIX + normalize_plan_name(plan).lower()
+
+
+def get_yearly_discount(plan: str | None = None) -> float:
+    """
+    Return the yearly-billing discount as a decimal multiplier applied to
+    (monthly_price * 12) — e.g. 0.83 means "17% off". Matches the semantics
+    of the original hardcoded YEARLY_DISCOUNT constant.
+
+    Resolution order:
+      1. Per-plan override (if `plan` is given and one has been saved)
+      2. Platform-wide override
+      3. Hardcoded YEARLY_DISCOUNT default
+    """
+    try:
+        from app.models.portfolio import PlatformSetting
+
+        if plan:
+            plan_pct = PlatformSetting.get_float(_yearly_discount_plan_key(plan))
+            if plan_pct is not None:
+                return max(0.0, min(1.0, 1 - (plan_pct / 100)))
+
+        global_pct = PlatformSetting.get_float(_YEARLY_DISCOUNT_GLOBAL_KEY)
+        if global_pct is not None:
+            return max(0.0, min(1.0, 1 - (global_pct / 100)))
+    except Exception:
+        logger.exception("get_yearly_discount lookup failed — using hardcoded default")
+
+    return YEARLY_DISCOUNT
+
+
+def get_yearly_discount_percent(plan: str | None = None) -> float:
+    """Human-facing 'percent off' version of get_yearly_discount(), e.g. 17 or 17.5."""
+    pct = round((1 - get_yearly_discount(plan)) * 100, 2)
+    return int(pct) if pct == int(pct) else pct
+
+
+def get_yearly_discount_percent_override(plan: str) -> float | None:
+    """
+    Return the raw per-plan override percent if one has been explicitly
+    saved for this plan, or None if the plan simply follows the global rate.
+    Used by the superadmin UI to distinguish "20% override" from "no
+    override, currently showing 17% because that's the global rate".
+    """
+    try:
+        from app.models.portfolio import PlatformSetting
+        return PlatformSetting.get_float(_yearly_discount_plan_key(plan))
+    except Exception:
+        logger.exception("get_yearly_discount_percent_override lookup failed")
+        return None
+
+
+def set_yearly_discount(percent_off: float, plan: str | None = None) -> None:
+    """
+    Persist the yearly-billing discount percentage.
+
+    plan=None  → sets the platform-wide rate that applies to every plan
+                 without its own override.
+    plan='Pro' → sets a Pro-only override that beats the global rate.
+
+    Immediately refreshes BILLING_PLANS so price_yearly is correct on the
+    very next render — no app restart required.
+    """
+    try:
+        from app import db
+        from app.models.portfolio import PlatformSetting
+        key = _yearly_discount_plan_key(plan) if plan else _YEARLY_DISCOUNT_GLOBAL_KEY
+        PlatformSetting.set_float(key, percent_off)
+        db.session.commit()
+    except Exception:
+        logger.exception("set_yearly_discount failed")
+        try:
+            from app import db
+            db.session.rollback()
+        except Exception:
+            pass
+        raise
+    refresh_yearly_pricing()
+
+
+def clear_yearly_discount_override(plan: str) -> None:
+    """Remove a per-plan override so that plan goes back to following the
+    global yearly discount rate."""
+    try:
+        from app import db
+        from app.models.portfolio import PlatformSetting
+        row = db.session.get(PlatformSetting, _yearly_discount_plan_key(plan))
+        if row is not None:
+            db.session.delete(row)
+            db.session.commit()
+    except Exception:
+        logger.exception("clear_yearly_discount_override failed")
+        try:
+            from app import db
+            db.session.rollback()
+        except Exception:
+            pass
+        raise
+    refresh_yearly_pricing()
+
+
+def refresh_yearly_pricing() -> None:
+    """
+    Recompute price_yearly for every plan in BILLING_PLANS from its current
+    monthly price and the (possibly superadmin-edited) yearly discount rate.
+
+    Cheap — safe to call at the top of any request path that renders plan
+    prices, so a superadmin edit takes effect immediately across all workers
+    on their next request without an app restart.
+    """
+    for key, data in BILLING_PLANS.items():
+        monthly = data.get("price_monthly", data.get("price", 0))
+        data["price_yearly"] = round(monthly * 12 * get_yearly_discount(key), 2)
 
 
 def get_yearly_savings_label(plan: str) -> str:

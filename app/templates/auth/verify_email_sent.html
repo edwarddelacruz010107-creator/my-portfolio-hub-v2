@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Verify your email{% endblock %}
+{% block content %}
+<div class="auth-shell">
+  <div class="auth-card">
+    <h1 class="auth-card__title">Check your inbox</h1>
+    <p>We sent a verification link{% if email %} to <strong>{{ email }}</strong>{% endif %}. It expires in 24 hours.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+        <div class="alert alert-{{ cat }}">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% if resend %}
+    <form method="post" class="auth-form">
+      {{ form.hidden_tag() }}
+      <label class="field"><span>Email</span>{{ form.email(class="input", type="email", required=true) }}</label>
+      {{ form.submit(class="btn btn-primary btn-block") }}
+    </form>
+    {% else %}
+    <p class="auth-alt">
+      Didn’t get it? <a href="{{ url_for('auth.resend_verification') }}">Resend verification email</a>.
+    </p>
+    <p class="auth-alt">
+      <a href="{{ url_for('auth.login') }}">Back to sign in</a>
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

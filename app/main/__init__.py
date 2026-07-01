@@ -29,6 +29,7 @@ from sqlalchemy import or_
 from werkzeug.utils import secure_filename
 
 from app import csrf, db, limiter
+from app.repositories import profile_repository, tenant_repository
 from app.forms import PlanSelectionForm, PaymentUploadForm
 from app.models.portfolio import (
     Profile, Project,
@@ -99,14 +100,10 @@ def sitemap_xml():
         from app.models.portfolio import Tenant, Profile, Project
 
         # All active tenants with a published profile
-        tenants = (
-            Tenant.query
-            .filter_by(status='active')
-            .all()
-        )
+        tenants = tenant_repository.list_by(status='active')
 
         for tenant in tenants:
-            profile = Profile.query.filter_by(tenant_id=tenant.id).first()
+            profile = profile_repository.get_by_tenant_id(tenant.id)
             if not profile:
                 continue
 
@@ -253,7 +250,7 @@ def _redirect_default_billing():
 
 
 def _load_default_billing_profile():
-    profile = Profile.query.filter_by(tenant_slug='default').first()
+    profile = profile_repository.get_by_tenant_slug('default')
     if not profile:
         abort(404)
     return profile

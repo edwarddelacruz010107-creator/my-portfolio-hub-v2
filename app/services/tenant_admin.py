@@ -1,41 +1,10 @@
-"""Superadmin tenant lifecycle helpers."""
-
-from __future__ import annotations
-
-import logging
-
-from app import db
-from app.models.portfolio import (
-    ActivityLog,
-    Inquiry,
-    Profile,
-    Tenant,
-    Testimonial,
-)
-from app.models import User
-
-logger = logging.getLogger(__name__)
-
-
-def delete_tenant_completely(tenant: Tenant) -> None:
-    """
-    Permanently remove a tenant and all associated data.
-    Cannot delete the 'default' tenant.
-    """
-    if tenant.slug == 'default':
-        raise ValueError('The default tenant cannot be deleted.')
-
-    slug = tenant.slug
-
-    Testimonial.query.filter_by(tenant_slug=slug).delete(synchronize_session=False)
-    Inquiry.query.filter_by(tenant_slug=slug).delete(synchronize_session=False)
-    ActivityLog.query.filter_by(tenant_slug=slug).delete(synchronize_session=False)
-
-    User.query.filter_by(tenant_id=tenant.id).delete(synchronize_session=False)
-
-    profile = Profile.query.filter_by(tenant_id=tenant.id).first()
-    if profile:
-        db.session.delete(profile)
-
-    db.session.delete(tenant)
-    db.session.commit()
+"""
+COMPATIBILITY SHIM -- Phase 3 service-layer sub-packaging.
+Real implementation moved to: app/services/tenant/tenant_admin.py.py
+Old import paths keep working: from app.services.tenant_admin import <anything>
+Do not add logic here. Edit the real module instead.
+"""
+from app.services.tenant import tenant_admin as _moved_module
+from app.services.tenant.tenant_admin import *  # noqa: F401,F403
+globals().update({k: v for k, v in vars(_moved_module).items() if not k.startswith("__")})
+del _moved_module

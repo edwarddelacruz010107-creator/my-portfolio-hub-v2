@@ -1,0 +1,59 @@
+{% extends "admin/base.html" %}
+{% block title %}Certificates & Badges{% endblock %}
+{% block page_title %}Certificates & Badges{% endblock %}
+
+{% block content %}
+<div class="list-page">
+  <div class="page-hd">
+    <div class="page-hd-left">
+      <h1>Certificates & Badges <span style="font-size:0.6em;color:var(--text-muted);font-weight:600;vertical-align:middle;">({{ certificates|length }})</span></h1>
+      <p>Showcase professional certifications and digital badges on your portfolio.</p>
+    </div>
+    <div class="page-hd-right">
+      <a href="{{ url_for('admin.new_certificate') }}" class="btn btn-primary">
+        <iconify-icon icon="lucide:plus" width="15"></iconify-icon> Add Certificate
+      </a>
+    </div>
+  </div>
+
+  {% if certificates %}
+  <div class="testimonial-admin-list" id="certificateList">
+    {% for c in certificates %}
+    <div class="testimonial-admin-row" data-id="{{ c.id }}">
+      <div class="t-avatar">
+        {% if c.badge_path %}
+          <img src="{{ c.badge_path|upload_url('certificates') }}" alt="{{ c.title }}"/>
+        {% elif c.image_path %}
+          <img src="{{ c.image_path|upload_url('certificates') }}" alt="{{ c.title }}"/>
+        {% else %}
+          <div class="t-avatar-ph"><iconify-icon icon="lucide:award" width="18"></iconify-icon></div>
+        {% endif %}
+      </div>
+      <div class="t-info">
+        <strong>{{ c.title }}</strong>
+        <span class="t-role">{{ c.issuer }}{% if c.issue_date %} &middot; {{ c.issue_date.strftime('%b %Y') }}{% endif %}</span>
+        {% if c.description %}<p class="t-preview">{{ c.description|truncate(100) }}</p>{% endif %}
+      </div>
+      <div class="t-meta">
+        {% if c.is_expired %}<span class="badge badge-archived">Expired</span>{% endif %}
+        {% if c.is_featured %}<span class="badge badge-featured">★ Featured</span>{% endif %}
+        {% if not c.is_visible %}<span class="badge badge-archived">Hidden</span>{% endif %}
+      </div>
+      <div class="t-actions">
+        <a href="{{ url_for('admin.edit_certificate', id=c.id) }}" class="icon-btn">✎</a>
+        <button class="icon-btn icon-btn--danger"
+                onclick="confirmDelete('{{ url_for('admin.delete_certificate', id=c.id) }}',
+                'Delete certificate &quot;{{ c.title }}&quot;?')">✕</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-page">
+    <div class="empty-icon">◉</div>
+    <h2>No certificates yet</h2>
+    <a href="{{ url_for('admin.new_certificate') }}" class="btn btn-primary">Add first certificate</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

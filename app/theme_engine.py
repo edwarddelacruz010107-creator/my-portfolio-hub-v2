@@ -29,12 +29,6 @@ from typing import Optional
 
 from flask import render_template, current_app
 
-# ── Plan access: always through ThemeAccessService, never inline ──────────────
-# This is the single import point that fixes the Administrator access bug.
-# OLD code used a local _PLAN_RANK dict without 'administrator' + a fragile
-# getattr(profile, 'is_administrator', False) that always returned False.
-from app.services.plans.theme_access_service import ThemeAccessService as _ThemeAccessSvc
-
 
 THEMES_DIR = os.path.join(os.path.dirname(__file__), '..', 'themes')
 DEFAULT_THEME = 'default'
@@ -237,36 +231,30 @@ class ThemeEngine:
 
     # ── Public API ────────────────────────────
 
-    # ── Plan access delegation ─────────────────────────────────────────────────
-    # All plan comparisons are now handled by ThemeAccessService / plan_hierarchy.
-    # The old _PLAN_RANK dict is REMOVED — it had no 'administrator' key and
-    # would rank Administrator tenants as rank 0 (Free), blocking all themes.
-    # Do NOT re-add local plan rank logic here.
+    # Plan rank used to evaluate ThemeCatalogEntry.required_plan, independent
+    # of the broader SUBSCRIPTION_PLAN_ORDER used elsewhere -- theme gating
+    # only ever cares about this 3-tier ladder.
+    _PLAN_RANK = {'free': 0, 'basic': 0, 'trial': 0, 'pro': 1, 'premium': 1, 'enterprise': 2, 'agency': 2}
 
     def _plan_meets_requirement(self, plan: str, required_plan: Optional[str]) -> bool:
-        """
-        Deprecated shim — kept for any external callers.
-        Delegates to plan_hierarchy.has_plan_access so Administrator always passes.
-        """
-        from app.services.plans.plan_hierarchy import has_plan_access
-        return has_plan_access(plan, required_plan)
+        if not required_plan:
+            return True
+        have = self._PLAN_RANK.get(str(plan).lower(), 0)
+        need = self._PLAN_RANK.get(str(required_plan).lower(), 0)
+        return have >= need
 
     def resolve_theme(self, tenant_profile) -> str:
         """
         Determine the active theme for a tenant's profile.
 
-        All access logic is delegated to ThemeAccessService which:
-          • Uses plan_hierarchy for rank comparisons (Administrator = rank 999)
-          • Detects Administrator via is_administrator() — works on both
-            Tenant ORM and Profile ORM objects
-          • Never uses a hardcoded plan name list
-
-        Rules (evaluated in ThemeAccessService):
-          1. catalog_active=False → FALLBACK for non-administrators
-          2. Administrator plan → always honoured
-          3. required_plan from catalog/theme.json → hierarchy check
-          4. premium=True flag → requires Pro+
-          5. hidden/internal/beta category → requires Enterprise+
+        Rules:
+          - Administrators        -> always honoured (no restriction)
+          - PRO/premium tenants   -> any theme allowed (unless required_plan
+                                      from the SuperAdmin theme catalog says
+                                      otherwise)
+          - FREE tenants          -> only non-premium themes
+          - Deactivated theme (SuperAdmin) -> DEFAULT_THEME for everyone
+          - Missing/invalid/corrupted theme -> DEFAULT_THEME
         """
         requested = getattr(tenant_profile, 'selected_theme', None) or DEFAULT_THEME
 
@@ -277,7 +265,31 @@ class ThemeEngine:
         if not meta:
             return FALLBACK_THEME
 
-        return _ThemeAccessSvc.resolve_active_theme(tenant_profile, requested, meta)
+        if not meta.get('catalog_active', True):
+            # SuperAdmin deactivated this theme platform-wide.
+            return FALLBACK_THEME
+
+        if getattr(tenant_profile, 'is_administrator', False):
+            return requested
+
+        # Use effective_plan() so subscription-based upgrades (e.g. tenant upgraded
+        # to PRO via billing while profile.plan column is still 'Basic') are honoured.
+        if callable(getattr(tenant_profile, 'effective_plan', None)):
+            plan = tenant_profile.effective_plan()
+        else:
+            plan = (getattr(tenant_profile, 'plan', None) or 'free')
+
+        required_plan = meta.get('required_plan')
+        if required_plan:
+            return requested if self._plan_meets_requirement(plan, required_plan) else FALLBACK_THEME
+
+        if str(plan).lower() in ('pro', 'premium', 'enterprise', 'agency'):
+            return requested
+
+        if meta.get('premium', False):
+            return FALLBACK_THEME
+
+        return requested
 
     def render(self, tenant_profile, template_name: str, **context) -> str:
         """
@@ -319,15 +331,24 @@ class ThemeEngine:
         self.registry.clear_cache()
 
     def can_use_theme(self, tenant_profile, theme_id: str) -> bool:
-        """
-        True iff tenant_profile may use theme_id.
-        All access logic delegated to ThemeAccessService.
-        Administrator always returns True.
-        """
         meta = self.registry.get(theme_id)
         if not meta:
             return False
-        return _ThemeAccessSvc.can_access_theme(tenant_profile, meta)
+        if not meta.get('catalog_active', True):
+            return False
+        if getattr(tenant_profile, 'is_administrator', False):
+            return True
+        # Use effective_plan() so subscription upgrades are reflected immediately.
+        if callable(getattr(tenant_profile, 'effective_plan', None)):
+            plan = tenant_profile.effective_plan()
+        else:
+            plan = (getattr(tenant_profile, 'plan', None) or 'free')
+        required_plan = meta.get('required_plan')
+        if required_plan:
+            return self._plan_meets_requirement(plan, required_plan)
+        if str(plan).lower() in ('pro', 'premium', 'enterprise', 'agency'):
+            return True
+        return not meta.get('premium', False)
 
 
 def get_theme_engine() -> ThemeEngine:

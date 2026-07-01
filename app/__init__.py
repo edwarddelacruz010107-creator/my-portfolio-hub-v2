@@ -28,12 +28,6 @@ from pathlib import Path
 from flask import Flask, render_template, g, redirect, url_for
 from flask_wtf.csrf import CSRFError
 from werkzeug.middleware.proxy_fix import ProxyFix
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager
-from flask_wtf.csrf import CSRFProtect
-from flask_migrate import Migrate
-from flask_limiter import Limiter
-from flask_caching import Cache
 from flask_talisman import Talisman
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
@@ -44,33 +38,28 @@ except ImportError:
 from config import config
 from app.tenant_security import TenantGuard, RESERVED_SLUGS
 from app.heartbeat import heartbeat_bp
-from app.heartbeat.health_email import health_email_bp 
+from app.heartbeat.health_email import health_email_bp
 
-# ── Extension singletons ──────────────────────────────────────────────────────
-db            = SQLAlchemy()
-login_manager = LoginManager()
-csrf          = CSRFProtect()
-migrate       = Migrate()
-cache         = Cache()
-_scheduler    = None   # APScheduler instance (set in create_app)
+# ── Extension singletons (PHASE 1 REFACTOR) ────────────────────────────────
+# Moved to app/extensions.py as the single source of truth. Re-exported here
+# under the SAME NAMES so every existing `from app import db` / `from app
+# import limiter` call site (48 across the codebase, confirmed by audit)
+# continues to work with ZERO changes required at those call sites.
+# Do not remove this re-export without first migrating all call sites to
+# `from app.extensions import ...`.
+from app.extensions import (
+    db,
+    login_manager,
+    csrf,
+    migrate,
+    cache,
+    limiter,
+    oauth,
+    resolve_limiter_storage_uri,
+)
 
-# Limiter must be a real object at module level because blueprints use
-# @limiter.limit(...) as decorators at import time.
-# We construct it with key_func here, then call init_app(app) inside
-# create_app() so storage_uri (from config/REDIS_URL) is applied correctly.
-from app.limiter_config import create_limiter_key_func
+_scheduler = None   # APScheduler instance (set in create_app)
 
-# FIX (redis-graceful-degradation): previously this module constructed
-# Limiter() with whatever RATELIMIT_STORAGE_URL/REDIS_URL pointed to, then
-# create_app() mutated the PRIVATE `limiter._storage_uri` attribute and
-# called init_app(). Neither step ever attempted a real connection, so a
-# dead/unresolvable Redis host (e.g. a Render Redis instance that was
-# deleted/renamed) was only discovered when flask-limiter's storage
-# backend tried to actually talk to Redis on the first rate-limited
-# request -- raising a raw redis.exceptions.ConnectionError straight
-# through the request, with no fallback. We now pre-flight-check Redis
-# with a short-timeout PING at app-factory time and fall back to
-# memory:// (logged as a WARNING, never raised) if it's unreachable.
 
 def _request_wants_json() -> bool:
     """Return True when the current request prefers a JSON response."""
@@ -86,55 +75,6 @@ def _request_wants_json() -> bool:
     except Exception:
         return False
 
-
-def resolve_limiter_storage_uri(app) -> str:
-    """
-    Resolve the storage backend for Flask-Limiter.
-
-    Order of precedence: RATELIMIT_STORAGE_URL (config) -> REDIS_URL (env)
-    -> memory://. If a redis:// URL is configured, PING it with a short
-    timeout; on ANY failure (DNS, connection refused, auth, timeout) log
-    a warning and fall back to memory:// rather than letting the app
-    crash on the first request that touches a rate-limited route.
-    """
-    storage_uri = app.config.get(
-        'RATELIMIT_STORAGE_URL', os.environ.get('REDIS_URL', 'memory://')
-    ) or 'memory://'
-
-    if not storage_uri.startswith('redis'):
-        return storage_uri
-
-    try:
-        import redis as _redis
-        kwargs = {"socket_connect_timeout": 2, "socket_timeout": 2}
-        if storage_uri.startswith("rediss://"):
-            kwargs["ssl_cert_reqs"] = None
-        client = _redis.from_url(storage_uri, **kwargs)
-        client.ping()
-        client.close()
-        return storage_uri
-    except Exception as exc:
-        logger.warning(
-            'Redis unreachable at startup (%s) -- falling back to '
-            'in-memory rate limiting. Rate limits will NOT be shared '
-            'across Gunicorn workers until Redis connectivity is restored.',
-            exc,
-        )
-        return 'memory://'
-
-
-# NOTE: storage_uri is intentionally NOT passed here. flask-limiter's
-# constructor argument wins over app.config['RATELIMIT_STORAGE_URI'] if
-# set, which would make the pre-flight-checked, fallback-aware value we
-# compute in create_app() (resolve_limiter_storage_uri) impossible to
-# apply without poking the library's private _storage_uri attribute.
-# Leaving it unset here means create_app() -> RATELIMIT_STORAGE_URI is
-# the single source of truth, via the documented config key.
-limiter = Limiter(
-    key_func=create_limiter_key_func,
-    default_limits=["800 per hour"],
-    headers_enabled=True,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -255,8 +195,12 @@ def _init_scheduler(app):
 def create_app(config_name: str = 'default') -> Flask:
     app = Flask(
         __name__,
-        template_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'templates'),
-        static_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'static'),
+        # Explicit, package-relative paths: app/templates/ and app/static/
+        # are the single authoritative trees. Both resolve relative to
+        # this file's directory (Flask's root_path) — no '..' traversal,
+        # no implicit defaults, no ambiguity about which tree is active.
+        template_folder='templates',
+        static_folder='static',
     )
 
     app.config.from_object(config[config_name])
@@ -294,6 +238,24 @@ def create_app(config_name: str = 'default') -> Flask:
     login_manager.init_app(app)
     csrf.init_app(app)
     migrate.init_app(app, db, compare_type=True)
+    oauth.init_app(app)
+
+    # Google OAuth client — only registered when both credentials are
+    # present. Every call site in app/auth/oauth.py checks
+    # app.config['GOOGLE_OAUTH_ENABLED'] before touching oauth.google,
+    # so an unregistered client here is safe (routes render a disabled
+    # state, never a 500).
+    if app.config.get('GOOGLE_OAUTH_ENABLED'):
+        oauth.register(
+            name='google',
+            client_id=app.config['GOOGLE_CLIENT_ID'],
+            client_secret=app.config['GOOGLE_CLIENT_SECRET'],
+            server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+            client_kwargs={'scope': 'openid email profile'},
+        )
+        logger.info('Google OAuth: registered (login-only, no auto-provisioning).')
+    else:
+        logger.info('Google OAuth: disabled (GOOGLE_CLIENT_ID/SECRET not set).')
     if app.config.get("CACHE_TYPE") == "RedisCache":
         redis_url = (app.config.get("CACHE_REDIS_URL") or os.environ.get("REDIS_URL", "")).strip()
         if not redis_url:
@@ -1127,7 +1089,7 @@ def _render_default_portfolio():
     """
     from flask import render_template
     from sqlalchemy import or_
-    from app.models.portfolio import Profile, Project, Skill, Testimonial, Service
+    from app.models.portfolio import Profile, Project, Skill, Testimonial, Service, Certificate
 
     TENANT = 'default'
     g.tenant_slug = TENANT
@@ -1153,6 +1115,12 @@ def _render_default_portfolio():
         Testimonial.query
         .filter_by(is_visible=True, tenant_slug=TENANT)
         .order_by(Testimonial.order.asc())
+        .all()
+    )
+    certificates = (
+        Certificate.query
+        .filter_by(is_visible=True, tenant_slug=TENANT)
+        .order_by(Certificate.display_order.asc(), Certificate.id.asc())
         .all()
     )
     services = (
@@ -1186,6 +1154,7 @@ def _render_default_portfolio():
         skills_by_category=skills_by_category,
         services=services,
         testimonials=testimonials,
+        certificates=certificates,
         stats=stats,
         tenant_slug=TENANT,
         contact_url=contact_url,
@@ -1202,6 +1171,7 @@ def _render_default_portfolio():
         skills=skills,
         skills_by_category=skills_by_category,
         testimonials=testimonials,
+        certificates=certificates,
         services=services,
         stats=stats,
         categories=categories,
@@ -1244,7 +1214,7 @@ def _ensure_default_tenant():
                 company_name='Default Portfolio',
                 email='hello@example.com',
                 status='active',
-                plan='Administrator',  # Reserved system plan for platform owner
+                plan='Basic',
             )
             db.session.add(tenant)
             db.session.flush()
@@ -1263,13 +1233,6 @@ def _ensure_default_tenant():
             db.session.add(profile)
             db.session.commit()
             logger.info("Created default tenant Profile row")
-
-        # Ensure the default tenant always has the Administrator plan
-        try:
-            from app.services.permissions import ensure_administrator_plan
-            ensure_administrator_plan()
-        except Exception as exc:
-            logger.warning('Could not ensure administrator plan: %s', exc)
 
         # Obj #2: bootstrap TenantFormSettings for the default tenant so the
         # contact form routes to the administrator's email out of the box.
@@ -1309,7 +1272,8 @@ def register_cli_commands(app):
         Safe to run multiple times. Used as render.yaml preDeployCommand.
         """
         from app.models import User
-        from app.models.portfolio import Tenant, Profile
+        from app.models.portfolio import Tenant, Profile, Project
+        from app.repositories import project_repository
 
         tenant = Tenant.query.filter_by(slug='default').first()
         if not tenant:
@@ -1639,7 +1603,7 @@ def register_cli_commands(app):
                 project.tags = []
                 base = project.generate_slug()
                 slug, n = base, 1
-                while Project.query.filter_by(slug=slug).first():
+                while project_repository.slug_exists(slug):
                     slug = f'{base}-{n}'; n += 1
                 project.slug = slug
                 db.session.add(project)

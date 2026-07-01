@@ -193,6 +193,7 @@
                 <li><a href="#projects" class="nav-link" data-section="projects">Projects</a></li>
                 {% if services %}<li><a href="#services" class="nav-link" data-section="services">Services</a></li>{% endif %}
                 {% if testimonials %}<li><a href="#testimonials" class="nav-link" data-section="testimonials">Testimonials</a></li>{% endif %}
+                {% if certificates %}<li><a href="#certificates" class="nav-link" data-section="certificates">Certificates</a></li>{% endif %}
                 <li><a href="#contact" class="nav-link" data-section="contact">Contact</a></li>
                 {% if profile and profile.tenant_slug == 'default' %}
                 <li><a href="{{ url_for('main.billing') }}" class="nav-link">Billing</a></li>
@@ -224,6 +225,7 @@
                 <li><a href="#projects" class="mobile-nav-link" data-section="projects">Projects</a></li>
                 {% if services %}<li><a href="#services" class="mobile-nav-link" data-section="services">Services</a></li>{% endif %}
                 {% if testimonials %}<li><a href="#testimonials" class="mobile-nav-link" data-section="testimonials">Testimonials</a></li>{% endif %}
+                {% if certificates %}<li><a href="#certificates" class="mobile-nav-link" data-section="certificates">Certificates</a></li>{% endif %}
                 <li><a href="#contact" class="mobile-nav-link" data-section="contact">Contact</a></li>
                 {% if profile and profile.tenant_slug == 'default' %}
                 <li><a href="{{ url_for('main.billing') }}" class="mobile-nav-link">Billing</a></li>
@@ -706,6 +708,76 @@
                         </button>
                     </div>
                     {% endif %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if certificates %}
+        <!-- ===================== CERTIFICATES & BADGES SECTION ===================== -->
+        <section id="certificates" class="section certificates">
+            <div class="container">
+                <div class="section-header reveal-up">
+                    <span class="section-tag">Credentials</span>
+                    <h2 class="section-title">Certificates <span class="gradient-text">& Badges</span></h2>
+                    <p class="section-subtitle">Professional certifications and badges I've earned.</p>
+                </div>
+
+                <div class="certificates-grid">
+                    {% for c in certificates %}
+                    <div class="certificate-card reveal-up{% if c.is_featured %} certificate-card--featured{% endif %}"
+                         style="--delay: {{ loop.index0 * 0.08 }}s">
+                        {% if c.is_featured %}
+                        <span class="certificate-featured-tag">
+                            <iconify-icon icon="lucide:star" width="12"></iconify-icon> Featured
+                        </span>
+                        {% endif %}
+
+                        <div class="certificate-media">
+                            {% if c.badge_path %}
+                            <img src="{{ c.badge_path|upload_url('certificates') }}" alt="{{ c.title }} badge" class="certificate-badge-img">
+                            {% elif c.image_path %}
+                            <img src="{{ c.image_path|upload_url('certificates') }}" alt="{{ c.title }}" class="certificate-badge-img">
+                            {% else %}
+                            <div class="certificate-badge-placeholder">
+                                <iconify-icon icon="lucide:award" width="32"></iconify-icon>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="certificate-body">
+                            <h3 class="certificate-title">{{ c.title }}</h3>
+                            <p class="certificate-issuer">{{ c.issuer }}</p>
+
+                            <div class="certificate-dates">
+                                {% if c.issue_date %}<span>Issued {{ c.issue_date.strftime('%b %Y') }}</span>{% endif %}
+                                {% if c.expiration_date %}
+                                <span class="{% if c.is_expired %}certificate-expired{% endif %}">
+                                    {{ 'Expired' if c.is_expired else 'Expires' }} {{ c.expiration_date.strftime('%b %Y') }}
+                                </span>
+                                {% endif %}
+                            </div>
+
+                            {% if c.description %}
+                            <p class="certificate-desc">{{ c.description|truncate(140) }}</p>
+                            {% endif %}
+
+                            {% if c.skills %}
+                            <div class="certificate-tags">
+                                {% for tag in c.skills %}
+                                <span class="certificate-tag">{{ tag }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+
+                            {% if c.verification_url %}
+                            <a href="{{ c.verification_url }}" target="_blank" rel="noopener noreferrer" class="certificate-verify-link">
+                                <iconify-icon icon="lucide:external-link" width="14"></iconify-icon> Verify Credential
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
         </section>

@@ -31,7 +31,7 @@ from flask import (
     render_template, request, url_for,
 )
 
-from app import db
+from app import db, limiter
 from app.superadmin import superadmin, superadmin_required
 from app.theme_engine import get_theme_engine
 from app.models.core import ThemeCatalogEntry, VALID_REQUIRED_PLANS
@@ -334,6 +334,7 @@ def theme_catalog_edit(entry_id):
 
 @superadmin.route('/themes/<int:entry_id>/upload-thumbnail', methods=['POST'])
 @superadmin_required
+@limiter.limit('20 per minute')
 def theme_upload_thumbnail(entry_id):
     entry = _get_entry_or_404(entry_id)
     f = request.files.get('thumbnail')
@@ -357,6 +358,7 @@ def theme_upload_thumbnail(entry_id):
 
 @superadmin.route('/themes/<int:entry_id>/upload-preview', methods=['POST'])
 @superadmin_required
+@limiter.limit('20 per minute')
 def theme_upload_preview(entry_id):
     entry = _get_entry_or_404(entry_id)
     existing = entry.get_preview_images()
@@ -384,6 +386,7 @@ def theme_upload_preview(entry_id):
 
 @superadmin.route('/themes/<int:entry_id>/delete-preview', methods=['POST'])
 @superadmin_required
+@limiter.limit('30 per minute')
 def theme_delete_preview(entry_id):
     entry = _get_entry_or_404(entry_id)
     url_to_remove = (request.form.get('url') or '').strip()
@@ -441,6 +444,7 @@ def theme_catalog_toggle_featured(entry_id):
 
 @superadmin.route('/themes/<int:entry_id>/delete', methods=['POST'])
 @superadmin_required
+@limiter.limit('30 per minute')
 def theme_catalog_delete(entry_id):
     entry = _get_entry_or_404(entry_id)
     slug = entry.slug

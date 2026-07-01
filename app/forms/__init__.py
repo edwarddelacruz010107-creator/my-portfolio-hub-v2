@@ -12,7 +12,7 @@ from flask_login import current_user
 from wtforms import (
     StringField, TextAreaField, IntegerField, BooleanField,
     SelectField, URLField, PasswordField, EmailField, DateField,
-    HiddenField, SubmitField,
+    HiddenField, SubmitField, DecimalField,
 )
 from wtforms.validators import (
     DataRequired, Optional, Length, NumberRange,
@@ -227,6 +227,82 @@ class PaymentInstructionForm(FlaskForm):
     submit = SubmitField('Save Instruction')
 
 
+# ── Discounts & Promotions (v6.6) ───────────────────────────────────────────
+
+class DiscountCampaignForm(FlaskForm):
+    name = StringField('Campaign Name', validators=[DataRequired(), Length(max=255)])
+    code = StringField(
+        'Coupon Code',
+        validators=[Optional(), Length(max=100)],
+        description='Leave blank for an auto-applied campaign (requires "Auto-apply" checked below).',
+    )
+    description = TextAreaField('Description', validators=[Optional(), Length(max=1000)])
+
+    discount_type = SelectField(
+        'Discount Type',
+        choices=[('percent', 'Percentage (%)'), ('fixed', 'Fixed Amount (₱)')],
+        default='percent',
+        validators=[DataRequired()],
+    )
+    value = DecimalField(
+        'Discount Value', places=2,
+        validators=[DataRequired(), NumberRange(min=0.01, message='Must be greater than 0.')],
+    )
+
+    applies_to = SelectField(
+        'Applies To',
+        choices=[
+            ('all', 'All billing cycles'),
+            ('monthly', 'Monthly only'),
+            ('yearly', 'Yearly only'),
+            ('one_time', 'One-time (first invoice only)'),
+        ],
+        default='all',
+        validators=[DataRequired()],
+    )
+    # Choices populated in the route from BILLING_PLANS so plan renames stay in sync.
+    plan_slug = SelectField('Plan', choices=[('', 'All plans')], validators=[Optional()])
+
+    is_global = BooleanField(
+        'Auto-apply (no coupon code required)', default=False,
+        description='If checked, this campaign applies automatically at checkout without the tenant entering a code.',
+    )
+    is_active = BooleanField('Active', default=True)
+
+    usage_limit = IntegerField(
+        'Total Usage Limit', validators=[Optional(), NumberRange(min=1)],
+        description='Leave blank for unlimited total redemptions.',
+    )
+    per_tenant_limit = IntegerField(
+        'Per-Tenant Limit', validators=[Optional(), NumberRange(min=1)], default=1,
+        description='Leave blank for unlimited redemptions per tenant.',
+    )
+    first_time_only = BooleanField('First-time subscribers only', default=False)
+
+    starts_at = DateField('Starts On', validators=[Optional()])
+    expires_at = DateField('Expires On', validators=[Optional()])
+
+    submit = SubmitField('Save Campaign')
+
+    def validate_value(self, field):
+        if self.discount_type.data == 'percent' and field.data is not None and field.data > 100:
+            raise ValidationError('Percentage discount cannot exceed 100%.')
+
+    def validate_code(self, field):
+        if not self.is_global.data and not (field.data or '').strip():
+            raise ValidationError('Coupon code is required unless "Auto-apply" is checked.')
+
+    def validate_expires_at(self, field):
+        if field.data and self.starts_at.data and field.data <= self.starts_at.data:
+            raise ValidationError('Expiration date must be after the start date.')
+
+
+class CouponApplyForm(FlaskForm):
+    """Coupon code field embedded in the checkout/billing-plans form."""
+    coupon_code = StringField('Coupon Code', validators=[Optional(), Length(max=100)])
+    apply_coupon = SubmitField('Apply')
+
+
 class SuperadminMessageForm(FlaskForm):
     tenant_slug = SelectField('Tenant', choices=[], validators=[DataRequired()])
     message_type = SelectField('Message Type', choices=[
@@ -319,6 +395,34 @@ class TestimonialForm(FlaskForm):
     order       = IntegerField('Display Order',
                                 validators=[Optional(), NumberRange(min=0)], default=0)
     submit = SubmitField('Save Testimonial')
+
+
+# ── Certificate ───────────────────────────────────────────────────────────────
+
+class CertificateForm(FlaskForm):
+    title             = StringField('Certification Title',
+                                     validators=[DataRequired(), Length(max=255)])
+    issuer            = StringField('Issuing Organization',
+                                     validators=[DataRequired(), Length(max=255)])
+    description       = TextAreaField('Description', validators=[Optional()])
+    credential_id     = StringField('Credential ID', validators=[Optional(), Length(max=255)])
+    verification_url  = URLField('Verification URL', validators=[Optional(), URL()])
+    image_file        = FileField(
+        'Certificate Image',
+        validators=[FileAllowed(['jpg', 'jpeg', 'png', 'webp'], 'Images only.')]
+    )
+    badge_file        = FileField(
+        'Badge Image',
+        validators=[FileAllowed(['jpg', 'jpeg', 'png', 'webp'], 'Images only.')]
+    )
+    issue_date        = DateField('Issue Date', validators=[Optional()])
+    expiration_date   = DateField('Expiration Date', validators=[Optional()])
+    skills            = StringField('Skills / Tags (comma-separated)', validators=[Optional()])
+    is_featured       = BooleanField('Featured')
+    is_visible        = BooleanField('Visible', default=True)
+    display_order     = IntegerField('Display Order',
+                                      validators=[Optional(), NumberRange(min=0)], default=0)
+    submit            = SubmitField('Save Certificate')
 
 
 # ── Service ───────────────────────────────────────────────────────────────────

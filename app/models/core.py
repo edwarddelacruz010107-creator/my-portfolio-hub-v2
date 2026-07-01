@@ -38,25 +38,18 @@ def _utcnow():
     return datetime.now(timezone.utc)
 
 
-# ── Plan hierarchy ────────────────────────────────────────────────────────────
-# Use the centralized permission registry as the single source of truth.
-# Keep legacy dicts here for backward compatibility with old callers.
+SUBSCRIPTION_PLAN_ORDER = {'Basic': 1, 'Pro': 2, 'Enterprise': 3}
 
-SUBSCRIPTION_PLAN_ORDER = {
-    'Trial': 0,
-    'Basic': 10,
-    'Pro': 20,
-    'Business': 30,
-    'Enterprise': 40,
-    'Administrator': 999,  # RESERVED SYSTEM PLAN — above all others
+_PLAN_ALIASES = {
+    'basic': 'Basic',
+    'pro': 'Pro',
+    'professional': 'Pro',
+    'enterprise': 'Enterprise',
+    'trial': 'Trial',
+    'administrator': 'Administrator',
 }
 
-# ADMINISTRATOR is a reserved internal system plan.
-# DO NOT add it to PAID_PLAN_NAMES or expose it in billing flows.
-PAID_PLAN_NAMES = frozenset({'Basic', 'Pro', 'Business', 'Enterprise'})
-
-# Reserved constant for the platform-owner plan
-PLAN_ADMINISTRATOR = 'Administrator'
+PAID_PLAN_NAMES = frozenset({'Basic', 'Pro', 'Enterprise'})
 
 PLAN_FEATURES = {
     'Basic': {
@@ -92,39 +85,18 @@ PLAN_FEATURES = {
         'api_access': True,
         'theme_customization': True,
     },
-    # Administrator has all features with no restrictions
-    'Administrator': {
-        'max_projects': None,
-        'max_skills': None,
-        'max_media_uploads': None,
-        'custom_domain': True,
-        'analytics': True,
-        'white_label': True,
-        'team_members': True,
-        'api_access': True,
-        'theme_customization': True,
-        # Administrator-exclusive flags
-        'is_system_plan': True,
-        'is_hidden': True,
-        'is_purchasable': False,
-        'is_internal': True,
-        'platform_diagnostics': True,
-        'experimental_features': True,
-        'root_settings': True,
-    },
 }
 
 
 def normalize_plan_name(plan: str) -> str:
-    """Return canonical plan key. Delegates to permission_registry."""
-    from app.services.permissions.permission_registry import normalize_plan_name as _norm
-    return _norm(plan)
+    if not plan:
+        return 'Basic'
+    normalized = (plan or '').strip().lower()
+    return _PLAN_ALIASES.get(normalized, plan.strip().title())
 
 
 def get_plan_features(plan: str) -> dict:
-    """Return feature dict for a plan. Administrator gets the full feature set."""
-    key = normalize_plan_name(plan)
-    return PLAN_FEATURES.get(key, PLAN_FEATURES['Basic'])
+    return PLAN_FEATURES.get(normalize_plan_name(plan), PLAN_FEATURES['Basic'])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -227,25 +199,12 @@ class Tenant(db.Model):
         return normalize_plan_name(self.plan)
 
     def effective_plan(self) -> str:
-        """
-        Current plan from active subscription, else tenant.plan.
-
-        ADMINISTRATOR tenants are never overridden by a subscription record —
-        the plan column is the authoritative source for root-plan tenants.
-        """
-        # Administrator is immutable — subscriptions cannot override it
-        if normalize_plan_name(self.plan) == PLAN_ADMINISTRATOR:
-            return PLAN_ADMINISTRATOR
+        """Current plan from active subscription, else tenant.plan."""
         active = next(
             (s for s in self.subscriptions if s.is_active()),
             None,
         )
         return normalize_plan_name(active.plan) if active else self.normalized_plan
-
-    @property
-    def is_administrator_tenant(self) -> bool:
-        """True iff this tenant holds the reserved Administrator plan."""
-        return normalize_plan_name(self.plan) == PLAN_ADMINISTRATOR
 
     @property
     def subscription_status(self) -> str:
@@ -300,6 +259,13 @@ class User(UserMixin, db.Model):
     session_token          = db.Column(db.String(255), unique=True, nullable=True)
     password_reset_token   = db.Column(db.String(100), unique=True, nullable=True, index=True)
     password_reset_expires = db.Column(db.DateTime(timezone=True), nullable=True)
+
+    # Google OAuth (v1.0) — SECOND LOGIN METHOD for existing users only.
+    # See app/auth/oauth.py. NEVER used to auto-create a User; a row here
+    # only gets populated when an existing User first signs in via Google.
+    google_id     = db.Column(db.String(255), unique=True, nullable=True, index=True)
+    auth_provider = db.Column(db.String(20), nullable=False, default='local')  # 'local' | 'both'
+    avatar_url    = db.Column(db.String(500), nullable=True)
 
     tenant = db.relationship('Tenant', back_populates='users', lazy='joined')
 
@@ -424,6 +390,15 @@ class Subscription(db.Model):
     amount_paid    = db.Column(db.Float, nullable=False, default=0.0)
     payment_method = db.Column(db.String(100), default='')
 
+    # Durable coupon reference for this activation attempt. Session-based
+    # stashing (discount_checkout.stash_coupon) only survives within a
+    # single tenant browser session, which breaks for any activation path
+    # that completes out-of-session (PayMongo webhook, superadmin manual
+    # approval, superadmin resync). This column is the cross-request source
+    # of truth; it is set at plan-selection time and cleared/reset whenever
+    # get_or_create_pending_subscription() prepares a fresh checkout attempt.
+    coupon_code    = db.Column(db.String(100), nullable=True)
+
     paymongo_id              = db.Column(db.String(255), nullable=True, index=True)
     paymongo_customer_id     = db.Column(db.String(255), nullable=True)
     paymongo_subscription_id = db.Column(db.String(255), nullable=True, unique=True, index=True)
@@ -516,6 +491,235 @@ class Subscription(db.Model):
 
     def __repr__(self):
         return f'<Subscription {self.tenant_id} {self.plan} {self.status}>'
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CORE MODEL: DiscountCampaign / DiscountRedemption  (v6.6 — Discount Manager)
+# ═════════════════════════════════════════════════════════════════════════════
+
+class DiscountCampaign(db.Model):
+    """
+    Superadmin-managed discount / promotion campaign.
+
+    A campaign is either a coupon (code is set, tenant must enter it at
+    checkout) or an auto-applied global campaign (is_global=True, code is
+    NULL, engine applies it without user input). Money math itself never
+    lives here — DiscountCampaign is pure configuration; the actual
+    calculation and eligibility checks live in
+    app/services/billing/discount_service.py so there is exactly one place
+    that touches billing totals.
+    """
+    __tablename__ = 'discount_campaigns'
+    __table_args__ = (
+        db.Index('ix_discount_campaigns_active_dates', 'is_active', 'starts_at', 'expires_at'),
+        db.CheckConstraint(
+            "discount_type IN ('percent', 'fixed')",
+            name='ck_discount_campaigns_type',
+        ),
+        db.CheckConstraint(
+            "applies_to IN ('monthly', 'yearly', 'one_time', 'all')",
+            name='ck_discount_campaigns_applies_to',
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text)
+
+    # NULL code + is_global=True => auto-applied campaign, no coupon entry
+    code = db.Column(db.String(100), unique=True, index=True, nullable=True)
+
+    discount_type = db.Column(db.String(20), nullable=False, default='percent')  # percent | fixed
+    value = db.Column(db.Numeric(10, 2), nullable=False)
+
+    applies_to = db.Column(db.String(20), nullable=False, default='all')  # monthly | yearly | one_time | all
+    plan_slug = db.Column(db.String(100), nullable=True)  # NULL = all plans
+    is_global = db.Column(db.Boolean, default=False, nullable=False)
+
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+    usage_limit = db.Column(db.Integer, nullable=True)       # NULL = unlimited
+    usage_count = db.Column(db.Integer, default=0, nullable=False)
+    per_tenant_limit = db.Column(db.Integer, default=1, nullable=True)  # NULL = unlimited per tenant
+    first_time_only = db.Column(db.Boolean, default=False, nullable=False)
+
+    starts_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
+    created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
+    updated_at = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    redemptions = db.relationship(
+        'DiscountRedemption', back_populates='campaign', lazy='select',
+        cascade='all, delete-orphan',
+    )
+
+    @property
+    def is_expired(self) -> bool:
+        if self.expires_at is None:
+            return False
+        expires = self.expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        return expires <= datetime.now(timezone.utc)
+
+    @property
+    def has_started(self) -> bool:
+        if self.starts_at is None:
+            return True
+        starts = self.starts_at
+        if starts.tzinfo is None:
+            starts = starts.replace(tzinfo=timezone.utc)
+        return starts <= datetime.now(timezone.utc)
+
+    @property
+    def usage_remaining(self):
+        if self.usage_limit is None:
+            return None
+        return max(0, self.usage_limit - (self.usage_count or 0))
+
+    def to_dict(self) -> dict:
+        d = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        for k, v in d.items():
+            if isinstance(v, datetime):
+                d[k] = v.isoformat()
+        return d
+
+    def __repr__(self):
+        return f'<DiscountCampaign {self.code or ("global:" + str(self.id))} {self.discount_type}:{self.value}>'
+
+
+class DiscountRedemption(db.Model):
+    """
+    One row per successful discount application. This is the source of
+    truth for per-tenant limits, first-time-only checks, and analytics —
+    DiscountCampaign.usage_count is a denormalized counter kept in sync by
+    the service layer, never written to directly by routes.
+    """
+    __tablename__ = 'discount_redemptions'
+    __table_args__ = (
+        db.Index('ix_discount_redemptions_campaign_tenant', 'campaign_id', 'tenant_id'),
+        # Defense-in-depth against double redemption when multiple activation
+        # paths (webhook, manual approval, resync) race or retry against the
+        # same subscription. Partial index: subscription_id is nullable for
+        # non-subscription contexts, so only enforce uniqueness when set.
+        # NOTE (Postgres-specific): if this project targets SQLite in dev,
+        # the postgresql_where clause is ignored there (SQLite has no
+        # partial-index syntax support in this form) — the app-level guard
+        # in discount_service.redeem_discount() is the portable enforcement;
+        # this index is the belt-and-suspenders DB-level backstop for prod.
+        db.Index(
+            'uq_discount_redemptions_subscription',
+            'subscription_id',
+            unique=True,
+            postgresql_where=db.text('subscription_id IS NOT NULL'),
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    campaign_id = db.Column(db.Integer, db.ForeignKey('discount_campaigns.id', ondelete='CASCADE'), nullable=False)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, index=True)
+    subscription_id = db.Column(db.Integer, db.ForeignKey('subscriptions.id', ondelete='SET NULL'), nullable=True)
+
+    amount_before = db.Column(db.Numeric(10, 2), nullable=False)
+    amount_discounted = db.Column(db.Numeric(10, 2), nullable=False)
+    amount_after = db.Column(db.Numeric(10, 2), nullable=False)
+
+    billing_cycle = db.Column(db.String(20), nullable=True)
+    redeemed_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
+
+    campaign = db.relationship('DiscountCampaign', back_populates='redemptions', lazy='joined')
+    tenant = db.relationship('Tenant', lazy='joined')
+
+    def __repr__(self):
+        return f'<DiscountRedemption campaign={self.campaign_id} tenant={self.tenant_id}>'
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CORE MODEL: Invoice
+# ═════════════════════════════════════════════════════════════════════════════
+
+class Invoice(db.Model):
+    """
+    Immutable accounting record, one per successful activation (manual
+    approval, PayMongo webhook, or superadmin resync — the same three
+    call sites that call discount_checkout.apply_on_activation()).
+
+    IMMUTABILITY CONTRACT: once issued (status='issued'), the financial
+    columns (amount_subtotal/amount_discount/amount_tax/amount_total,
+    invoice_number, currency) must never be UPDATEd by application code.
+    Corrections go through void_invoice() (status='void' + void_reason),
+    never a mutation of an issued row — this is a real accounting
+    requirement, not a style preference, and it's enforced only at the
+    service layer (app/services/billing/invoice_service.py) by omitting
+    any update path for those columns. There is no DB-level trigger
+    enforcing this; don't write raw UPDATE statements against this table.
+
+    invoice_number is sequential per the Postgres sequence created in
+    migration 0040 (invoice_number_seq) — NOT a random/hex ID like
+    Subscription's legacy license-key generator. Sequential numbering is
+    a real bookkeeping/audit requirement; SQLite dev/test environments
+    fall back to a non-atomic max()+1 (see invoice_service.py — dev-only,
+    never use under concurrent writers).
+    """
+    __tablename__ = 'invoices'
+    __table_args__ = (
+        db.Index('ix_invoices_tenant_issued', 'tenant_id', 'issued_at'),
+        # Idempotency backstop: a webhook retry or a superadmin resync
+        # hitting the same subscription+payment_reference must not mint a
+        # second invoice. Partial (payment_reference nullable for edge
+        # cases like force-activation with no real payment). Postgres-only
+        # for the same reason as uq_discount_redemptions_subscription —
+        # the service-layer guard in invoice_service.record_invoice() is
+        # the portable enforcement across all engines.
+        db.Index(
+            'uq_invoices_subscription_payment_ref',
+            'subscription_id', 'payment_reference',
+            unique=True,
+            postgresql_where=db.text('payment_reference IS NOT NULL'),
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_number = db.Column(db.String(30), nullable=False, unique=True, index=True)
+
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, index=True)
+    subscription_id = db.Column(db.Integer, db.ForeignKey('subscriptions.id', ondelete='SET NULL'), nullable=True, index=True)
+    discount_redemption_id = db.Column(db.Integer, db.ForeignKey('discount_redemptions.id', ondelete='SET NULL'), nullable=True)
+
+    plan = db.Column(db.String(50), nullable=False)
+    billing_cycle = db.Column(db.String(20), nullable=False, default='monthly')
+
+    # Accounting breakdown. amount_total = amount_subtotal - amount_discount + amount_tax.
+    # Computed once at issuance time and frozen — never recomputed on read.
+    amount_subtotal = db.Column(db.Numeric(10, 2), nullable=False)
+    amount_discount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    tax_rate         = db.Column(db.Numeric(5, 4), nullable=False, default=0)  # e.g. 0.1200 = 12%
+    amount_tax       = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    amount_total     = db.Column(db.Numeric(10, 2), nullable=False)
+
+    currency = db.Column(db.String(10), nullable=False, default='PHP')
+    coupon_code = db.Column(db.String(100), nullable=True)
+
+    payment_method   = db.Column(db.String(100), nullable=False, default='')
+    payment_provider = db.Column(db.String(30),  nullable=False, default='')  # 'paymongo' | 'manual'
+    payment_reference = db.Column(db.String(255), nullable=True)
+
+    status     = db.Column(db.String(20), nullable=False, default='issued')  # 'issued' | 'void'
+    issued_at  = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
+    voided_at  = db.Column(db.DateTime(timezone=True), nullable=True)
+    void_reason = db.Column(db.Text, nullable=True)
+
+    notes = db.Column(db.Text, default='')
+    created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
+
+    tenant = db.relationship('Tenant', lazy='joined')
+    subscription = db.relationship('Subscription', lazy='joined')
+    discount_redemption = db.relationship('DiscountRedemption', lazy='joined')
+
+    def __repr__(self):
+        return f'<Invoice {self.invoice_number} tenant={self.tenant_id} total={self.amount_total}>'
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -708,6 +912,25 @@ class PlatformSetting(db.Model):
             row = cls(key=key)
             db.session.add(row)
         row.value      = 'true' if value else 'false'
+        row.updated_at = _utcnow()
+
+    @classmethod
+    def get_float(cls, key: str, default: float | None = None) -> float | None:
+        row = db.session.get(cls, key)
+        if row is None or row.value == '':
+            return default
+        try:
+            return float(row.value)
+        except (TypeError, ValueError):
+            return default
+
+    @classmethod
+    def set_float(cls, key: str, value: float) -> None:
+        row = db.session.get(cls, key)
+        if row is None:
+            row = cls(key=key)
+            db.session.add(row)
+        row.value      = str(float(value))
         row.updated_at = _utcnow()
 
 
@@ -1185,19 +1408,14 @@ class GlobalEmailConfig(db.Model):
 
     @property
     def has_sa_resend(self) -> bool:
-        """
-        Check whether a Resend API key exists (raw encrypted blob check).
-
-        FIX (v6.6): Previously required BOTH raw_key AND sender — this caused
-        'Not Configured' even when an API key was stored but sender_email was
-        set separately. Key alone is sufficient to consider Resend 'configured';
-        the sender field is validated separately before sending.
-        """
+        """Check raw encrypted blob to avoid decrypt failures giving false-negative."""
         try:
             raw_key = self._sa_resend_api_key
             if raw_key is None:
                 raw_key = ''
-            return bool(str(raw_key).strip())
+            raw_key = str(raw_key).strip()
+            sender  = str(self.sa_resend_sender_email or '').strip()
+            return bool(raw_key and sender)
         except Exception:
             return False
 

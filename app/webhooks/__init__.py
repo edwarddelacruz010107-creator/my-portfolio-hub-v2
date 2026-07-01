@@ -236,13 +236,69 @@ def _handle_payment_paid(attrs: dict, event_id: str, event_data: dict) -> bool:
         if not sub:
             logger.warning('Payment paid: subscription not found. id=%s', subscription_id)
             return True
-        
-        # Update subscription status
-        sub.status = SubscriptionStatus.ACTIVE
-        sub.paid_at = datetime.now(timezone.utc)
-        sub.paymongo_payment_id = payment_id
+
+        # FIX: previously this only flipped `sub.status` inline, bypassing
+        # activate_subscription() entirely — expires_at/started_at were
+        # never set for PayMongo-webhook activations, amount_paid was never
+        # synced from the (still full-price) placeholder, and the discount
+        # a tenant applied at checkout never got redeemed. `sub.paid_at`
+        # was also a dead write: no such column exists on Subscription, so
+        # it silently discarded the assignment.
+        from app.services.billing.billing import activate_subscription
+        from app.services.billing import discount_checkout
+        from app.models.portfolio import normalize_plan_name
+
+        plan = normalize_plan_name(sub.plan or metadata.get('plan_name') or 'Basic')
+        cycle = getattr(sub, 'billing_cycle', None) or metadata.get('billing_cycle') or 'monthly'
+
+        # amount here is what PayMongo actually charged (from the checkout
+        # session's line_items, already discount-adjusted at initiate_checkout
+        # time) — pass it through so amount_paid reflects the real charge
+        # rather than being recomputed from list price.
+        # NOTE: verify 'amount' is the correct key in your live PayMongo
+        # payment.paid payload before relying on this in prod (PayMongo's
+        # documented convention is centavos under `attributes.amount`, but
+        # confirm against an actual captured webhook body). This is
+        # defensive either way: if the key is missing/wrong, charged_amount
+        # stays None and activate_subscription()/apply_on_activation() fall
+        # back to list price / quoted discount price respectively — it
+        # never silently records a wrong number, it just doesn't override.
+        amount_attr = attrs.get('amount')
+        charged_amount = (amount_attr / 100.0) if isinstance(amount_attr, (int, float)) else None
+
+        activate_subscription(
+            sub,
+            plan=plan,
+            billing_cycle=cycle,
+            paymongo_payment_id=payment_id,
+            amount=charged_amount,
+            source='payment.paid',
+        )
+
+        redemption = discount_checkout.apply_on_activation(
+            tenant_id=sub.tenant_id,
+            subscription=sub,
+            plan=plan,
+            billing_cycle=cycle,
+            code=sub.coupon_code,
+            commit=False,
+        )
+
+        from app.services.billing import invoice_service
+        invoice_service.record_invoice(
+            tenant_id=sub.tenant_id,
+            subscription=sub,
+            plan=plan,
+            billing_cycle=cycle,
+            payment_method=sub.payment_method,
+            payment_provider='paymongo',
+            payment_reference=payment_id,
+            redemption=redemption,
+            commit=False,
+        )
+
         db.session.commit()
-        
+
         logger.info('Payment processed: subscription=%s payment=%s', subscription_id, payment_id)
         return True
         

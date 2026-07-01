@@ -125,6 +125,19 @@ class BaseConfig:
     # Set them as Render environment variables; never hardcode values here.
     SUPERADMIN_USERNAME = os.environ.get('SUPERADMIN_USERNAME', 'superadmin')
     SUPERADMIN_EMAIL    = os.environ.get('SUPERADMIN_EMAIL', 'superadmin@portfolio.local')
+
+    # ─────────────────────────────────────────────────────────────────
+    # GOOGLE OAUTH (second login method for EXISTING tenant-admin users)
+    # ─────────────────────────────────────────────────────────────────
+    # Deliberately NOT wired to superadmin login and NOT capable of
+    # creating tenants/users — see app/auth/oauth.py. Feature is inert
+    # (button hidden, routes 404-safe) unless both client credentials
+    # are set.
+    GOOGLE_CLIENT_ID     = os.environ.get('GOOGLE_CLIENT_ID', '')
+    GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+    GOOGLE_OAUTH_ENABLED = bool(
+        os.environ.get('GOOGLE_CLIENT_ID') and os.environ.get('GOOGLE_CLIENT_SECRET')
+    )
     # SUPERADMIN_PASSWORD is intentionally NOT in config — it is read directly
     # from os.environ inside cli_create_superadmin() and _auto_bootstrap_superadmin()
     # so it never lands in app.config (and therefore never in debug dumps).
@@ -199,8 +212,16 @@ class BaseConfig:
 
     @staticmethod
     def init_app(app):
-        """Initialize upload directories."""
-        upload_base = os.path.join(basedir, 'static', 'uploads')
+        """Initialize upload directories.
+
+        upload_base is derived from app.static_folder (not an
+        independently-computed basedir path) so this can never drift
+        from wherever Flask's static tree actually lives. Previously
+        this hardcoded '<project_root>/static/uploads' while
+        current_app.static_folder pointed elsewhere post-migration,
+        which would write uploads to a tree nothing serves from.
+        """
+        upload_base = os.path.join(app.static_folder, 'uploads')
         for sub in ('profiles', 'projects', 'avatars', 'billing'):
             os.makedirs(os.path.join(upload_base, sub), exist_ok=True)
         os.makedirs(BaseConfig.LOG_DIR, exist_ok=True)

@@ -82,13 +82,33 @@ def create_checkout_session(
     success_url: str,
     failed_url: str,
     cancel_url: str,
+    amount_override: float | None = None,
+    coupon_code: str | None = None,
 ) -> Optional[Dict[str, Any]]:
-    """Create a PayMongo Checkout Session with tenant metadata for webhooks."""
+    """Create a PayMongo Checkout Session with tenant metadata for webhooks.
+
+    amount_override: discounted total in PHP (major units), pre-computed by
+        the caller via discount_service.quote_discount(). When provided,
+        this is what's actually charged — the plan's list price is only
+        used when no valid discount is present. This is the fix for the
+        checkout-vs-charge mismatch: previously the plans page could show
+        a discounted total while PayMongo silently charged full price.
+    coupon_code: included in metadata purely for observability/audit in
+        the PayMongo dashboard. The webhook does NOT rely on this field to
+        redeem the discount — it reads subscription.coupon_code from the
+        DB by subscription_id, since metadata parsing at webhook time would
+        be a second, divergent source of truth for the same fact.
+    """
     if billing_cycle not in BILLING_CYCLES:
         logger.error('Invalid billing cycle: %s', billing_cycle)
         return None
 
-    amount = _plan_amount_centavos(plan_name, billing_cycle)
+    if amount_override is not None:
+        amount = int(round(amount_override * 100))
+        amount = max(amount, 0)
+    else:
+        amount = _plan_amount_centavos(plan_name, billing_cycle)
+
     metadata = {
         'tenant_id': str(tenant_id),
         'tenant_slug': tenant_slug,
@@ -96,6 +116,8 @@ def create_checkout_session(
         'billing_cycle': billing_cycle,
         'subscription_id': str(subscription_id),
     }
+    if coupon_code:
+        metadata['coupon_code'] = coupon_code
 
     payload = {
         'data': {

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Email verification{% endblock %}
+{% block content %}
+<div class="auth-shell">
+  <div class="auth-card">
+    {% if ok %}
+      <h1 class="auth-card__title">Email verified</h1>
+      <p>Your email is now verified. You can sign in to your account.</p>
+      <a class="btn btn-primary btn-block" href="{{ url_for('auth.login') }}">Sign in</a>
+    {% else %}
+      <h1 class="auth-card__title">Verification failed</h1>
+      <p>The link is invalid or expired.</p>
+      <a class="btn btn-primary btn-block" href="{{ url_for('auth.resend_verification') }}">Send a new link</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

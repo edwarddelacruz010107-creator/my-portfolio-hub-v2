@@ -2,11 +2,12 @@
 app/auth/oauth.py — Google Sign-In (v1.0)
 
 SCOPE — read before touching this file:
-  This is a SECOND LOGIN METHOD for users who ALREADY have a User row,
-  provisioned the normal way (SuperAdmin → Create Tenant). It is NOT a
+  google_login / google_callback below are a SECOND LOGIN METHOD for users
+  who ALREADY have a User row, provisioned the normal way (SuperAdmin →
+  Create Tenant, or local signup, or google_signup below). They are NOT a
   signup system.
 
-  Hard guarantees enforced below:
+  Hard guarantees enforced below (google_login / google_callback ONLY):
     1. NEVER creates a Tenant, Profile, Subscription, or User row.
        A Google login only succeeds if User.query.filter_by(email=...)
        already returns a row.
@@ -26,10 +27,21 @@ SCOPE — read before touching this file:
        password_hash is never touched, so password login keeps working
        for that user.
 
+  google_signup / google_signup_callback at the bottom of this file are
+  the ONE deliberate exception to guarantee #1 — the Create Account tab's
+  "Continue with Google" button. They auto-provision a new tenant + user
+  via app/services/auth/google_oauth_service.resolve_or_create_google_user
+  (same tenant-creation rules as local signup: never superadmin, never the
+  default tenant, plan='Basic', email pre-verified since Google already
+  confirmed it). Do not extend google_login/google_callback to auto-create
+  — add to the signup pair instead, so the login-only guarantee above
+  stays true by construction.
+
 Importing this module (see bottom of app/auth/__init__.py) registers
-@auth.route(...) google_login / google_callback on the shared `auth`
-Blueprint — same pattern already used by app/admin/routes/__init__.py
-and app/superadmin/routes/__init__.py for their route submodules.
+@auth.route(...) google_login / google_callback / google_signup /
+google_signup_callback on the shared `auth` Blueprint — same pattern
+already used by app/admin/routes/__init__.py and
+app/superadmin/routes/__init__.py for their route submodules.
 """
 import logging
 
@@ -41,6 +53,9 @@ from app.models import User
 from app.security import AccountLockout, log_security_event
 from app.auth import (
     auth, _authorize_and_login, _get_ip, _is_safe_url, _DEFAULT_TENANT_SLUG,
+)
+from app.services.auth.google_oauth_service import (
+    resolve_or_create_google_user, GoogleAuthError,
 )
 
 logger = logging.getLogger(__name__)
@@ -200,4 +215,87 @@ def google_callback():
         next_page=next_page,
         default_next=url_for('admin.dashboard'),
         on_denied=lambda: redirect(url_for('auth.login')),
+    )
+
+
+# ── /auth/google/signup ──────────────────────────────────────────────────────
+# See module docstring: this pair is the one deliberate exception to the
+# "never auto-provision" rule google_login/google_callback enforce above.
+@auth.route('/google/signup')
+@limiter.limit('20 per minute')
+@limiter.limit('100 per hour')
+def google_signup():
+    """Entry point for the Create Account tab's 'Continue with Google'."""
+    if current_user.is_authenticated:
+        return redirect(url_for('admin.dashboard'))
+
+    client = _oauth_client()
+    if client is None:
+        flash('Google Sign-In is not available right now.', 'danger')
+        return redirect(url_for('auth.portal', tab='signup'))
+
+    next_page = request.args.get('next')
+    if next_page and _is_safe_url(next_page):
+        session['_oauth_signup_next'] = next_page
+    else:
+        session.pop('_oauth_signup_next', None)
+
+    redirect_uri = url_for('auth.google_signup_callback', _external=True)
+    return client.authorize_redirect(redirect_uri)
+
+
+# ── /auth/google/signup/callback ─────────────────────────────────────────────
+@auth.route('/google/signup/callback')
+@limiter.limit('20 per minute')
+@limiter.limit('100 per hour')
+def google_signup_callback():
+    ip = _get_ip()
+    client = _oauth_client()
+    if client is None:
+        flash('Google Sign-In is not available right now.', 'danger')
+        return redirect(url_for('auth.portal', tab='signup'))
+
+    try:
+        token = client.authorize_access_token()
+        userinfo = token.get('userinfo') or client.userinfo(token=token)
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception('Google signup callback failed from %s: %s', ip, exc)
+        log_security_event('oauth_signup_failed', None,
+                           f'Google signup callback error from {ip}: {exc}', 'warning')
+        flash('Google sign-up failed. Please try again.', 'danger')
+        return redirect(url_for('auth.portal', tab='signup'))
+
+    userinfo = userinfo or {}
+    try:
+        # resolve_or_create_google_user handles all three cases (already
+        # linked / existing local account / brand new) — see its docstring
+        # in app/services/auth/google_oauth_service.py. It raises
+        # GoogleAuthError for unverified email or a superadmin email,
+        # exactly like the password-signup path raises RegistrationError.
+        user = resolve_or_create_google_user(
+            google_sub=str(userinfo.get('sub') or ''),
+            email=userinfo.get('email') or '',
+            email_verified=bool(userinfo.get('email_verified')),
+            full_name=userinfo.get('name'),
+            avatar_url=userinfo.get('picture'),
+            ip=ip,
+            user_agent=request.headers.get('User-Agent'),
+        )
+    except GoogleAuthError as exc:
+        log_security_event('oauth_signup_rejected', None, f'{exc} from {ip}', 'warning')
+        flash(str(exc), 'danger')
+        return redirect(url_for('auth.portal', tab='signup'))
+
+    next_page = session.pop('_oauth_signup_next', None)
+    if not _is_safe_url(next_page):
+        next_page = None
+
+    return _authorize_and_login(
+        user, user.tenant_slug, ip,
+        require_admin=True, require_superadmin=False,
+        remember=True,
+        next_page=next_page,
+        default_next=url_for('admin.dashboard'),
+        on_denied=lambda: redirect(url_for('auth.portal', tab='signup')),
     )

@@ -60,17 +60,64 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _smtp_enabled() -> bool:
-    """Return True when SMTP is switched on via environment variable."""
+    """
+    Return True when SMTP is switched on.
+
+    Priority: GlobalEmailConfig.sa_smtp_active (the toggle on the superadmin
+    Email & Forms Settings page) → SMTP_ENABLED environment variable, for
+    deployments that don't use the DB-backed config at all.
+    """
+    try:
+        from app.models.core import GlobalEmailConfig
+        cfg = GlobalEmailConfig.get(fresh=True)
+        if cfg is not None and cfg.sa_smtp_active:
+            return True
+    except Exception:
+        logger.debug('email_service._smtp_enabled: GlobalEmailConfig lookup failed', exc_info=True)
     return os.environ.get('SMTP_ENABLED', 'false').lower() in ('1', 'true', 'yes')
 
 
 def _smtp_config() -> dict:
     """
-    Resolve SMTP configuration from environment variables.
+    Resolve SMTP configuration.
+
+    Priority:
+      1. GlobalEmailConfig (superadmin's Email & Forms Settings → SMTP —
+         Gmail/Custom card). DB-stored, Fernet-encrypted password, read with
+         fresh=True so a save on that page is picked up by the very next
+         send, not just after a restart.
+      2. SMTP_* environment variables (previous behavior, unchanged) — kept
+         as a fallback for deployments that configure SMTP purely via env.
 
     Returns a dict with all required keys; empty strings where unset so
     callers can do a simple truthiness check on 'host' and 'username'.
     """
+    try:
+        from app.models.core import GlobalEmailConfig
+        cfg = GlobalEmailConfig.get(fresh=True)
+    except Exception:
+        logger.debug('email_service._smtp_config: GlobalEmailConfig lookup failed', exc_info=True)
+        cfg = None
+
+    if cfg is not None and (cfg.sa_smtp_host or '').strip():
+        try:
+            password = cfg.sa_smtp_password or ''
+        except Exception:
+            logger.error('email_service._smtp_config: could not decrypt sa_smtp_password (FERNET_KEY mismatch?)')
+            password = ''
+        encryption = (cfg.sa_smtp_encryption or 'tls').strip().lower()
+        return {
+            'host':       (cfg.sa_smtp_host or '').strip(),
+            'port':       cfg.sa_smtp_port or 587,
+            'username':   (cfg.sa_smtp_username or '').strip(),
+            'password':   password,
+            'from_email': (cfg.sa_smtp_sender_email or cfg.sa_smtp_username or '').strip(),
+            'from_name':  (cfg.sa_smtp_sender_name or 'Portfolio CMS').strip(),
+            'use_tls':    encryption != 'none',
+            'timeout':    int(os.environ.get('SMTP_TIMEOUT', '30')),
+        }
+
+    # Fallback: environment variables (pre-existing behavior)
     return {
         'host':       os.environ.get('SMTP_HOST', '').strip(),
         'port':       int(os.environ.get('SMTP_PORT', '587')),
@@ -137,6 +184,15 @@ def _send_via_smtp(
     cfg = _smtp_config()
     t0  = time.monotonic()
 
+    # Detailed observability: log non-sensitive config and planned connection
+    try:
+        logger.debug(
+            'email.smtp: loaded config host=%s port=%s from_email=%s username_present=%s use_tls=%s timeout=%s',
+            cfg.get('host'), cfg.get('port'), cfg.get('from_email'), bool(cfg.get('username')), bool(cfg.get('use_tls')), cfg.get('timeout'),
+        )
+    except Exception:
+        logger.debug('email.smtp: loaded config (masked)')
+
     try:
         msg = MIMEMultipart('alternative')
         msg['Subject']  = subject
@@ -158,16 +214,22 @@ def _send_via_smtp(
 
         if use_ssl:
             context = ssl.create_default_context()
+            logger.info('email.smtp: connecting via SSL to %s:%s', cfg['host'], cfg['port'])
             with smtplib.SMTP_SSL(cfg['host'], cfg['port'], timeout=cfg['timeout'], context=context) as server:
+                logger.debug('email.smtp: attempting authentication for user=%s', cfg.get('username'))
                 server.login(cfg['username'], cfg['password'])
+                logger.debug('email.smtp: authentication succeeded for user=%s', cfg.get('username'))
                 server.sendmail(cfg['from_email'], [to], msg.as_string())
         else:
+            logger.info('email.smtp: connecting to %s:%s (STARTTLS=%s)', cfg['host'], cfg['port'], use_starttls)
             with smtplib.SMTP(cfg['host'], cfg['port'], timeout=cfg['timeout']) as server:
                 if use_starttls:
                     server.ehlo()
                     server.starttls(context=ssl.create_default_context())
                     server.ehlo()
+                logger.debug('email.smtp: attempting authentication for user=%s', cfg.get('username'))
                 server.login(cfg['username'], cfg['password'])
+                logger.debug('email.smtp: authentication succeeded for user=%s', cfg.get('username'))
                 server.sendmail(cfg['from_email'], [to], msg.as_string())
 
         elapsed = (time.monotonic() - t0) * 1000
@@ -276,7 +338,11 @@ class EmailService:
         portal: str = 'tenant',
     ) -> tuple[bool, str]:
         """
-        Send an email via the active provider chain: SMTP → MailerSend.
+        Send an email via the active provider chain with retry logic.
+
+        v4.0 FIX: Added retry logic for transient SMTP errors (451, 452, 421, 450).
+        Retries up to 2 times before falling through to the next provider tier.
+        This prevents temporary SMTP failures from blocking OTP delivery.
 
         Args:
             to:       Recipient address.
@@ -291,36 +357,91 @@ class EmailService:
         Returns:
             (True, 'delivered') on success, (False, error_message) on failure.
         """
-        # ── Tier 1: MailerSend (primary) ────────────────────────────────
-        ms_ok, ms_err = _send_via_mailersend(
-            to, subject, text, html=html, to_name=to_name, reply_to=reply_to, portal=portal,
-        )
-        if ms_ok:
-            return True, 'delivered'
+        MAX_RETRIES = 2
+        TRANSIENT_ERRORS = ('451', '452', '421', '450', 'temporarily')  # Transient SMTP codes
 
-        logger.warning(
-            'email: MailerSend failed portal=%s (%s) — falling through to SMTP fallback',
-            portal, ms_err,
-        )
+        # Prefer Superadmin-configured provider chain (priority + toggles stored
+        # in GlobalEmailConfig). This ensures the Superadmin UI controls the
+        # delivery chain for ALL platform emails. Fall back to existing
+        # MailerSend→SMTP behaviour when no DB-backed chain is present.
+        try:
+            from app.services.email import superadmin_email_service as sa_email
+            providers = sa_email._resolve_configs()
+        except Exception:
+            providers = []
 
-        # ── Tier 2: SMTP (fallback) ──────────────────────────────────────
-        if _smtp_enabled() and _smtp_is_configured():
-            sm_ok, sm_err = _send_via_smtp(to, subject, text, html=html, to_name=to_name, reply_to=reply_to)
-            if sm_ok:
-                logger.info(
-                    'email: SMTP fallback succeeded portal=%s to=%s (MailerSend had failed: %s)',
-                    portal, to, ms_err,
-                )
+        if providers:
+            last_err = 'No providers configured'
+            for pcfg in providers:
+                name = pcfg.get('provider')
+                for attempt in range(MAX_RETRIES + 1):
+                    try:
+                        if name == 'mailersend':
+                            ok, err = sa_email._send_mailersend(pcfg, to, subject, html or '', text or '')
+                        elif name == 'smtp':
+                            ok, err = sa_email._send_smtp(pcfg, to, subject, html or '', text or '')
+                        elif name == 'resend':
+                            ok, err = sa_email._send_resend(pcfg, to, subject, html or '', text or '')
+                        else:
+                            ok, err = False, f'Unknown provider {name}'
+
+                        if ok:
+                            logger.info('email: sent via %s to=%s', name, to)
+                            return True, 'delivered'
+
+                        last_err = err
+                        if 'invalid' in err.lower() or 'refused' in err.lower() or 'authentication' in err.lower():
+                            break
+                    except (ConnectionError, OSError, TimeoutError) as e:
+                        last_err = f'{name}: {type(e).__name__}'
+                        logger.warning('email: transient %s attempt=%d: %s', name, attempt + 1, str(e)[:80])
+                        if attempt < MAX_RETRIES:
+                            time.sleep(1)
+                            continue
+                        continue
+                    break
+
+            logger.error('email: all providers failed to=%s last=%s', to, last_err)
+            return False, last_err
+
+        # No DB-configured providers — preserve backward-compatible behaviour
+        # (MailerSend primary → SMTP fallback)
+        # ───────────────────────────────────────────────────────────────
+        for attempt in range(MAX_RETRIES + 1):
+            ms_ok, ms_err = _send_via_mailersend(
+                to, subject, text, html=html, to_name=to_name, reply_to=reply_to, portal=portal,
+            )
+            if ms_ok:
                 return True, 'delivered'
+
+            is_transient = any(err_code in (ms_err or '').lower() for err_code in TRANSIENT_ERRORS)
+            if is_transient and attempt < MAX_RETRIES:
+                logger.info('email: MailerSend transient error (attempt %d/%d) — retrying', attempt + 1, MAX_RETRIES)
+                time.sleep(1)
+                continue
+            break
+
+        logger.warning('email: MailerSend failed — falling through to SMTP fallback: %s', ms_err)
+
+        if _smtp_enabled() and _smtp_is_configured():
+            for attempt in range(MAX_RETRIES + 1):
+                sm_ok, sm_err = _send_via_smtp(to, subject, text, html=html, to_name=to_name, reply_to=reply_to)
+                if sm_ok:
+                    logger.info('email: SMTP fallback succeeded to=%s', to)
+                    return True, 'delivered'
+
+                is_transient = any(err_code in (sm_err or '').lower() for err_code in TRANSIENT_ERRORS)
+                if is_transient and attempt < MAX_RETRIES:
+                    logger.info('email: SMTP transient error (attempt %d/%d) — retrying', attempt + 1, MAX_RETRIES)
+                    time.sleep(1)
+                    continue
+                break
+
             final_err = sm_err
         else:
-            final_err = f'{ms_err}; SMTP fallback unavailable (SMTP_ENABLED unset or incomplete config)'
+            final_err = f'{ms_err}; SMTP fallback unavailable'
 
-        # ── Tier 3: Both providers exhausted ─────────────────────────────
-        logger.critical(
-            'email: ALL PROVIDERS FAILED — portal=%s to=%s subject="%s" last_error=%s',
-            portal, to, subject[:60], final_err,
-        )
+        logger.critical('email: ALL PROVIDERS FAILED to=%s last_error=%s', to, final_err)
         return False, final_err
 
     def _send_via_smtp(self, *args, **kwargs) -> tuple[bool, str]:
@@ -556,6 +677,57 @@ def send_verification_email(
         f'— Portfolio CMS'
     )
     ok, _ = _service.send_email(to=recipient_email, subject=subject, text=text)
+    return ok
+
+
+def send_email_verification_otp(
+    recipient_email: str,
+    username: str,
+    otp: str,
+    ttl_minutes: int = 10,
+) -> bool:
+    """
+    Send a 6-digit OTP for new-signup email verification.
+
+    Sibling of send_otp_email() (password reset) — same MailerSend-primary /
+    SMTP-fallback delivery path via the shared EmailService instance, but with
+    verification-specific copy so recipients don't mistake this for a
+    password-reset code. Does NOT touch send_otp_email() or its portal_map;
+    zero regression risk to the password-reset flow.
+    """
+    subject = '[Portfolio CMS] Verify your email — your code inside'
+    text = (
+        f'Hi {username},\n\n'
+        f'Welcome to Portfolio CMS. Use this code to verify your email address:\n\n'
+        f'    {otp}\n\n'
+        f'This code expires in {ttl_minutes} minutes.\n'
+        f'Do NOT share it with anyone.\n\n'
+        f'If you did not create this account, you can safely ignore this email.\n\n'
+        f'— Portfolio CMS'
+    )
+    html = f'''
+<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:2rem;
+            border:1px solid #e5e7eb;border-radius:8px;">
+  <h2 style="color:#1f2937;margin-top:0;">Verify your email</h2>
+  <p>Hi {username}, welcome to Portfolio CMS. Enter this code to verify your account:</p>
+  <div style="background:#f9fafb;border:1px solid #d1d5db;border-radius:6px;
+              padding:1.5rem;text-align:center;margin:1.5rem 0;">
+    <span style="font-size:2rem;font-weight:700;letter-spacing:.4rem;color:#4f46e5;">{otp}</span>
+  </div>
+  <p style="color:#6b7280;font-size:.9rem;">
+    Expires in <strong>{ttl_minutes} minutes</strong>. Do not share this code.
+  </p>
+  <hr style="border:none;border-top:1px solid #e5e7eb;margin:1.5rem 0;">
+  <p style="color:#9ca3af;font-size:.8rem;">
+    Didn't create this account? You can safely ignore this email.
+  </p>
+</div>'''
+
+    ok, err = _service.send_email(to=recipient_email, subject=subject, text=text, html=html)
+    if ok:
+        logger.info('verification_otp_email: delivered to=%s', recipient_email)
+    else:
+        logger.error('verification_otp_email: ALL PROVIDERS FAILED to=%s error=%s', recipient_email, err)
     return ok
 
 

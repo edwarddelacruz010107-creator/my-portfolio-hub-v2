@@ -13,22 +13,27 @@
         <h1>Your portfolio dashboard
           {% if profile %}
           {% set _ss = subscription_status %}
-          {% set _plan = profile.effective_plan() %}
+          {% set _tenant_state = tenant_context.subscription_state if tenant_context else (_ss or 'trial') %}
+          {% set _plan = tenant_context.plan if tenant_context else profile.effective_plan() %}
           {% set _plan_is_real = _plan in ('Basic', 'Pro', 'Enterprise', 'Administrator') %}
-          <span class="badge-status badge-{{ _ss }}"
+          <span class="badge-status badge-{{ _tenant_state }}"
                 style="font-size:0.55em;vertical-align:middle;margin-left:0.5rem">
-            {% if _ss == 'active' and _plan_is_real %}
-              {{ _plan }} · Licensed
-            {% elif _ss == 'trial' %}
-              Trial · {{ profile.trial_days_remaining() }}d left
-            {% elif _ss == 'grace' %}
-              {{ _plan if _plan_is_real else 'Basic' }} · Grace Period
+            {% if _tenant_state == 'trial' %}
+              Trial · {{ trial_days_left }}d left
+            {% elif _tenant_state == 'grace' %}
+              Trial ending soon
+            {% elif _tenant_state == 'readonly' %}
+              Readonly Mode
+            {% elif _tenant_state == 'suspended' %}
+              Suspended
+            {% elif _ss == 'active' and _plan_is_real %}
+              {{ _plan }} Plan · Active
             {% elif _ss == 'pending' %}
               {{ _plan if _plan_is_real else 'Basic' }} · Pending
             {% elif _ss in ('expired', 'cancelled') %}
               Expired — <a href="{{ url_for('admin.billing_index') }}" style="color:inherit">Renew</a>
             {% else %}
-              No License
+              Trial · 0d
             {% endif %}
           </span>
           {% endif %}
@@ -51,6 +56,7 @@
           New Project
         </a>
         <a href="{{ url_for('admin.edit_profile') }}" class="btn btn-ghost">Edit Profile</a>
+        <a href="{{ url_for('admin.billing_index') }}" class="btn btn-secondary">Upgrade Plan</a>
         <a href="{{ url_for('admin.activity') }}" class="btn btn-secondary">Activity</a>
       </div>
     </div>

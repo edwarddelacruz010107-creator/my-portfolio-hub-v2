@@ -85,6 +85,21 @@
   vertical-align: middle;
 }
 
+.nav-badge-small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 700;
+  padding: 0 6px;
+  margin-left: 0.45rem;
+}
+
 /* ── Topbar chip ────────────────────────────────────────── */
 .sa-topbar-chip {
   display: inline-flex;

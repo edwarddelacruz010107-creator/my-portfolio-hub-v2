@@ -66,11 +66,11 @@ READONLY_WARNING_DAYS  = 3   # warn X days before grace ends
 
 # URL prefixes always allowed in read-only mode (GET and POST)
 _READONLY_WHITELIST_PREFIXES = (
-    '/admin/billing',
-    '/admin/account',
-    '/admin/export',
-    '/admin/notifications',
-    '/admin/logout',
+    '/studio/billing',
+    '/studio/account',
+    '/studio/export',
+    '/studio/notifications',
+    '/studio/logout',
     '/static',
     '/auth',
 )
@@ -108,9 +108,33 @@ def compute_subscription_state(tenant) -> str:
     elif any(s.is_active() for s in getattr(tenant, 'subscriptions', [])):
         new_state = 'active'
 
-    # 3. Trial plan
-    elif (getattr(tenant, 'plan', '') or '').lower() == 'trial':
-        new_state = 'trial'
+    # 3. Lifecycle state is determined solely by subscription_state and the tenant-owned dates.
+    elif (getattr(tenant, 'subscription_state', '') or '').lower() == 'trial':
+        trial_ends = getattr(tenant, 'trial_ends_at', None)
+        now = datetime.now(timezone.utc)
+
+        if trial_ends is None:
+            new_state = 'readonly'
+        else:
+            if trial_ends.tzinfo is None:
+                trial_ends = trial_ends.replace(tzinfo=timezone.utc)
+            if trial_ends > now:
+                new_state = 'trial'
+            else:
+                grace_ends = getattr(tenant, 'grace_period_ends_at', None)
+                if grace_ends is None:
+                    grace_ends = trial_ends + timedelta(days=GRACE_PERIOD_DAYS)
+                    tenant.grace_period_ends_at = grace_ends
+                    logger.info(
+                        '[SubscriptionGuard] tenant_id=%s entering grace period until %s',
+                        tenant.id, grace_ends.isoformat(),
+                    )
+                if grace_ends is not None:
+                    if grace_ends.tzinfo is None:
+                        grace_ends = grace_ends.replace(tzinfo=timezone.utc)
+                    new_state = 'grace' if grace_ends > now else 'readonly'
+                else:
+                    new_state = 'readonly'
 
     else:
         grace_ends = getattr(tenant, 'grace_period_ends_at', None)
@@ -125,7 +149,11 @@ def compute_subscription_state(tenant) -> str:
                 '[SubscriptionGuard] tenant_id=%s entering grace period until %s',
                 tenant.id, grace_ends.isoformat(),
             )
-        elif grace_ends.replace(tzinfo=timezone.utc) > now:
+        elif grace_ends.tzinfo is None:
+            grace_ends = grace_ends.replace(tzinfo=timezone.utc)
+            tenant.grace_period_ends_at = grace_ends
+            new_state = 'grace' if grace_ends > now else 'readonly'
+        elif grace_ends > now:
             new_state = 'grace'
         else:
             new_state = 'readonly'
@@ -164,7 +192,7 @@ def init_subscription_guard(app: Flask) -> None:
             return
         if getattr(current_user, 'is_superadmin', False):
             return
-        if not request.path.startswith('/admin'):
+        if not request.path.startswith('/studio'):
             return
 
         # Lazy-load tenant to avoid N+1 in every request

@@ -399,10 +399,10 @@ class TestingConfig(BaseConfig):
 
     CACHE_TYPE = 'NullCache'
 
-    SECRET_KEY  = 'test-secret-key-not-for-production'
-    FERNET_KEY  = b'test-fernet-key-not-for-production-_-1234567890ab'
 
-
+# Backwards-compatible alias expected by tests and some import sites
+# Backwards-compatible alias expected by tests and some import sites
+Config = BaseConfig
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURATION REGISTRY
 # ─────────────────────────────────────────────────────────────────────────────

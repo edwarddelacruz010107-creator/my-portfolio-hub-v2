@@ -78,6 +78,27 @@ def _get_client_ip() -> str:
         return forwarded.split(',')[0].strip()[:45]
     return (request.remote_addr or 'unknown')[:45]
 
+
+def _ensure_inquiry_phone_column() -> None:
+    """
+    Ensure the legacy 'phone' column exists on the inquiries table for
+    older local SQLite DBs that predate this column. This is a lightweight
+    compatibility step to avoid OperationalError when admin pages query
+    the full Inquiry model.
+    """
+    try:
+        inspector = db.inspect(db.engine)
+        cols = [c['name'] for c in inspector.get_columns('inquiries')]
+        if 'phone' not in cols:
+            # Add nullable text column — safe default for SQLite and others.
+            with db.engine.begin() as conn:
+                conn.execute("ALTER TABLE inquiries ADD COLUMN phone VARCHAR(50)")
+                conn.execute("ALTER TABLE inquiries ADD COLUMN company VARCHAR(200)")
+    except Exception:
+        # Any failure here should be non-fatal; the later query will either
+        # succeed or raise a clearer error. Log for diagnostics.
+        logger.exception('Failed to ensure inquiries phone/company columns')
+
 @admin.route('/messages')
 @admin_required
 def messages():
@@ -92,6 +113,9 @@ def messages():
     tab    = request.args.get('tab', 'all')
     search = request.args.get('q', '').strip()
     page   = request.args.get('page', 1, type=int)
+
+    # Ensure expected inquiry columns exist on older dev DBs
+    _ensure_inquiry_phone_column()
 
     query = _tenant_slug_filter(inquiry_repository.query)
 

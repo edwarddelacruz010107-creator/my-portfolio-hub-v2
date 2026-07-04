@@ -148,14 +148,14 @@ def _get_ua() -> str:
 
 def _recovery_enabled() -> bool:
     try:
-        return GlobalEmailConfig.get().recovery_enabled
+        return GlobalEmailConfig.get(fresh=True).recovery_enabled
     except Exception:
         return True  # fail open — do not lock superadmin out
 
 
 def _get_ttl_minutes() -> int:
     try:
-        return max(1, GlobalEmailConfig.get().otp_expiry_minutes or _MAX_OTP_TTL)
+        return max(1, GlobalEmailConfig.get(fresh=True).otp_expiry_minutes or _MAX_OTP_TTL)
     except Exception:
         return _MAX_OTP_TTL
 

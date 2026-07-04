@@ -32,6 +32,7 @@ from app.repositories import (
 from app.models.portfolio import (Tenant, Profile, Skill, Project, Testimonial, Service,
                                    ActivityLog, Inquiry, InquiryReply, normalize_plan_name,
                                    get_plan_features)
+from sqlalchemy import func
 from app.forms import (ProfileForm, SkillForm, ProjectForm,
                         TestimonialForm, ServiceForm, ChangePasswordForm,
                         PlanSelectionForm)
@@ -41,7 +42,7 @@ import uuid
 from pathlib import Path
 from app.utils import BILLING_PLANS, is_paymongo_enabled, log_activity
 from app.models.portfolio import Subscription
-from app.services.billing import subscription_access_status
+from app.services.studio.dashboard_service import DashboardService
 from app.services.billing_handlers import (
     billing_payment_context,
     billing_plans_context,
@@ -128,11 +129,11 @@ def dashboard():
         'total_testimonials': testimonial_query.count(),
         'profile_completion': get_profile_completion(profile) if profile else 0,
         'featured_projects':  project_query.filter_by(is_featured=True).count(),
-        # Message counters
-        'unread_messages':    inquiry_query.filter_by(is_read=False).count(),
-        'total_messages':     inquiry_query.count(),
-        'today_messages':     inquiry_query.filter(Inquiry.created_at >= _today_start).count(),
-        'week_messages':      inquiry_query.filter(Inquiry.created_at >= _week_start).count(),
+        # Message counters — use explicit COUNT() to avoid selecting missing columns
+        'unread_messages':    inquiry_query.filter_by(is_read=False).with_entities(func.count()).scalar(),
+        'total_messages':     inquiry_query.with_entities(func.count()).scalar(),
+        'today_messages':     inquiry_query.filter(Inquiry.created_at >= _today_start).with_entities(func.count()).scalar(),
+        'week_messages':      inquiry_query.filter(Inquiry.created_at >= _week_start).with_entities(func.count()).scalar(),
     }
     recent_activity = (
         _tenant_slug_filter(activity_log_repository.query)
@@ -145,6 +146,10 @@ def dashboard():
         .limit(5).all()
     )
     subscription = profile.current_subscription() if profile else None
+    dashboard_service = DashboardService()
+    tenant_context_payload = dashboard_service.build_context(current_user)
+    tenant_context = tenant_context_payload['tenant_context']
+
     return render_template(
         'admin/dashboard.html',
         stats=stats,
@@ -152,10 +157,13 @@ def dashboard():
         recent_projects=recent_projects,
         profile=profile,
         subscription=subscription,
-        subscription_status=subscription_access_status(profile) if profile else 'none',
-        plan_name=_active_tenant_plan_name(),
+        subscription_status=tenant_context_payload['subscription_state'],
+        plan_name=getattr(tenant_context, 'plan', None) or _active_tenant_plan_name(),
         project_count=stats['total_projects'],
         unread_messages=stats['unread_messages'],
+        tenant_context=tenant_context,
+        subscription_badge=tenant_context_payload['subscription_badge'],
+        trial_days_left=tenant_context_payload['trial_days_left'],
     )
 
 @admin.route('/dashboard')

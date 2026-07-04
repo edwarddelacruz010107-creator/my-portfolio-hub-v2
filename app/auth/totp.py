@@ -21,15 +21,34 @@ rate_limit_totp_verify(ip)
     → raises TotpRateLimitError if too many consecutive failures.
 
 record_totp_failure(ip) / clear_totp_attempts(ip)
-    Maintain in-process counters (upgrade to Redis for multi-worker).
+    Maintain Redis-backed counters with in-process fallback.
 
-Security notes
---------------
-• Secret is held in server-side session only; never committed until
-  a valid code is presented (atomicity fix).
-• Backup codes generated once per setup session.
-• valid_window=1 tolerates ±30 s clock skew (one OTP period).
-• Backup codes are individually bcrypt-hashed (werkzeug scrypt).
+Security & Production Notes
+---------------------------
+⚠️  IMPORTANT: TOTP Rate Limiting
+    This module uses Redis for multi-worker rate limiting if available.
+    In production, set REDIS_URL environment variable:
+    
+        REDIS_URL=redis://localhost:6379/0
+    
+    Without Redis:
+    • Single-worker deployments (development, small scale): safe
+    • Multi-worker/gunicorn/uWSGI: race conditions possible
+    • Recommended: Always configure Redis in production
+    • Fallback: In-process dictionary (single-worker safe only)
+
+⚠️  OTP Configuration
+    • TTL: 15 minutes (configurable via GlobalEmailConfig.otp_expiry_minutes)
+    • Max attempts: 5 per 10-minute window
+    • Rate limiting: per IP address
+    • All verifications logged with IP + user agent
+
+✅  Security Guarantees
+    • Secret held in server-side session only; never persisted until valid code presented
+    • Backup codes generated once per setup session
+    • All backup codes bcrypt-hashed (werkzeug scrypt)
+    • Clock skew tolerance: ±30 seconds (valid_window=1)
+    • Session regeneration on successful verification
 """
 
 from __future__ import annotations
@@ -51,12 +70,20 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# ── In-process TOTP rate limiting ─────────────────────────────────────────────
-# Replace with Redis-backed storage in multi-worker deployments.
+# ── TOTP rate limiting (Redis-backed with fallback) ──────────────────────────
 
 TOTP_MAX_ATTEMPTS   = 5
 TOTP_ATTEMPT_WINDOW = timedelta(minutes=10)
-_totp_attempts: dict[str, dict] = {}
+_totp_attempts: dict[str, dict] = {}  # Fallback for single-worker/dev
+
+def _get_redis_client():
+    """Get Redis client if available, returns None if unavailable."""
+    try:
+        from flask_redis import FlaskRedis
+        redis_instance = current_app.extensions.get('redis')
+        return redis_instance if redis_instance and redis_instance.connection_pool else None
+    except Exception:
+        return None
 
 
 class TotpRateLimitError(Exception):
@@ -64,6 +91,27 @@ class TotpRateLimitError(Exception):
 
 
 def _get_totp_entry(ip: str) -> dict | None:
+    """
+    Retrieve TOTP attempt counter from Redis (preferred) or fallback dict.
+    Returns None if entry doesn't exist or has expired.
+    """
+    redis_client = _get_redis_client()
+    
+    if redis_client:
+        # Redis-backed rate limiting (production)
+        try:
+            key = f"totp:attempts:{ip}"
+            data = redis_client.get(key)
+            if not data:
+                return None
+            entry = json.loads(data)
+            # Redis handles expiration via TTL, so entry is always valid if present
+            return entry
+        except Exception as e:
+            logger.warning("Redis error in TOTP rate limiting (IP: %s): %s; falling back to in-process", ip, e)
+            # Fall through to in-process fallback
+    
+    # Fallback: in-process dictionary (single-worker safe only)
     entry = _totp_attempts.get(ip)
     if not entry:
         return None
@@ -85,15 +133,60 @@ def rate_limit_totp_verify(ip: str) -> None:
 
 
 def record_totp_failure(ip: str) -> None:
-    now   = datetime.now(timezone.utc)
+    """Record a TOTP verification failure for rate limiting."""
+    redis_client = _get_redis_client()
+    now = datetime.now(timezone.utc)
+    
+    if redis_client:
+        # Redis-backed (production)
+        try:
+            key = f"totp:attempts:{ip}"
+            data = redis_client.get(key)
+            if data:
+                entry = json.loads(data)
+            else:
+                entry = {"count": 0, "first_attempt": now.isoformat()}
+            
+            entry["count"] += 1
+            redis_client.setex(
+                key,
+                int(TOTP_ATTEMPT_WINDOW.total_seconds()),
+                json.dumps(entry)
+            )
+            
+            if entry["count"] >= TOTP_MAX_ATTEMPTS:
+                logger.warning("TOTP rate-limit triggered for IP %s (Redis)", ip)
+        except Exception as e:
+            logger.warning("Redis error recording TOTP failure (IP: %s): %s; falling back to in-process", ip, e)
+            # Fall through to in-process fallback
+            _record_totp_failure_fallback(ip, now)
+    else:
+        # Fallback: in-process dictionary
+        _record_totp_failure_fallback(ip, now)
+
+
+def _record_totp_failure_fallback(ip: str, now: datetime) -> None:
+    """Fallback in-process TOTP failure recording (single-worker only)."""
     entry = _get_totp_entry(ip) or {"count": 0, "first_attempt": now}
     entry["count"] += 1
     _totp_attempts[ip] = entry
     if entry["count"] >= TOTP_MAX_ATTEMPTS:
-        logger.warning("TOTP rate-limit triggered for IP %s", ip)
+        logger.warning("TOTP rate-limit triggered for IP %s (in-process)", ip)
 
 
 def clear_totp_attempts(ip: str) -> None:
+    """Clear TOTP attempts for an IP after successful verification."""
+    redis_client = _get_redis_client()
+    
+    if redis_client:
+        # Redis-backed
+        try:
+            key = f"totp:attempts:{ip}"
+            redis_client.delete(key)
+        except Exception as e:
+            logger.warning("Redis error clearing TOTP attempts (IP: %s): %s", ip, e)
+    
+    # Always clear fallback dict
     _totp_attempts.pop(ip, None)
 
 

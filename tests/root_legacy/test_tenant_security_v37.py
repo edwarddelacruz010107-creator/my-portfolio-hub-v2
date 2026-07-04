@@ -181,6 +181,35 @@ class TestSessionHMAC(unittest.TestCase):
             self.assertIn('_tsig', session)
             self.assertTrue(session_tenant_valid())
 
+    def test_legacy_signature_without_session_token_is_accepted_and_restamped(self):
+        """Sessions signed with the pre-v4.0 format should still validate and be upgraded."""
+        from app.tenant_security import session_tenant_valid
+
+        user, _, _ = _make_user(self.db, 'legacy', 'legacy-co')
+
+        with self.app.test_request_context('/admin/'):
+            from flask_login import login_user
+            from flask import session
+            login_user(user)
+
+            created_at = datetime.now(timezone.utc).isoformat()
+            secret = self.app.config['SECRET_KEY'].encode('utf-8')
+            legacy_sig = hmac.new(
+                secret,
+                f"{user.id}:legacy-co:{created_at}".encode('utf-8'),
+                hashlib.sha256,
+            ).hexdigest()
+
+            session['tenant_slug'] = 'legacy-co'
+            session['_tsig'] = legacy_sig
+            session['_tsig_created'] = created_at
+            session['_tsig_user_id'] = user.id
+            session.pop('_session_token', None)
+
+            self.assertTrue(session_tenant_valid())
+            self.assertIn('_session_token', session)
+            self.assertIn('_tsig', session)
+
     def test_tampered_signature_invalid(self):
         """Manually corrupting _tsig makes session_tenant_valid return False."""
         from app.tenant_security import stamp_session_tenant, session_tenant_valid

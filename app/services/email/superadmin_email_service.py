@@ -188,7 +188,15 @@ def _resolve_configs() -> list[dict]:
     """
     try:
         from app.models.core import GlobalEmailConfig
-        cfg = GlobalEmailConfig.get()
+        # fresh=True is required here: this is the actual send-time credential
+        # resolver. Without it, a stale identity-mapped GlobalEmailConfig
+        # instance (loaded earlier in this worker/thread's lifetime, before
+        # the superadmin last saved SMTP/MailerSend/Resend settings) can be
+        # returned instead of the just-committed row, so "Save SMTP" appears
+        # to succeed in the UI but real deliveries keep using the old
+        # credentials. See app/superadmin/routes/email_settings.py for the
+        # same fix already applied to the settings/status endpoints.
+        cfg = GlobalEmailConfig.get(fresh=True)
     except Exception:
         cfg = None
 

@@ -1,6 +1,8 @@
 import sys
 import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# BUG FIX (audit 2026-07-02): one '..' only reaches app/, not project
+# root -- 'from app import ...' below failed with ModuleNotFoundError.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from app import create_app, db
 from app.models.portfolio import Profile

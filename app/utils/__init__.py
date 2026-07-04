@@ -40,11 +40,11 @@ BILLING_PLANS: dict[str, dict] = {
     "Basic": {
         "label":           "Basic",
         "currency_symbol": "₱",
-        "price_monthly":   19.00,
-        "price_yearly":    round(19.00  * 12 * YEARLY_DISCOUNT, 2),
+        "price_monthly":   1.00,
+        "price_yearly":    round(1.00  * 12 * YEARLY_DISCOUNT, 2),
         "duration_days":   30,
-        "price":           19.00,          # legacy compat key
-        "price_label":     "₱19.00/mo",
+        "price":           1.00,          # legacy compat key
+        "price_label":     "₱1.00/mo",
         "description":     "Essential portfolio support with basic billing and updates.",
         "features": [
             "Up to 5 portfolio projects",
@@ -701,13 +701,23 @@ def refresh_current_subscription() -> None:
 
     try:
         from app.models.portfolio import Profile, Subscription
+        from app.models.core import Tenant
         from app import db as _db
         from datetime import datetime, timezone
+        from app.services.billing.billing import expire_trial_if_needed
 
         tenant_slug = getattr(_cu, 'tenant_slug', None) or 'default'
         profile = Profile.query.filter_by(tenant_slug=tenant_slug).first()
         if profile is None:
             return
+
+        tenant = Tenant.query.get(profile.tenant_id)
+        if tenant is not None:
+            expire_trial_if_needed(tenant)
+            if tenant.subscription_status == 'expired':
+                _db.session.commit()
+                logger.info("Auto-expired trial for tenant %s", tenant_slug)
+                return
 
         sub = profile.current_subscription()
         if sub is None:

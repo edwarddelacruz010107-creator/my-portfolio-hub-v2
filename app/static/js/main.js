@@ -2,7 +2,15 @@
 //  PORTFOLIO CMS — MAIN JS
 // ═══════════════════════════════════════════════
 
+window.onerror = function(message, source, lineno, colno, error) {
+  console.error('[CMS] Global error:', { message, source, lineno, colno, error });
+};
+window.onunhandledrejection = function(event) {
+  console.error('[CMS] Unhandled promise rejection:', event.reason);
+};
+
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('[CMS] main.js bootstrapped');
 
   window.addEventListener('error', (e) => {
     const t = e.target;

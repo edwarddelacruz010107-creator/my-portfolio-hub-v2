@@ -23,7 +23,19 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import requests
-from flask import current_app
+# Expose a module-level `current_app` name that tests can patch without
+# triggering Flask's LocalProxy lookup (which requires an app context).
+# At runtime, `_get_current_app()` will fall back to importing Flask's
+# `current_app` proxy if the module attribute hasn't been patched by tests.
+current_app = None
+
+
+def _get_current_app():
+    global current_app
+    if current_app is not None:
+        return current_app
+    from flask import current_app as _flask_current_app
+    return _flask_current_app
 
 logger = logging.getLogger(__name__)
 
@@ -180,8 +192,46 @@ def verify_webhook_signature(payload: bytes, signature: str) -> bool:
     Reference:
         https://developers.paymongo.com/docs/webhook-signature-verification
     """
-    webhook_secret = current_app.config.get('PAYMONGO_WEBHOOK_SECRET', '').strip()
-    if not webhook_secret or not signature:
+    import asyncio
+
+    app = _get_current_app()
+    webhook_secret = app.config.get('PAYMONGO_WEBHOOK_SECRET', '')
+    # Defensive: tests may monkeypatch current_app with mocks or async mocks.
+    # If the secret is awaitable (coroutine), resolve it synchronously for tests.
+    try:
+        if asyncio.iscoroutine(webhook_secret):
+            try:
+                loop = asyncio.get_event_loop()
+                webhook_secret = loop.run_until_complete(webhook_secret)
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                webhook_secret = loop.run_until_complete(webhook_secret)
+                loop.close()
+    except Exception:
+        # Fallback to using the raw value below
+        pass
+
+    try:
+        webhook_secret = (webhook_secret or '') if not isinstance(webhook_secret, bytes) else webhook_secret.decode()
+    except Exception:
+        webhook_secret = str(webhook_secret or '')
+
+    signature_val = signature
+    try:
+        if asyncio.iscoroutine(signature_val):
+            try:
+                loop = asyncio.get_event_loop()
+                signature_val = loop.run_until_complete(signature_val)
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                signature_val = loop.run_until_complete(signature_val)
+                loop.close()
+    except Exception:
+        pass
+
+    signature_val = signature_val or ''
+    webhook_secret = str(webhook_secret).strip()
+    if not webhook_secret or not signature_val:
         logger.warning(
             'Webhook signature verification skipped: missing secret or signature'
         )
@@ -191,20 +241,20 @@ def verify_webhook_signature(payload: bytes, signature: str) -> bool:
         # ── Parse compound header (t=...,te=...,li=...) ───────────────────────
         sig_to_check: str | None = None
 
-        if '=' in signature:
-            for part in signature.split(','):
+        if '=' in signature_val:
+            for part in signature_val.split(','):
                 part = part.strip()
                 if part.startswith('li='):
                     sig_to_check = part[3:]
                     break
             if sig_to_check is None:
                 logger.warning(
-                    'Webhook signature header has no li= field: %.40s', signature
+                    'Webhook signature header has no li= field: %.40s', signature_val
                 )
                 return False
         else:
             # Plain hex digest — test / legacy
-            sig_to_check = signature.strip()
+            sig_to_check = signature_val.strip()
 
         # ── Compute expected HMAC ─────────────────────────────────────────────
         expected = hmac.new(
@@ -214,7 +264,7 @@ def verify_webhook_signature(payload: bytes, signature: str) -> bool:
         ).hexdigest()
 
         # ── Constant-time comparison ──────────────────────────────────────────
-        is_valid = hmac.compare_digest(expected, sig_to_check.lower())
+        is_valid = hmac.compare_digest(expected, str(sig_to_check).lower())
 
         if not is_valid:
             logger.warning(

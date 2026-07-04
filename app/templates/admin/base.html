@@ -35,7 +35,7 @@
 <aside class="sidebar" id="sidebar" aria-label="Admin navigation">
   <div class="sidebar-header">
     <div class="sidebar-logo">
-      <div class="logo-icon">◆</div>
+      <div class="logo-icon"><img src="{{ url_for('static', filename='img/brand/logo-mark.svg') }}" alt="" width="22" height="15"/></div>
       <span class="logo-text">
         {% if active_tenant_slug %}
           {{ active_tenant_slug | replace('-', ' ') | title }}
@@ -51,6 +51,7 @@
 
   {%- if profile %}
   {%- set _sub = profile.subscription_status %}
+  {%- set _tenant_state = profile.tenant.subscription_state if profile.tenant else (profile.subscription_status or 'trial') %}
   <div class="sidebar-tenant-info">
     <span class="sidebar-tenant-name">
       {% if active_tenant_slug %}
@@ -71,14 +72,16 @@
       {% else %}
         {% if active_tenant_slug == 'default' or not active_tenant_slug %}plan-badge--admin{% else %}plan-badge--default{% endif %}
       {% endif %}">
-      {% if _sub == 'active'   %}✓ {{ profile.effective_plan() }}
-      {% elif _sub == 'trial'  %}⏱ Trial · {{ profile.trial_days_remaining() }}d
-      {% elif _sub == 'grace'  %}⚠ Grace
-      {% elif _sub == 'pending'%}◉ Pending
+      {% if _tenant_state == 'trial' %}⏱ Trial · {{ profile.trial_days_remaining() }}d
+      {% elif _tenant_state == 'grace' %}⚠ Trial ending soon
+      {% elif _tenant_state == 'readonly' %}🔒 Readonly Mode
+      {% elif _tenant_state == 'suspended' %}⛔ Suspended
+      {% elif _sub == 'active' %}✓ {{ profile.effective_plan() }} Plan
+      {% elif _sub == 'pending' %}◉ Pending
       {% elif _sub in ('expired','cancelled') %}
         {% if active_tenant_slug == 'default' or not active_tenant_slug %}◈ Admin{% else %}✕ Expired{% endif %}
       {% else %}
-        {% if active_tenant_slug == 'default' or not active_tenant_slug %}◈ Admin{% else %}○ No License{% endif %}
+        {% if active_tenant_slug == 'default' or not active_tenant_slug %}◈ Admin{% else %}○ Trial · 0d{% endif %}
       {% endif %}
     </span>
   </div>
@@ -256,15 +259,20 @@
     <div class="topbar-actions">
       {% if profile %}
       {% set _sub_status = profile.subscription_status %}
+      {% set _tenant_state = profile.tenant.subscription_state if profile.tenant else (profile.subscription_status or 'trial') %}
       <div class="topbar-license-pill">
-        {% if _sub_status == 'active' %}
+        {% if _tenant_state == 'trial' %}
+          <span class="license-pill license-trial">Trial · {{ profile.trial_days_remaining() }}d</span>
+        {% elif _tenant_state == 'grace' %}
+          <span class="license-pill license-grace">Trial ending soon</span>
+        {% elif _tenant_state == 'readonly' %}
+          <span class="license-pill license-unlicensed">Readonly Mode</span>
+        {% elif _tenant_state == 'suspended' %}
+          <span class="license-pill license-unlicensed">Suspended</span>
+        {% elif _sub_status == 'active' %}
           <span class="license-pill license-active">Licensed</span>
-        {% elif _sub_status == 'grace' %}
-          <span class="license-pill license-grace">Grace Period</span>
         {% elif _sub_status == 'pending' %}
           <span class="license-pill license-pending">Pending</span>
-        {% elif _sub_status == 'trial' %}
-          <span class="license-pill license-trial">Trial · {{ profile.trial_days_remaining() }}d</span>
         {% elif _sub_status in ('expired','cancelled') %}
           {% if active_tenant_slug == 'default' or not active_tenant_slug %}
             <span class="license-pill license-admin">Administrator</span>
@@ -275,7 +283,7 @@
           {% if active_tenant_slug == 'default' or not active_tenant_slug %}
             <span class="license-pill license-admin">Administrator</span>
           {% else %}
-            <a href="{{ url_for('admin.billing_index') }}" class="license-pill license-unlicensed">No license</a>
+            <a href="{{ url_for('admin.billing_index') }}" class="license-pill license-unlicensed">Upgrade Plan</a>
           {% endif %}
         {% endif %}
       </div>

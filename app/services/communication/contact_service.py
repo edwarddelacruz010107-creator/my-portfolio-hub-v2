@@ -31,6 +31,14 @@ DEFAULT TENANT BEHAVIOUR (Obj #1):
         3. ADMIN_EMAIL env var
     This guarantees the default portfolio contact form ALWAYS reaches the admin.
 
+SUPERADMIN VISIBILITY:
+    All contact form submissions are ALWAYS persisted as Inquiry records:
+        - Landing page submissions: stored with tenant_slug='default', sender='visitor'
+        - Tenant portfolio submissions: stored with their tenant_slug, sender='visitor'
+    These appear in the superadmin Messages inbox (/superadmin/messages) in the 
+    'From Tenants' tab or 'All' tab, enabling the superadmin to view and respond
+    to all platform contact submissions.
+
 SECURITY (OWASP):
     A01 — Tenant isolation: provider/key from DB, never client input
     A03 — Input sanitation: all fields stripped, truncated, HTML-escaped
@@ -47,6 +55,12 @@ import logging
 import re
 from dataclasses import dataclass, field
 from typing import Optional, Tuple
+
+from app.services.email_dispatcher import (
+    build_landing_admin_email,
+    build_landing_auto_reply_email,
+    send_email as dispatch_email,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +103,9 @@ def process_contact_submission(
     email: str,
     subject: str,
     message: str,
+    phone: str = '',
+    company: str = '',
+    source: str = 'contact_form',
     ip_address: str = '',
     user_agent: str = '',
     submission_id: Optional[str] = None,
@@ -176,6 +193,8 @@ def process_contact_submission(
         email=email,
         subject=subject,
         message=message,
+        phone=phone or None,
+        company=company or None,
         ip_address=ip_address,
         user_agent=user_agent,
         submission_id=submission_id or None,
@@ -215,7 +234,13 @@ def process_contact_submission(
         tenant=tenant,
         form_settings=form_settings,
         inquiry=inquiry,
-        name=name, email=email, subject=subject, message=message,
+        name=name,
+        email=email,
+        subject=subject,
+        message=message,
+        phone=phone,
+        company=company,
+        source=source,
     )
 
     # ── 5. Write delivery metadata back to Inquiry ────────────────────────────
@@ -253,6 +278,9 @@ def _dispatch(
     email: str,
     subject: str,
     message: str,
+    phone: str,
+    company: str,
+    source: str,
 ) -> ContactResult:
     """
     Select and execute the correct delivery provider.
@@ -333,7 +361,13 @@ def _dispatch(
             tenant=tenant,
             form_settings=form_settings,
             inquiry=inquiry,
-            name=name, email=email, subject=subject, message=message,
+            name=name,
+            email=email,
+            subject=subject,
+            message=message,
+            phone=phone,
+            company=company,
+            source=source,
         )
 
     # ── Disabled / Internal inbox only ────────────────────────────────────────
@@ -451,7 +485,20 @@ def _dispatch_web3forms(*, tenant_slug, form_settings, inquiry, name, email, sub
     return _inbox_fallback(tenant_slug, inquiry.id, 'web3forms', err)
 
 
-def _dispatch_email_only(*, tenant_slug, tenant, form_settings, inquiry, name, email, subject, message) -> ContactResult:
+def _dispatch_email_only(
+    *,
+    tenant_slug,
+    tenant,
+    form_settings,
+    inquiry,
+    name,
+    email,
+    subject,
+    message,
+    phone,
+    company,
+    source,
+) -> ContactResult:
     # Resolve recipient — critical for default tenant (Obj #1)
     recipient = _resolve_receiver_email(tenant_slug, tenant, form_settings)
 
@@ -470,36 +517,92 @@ def _dispatch_email_only(*, tenant_slug, tenant, form_settings, inquiry, name, e
         tenant_slug, inquiry.id, _mask_email(recipient),
     )
 
-    html_body = _build_html_body(name, email, subject, message)
-    text_body = f'From: {name} <{email}>\nSubject: {subject or "(no subject)"}\n\n{message}'
+    admin_subject, admin_text, admin_html = build_landing_admin_email(
+        name=name,
+        email_address=email,
+        subject=subject,
+        message=message,
+        company=company,
+        phone=phone,
+        source=source,
+    )
 
     tenant_id = tenant.id if tenant else None
+    ok, err = dispatch_email(
+        category='landing_admin',
+        provider='auto',
+        tenant_id=tenant_id,
+        to=recipient,
+        subject=admin_subject,
+        html_content=admin_html,
+        text_content=admin_text,
+        reply_to=email,
+        to_name=tenant.slug if tenant and tenant.slug else None,
+    )
 
-    if tenant_id:
-        # Use the tenant's own Email Services configuration (SMTP/Resend/
-        # MailerSend, tried in the tenant's configured priority order with
-        # automatic failover) — NOT the global MailerSend instance.
-        from app.services.tenant_email_service import send_tenant_email
-        ok, err = send_tenant_email(
-            tenant_id=tenant_id,
-            to=recipient,
-            subject=f'[Portfolio] New message from {name}',
-            html=html_body,
-            text=text_body,
+    if ok:
+        inquiry.admin_notified = True
+        logger.info(
+            'contact[email_only]: tenant=%s inquiry_id=%s admin notification delivered',
+            tenant_slug, inquiry.id,
         )
     else:
-        # No tenant resolved (shouldn't normally happen for a contact form
-        # submission) — fall back to the global MailerSend instance.
-        from app.services.mailersend_service import send_email_with_retry
-        ok = send_email_with_retry(
-            to_email=recipient,
-            subject=f'[Portfolio] New message from {name}',
-            html_content=html_body,
-            text_content=text_body,
-            reply_to=email,
-            max_retries=3,
+        logger.warning(
+            'contact[email_only]: tenant=%s inquiry_id=%s admin notify FAILED %s',
+            tenant_slug, inquiry.id, err,
         )
-        err = '' if ok else 'MailerSend delivery failed'
+
+    # v4.0 FIX: Commit admin notification state immediately to ensure atomicity
+    # If the auto-reply fails, we at least have the admin notification recorded
+    try:
+        from app import db
+        db.session.commit()
+    except Exception as e:
+        logger.error('contact[email_only]: failed to commit admin notification state: %s', e)
+        db.session.rollback()
+
+    # Attempt visitor auto-reply regardless of admin notification outcome.
+    try:
+        reply_subject, reply_text, reply_html = build_landing_auto_reply_email(
+            name=name,
+            subject=subject,
+        )
+        reply_ok, reply_err = dispatch_email(
+            category='landing_auto_reply',
+            provider='auto',
+            tenant_id=tenant_id,
+            to=email,
+            subject=reply_subject,
+            html_content=reply_html,
+            text_content=reply_text,
+            reply_to=recipient,
+            to_name=name,
+        )
+        inquiry.auto_reply_sent = bool(reply_ok)
+        if reply_ok:
+            logger.info(
+                'contact[email_only]: tenant=%s inquiry_id=%s auto-reply delivered to visitor',
+                tenant_slug, inquiry.id,
+            )
+        else:
+            logger.warning(
+                'contact[email_only]: tenant=%s inquiry_id=%s auto-reply FAILED %s',
+                tenant_slug, inquiry.id, reply_err,
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception(
+            'contact[email_only]: tenant=%s inquiry_id=%s auto-reply unexpected error',
+            tenant_slug, inquiry.id,
+        )
+        inquiry.auto_reply_sent = False
+
+    # v4.0 FIX: Commit auto-reply state immediately for atomicity
+    try:
+        from app import db
+        db.session.commit()
+    except Exception as e:
+        logger.error('contact[email_only]: failed to commit auto-reply state: %s', e)
+        db.session.rollback()
 
     if ok:
         logger.info(
@@ -566,11 +669,12 @@ def _resolve_receiver_email(tenant_slug: str, tenant, form_settings) -> str:
                 .first()
             )
             if admin_user and admin_user.email:
+                admin_email = str(admin_user.email).strip()
                 logger.info(
                     '_resolve_receiver_email: tenant=%s → admin user email %s',
-                    tenant_slug, _mask_email(admin_user.email),
+                    tenant_slug, _mask_email(admin_email),
                 )
-                return admin_user.email.strip()
+                return admin_email
         except Exception as exc:
             logger.warning(
                 '_resolve_receiver_email: tenant=%s admin lookup failed: %s',

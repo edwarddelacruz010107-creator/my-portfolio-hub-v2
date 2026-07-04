@@ -1,0 +1,129 @@
+{% extends 'superadmin/base.html' %}
+
+{% block title %}{{ page_title }}{% endblock %}
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-heading">Pricing Page Content</h1>
+    <p class="page-subtext">
+      Edit the marketing copy shown on the public pricing page. Plan prices
+      themselves come from Billing → Plans and are not editable here — this
+      only controls headline text, badges, CTAs, and feature lists.
+    </p>
+  </div>
+  <div class="page-header-right">
+    <a href="{{ url_for('superadmin.pricing_settings_preview') }}" target="_blank" class="btn btn-ghost">
+      <iconify-icon icon="lucide:eye" width="16"></iconify-icon> Preview draft
+    </a>
+  </div>
+</div>
+
+<form method="POST" class="admin-form" id="pricingSettingsForm">
+  {{ form.hidden_tag() }}
+
+  <div class="form-card">
+    <div class="form-card-header">
+      <h3>Section Copy</h3>
+      <div class="form-card-note">Draft values are saved separately until you publish.</div>
+    </div>
+    <div class="form-card-body">
+      <div class="form-field">
+        {{ form.heading.label(class='field-label') }}
+        {{ form.heading(class='field-input' + (' field-error' if form.heading.errors else ''), placeholder='Simple, transparent pricing') }}
+        {% if form.heading.errors %}<div class="field-err">{{ form.heading.errors[0] }}</div>{% endif %}
+      </div>
+      <div class="form-field">
+        {{ form.subtitle.label(class='field-label') }}
+        {{ form.subtitle(class='field-input field-textarea' + (' field-error' if form.subtitle.errors else ''), rows=2) }}
+        {% if form.subtitle.errors %}<div class="field-err">{{ form.subtitle.errors[0] }}</div>{% endif %}
+      </div>
+      <div class="form-field">
+        {{ form.footnote.label(class='field-label') }}
+        {{ form.footnote(class='field-input field-textarea' + (' field-error' if form.footnote.errors else ''), rows=2, placeholder='Shown when online checkout is disabled') }}
+        {% if form.footnote.errors %}<div class="field-err">{{ form.footnote.errors[0] }}</div>{% endif %}
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-label">Monthly / yearly toggle</div>
+          <div class="toggle-desc">Let visitors switch between monthly and yearly pricing on the public page</div>
+        </div>
+        <label class="toggle-switch">
+          {{ form.yearly_toggle_enabled(id='yearlyToggleEnabled') }}
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  {% for slug, plan_key in (('basic', 'Basic'), ('pro', 'Pro'), ('enterprise', 'Enterprise')) %}
+  <div class="form-card">
+    <div class="form-card-header">
+      <h3>{{ plan_key }} Plan</h3>
+      <div class="form-card-note">
+        {{ billing_plans[plan_key].price_label if billing_plans.get(plan_key) else '' }}
+        &middot; price is managed in Billing → Plans
+      </div>
+    </div>
+    <div class="form-card-body">
+      <div class="form-field">
+        {{ form[slug ~ '_badge_text'].label(class='field-label') }}
+        {{ form[slug ~ '_badge_text'](class='field-input', placeholder='e.g. Most Popular') }}
+      </div>
+      <div class="form-field">
+        {{ form[slug ~ '_cta_text'].label(class='field-label') }}
+        {{ form[slug ~ '_cta_text'](class='field-input', placeholder='Get Started') }}
+      </div>
+      <div class="form-field">
+        {{ form[slug ~ '_cta_url'].label(class='field-label') }}
+        {{ form[slug ~ '_cta_url'](class='field-input' + (' field-error' if form[slug ~ '_cta_url'].errors else ''), placeholder='/auth/portal?tab=signup') }}
+        {% if form[slug ~ '_cta_url'].errors %}<div class="field-err">{{ form[slug ~ '_cta_url'].errors[0] }}</div>{% endif %}
+        <div class="field-hint">Relative paths (e.g. /billing/plans) or full https:// links only.</div>
+      </div>
+      <div class="form-field">
+        {{ form[slug ~ '_description_override'].label(class='field-label') }}
+        {{ form[slug ~ '_description_override'](class='field-input field-textarea', rows=2, placeholder=billing_plans[plan_key].description if billing_plans.get(plan_key) else '') }}
+      </div>
+      <div class="form-field">
+        {{ form[slug ~ '_features_override'].label(class='field-label') }}
+        {{ form[slug ~ '_features_override'](class='field-input field-textarea', rows=5, placeholder='One feature per line — leave blank to use the default plan features') }}
+        <div class="field-hint">Max 10 lines, 120 characters each. Blank = falls back to the default feature list.</div>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-label">Highlight this plan</div>
+          <div class="toggle-desc">Only one plan can be highlighted — checking this unchecks the others on save</div>
+        </div>
+        <label class="toggle-switch">
+          {{ form[slug ~ '_highlighted'](**{'class': 'highlight-radio'}) }}
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="form-card-footer">
+    <button type="submit" name="action" value="save" class="btn btn-primary">Save Draft</button>
+    <button type="submit" name="action" value="publish" class="btn btn-secondary">Publish Now</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Client-side convenience only — server enforces single-highlight
+  // authoritatively in pricing_settings.py::_save_form_data(), so this is
+  // UX polish, not a security boundary.
+  document.querySelectorAll('.highlight-radio').forEach((box) => {
+    box.addEventListener('change', () => {
+      if (box.checked) {
+        document.querySelectorAll('.highlight-radio').forEach((other) => {
+          if (other !== box) other.checked = false;
+        });
+      }
+    });
+  });
+</script>
+{% endblock %}

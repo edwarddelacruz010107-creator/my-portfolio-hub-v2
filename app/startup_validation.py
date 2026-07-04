@@ -13,6 +13,8 @@ import os
 import sys
 import logging
 
+from sqlalchemy import inspect, text
+
 logger = logging.getLogger(__name__)
 
 # Minimum acceptable entropy for SECRET_KEY (chars, not bits)
@@ -145,6 +147,28 @@ def validate_startup_env(app) -> None:
             "in-memory fallback (not shared across workers)."
         )
 
+    # ── Email provider validation (v4.0 CRITICAL FIX) ──────────────────────────
+    # Ensure at least one email provider is configured for OTP/password reset
+    has_mailersend = os.environ.get("MAILERSEND_API_KEY", "").strip()
+    has_smtp = (
+        os.environ.get("SMTP_HOST", "").strip() and
+        os.environ.get("SMTP_USERNAME", "").strip() and
+        os.environ.get("SMTP_PASSWORD", "").strip()
+    ) or os.environ.get("SMTP_ENABLED", "").lower() not in ("", "false", "0")
+
+    if is_production and not (has_mailersend or has_smtp):
+        errors.append(
+            "No email providers configured. "
+            "Set either MAILERSEND_API_KEY (recommended) or SMTP_HOST + SMTP_USERNAME + SMTP_PASSWORD. "
+            "OTP delivery and password reset will fail without a configured provider."
+        )
+    elif not is_production and not (has_mailersend or has_smtp):
+        warnings.append(
+            "No email providers configured (development). "
+            "OTP delivery and password reset will fail. "
+            "Set MAILERSEND_API_KEY or SMTP credentials to test email flows."
+        )
+
     # ── Report ────────────────────────────────────────────────────────────────
     for w in warnings:
         logger.warning("⚠  ENV WARNING: %s", w)
@@ -163,3 +187,66 @@ def validate_startup_env(app) -> None:
             sys.exit()
         else:
             logger.warning("Development mode — startup validation errors are non-fatal.")
+
+
+def _has_table(engine, table_name: str) -> bool:
+    inspector = inspect(engine)
+    return inspector.has_table(table_name)
+
+
+def _table_columns(engine, table_name: str) -> set[str]:
+    inspector = inspect(engine)
+    if not inspector.has_table(table_name):
+        return set()
+    return {column['name'] for column in inspector.get_columns(table_name)}
+
+
+def _execute_ddl(engine, statement: str) -> None:
+    with engine.begin() as connection:
+        connection.execute(text(statement))
+
+
+def ensure_tenant_schema(app, engine) -> None:
+    """Auto-heal tenant schema for project reaction support on startup."""
+    from app.models.tenant_data import (
+        Certificate,
+        Profile,
+        Project,
+        ProjectReaction,
+        Service,
+        Skill,
+        Testimonial,
+    )
+
+    if not _has_table(engine, 'projects'):
+        app.logger.warning(
+            '[SCHEMA] Tenant schema incomplete: projects table missing on TENANT_DATABASE_URL. Creating tenant tables.'
+        )
+        for model in (Profile, Skill, Project, ProjectReaction, Testimonial, Service, Certificate):
+            model.__table__.create(bind=engine, checkfirst=True)
+        return
+
+    projects_columns = _table_columns(engine, 'projects')
+    if 'view_count' not in projects_columns:
+        column_ddl = 'INTEGER NOT NULL DEFAULT 0'
+        _execute_ddl(engine, f'ALTER TABLE projects ADD COLUMN view_count {column_ddl}')
+        app.logger.info('[SCHEMA] Added missing column projects.view_count')
+    if 'like_count' not in projects_columns:
+        column_ddl = 'INTEGER NOT NULL DEFAULT 0'
+        _execute_ddl(engine, f'ALTER TABLE projects ADD COLUMN like_count {column_ddl}')
+        app.logger.info('[SCHEMA] Added missing column projects.like_count')
+
+    reaction_columns = _table_columns(engine, 'project_reactions')
+    if not _has_table(engine, 'project_reactions'):
+        ProjectReaction.__table__.create(bind=engine, checkfirst=True)
+        app.logger.info('[SCHEMA] Created missing table project_reactions')
+    else:
+        if 'tenant_id' not in reaction_columns:
+            _execute_ddl(engine, 'ALTER TABLE project_reactions ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 0')
+            app.logger.info('[SCHEMA] Added missing column project_reactions.tenant_id')
+        if 'ip_address' not in reaction_columns:
+            _execute_ddl(engine, 'ALTER TABLE project_reactions ADD COLUMN ip_address VARCHAR(45)')
+            app.logger.info('[SCHEMA] Added missing column project_reactions.ip_address')
+        if 'created_at' not in reaction_columns:
+            _execute_ddl(engine, 'ALTER TABLE project_reactions ADD COLUMN created_at TIMESTAMP')
+            app.logger.info('[SCHEMA] Added missing column project_reactions.created_at')

@@ -304,15 +304,34 @@ def email_settings():
             order_raw = request.form.get('priority_order', '').strip()
             try:
                 order = _json.loads(order_raw)
-                valid = {'mailersend', 'smtp', 'resend'}
-                order = [p for p in order if p in valid]
-                cfg.set_sa_provider_priority(order)
+                from app.services.email.constants import VALID_EMAIL_PROVIDERS
+                if not isinstance(order, list):
+                    return jsonify({'ok': False, 'message': 'Priority must be a JSON list.'})
+
+                valid_set = set(VALID_EMAIL_PROVIDERS)
+                seen = set()
+                cleaned = []
+                for p in order:
+                    pname = str(p).strip()
+                    if pname in valid_set and pname not in seen:
+                        cleaned.append(pname)
+                        seen.add(pname)
+
+                # Reject if client submitted invalid or duplicate entries
+                if len(cleaned) != len(order):
+                    return jsonify({'ok': False, 'message': 'Priority contains invalid or duplicate providers.'})
+
+                # Must not be empty
+                if not cleaned:
+                    return jsonify({'ok': False, 'message': 'Priority must contain at least one provider.'})
+
+                cfg.set_sa_provider_priority(cleaned)
                 cfg.updated_by = current_user.username
                 db.session.commit()
                 db.session.expire_all()
                 return jsonify({'ok': True, 'message': 'Priority saved.'})
             except Exception as e:
-                return jsonify({'ok': False, 'message': str(e)[:80]})
+                return jsonify({'ok': False, 'message': str(e)[:160]})
 
         # ── AJAX: toggle a provider on/off ─────────────────────────────────
         if action == 'toggle_provider':

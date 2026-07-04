@@ -237,6 +237,7 @@ def _send_via_tenant_smtp(
     subject: str,
     html: str,
     text: Optional[str] = None,
+    reply_to: Optional[str] = None,
     tenant_slug: str = 'unknown',
 ) -> tuple[bool, str]:
     """
@@ -280,6 +281,8 @@ def _send_via_tenant_smtp(
 
     msg.attach(MIMEText(plain, 'plain', 'utf-8'))
     msg.attach(MIMEText(html,  'html',  'utf-8'))
+    if reply_to:
+        msg['Reply-To'] = reply_to
 
     host     = cfg['host']
     port     = cfg['port']
@@ -352,6 +355,7 @@ def _send_via_resend(
     subject: str,
     html: str,
     text: Optional[str] = None,
+    reply_to: Optional[str] = None,
 ) -> tuple[bool, str]:
     """Send email via Resend REST API (no external SDK dependency)."""
     if not settings.is_configured:
@@ -364,19 +368,22 @@ def _send_via_resend(
         else settings.sender_email
     )
 
-    payload = json.dumps({
+    payload = {
         'from':    from_addr,
         'to':      [to],
         'subject': subject,
         'html':    html,
         'text':    plain,
-    }).encode('utf-8')
+    }
+    if reply_to:
+        payload['reply_to'] = reply_to
+    payload_bytes = json.dumps(payload).encode('utf-8')
 
     api_key = settings.api_key   # decrypted via property
 
     req = urllib.request.Request(
         'https://api.resend.com/emails',
-        data=payload,
+        data=payload_bytes,
         headers={
             'Authorization': f'Bearer {api_key}',
             'Content-Type':  'application/json',
@@ -421,6 +428,7 @@ def _send_via_mailersend(
     subject: str,
     html: str,
     text: Optional[str] = None,
+    reply_to: Optional[str] = None,
 ) -> tuple[bool, str]:
     """Send email via MailerSend REST API (no external SDK dependency)."""
     if not settings.is_configured:
@@ -428,7 +436,7 @@ def _send_via_mailersend(
 
     plain = text or _html_to_text(html)
 
-    payload = json.dumps({
+    payload = {
         'from': {
             'email': settings.sender_email,
             'name':  settings.sender_name or '',
@@ -437,13 +445,16 @@ def _send_via_mailersend(
         'subject': subject,
         'html':    html,
         'text':    plain,
-    }).encode('utf-8')
+    }
+    if reply_to:
+        payload['reply_to'] = reply_to
+    payload_bytes = json.dumps(payload).encode('utf-8')
 
     api_token = settings.api_token   # decrypted via property
 
     req = urllib.request.Request(
         'https://api.mailersend.com/v1/email',
-        data=payload,
+        data=payload_bytes,
         headers={
             'Authorization': f'Bearer {api_token}',
             'Content-Type':  'application/json',
@@ -502,15 +513,16 @@ def _dispatch_to_provider(
     subject: str,
     html: str,
     text: Optional[str] = None,
+    reply_to: Optional[str] = None,
     tenant_slug: str = 'unknown',
 ) -> tuple[bool, str]:
     """Route a send call to the correct provider implementation."""
     if provider_name == 'smtp':
-        return _send_via_tenant_smtp(settings, to, subject, html, text, tenant_slug=tenant_slug)
+        return _send_via_tenant_smtp(settings, to, subject, html, text, reply_to=reply_to, tenant_slug=tenant_slug)
     elif provider_name == 'resend':
-        return _send_via_resend(settings, to, subject, html, text)
+        return _send_via_resend(settings, to, subject, html, text, reply_to=reply_to)
     elif provider_name == 'mailersend':
-        return _send_via_mailersend(settings, to, subject, html, text)
+        return _send_via_mailersend(settings, to, subject, html, text, reply_to=reply_to)
     return False, f'Unknown provider: {provider_name}'
 
 
@@ -524,6 +536,7 @@ def send_tenant_email(
     subject: str,
     html: str,
     text: Optional[str] = None,
+    reply_to: Optional[str] = None,
 ) -> tuple[bool, str]:
     """
     Dispatch an email on behalf of a tenant using their configured providers.
@@ -571,7 +584,7 @@ def send_tenant_email(
             continue
 
         t0 = time.perf_counter()
-        ok, err = _dispatch_to_provider(name, settings, to, subject, html, text, tenant_slug=tenant_slug)
+        ok, err = _dispatch_to_provider(name, settings, to, subject, html, text, reply_to=reply_to, tenant_slug=tenant_slug)
         latency = time.perf_counter() - t0
 
         if ok:

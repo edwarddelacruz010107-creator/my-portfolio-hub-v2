@@ -52,7 +52,7 @@ _tenant_otp_timestamps: dict = defaultdict(list)
 def _get_ttl() -> int:
     """Return OTP TTL in minutes from GlobalEmailConfig, falling back to default."""
     try:
-        cfg = GlobalEmailConfig.get()
+        cfg = GlobalEmailConfig.get(fresh=True)
         return max(1, cfg.otp_expiry_minutes or DEFAULT_TTL_MIN)
     except Exception:
         return DEFAULT_TTL_MIN

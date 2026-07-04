@@ -49,9 +49,21 @@ def _load_globals(app):
     _SKIP_PREFIXES = (
         '/static/', '/heartbeat', '/favicon.ico',
         '/robots.txt', '/sitemap.xml', '/health',
+        # Phase 1b: public SaaS routes have no tenant concept — the old
+        # fallback below (profile_repository.get_first(), "cosmetic display
+        # only") was written back when '/' *was* the default tenant's
+        # portfolio. It no longer is; running it here just means every
+        # anonymous landing-page/explore/feed/pricing hit does 3 pointless
+        # queries and injects an arbitrary tenant's Profile into `profile`
+        # for templates that don't use it. public/_base.html doesn't
+        # reference `profile`, `project_count`, or the unread-message
+        # counters, so this is a pure perf/hygiene fix, not a behavior
+        # dependency public templates rely on.
+        '/explore', '/feed', '/pricing', '/u/', '/administrator',
     )
+    _is_root = _req.path == '/'
     try:
-        if any(_req.path.startswith(p) for p in _SKIP_PREFIXES):
+        if _is_root or any(_req.path.startswith(p) for p in _SKIP_PREFIXES):
             return dict(
                 profile=None, project_count=0, unread_messages=0,
                 unread_superadmin_messages=0, profile_completion=0,

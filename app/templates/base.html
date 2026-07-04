@@ -77,7 +77,12 @@
   {% block extra_css %}{% endblock %}
 </head>
 <body>
-  {% block body %}{% endblock %}
+  {% block body %}
+    {# Backwards compatibility: many templates define a `content` block
+       instead of `body`. Render `content` by default so older templates
+       (and the studio index) continue to work. #}
+    {% block content %}{% endblock %}
+  {% endblock %}
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   {% block extra_js %}{% endblock %}
 </body>

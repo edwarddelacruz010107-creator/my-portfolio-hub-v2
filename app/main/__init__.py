@@ -96,6 +96,16 @@ def sitemap_xml():
 
     urls: list[dict] = []
 
+    # Phase 1b: static public SaaS pages (no tenant concept) — additive,
+    # doesn't touch the per-tenant loop below.
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    urls.append({'loc': request.host_url.rstrip('/') + '/', 'lastmod': today, 'changefreq': 'daily', 'priority': '1.0'})
+    for endpoint, prio in (('public.explore', '0.9'), ('public.feed', '0.9'), ('public.pricing', '0.8')):
+        try:
+            urls.append({'loc': url_for(endpoint, _external=True), 'lastmod': today, 'changefreq': 'daily', 'priority': prio})
+        except Exception:
+            pass
+
     try:
         from app.models.portfolio import Tenant, Profile, Project
 
@@ -211,6 +221,9 @@ def contact():
         email=email,
         subject=subject,
         message=message,
+        phone=raw.get('phone', '').strip(),
+        company=raw.get('company', '').strip(),
+        source='legacy_contact',
         ip_address=(ip or '')[:45],
         user_agent=(request.headers.get('User-Agent') or '')[:300],
         submission_id=sub_id or None,

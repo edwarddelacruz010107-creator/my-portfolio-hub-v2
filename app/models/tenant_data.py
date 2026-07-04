@@ -151,18 +151,28 @@ class Profile(db.Model):
         return self.plan_features().get('max_media_uploads')
 
     def trial_days_remaining(self) -> int:
-        if self.free_trial_ends is None:
+        tenant = getattr(self, 'tenant', None)
+        trial_ends = None
+        if tenant is not None:
+            trial_ends = getattr(tenant, 'trial_ends_at', None)
+        if trial_ends is None:
+            trial_ends = getattr(self, 'free_trial_ends', None)
+        if trial_ends is None:
             return 0
-        trial_ends = self.free_trial_ends
         if trial_ends.tzinfo is None:
             trial_ends = trial_ends.replace(tzinfo=timezone.utc)
         delta = trial_ends - datetime.now(timezone.utc)
         return max(0, delta.days)
 
     def is_trial_active(self) -> bool:
-        if not self.free_trial_ends:
+        tenant = getattr(self, 'tenant', None)
+        trial_ends = None
+        if tenant is not None:
+            trial_ends = getattr(tenant, 'trial_ends_at', None)
+        if trial_ends is None:
+            trial_ends = getattr(self, 'free_trial_ends', None)
+        if not trial_ends:
             return False
-        trial_ends = self.free_trial_ends
         if trial_ends.tzinfo is None:
             trial_ends = trial_ends.replace(tzinfo=timezone.utc)
         return trial_ends > datetime.now(timezone.utc)
@@ -333,10 +343,18 @@ class Project(db.Model):
     status            = db.Column(db.String(50),  default='published')
     is_featured       = db.Column(db.Boolean,     default=False)
     order             = db.Column(db.Integer,     default=0)
-    view_count        = db.Column(db.Integer,     default=0)
+    view_count        = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+    like_count        = db.Column(db.Integer, nullable=False, default=0, server_default='0')
     date_completed    = db.Column(db.Date, nullable=True)
     created_at        = db.Column(db.DateTime(timezone=True), default=_utcnow)
     updated_at        = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    reactions         = db.relationship(
+        'ProjectReaction',
+        backref=db.backref('project', lazy='joined'),
+        cascade='all, delete-orphan',
+        lazy='dynamic',
+    )
 
     CATEGORIES = [
         'Web App', 'Mobile App', 'API', 'UI/UX',
@@ -405,6 +423,25 @@ class Project(db.Model):
     def __repr__(self):
         return f'<Project {self.title}>'
 
+class ProjectReaction(db.Model):
+    __bind_key__ = 'tenant'
+    __tablename__ = 'project_reactions'
+    __table_args__ = (
+        db.Index('ix_project_reactions_project_user', 'project_id', 'user_id', unique=True),
+        db.Index('ix_project_reactions_user_id', 'user_id'),
+        db.Index('ix_project_reactions_tenant_id', 'tenant_id'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, nullable=False, index=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, nullable=False, index=True)
+    ip_address = db.Column(db.String(45), nullable=True)
+    reaction_type = db.Column(db.String(50), nullable=False, default='like')
+    created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
+
+    def __repr__(self):
+        return f'<ProjectReaction project_id={self.project_id} user_id={self.user_id}>'
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Testimonial

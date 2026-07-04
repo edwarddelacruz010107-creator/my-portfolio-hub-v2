@@ -16,6 +16,7 @@ tenant_data_db (__bind_key__ = "tenant" / TENANT_DATABASE_URL):
 from app.models.core import (
     Tenant,
     User,
+    PendingSignup,
     Subscription,
     WebhookEvent,
     PaymentMethod,
@@ -56,6 +57,7 @@ from app.models.tenant_data import (
     Profile,
     Skill,
     Project,
+    ProjectReaction,
     Testimonial,
     Service,
     Certificate,
@@ -71,7 +73,7 @@ from app.models.tenant_form_settings import (
 
 __all__ = [
     # core_db
-    'Tenant', 'User', 'Subscription', 'WebhookEvent',
+    'Tenant', 'User', 'PendingSignup', 'Subscription', 'WebhookEvent',
     'PaymentMethod', 'PaymentInstruction', 'PaymentSubmission',
     'PlatformSetting', 'TenantCommunicationSettings',
     'PasswordResetOTP', 'GlobalEmailConfig',
@@ -80,7 +82,7 @@ __all__ = [
     'ThemeCatalogEntry', 'VALID_REQUIRED_PLANS',
     'DiscountCampaign', 'DiscountRedemption', 'Invoice',
     # tenant_data_db
-    'Profile', 'Skill', 'Project', 'Testimonial', 'Service', 'Certificate', 'TenantFormSettings',
+    'Profile', 'Skill', 'Project', 'ProjectReaction', 'Testimonial', 'Service', 'Certificate', 'TenantFormSettings',
     # helpers
     'encrypt_secret', 'decrypt_secret',
     'normalize_plan_name', 'get_plan_features',

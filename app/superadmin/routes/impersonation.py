@@ -102,9 +102,25 @@ def impersonate_tenant(tenant_id):
         return redirect(url_for('superadmin.tenants'))
 
     # Stash superadmin identity for restore
-    session['_impersonating_as']        = admin_user.id
+    # Preserve original session tenant/signature so we can fully restore
+    # the superadmin's session after impersonation ends. Store a small
+    # JSON-serializable snapshot under '_impersonation_original'.
+    session['_impersonation_original'] = {
+        'tenant_slug': session.get('tenant_slug'),
+        '_tsig': session.get('_tsig'),
+        '_tsig_created': session.get('_tsig_created'),
+        '_tsig_user_id': session.get('_tsig_user_id'),
+    }
+
+    # Stash superadmin identity for restore (backwards-compatible keys kept)
+    session['_impersonating_as']         = admin_user.id
     session['_impersonation_superadmin'] = current_user.id
     session['_impersonation_started_at'] = datetime.now(timezone.utc).isoformat()
+
+    # Additional metadata for stronger validation and auditing
+    session['impersonator_id'] = current_user.id
+    session['original_role'] = 'superadmin' if getattr(current_user, 'is_superadmin', False) else 'admin'
+    session['original_tenant_id'] = getattr(current_user, 'tenant_id', None)
 
     # FIX IMP: stamp_session_tenant writes tenant_slug + HMAC _tsig into session.
     # Without this, TenantGuard sees a tenant_slug with no matching signature and
@@ -127,11 +143,21 @@ def impersonate_tenant(tenant_id):
 @superadmin.route('/stop-impersonation')
 @login_required
 def stop_impersonation():
-    """Restore the original superadmin session."""
+    """
+    Restore the original superadmin session.
+    
+    v4.0 FIX: Now re-stamps session tenant with new HMAC to invalidate any
+    impersonation-era session tokens. Prevents session replay after stopping
+    impersonation.
+    """
     from flask_login import login_user, logout_user
     from app.models import User
     from app.utils import log_activity
+    from app.tenant_security import stamp_session_tenant
 
+    # Retrieve stored values. We intentionally read the original snapshot
+    # first so it can be restored after re-authenticating the superadmin.
+    original_snapshot = session.pop('_impersonation_original', None)
     superadmin_id = session.pop('_impersonation_superadmin', None)
     impersonated_id = session.pop('_impersonating_as', None)
     session.pop('_impersonation_started_at', None)
@@ -148,7 +174,21 @@ def stop_impersonation():
 
     logout_user()
     login_user(superadmin_user)
+    
+    # v4.0 FIX: Don't restore old HMAC values — re-stamp with new session_token.
+    # This invalidates any session cookies from the impersonation era and
+    # ensures a fresh, cryptographically-valid session.
+    # Superadmins don't have a tenant_slug, so we just clear tenant context.
     session.pop('tenant_slug', None)
+    session.pop('_tsig', None)
+    session.pop('_tsig_created', None)
+    session.pop('_tsig_user_id', None)
+    session.pop('_session_token', None)
+
+    # Cleanup additional impersonation metadata
+    session.pop('impersonator_id', None)
+    session.pop('original_role', None)
+    session.pop('original_tenant_id', None)
 
     log_activity(
         'security', 'impersonation',

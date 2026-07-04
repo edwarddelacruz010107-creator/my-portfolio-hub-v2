@@ -20,7 +20,9 @@ import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# BUG FIX (audit 2026-07-02): .parent.parent only reaches app/, not
+# project root -- 'from app import ...' below failed with ModuleNotFoundError.
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from sqlalchemy import inspect, text
 from app import create_app, db

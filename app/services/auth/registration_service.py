@@ -22,8 +22,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from app import db
-from app.models import User
-from app.models.core import Tenant
+from app.models import Profile, Tenant, User
 from app.security import log_security_event
 from app.utils import log_activity
 
@@ -77,25 +76,36 @@ def _issue_verification_token(user: User) -> str:
 
 def register_local_user(
     *,
+    username: str,
     full_name: str,
     email: str,
     password: str,
     ip: str,
     user_agent: Optional[str] = None,
-) -> tuple[User, str]:
+) -> User:
     """
-    Create a fresh local user + owned tenant. Returns (user, raw_verification_token).
+    Create a fresh local user + owned tenant. Returns the new User.
 
     Never assigns superadmin. Never joins the DEFAULT tenant.
     """
+    username = (username or '').strip()
     email = (email or '').strip().lower()
     full_name = (full_name or '').strip()
+    if not username:
+        raise RegistrationError('Please choose a username.')
+    if len(username) < 3 or len(username) > 64 or ' ' in username:
+        raise RegistrationError('Username must be 3–64 characters and cannot contain spaces.')
+    if User.query.filter_by(username=username).first():
+        raise RegistrationError('That username is already taken.')
     if not email or '@' not in email:
         raise RegistrationError('A valid email is required.')
     if not full_name:
         raise RegistrationError('Please provide your full name.')
-    if User.query.filter_by(email=email).first():
+    if User.query.filter_by(email=email, is_superadmin=False).first():
         raise RegistrationError('An account with that email already exists.')
+
+    now = datetime.now(timezone.utc)
+    trial_ends = now + timedelta(days=7)
 
     tenant = Tenant(
         slug=_unique_tenant_slug(full_name),
@@ -103,13 +113,40 @@ def register_local_user(
         email=email,
         contact_email=email,
         status='active',
-        plan='Basic',
+        plan='starter',
+        subscription_state='trial',
+        subscription_status='trial',
+        plan_name='starter',
+        trial_started_at=now,
+        trial_ends_at=trial_ends,
+        grace_period_ends_at=trial_ends + timedelta(days=3),
     )
     db.session.add(tenant)
     db.session.flush()
 
+    # SuperAdmin → All Tenants lists Profile rows (app/superadmin/routes/
+    # tenants.py queries profile_repository, not Tenant), not Tenant rows.
+    # The superadmin's own "Create New Tenant" flow already creates a
+    # Profile at creation time (see app/superadmin/routes/tenants.py), but
+    # self-service signup did not — so a tenant who registered themselves
+    # was invisible in SuperAdmin until they happened to visit their own
+    # Admin → Profile page (which lazily creates one). Creating it here
+    # closes that gap: self-service signups now show up immediately.
+    profile = Profile(
+        tenant=tenant,
+        tenant_id=tenant.id,
+        tenant_slug=tenant.slug,
+        name=full_name,
+        email=email,
+        plan='Basic',
+    )
+    if profile.tenant_id is None:
+        profile.tenant_id = tenant.id
+        profile.tenant_slug = tenant.slug
+    db.session.add(profile)
+
     user = User(
-        username=_unique_username(email),
+        username=username,
         email=email,
         tenant_slug=tenant.slug,
         tenant_id=tenant.id,
@@ -121,7 +158,12 @@ def register_local_user(
         last_login_user_agent=user_agent,
     )
     user.password = password           # setter → password_hash
-    raw_token = _issue_verification_token(user)
+    # NOTE (v3.10): token-link verification (_issue_verification_token) is no
+    # longer issued here — signup verification moved to OTP. The function
+    # and the /auth/verify-email/<token> route are left in place (unused by
+    # this path) rather than deleted; OTP issuance now happens in the route
+    # layer (routes_signup.register()) right after this call returns, so the
+    # email-send + rate-limit concerns stay out of the registration service.
 
     db.session.add(user)
     db.session.commit()
@@ -130,4 +172,4 @@ def register_local_user(
                  f'Local signup from {ip}', tenant_slug=tenant.slug)
     log_security_event('signup_local', user, f'Signup from {ip}', 'info')
     logger.info('REGISTER: created user id=%s tenant=%s', user.id, tenant.slug)
-    return user, raw_token
+    return user

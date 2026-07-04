@@ -49,17 +49,16 @@ from app.services.billing_handlers import (
     handle_billing_plans_post,
 )
 from app.services.manual_billing import get_payment_method_for_tenant
+# PHASE 1 FIX: this blueprint previously defined its own drifted copy of the
+# reserved-slug set (missing 'billing', 'webhooks', 'contact', 'setup',
+# 'system', and unaware of the new Phase 1 public-namespace slugs). There is
+# now exactly ONE canonical definition, in app.tenant_security. Do not
+# reintroduce a local copy here — see PHASE1_AUDIT.md.
+from app.tenant_security import RESERVED_SLUGS as _RESERVED_SLUGS
 
 logger = logging.getLogger(__name__)
 
 tenant_bp = Blueprint('tenant', __name__, url_prefix='/<tenant_slug>')
-
-# Slugs that CANNOT be used as tenant identifiers
-_RESERVED_SLUGS = frozenset({
-    'auth', 'admin', 'superadmin', 'static', 'health',
-    'heartbeat', 'favicon.ico', 'robots.txt',
-    'default',  # FIX: 'default' is served at root /, not as a slug
-})
 
 _SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9\-]{1,78}[a-z0-9]$|^[a-z0-9]{2,80}$')
 _EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$')
@@ -121,7 +120,7 @@ def load_tenant():
         # FIX: Admin/auth login routes must work even when the Profile row does
         # not exist yet (e.g. tenant was created by superadmin but admin has not
         # filled in their profile). Only 404 for PUBLIC portfolio routes.
-        admin_routes = ('/admin/', '/admin/login', '/auth/login', '/auth/2fa')
+        admin_routes = ('/studio/', '/studio/login', '/auth/login', '/auth/2fa')
         is_admin_route = any(request.path.rstrip('/').endswith(r.rstrip('/')) for r in admin_routes)
         if not profile and not is_admin_route:
             abort(404)
@@ -146,7 +145,7 @@ def load_tenant():
     # On billing routes: always allow through so tenant can subscribe.
     # On admin auth routes: allow through so tenant can log in.
     _allow_paths = (
-        '/billing', '/auth/', '/admin/login',
+        '/billing', '/auth/', '/studio/login',
     )
     _is_billing_or_auth = any(
         request.path.rstrip('/').startswith(f'/{slug}{p.rstrip("/")}')
@@ -592,12 +591,21 @@ def auth_login():
 @tenant_bp.route('/auth/logout')
 @login_required
 def auth_logout():
-    """Tenant-aware logout."""
+    """
+    Tenant-aware logout.
+    
+    v4.0 FIX: Also clears session_token to revoke HMAC signatures.
+    """
     from flask_login import logout_user
     tenant = g.tenant_slug
     log_activity('logout', 'user', current_user.username)
+    session.pop('_session_token', None)  # v4.0: clear session token for HMAC revocation
     session.pop('totp_verified', None)
     session.pop('tenant_slug', None)
+    session.pop('_tsig', None)
+    session.pop('_tsig_created', None)
+    session.pop('_tsig_user_id', None)
+    session.clear()
     logout_user()
     flash('You have been signed out.', 'info')
     return redirect(url_for('tenant.portfolio', tenant_slug=tenant))
@@ -612,10 +620,10 @@ def auth_2fa():
 
 # ── Admin redirect routes ─────────────────────────────────────────────────────
 
-@tenant_bp.route('/admin/login', methods=['GET', 'POST'])
-@tenant_bp.route('/admin/login/', methods=['GET', 'POST'])
+@tenant_bp.route('/studio/login', methods=['GET', 'POST'])
+@tenant_bp.route('/studio/login/', methods=['GET', 'POST'])
 def admin_login():
-    """Tenant-scoped admin login page at /<tenant_slug>/admin/login."""
+    """Tenant-scoped studio login page at /<tenant_slug>/studio/login."""
     from app.auth import _handle_login
     tenant = g.tenant_slug
 
@@ -635,12 +643,12 @@ def admin_login():
     )
 
 
-@tenant_bp.route('/admin/')
-@tenant_bp.route('/admin')
+@tenant_bp.route('/studio/')
+@tenant_bp.route('/studio')
 def admin_root():
     """
-    /<tenant_slug>/admin/ - Gate to admin panel.
-    Sets tenant context in session then forwards to /admin/.
+    /<tenant_slug>/studio/ - Gate to the tenant studio dashboard.
+    Sets tenant context in session then forwards to /studio/.
     """
     tenant = g.tenant_slug
     if current_user.is_authenticated:

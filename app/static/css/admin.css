@@ -70,12 +70,14 @@ html[data-theme="light"] .sidebar {
   border-radius: 10px;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, var(--accent), var(--accent-light));
+  background: #fff;
   color: #fff;
   font-size: 1rem;
   font-weight: 800;
   box-shadow: 0 4px 16px var(--accent-glow);
+  padding: 5px;
 }
+.logo-icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .logo-text { color: var(--text); letter-spacing: 0.03em; font-weight: 700; }
 .sidebar-close { display: none; background: none; border: none; color: var(--text-muted); font-size: 1rem; padding: 4px; }
 .sidebar-nav { flex: 1; padding: 1.5rem 0.85rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1.5rem; }

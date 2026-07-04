@@ -26,6 +26,12 @@ from sqlalchemy.ext.hybrid import hybrid_property
 
 from app import db
 
+import threading
+
+# Module-level lock to serialize singleton creation across threads/process
+_global_email_config_lock = threading.Lock()
+
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Utility helpers
@@ -38,21 +44,22 @@ def _utcnow():
     return datetime.now(timezone.utc)
 
 
-SUBSCRIPTION_PLAN_ORDER = {'Basic': 1, 'Pro': 2, 'Enterprise': 3}
+SUBSCRIPTION_PLAN_ORDER = {'starter': 1, 'pro': 2, 'business': 3, 'enterprise': 4}
 
 _PLAN_ALIASES = {
-    'basic': 'Basic',
-    'pro': 'Pro',
-    'professional': 'Pro',
-    'enterprise': 'Enterprise',
-    'trial': 'Trial',
-    'administrator': 'Administrator',
+    'basic': 'starter',
+    'starter': 'starter',
+    'pro': 'pro',
+    'professional': 'pro',
+    'business': 'business',
+    'enterprise': 'enterprise',
+    'administrator': 'enterprise',
 }
 
-PAID_PLAN_NAMES = frozenset({'Basic', 'Pro', 'Enterprise'})
+PAID_PLAN_NAMES = frozenset({'starter', 'pro', 'business', 'enterprise'})
 
 PLAN_FEATURES = {
-    'Basic': {
+    'starter': {
         'max_projects': 5,
         'max_skills': 20,
         'max_media_uploads': 10,
@@ -63,7 +70,7 @@ PLAN_FEATURES = {
         'api_access': False,
         'theme_customization': False,
     },
-    'Pro': {
+    'pro': {
         'max_projects': None,
         'max_skills': None,
         'max_media_uploads': None,
@@ -74,7 +81,7 @@ PLAN_FEATURES = {
         'api_access': False,
         'theme_customization': True,
     },
-    'Enterprise': {
+    'business': {
         'max_projects': None,
         'max_skills': None,
         'max_media_uploads': None,
@@ -90,13 +97,13 @@ PLAN_FEATURES = {
 
 def normalize_plan_name(plan: str) -> str:
     if not plan:
-        return 'Basic'
+        return 'starter'
     normalized = (plan or '').strip().lower()
-    return _PLAN_ALIASES.get(normalized, plan.strip().title())
+    return _PLAN_ALIASES.get(normalized, plan.strip().lower())
 
 
 def get_plan_features(plan: str) -> dict:
-    return PLAN_FEATURES.get(normalize_plan_name(plan), PLAN_FEATURES['Basic'])
+    return PLAN_FEATURES.get(normalize_plan_name(plan), PLAN_FEATURES['starter'])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -183,7 +190,15 @@ class Tenant(db.Model):
     form_provider  = db.Column(db.String(20),  nullable=False, default='internal', index=True)
     basin_endpoint = db.Column(db.Text,         nullable=True)
     status     = db.Column(db.String(50),  nullable=False, default='active')
-    plan       = db.Column(db.String(50),  nullable=False, default='Basic')
+    plan       = db.Column(db.String(50),  nullable=False, default='starter')
+    subscription_state = db.Column(db.String(32), nullable=False, default='trial')
+    trial_status = db.Column(db.String(30), nullable=False, default='trial')
+    plan_name  = db.Column(db.String(50), nullable=False, default='starter')
+    trial_started_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    trial_ends_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    grace_period_ends_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    subscription_started_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    subscription_expires_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
     updated_at = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
@@ -208,8 +223,31 @@ class Tenant(db.Model):
 
     @property
     def subscription_status(self) -> str:
+        state = (self.subscription_state or '').strip().lower()
+        if state in {'trial', 'active', 'grace', 'readonly', 'expired', 'suspended', 'cancelled'}:
+            return state
+
         active_sub = next((s for s in self.subscriptions if s.status not in ('cancelled', 'expired')), None)
-        return active_sub.status if active_sub else 'none'
+        if active_sub is not None:
+            return active_sub.status
+        return 'none'
+
+    def has_feature(self, feature: str) -> bool:
+        if self.subscription_state in {'readonly', 'suspended', 'expired', 'cancelled'}:
+            return False
+        return bool(get_plan_features(self.plan).get(feature, False))
+
+    def can_publish(self) -> bool:
+        return self.subscription_state in {'trial', 'active'}
+
+    def can_upload(self) -> bool:
+        return self.subscription_state in {'trial', 'active'}
+
+    @subscription_status.setter
+    def subscription_status(self, value: str | None) -> None:
+        state = (value or 'none').strip().lower()
+        self.subscription_state = state
+        self.trial_status = state
 
     def is_active_subscription(self) -> bool:
         return any(s.is_active() for s in self.subscriptions)
@@ -234,7 +272,10 @@ class User(UserMixin, db.Model):
 
     id            = db.Column(db.Integer, primary_key=True)
     username      = db.Column(db.String(64),  unique=True, nullable=False, index=True)
-    email         = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    # Allow duplicate emails so the same address can be used for a
+    # superadmin account and a tenant-scoped admin account with different
+    # passwords. Database migration will remove the unique constraint.
+    email         = db.Column(db.String(120), unique=False, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     tenant_slug   = db.Column(db.String(120), nullable=False, index=True, default='default')
     tenant_id     = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False, index=True)
@@ -266,6 +307,11 @@ class User(UserMixin, db.Model):
     google_id     = db.Column(db.String(255), unique=True, nullable=True, index=True)
     auth_provider = db.Column(db.String(20), nullable=False, default='local')  # 'local' | 'both'
     avatar_url    = db.Column(db.String(500), nullable=True)
+
+    email_verified             = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    email_verification_token   = db.Column(db.String(64), nullable=True, unique=True, index=True)
+    email_verification_expires = db.Column(db.DateTime(timezone=True), nullable=True)
+    last_login_user_agent      = db.Column(db.String(255), nullable=True)
 
     tenant = db.relationship('Tenant', back_populates='users', lazy='joined')
 
@@ -370,8 +416,67 @@ class User(UserMixin, db.Model):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# CORE MODEL: Subscription
+# CORE MODEL: PendingSignup
 # ═════════════════════════════════════════════════════════════════════════════
+
+class PendingSignup(db.Model):
+    """Temporary signup state for unverified local signups."""
+    __tablename__ = 'pending_signups'
+
+    id               = db.Column(db.Integer, primary_key=True)
+    email            = db.Column(db.String(120), nullable=False, index=True)
+    username         = db.Column(db.String(64), nullable=False, index=True)
+    full_name        = db.Column(db.String(100), nullable=False)
+    password_hash    = db.Column(db.String(255), nullable=False)
+    otp_hash         = db.Column(db.String(64), nullable=False)
+    otp_expires_at   = db.Column(db.DateTime(timezone=True), nullable=False)
+    otp_attempts     = db.Column(db.Integer, default=0, nullable=False)
+    last_otp_sent_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    email_verified   = db.Column(db.Boolean, nullable=False, default=False)
+    ip_address       = db.Column(db.String(45), nullable=True)
+    user_agent       = db.Column(db.String(300), nullable=True)
+    created_at       = db.Column(db.DateTime(timezone=True), default=_utcnow)
+    expires_at       = db.Column(db.DateTime(timezone=True), nullable=False)
+
+    def set_password(self, raw: str) -> None:
+        self.password_hash = generate_password_hash(raw)
+
+    def verify_password(self, raw: str) -> bool:
+        return check_password_hash(self.password_hash, raw)
+
+    def set_otp(self, raw: str, ttl_minutes: int) -> None:
+        self.otp_hash = hashlib.sha256(raw.encode()).hexdigest()
+        self.otp_expires_at = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
+        self.otp_attempts = 0
+        self.last_otp_sent_at = datetime.now(timezone.utc)
+
+    def verify_otp(self, raw: str, max_attempts: int = 5) -> tuple[bool, str]:
+        if self.otp_attempts >= max_attempts:
+            return False, 'Too many failed attempts. Request a new code.'
+
+        if datetime.now(timezone.utc) >= self.otp_expires_at:
+            return False, 'The code has expired. Request a new one.'
+
+        if self.otp_hash != hashlib.sha256(raw.encode()).hexdigest():
+            self.otp_attempts += 1
+            return False, f'Incorrect code. {max_attempts - self.otp_attempts} attempt(s) remaining.'
+
+        return True, ''
+
+    @property
+    def is_expired(self) -> bool:
+        exp = self.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) >= exp
+
+    def __repr__(self):
+        return f'<PendingSignup {self.email}>'
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CORE MODEL: Subscription
+# ═════════════════════════════════════════════════════════════════════
 
 class Subscription(db.Model):
     """PayMongo / manual subscription for a tenant."""
@@ -861,6 +966,15 @@ class PaymentSubmission(db.Model):
     payment_method_id = db.Column(db.Integer, db.ForeignKey('payment_methods.id'), nullable=True, index=True)
     plan              = db.Column(db.String(50), nullable=False, default='Basic')
     amount_paid       = db.Column(db.Float, default=0.0)
+    # FIX [MED-COUPON-01]: system-computed reference price at submission time
+    # (list price for `plan`/billing_cycle minus any validated coupon),
+    # captured via discount_checkout.quote_for_context() in
+    # manual_billing.submit_manual_payment(). Nullable because historical
+    # rows predating this column have no reliable value to backfill —
+    # review UI must treat expected_amount is None as "no reference
+    # available", not "expected zero".
+    expected_amount      = db.Column(db.Float, nullable=True)
+    coupon_code_applied  = db.Column(db.String(50), nullable=True)
     payment_method    = db.Column(db.String(100), default='')
     payment_reference = db.Column(db.String(255), default='')
     payment_proof     = db.Column(db.String(255), default='')
@@ -895,7 +1009,11 @@ class PlatformSetting(db.Model):
     __tablename__ = 'platform_settings'
 
     key        = db.Column(db.String(100), primary_key=True)
-    value      = db.Column(db.String(500), nullable=False, default='')
+    # TEXT (not VARCHAR(500)) as of migration 0044 — holds JSON-encoded
+    # structured settings (see get_json/set_json) in addition to plain
+    # strings. Model must match DB type or Alembic autogenerate will flag
+    # drift on the next `alembic revision --autogenerate`.
+    value      = db.Column(db.Text, nullable=False, default='')
     updated_at = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
     @classmethod
@@ -931,6 +1049,62 @@ class PlatformSetting(db.Model):
             row = cls(key=key)
             db.session.add(row)
         row.value      = str(float(value))
+        row.updated_at = _utcnow()
+
+    @classmethod
+    def get_string(cls, key: str, default: str | None = None) -> str | None:
+        row = db.session.get(cls, key)
+        if row is None:
+            return default
+        return row.value or default
+
+    @classmethod
+    def set_string(cls, key: str, value: str) -> None:
+        row = db.session.get(cls, key)
+        if row is None:
+            row = cls(key=key)
+            db.session.add(row)
+        row.value      = value or ''
+        row.updated_at = _utcnow()
+
+    # ── JSON helpers (v6.7 — Pricing CMS + any future structured settings) ──
+    #
+    # `value` is TEXT (widened from VARCHAR(500) in migration
+    # 0044_widen_platform_setting_value) so this safely stores small JSON
+    # blobs (per-plan pricing overrides, feature lists, etc.) without a new
+    # table. A hard serialized-size cap is enforced app-side regardless of
+    # the column type, since this is reachable from superadmin form input
+    # and unbounded growth here is still a (low-severity, admin-only) DoS
+    # surface worth capping defensively.
+
+    _JSON_MAX_BYTES = 8_000
+
+    @classmethod
+    def get_json(cls, key: str, default=None):
+        row = db.session.get(cls, key)
+        if row is None or not row.value:
+            return default
+        try:
+            return json.loads(row.value)
+        except (TypeError, ValueError):
+            _logging.getLogger(__name__).warning(
+                "PlatformSetting.get_json: corrupt JSON for key=%s", key
+            )
+            return default
+
+    @classmethod
+    def set_json(cls, key: str, value) -> None:
+        serialized = json.dumps(value, separators=(',', ':'), ensure_ascii=False)
+        if len(serialized.encode('utf-8')) > cls._JSON_MAX_BYTES:
+            raise ValueError(
+                f"PlatformSetting.set_json: value for key={key!r} exceeds "
+                f"{cls._JSON_MAX_BYTES} byte cap ({len(serialized.encode('utf-8'))} bytes)."
+            )
+        row = db.session.get(cls, key)
+        if row is None:
+            row = cls(key=key)
+            db.session.add(row)
+        row.value      = serialized
         row.updated_at = _utcnow()
 
 
@@ -1189,20 +1363,69 @@ class GlobalEmailConfig(db.Model):
             config = db.session.get(cls, 1)
 
         if config is None:
-            try:
-                config = cls(
-                    id=1,
-                    sender_name="Portfolio CMS",
-                    otp_expiry_minutes=10,
-                    recovery_enabled=True
-                )
-
-                db.session.add(config)
-                db.session.commit()
-
-            except IntegrityError:
-                db.session.rollback()
+            # Serialize creation to avoid SQLite connection/parameter issues
+            with _global_email_config_lock:
+                # Double-check after acquiring lock
                 config = db.session.get(cls, 1)
+                if config is None:
+                    try:
+                        # Use a raw INSERT OR IGNORE to avoid ORM/session parameter
+                        # races on SQLite when multiple threads attempt to create
+                        # the same singleton concurrently.
+                        from sqlalchemy import text
+                        bind = db.session.get_bind()
+                        stmt = text(
+                            "INSERT OR IGNORE INTO global_email_config (id, sender_name, otp_expiry_minutes, recovery_enabled) VALUES (:id, :sender_name, :otp, :recovery)"
+                        )
+                        # Use a transactional connection to ensure the INSERT is
+                        # committed and visible to other sessions/threads.
+                        try:
+                            with bind.begin() as conn:
+                                conn.execute(stmt, {"id": 1, "sender_name": "Portfolio CMS", "otp": 10, "recovery": 1})
+                        except Exception:
+                            # Some DB backends may not expose begin() on the bind
+                            # object (fallback to execute on the bind itself).
+                            bind.execute(stmt, {"id": 1, "sender_name": "Portfolio CMS", "otp": 10, "recovery": 1})
+                        # Ensure visibility in this session
+                        db.session.remove()
+                        config = (
+                            db.session.query(cls)
+                            .execution_options(populate_existing=True)
+                            .filter_by(id=1)
+                            .first()
+                        )
+                        if config is None:
+                            import logging as _logging
+                            _logging.getLogger(__name__).critical(
+                                'GlobalEmailConfig race condition: failed to create/retrieve singleton after raw insert'
+                            )
+                            raise
+                    except Exception:
+                        # Fallback to ORM path if raw insert fails for any reason
+                        try:
+                            config = cls(
+                                id=1,
+                                sender_name="Portfolio CMS",
+                                otp_expiry_minutes=10,
+                                recovery_enabled=True
+                            )
+                            db.session.add(config)
+                            db.session.commit()
+                        except IntegrityError:
+                            db.session.rollback()
+                            db.session.remove()
+                            config = (
+                                db.session.query(cls)
+                                .execution_options(populate_existing=True)
+                                .filter_by(id=1)
+                                .first()
+                            )
+                            if config is None:
+                                import logging as _logging
+                                _logging.getLogger(__name__).critical(
+                                    'GlobalEmailConfig race condition: failed to create/retrieve singleton after fallback'
+                                )
+                                raise
 
         return config
 
@@ -1421,18 +1644,77 @@ class GlobalEmailConfig(db.Model):
 
     def get_sa_provider_priority(self) -> list:
         """Return ordered provider list, defaulting to ['mailersend','smtp','resend']."""
-        import json
+        import json, logging
+        from app.services.email.constants import VALID_EMAIL_PROVIDERS, DEFAULT_PROVIDER_PRIORITY
+
+        logger = logging.getLogger(__name__)
         try:
-            order = json.loads(self.sa_provider_priority or '[]')
-            if isinstance(order, list):
-                return order
-        except (ValueError, TypeError):
-            pass
-        return ['mailersend', 'smtp', 'resend']
+            raw = self.sa_provider_priority or '[]'
+            parsed = json.loads(raw)
+            if not isinstance(parsed, list):
+                raise ValueError('sa_provider_priority not a list')
+        except Exception:
+            # Malformed JSON or unexpected type — recover to default
+            parsed = []
+
+        # Filter to known providers, preserve order, dedupe
+        seen = set()
+        filtered = []
+        valid_set = set(VALID_EMAIL_PROVIDERS)
+        for p in parsed:
+            try:
+                pname = str(p).strip()
+            except Exception:
+                continue
+            if pname in valid_set and pname not in seen:
+                filtered.append(pname)
+                seen.add(pname)
+
+        repaired = False
+        if not filtered:
+            # Empty or no valid providers -> use system default
+            filtered = list(DEFAULT_PROVIDER_PRIORITY)
+            repaired = True
+
+        # If parsed differs (e.g., malformed entries removed), persist repair
+        try:
+            if not repaired and json.dumps(parsed) != json.dumps(filtered):
+                repaired = True
+        except Exception:
+            repaired = True
+
+        if repaired:
+            try:
+                self.sa_provider_priority = json.dumps(filtered)
+                # Best-effort persist so callers (including non-request code) see repaired state
+                db.session.add(self)
+                db.session.commit()
+                logger.warning('Repaired corrupted GlobalEmailConfig.sa_provider_priority to defaults')
+            except Exception:
+                logger.exception('Failed to persist repaired sa_provider_priority')
+
+        return filtered
 
     def set_sa_provider_priority(self, order: list):
         import json
-        self.sa_provider_priority = json.dumps(order)
+        from app.services.email.constants import VALID_EMAIL_PROVIDERS
+
+        if not isinstance(order, list):
+            raise ValueError('order must be a list')
+
+        valid_set = set(VALID_EMAIL_PROVIDERS)
+        seen = set()
+        filtered = []
+        for p in order:
+            pname = str(p).strip()
+            if pname in valid_set and pname not in seen:
+                filtered.append(pname)
+                seen.add(pname)
+
+        if not filtered:
+            raise ValueError('priority order must include at least one valid provider')
+
+        self.sa_provider_priority = json.dumps(filtered)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1464,6 +1746,12 @@ class Inquiry(db.Model):
     email      = db.Column(db.String(120), nullable=False)
     subject    = db.Column(db.String(200), default='')
     message    = db.Column(db.Text, nullable=False)
+    phone      = db.Column(db.String(50), nullable=True)
+    company    = db.Column(db.String(200), nullable=True)
+    admin_notified = db.Column(db.Boolean, default=False, nullable=False, server_default='0')
+    auto_reply_sent = db.Column(db.Boolean, default=False, nullable=False, server_default='0')
+    spam_score = db.Column(db.Float, default=0.0, nullable=False, server_default='0')
+    is_spam    = db.Column(db.Boolean, default=False, nullable=False, server_default='0')
     ip_address = db.Column(db.String(45), nullable=True)
     sender     = db.Column(db.String(50), nullable=False, default='visitor', server_default='visitor')
     is_read    = db.Column(db.Boolean, default=False)

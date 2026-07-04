@@ -58,7 +58,7 @@ def _get_mailersend_key(portal: str = 'tenant') -> str:
     """
     try:
         from app.models.portfolio import GlobalEmailConfig
-        cfg = GlobalEmailConfig.get()
+        cfg = GlobalEmailConfig.get(fresh=True)  # fresh read required at send-time / credential-resolution time
         key = cfg.get_portal_key(portal)
         if key:
             return key
@@ -203,7 +203,7 @@ def _get_sender_name(cfg=None, portal: str = 'tenant') -> str:
     try:
         if cfg is None:
             from app.models.portfolio import GlobalEmailConfig
-            cfg = GlobalEmailConfig.get()
+            cfg = GlobalEmailConfig.get(fresh=True)  # fresh read required at send-time / credential-resolution time
         return cfg.get_portal_sender_name(portal) or os.environ.get('MAILERSEND_FROM_NAME', 'Portfolio CMS')
     except Exception:
         pass
@@ -219,7 +219,7 @@ def _get_sender_email(cfg=None, portal: str = 'tenant') -> str:
     try:
         if cfg is None:
             from app.models.portfolio import GlobalEmailConfig
-            cfg = GlobalEmailConfig.get()
+            cfg = GlobalEmailConfig.get(fresh=True)  # fresh read required at send-time / credential-resolution time
         return cfg.get_portal_sender_email(portal) or os.environ.get('MAILERSEND_FROM_EMAIL', 'noreply@portfoliocms.app')
     except Exception:
         pass

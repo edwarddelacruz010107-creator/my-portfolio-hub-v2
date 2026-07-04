@@ -80,7 +80,9 @@
         <small class="text-muted">{{ ts.strftime('%H:%M') if ts else '' }}</small>
       </span>
       <span>
-        {% if msg.thread_unread_super > 0 %}
+        {% if msg.submission_id and msg.submission_id.startswith('landing:') %}
+          <span class="tag-sm tag-primary">Landing Page</span>
+        {% elif msg.thread_unread_super > 0 %}
           <span class="tag-sm tag-accent">New Reply</span>
         {% elif msg.sender == 'superadmin' %}
           <span class="tag-sm tag-muted">Sent</span>

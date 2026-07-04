@@ -33,6 +33,9 @@ tests rely on:
         _require_tenant_object, _tenant_slug_filter, block_public_admin
 """
 
+from flask_login import current_user
+from flask_login import current_user
+from app.tenant_security import stamp_session_tenant
 from app.admin.blueprint import (
     admin,
     admin_required,

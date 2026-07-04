@@ -120,12 +120,12 @@ function markFormDirty(formSelector) {
 
 // ── Skills page init ─────────────────────────
 if (document.querySelector('.skill-list')) {
-  initDragReorder('.skill-list', '/admin/skills/reorder');
+  initDragReorder('.skill-list', '/studio/skills/reorder');
 }
 
 // ── Projects page init ───────────────────────
 if (document.querySelector('.project-grid')) {
-  initDragReorder('.project-grid', '/admin/projects/reorder');
+  initDragReorder('.project-grid', '/studio/projects/reorder');
 }
 
 // ── Form dirty tracking ──────────────────────

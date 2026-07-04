@@ -103,11 +103,20 @@ def login():
 
 @superadmin.route('/logout')
 def logout():
-    """Superadmin logout — clears session and redirects to superadmin login."""
+    """
+    Superadmin logout — clears session and redirects to superadmin login.
+    
+    v4.0 FIX: Also clears session_token to revoke HMAC signatures.
+    """
     if current_user.is_authenticated:
         log_activity('logout', 'user', current_user.username)
+    session.pop('_session_token', None)  # v4.0: clear session token for HMAC revocation
     session.pop('totp_verified', None)
     session.pop('tenant_slug', None)
+    session.pop('_tsig', None)
+    session.pop('_tsig_created', None)
+    session.pop('_tsig_user_id', None)
+    session.clear()
     logout_user()
     flash('Signed out from superadmin.', 'info')
     return redirect(url_for('superadmin.login'))

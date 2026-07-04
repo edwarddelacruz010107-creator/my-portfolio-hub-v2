@@ -48,6 +48,59 @@ class ChangePasswordForm(FlaskForm):
     submit = SubmitField('Change Password')
 
 
+class RegisterForm(FlaskForm):
+    """Public signup form — used by /auth/register and the /auth portal's
+    Create Account tab. Was defined in app/forms_patch/FORMS_ADDITIONS.py
+    but never actually merged into this module, so importing it raised
+    ImportError; moved here for real rather than left as an unapplied patch."""
+    username         = StringField('Username',
+                                    validators=[DataRequired(), Length(min=3, max=64)])
+    full_name        = StringField('Full Name',
+                                    validators=[DataRequired(), Length(min=2, max=100)])
+    email            = EmailField('Email',
+                                    validators=[DataRequired(), Email(), Length(max=120)])
+    password         = PasswordField('Password',
+                                    validators=[DataRequired(), password_policy_check])
+    confirm_password = PasswordField('Confirm Password',
+                                    validators=[DataRequired(),
+                                                EqualTo('password',
+                                                        message='Passwords must match.')])
+    accept_terms     = BooleanField('I accept the Terms of Service and Privacy Policy',
+                                    validators=[DataRequired(message='You must accept the terms.')])
+    submit           = SubmitField('Create Account')
+
+    def validate_username(self, field):
+        from app.models import User
+        username = field.data.strip()
+        if ' ' in username:
+            raise ValidationError('Username cannot contain spaces.')
+        existing = User.query.filter(User.username == username).first()
+        if existing:
+            raise ValidationError('That username is already taken.')
+
+    def validate_email(self, field):
+        from app.models import User
+        existing = User.query.filter_by(email=field.data.strip().lower(), is_superadmin=False).first()
+        if existing:
+            raise ValidationError('An account with that email already exists. Try signing in.')
+
+
+class ResendVerificationForm(FlaskForm):
+    email  = EmailField('Email', validators=[DataRequired(), Email()])
+    submit = SubmitField('Resend verification email')
+
+
+class EmailOTPForm(FlaskForm):
+    """6-digit signup email-verification code. CSRF-protected like every
+    other form here; the code itself is validated server-side against the
+    hashed PasswordResetOTP record (user_type='email_verify')."""
+    code = StringField(
+        'Verification code',
+        validators=[DataRequired(), Length(min=6, max=6, message='Enter the 6-digit code.')],
+    )
+    submit = SubmitField('Verify')
+
+
 class SuperadminAccountForm(FlaskForm):
     username = StringField(
         'Username',
@@ -145,6 +198,88 @@ class TenantForm(FlaskForm):
     admin_username = StringField('Admin Username', validators=[DataRequired(), Length(min=3, max=80)])
     admin_email = EmailField('Admin Email', validators=[DataRequired(), Email()])
     submit = SubmitField('Save Tenant')
+
+
+class LandingPageSettingsForm(FlaskForm):
+    hero_badge = StringField('Hero Badge', validators=[Optional(), Length(max=80)])
+    hero_title = StringField('Hero Headline', validators=[Optional(), Length(max=200)])
+    hero_subtitle = TextAreaField('Hero Subtitle', validators=[Optional(), Length(max=400)])
+    hero_cta_primary_text = StringField('Primary CTA Label', validators=[Optional(), Length(max=80)])
+    hero_cta_primary_url = StringField('Primary CTA URL', validators=[Optional(), Length(max=255)])
+    hero_cta_secondary_text = StringField('Secondary CTA Label', validators=[Optional(), Length(max=80)])
+    hero_cta_secondary_url = StringField('Secondary CTA URL', validators=[Optional(), Length(max=255)])
+    hero_image_url = StringField('Hero Visual URL', validators=[Optional(), Length(max=500)])
+    hero_preview_name = StringField('Preview Profile Name', validators=[Optional(), Length(max=80)])
+    hero_preview_role = StringField('Preview Profile Role', validators=[Optional(), Length(max=100)])
+    hero_preview_url_text = StringField('Preview Browser URL Text', validators=[Optional(), Length(max=80)])
+    hero_stat_badge_text = StringField('Floating Badge Text', validators=[Optional(), Length(max=60)])
+    hero_stat_likes = StringField('Likes Stat', validators=[Optional(), Length(max=20)])
+    hero_stat_views = StringField('Views Stat', validators=[Optional(), Length(max=20)])
+    hero_stat_comments = StringField('Comments Stat', validators=[Optional(), Length(max=20)])
+    hero_enable_widgets = BooleanField('Show floating widgets', validators=[Optional()])
+    hero_enable_animation = BooleanField('Enable hero animation', validators=[Optional()])
+    features_heading = StringField('Features Heading', validators=[Optional(), Length(max=120)])
+    features_subtitle = TextAreaField('Features Subtitle', validators=[Optional(), Length(max=300)])
+    contact_heading = StringField('Contact Section Heading', validators=[Optional(), Length(max=120)])
+    contact_subtitle = TextAreaField('Contact Section Subtitle', validators=[Optional(), Length(max=300)])
+    founder_photo_url = StringField('Founder Photo URL', validators=[Optional(), Length(max=500)])
+    founder_preview_image = StringField('Founder Preview Image URL', validators=[Optional(), Length(max=500)])
+    founder_role = StringField('Founder Role', validators=[Optional(), Length(max=100)])
+    founder_title = StringField('Founder Title', validators=[Optional(), Length(max=100)])
+    founder_name = StringField('Founder Name', validators=[Optional(), Length(max=100)])
+    founder_description = TextAreaField('Founder Description', validators=[Optional(), Length(max=400)])
+    founder_portfolio_url = StringField('Founder Portfolio URL', validators=[Optional(), Length(max=255)])
+    founder_contact_url = StringField('Founder Contact URL', validators=[Optional(), Length(max=255)])
+    submit = SubmitField('Save Landing Content')
+
+
+class PricingSettingsForm(FlaskForm):
+    """Superadmin Pricing CMS — marketing-only overrides on top of the
+    code-owned app.utils.BILLING_PLANS (price amounts are never editable
+    here; see app/public/services/pricing_service.py for the split)."""
+
+    # Section copy
+    heading = StringField('Section Heading', validators=[Optional(), Length(max=120)])
+    subtitle = TextAreaField('Section Subtitle', validators=[Optional(), Length(max=300)])
+    footnote = TextAreaField('Footnote (shown when checkout is disabled)', validators=[Optional(), Length(max=300)])
+    yearly_toggle_enabled = BooleanField('Show monthly / yearly toggle', validators=[Optional()])
+
+    # Basic plan
+    basic_badge_text = StringField('Badge Text', validators=[Optional(), Length(max=40)])
+    basic_cta_text = StringField('CTA Label', validators=[Optional(), Length(max=40)])
+    basic_cta_url = StringField('CTA URL', validators=[Optional(), Length(max=255)])
+    basic_description_override = TextAreaField('Description Override', validators=[Optional(), Length(max=200)])
+    basic_features_override = TextAreaField('Feature List Override (one per line)', validators=[Optional(), Length(max=1000)])
+    basic_highlighted = BooleanField('Highlight this plan', validators=[Optional()])
+
+    # Pro plan
+    pro_badge_text = StringField('Badge Text', validators=[Optional(), Length(max=40)])
+    pro_cta_text = StringField('CTA Label', validators=[Optional(), Length(max=40)])
+    pro_cta_url = StringField('CTA URL', validators=[Optional(), Length(max=255)])
+    pro_description_override = TextAreaField('Description Override', validators=[Optional(), Length(max=200)])
+    pro_features_override = TextAreaField('Feature List Override (one per line)', validators=[Optional(), Length(max=1000)])
+    pro_highlighted = BooleanField('Highlight this plan', validators=[Optional()])
+
+    # Enterprise plan
+    enterprise_badge_text = StringField('Badge Text', validators=[Optional(), Length(max=40)])
+    enterprise_cta_text = StringField('CTA Label', validators=[Optional(), Length(max=40)])
+    enterprise_cta_url = StringField('CTA URL', validators=[Optional(), Length(max=255)])
+    enterprise_description_override = TextAreaField('Description Override', validators=[Optional(), Length(max=200)])
+    enterprise_features_override = TextAreaField('Feature List Override (one per line)', validators=[Optional(), Length(max=1000)])
+    enterprise_highlighted = BooleanField('Highlight this plan', validators=[Optional()])
+
+    submit = SubmitField('Save Pricing Content')
+
+
+class LandingContactForm(FlaskForm):
+    full_name = StringField('Full name', validators=[DataRequired(), Length(min=2, max=120)])
+    email = EmailField('Email', validators=[DataRequired(), Email(), Length(max=120)])
+    subject = StringField('Subject', validators=[DataRequired(), Length(max=200)])
+    message = TextAreaField('Message', validators=[DataRequired(), Length(min=10, max=5000)])
+    phone = StringField('Phone', validators=[Optional(), Length(max=50)])
+    company = StringField('Company', validators=[Optional(), Length(max=200)])
+    honeypot = HiddenField('', validators=[Length(max=0)])
+    submit = SubmitField('Send Message')
 
 
 class PlanSelectionForm(FlaskForm):

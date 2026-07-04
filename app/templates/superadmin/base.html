@@ -38,7 +38,7 @@
 <aside class="sidebar" id="sidebar" aria-label="Superadmin navigation">
   <div class="sidebar-header">
     <div class="sidebar-logo">
-      <span class="logo-icon sa-logo-icon" style="background:linear-gradient(135deg,#a855f7,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:1.1rem;width:32px;height:32px;display:grid;place-items:center;border-radius:8px;flex-shrink:0;">⬡</span>
+      <span class="logo-icon sa-logo-icon" style="background:#fff;width:32px;height:32px;display:grid;place-items:center;border-radius:8px;flex-shrink:0;padding:5px;box-shadow:0 4px 16px rgba(99,102,241,0.35);"><img src="{{ url_for('static', filename='img/brand/logo-mark.svg') }}" alt="" width="100%" height="100%" style="object-fit:contain;display:block;"/></span>
       <span class="logo-text">SuperAdmin</span>
     </div>
     <button type="button" class="sidebar-close" id="sidebarClose" aria-label="Close sidebar">
@@ -68,6 +68,18 @@
         <span class="nav-icon"><iconify-icon icon="lucide:layout-dashboard" width="17"></iconify-icon></span>
         Overview
       </a>
+      <a href="{{ url_for('superadmin.landing_settings') }}"
+         class="nav-item {% if request.endpoint == 'superadmin.landing_settings' %}active{% endif %}"
+         {% if request.endpoint == 'superadmin.landing_settings' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:globe" width="17"></iconify-icon></span>
+        Landing CMS
+      </a>
+      <a href="{{ url_for('superadmin.pricing_settings') }}"
+         class="nav-item {% if request.endpoint == 'superadmin.pricing_settings' %}active{% endif %}"
+         {% if request.endpoint == 'superadmin.pricing_settings' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:credit-card" width="17"></iconify-icon></span>
+        Pricing CMS
+      </a>
     </div>
 
     <div class="nav-section">
@@ -90,6 +102,9 @@
          {% if request.endpoint in ('superadmin.messages_inbox','superadmin.message_thread') %}aria-current="page"{% endif %}>
         <span class="nav-icon"><iconify-icon icon="lucide:inbox" width="17"></iconify-icon></span>
         Messages
+        {% if message_unread_count %}
+          <span class="nav-badge nav-badge-small">{{ message_unread_count }}</span>
+        {% endif %}
       </a>
       <a href="{{ url_for('superadmin.send_message') }}"
          class="nav-item {% if request.endpoint == 'superadmin.send_message' %}active{% endif %}"

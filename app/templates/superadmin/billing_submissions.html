@@ -291,9 +291,26 @@
       <tr data-submission-id="{{ submission.id }}">
         <td style="white-space:nowrap">{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') if submission.submitted_at else '—' }}</td>
         <td><strong>{{ submission.tenant.slug if submission.tenant else 'Unknown' }}</strong></td>
-        <td>{{ submission.plan }}</td>
+        <td>{{ submission.plan }}{% if submission.coupon_code_applied %} <span class="badge bg-info" title="Coupon applied">{{ submission.coupon_code_applied }}</span>{% endif %}</td>
         <td>{{ submission.payment_method or '—' }}</td>
-        <td>{% if submission.amount_paid %}₱{{ "%.2f"|format(submission.amount_paid) }}{% else %}—{% endif %}</td>
+        {# FIX [MED-COUPON-01]: surface the system-computed expected amount next
+           to the tenant's self-reported figure so a mismatch is visible without
+           the reviewer manually recomputing list_price - coupon per row. #}
+        <td>
+          {% if submission.amount_paid %}₱{{ "%.2f"|format(submission.amount_paid) }}{% else %}—{% endif %}
+          {% if submission.expected_amount is not none %}
+            {% set diff = (submission.amount_paid or 0) - submission.expected_amount %}
+            {% if diff < -0.01 %}
+              <span class="badge bg-danger" title="Expected ₱{{ '%.2f'|format(submission.expected_amount) }} — short by ₱{{ '%.2f'|format(-diff) }}">⚠ under expected</span>
+            {% elif diff > 0.01 %}
+              <span class="badge bg-warning text-dark" title="Expected ₱{{ '%.2f'|format(submission.expected_amount) }} — over by ₱{{ '%.2f'|format(diff) }}">over expected</span>
+            {% else %}
+              <span class="badge bg-success" title="Matches expected ₱{{ '%.2f'|format(submission.expected_amount) }}">✓ matches</span>
+            {% endif %}
+          {% else %}
+            <span class="text-muted small" title="No reference price captured for this submission (pre-fix record or quote failed)">no reference</span>
+          {% endif %}
+        </td>
 
         <td>
           <span class="status-pill
@@ -385,6 +402,7 @@
                     data-submission-tenant="{{ submission.tenant.slug if submission.tenant else '?' }}"
                     data-submission-plan="{{ submission.plan }}"
                     data-submission-amount="₱{{ '%.2f'|format(submission.amount_paid) if submission.amount_paid else '0.00' }}"
+                    data-submission-expected="{{ '₱%.2f'|format(submission.expected_amount) if submission.expected_amount is not none else '' }}"
                     data-review-url="{{ url_for('superadmin.billing_submission_review', submission_id=submission.id) }}"
                     title="Approve — activates subscription">
               <iconify-icon icon="lucide:check" width="14"></iconify-icon>
@@ -397,6 +415,7 @@
                     data-submission-tenant="{{ submission.tenant.slug if submission.tenant else '?' }}"
                     data-submission-plan="{{ submission.plan }}"
                     data-submission-amount="₱{{ '%.2f'|format(submission.amount_paid) if submission.amount_paid else '0.00' }}"
+                    data-submission-expected="{{ '₱%.2f'|format(submission.expected_amount) if submission.expected_amount is not none else '' }}"
                     data-review-url="{{ url_for('superadmin.billing_submission_review', submission_id=submission.id) }}"
                     title="Reject payment submission">
               <iconify-icon icon="lucide:x" width="14"></iconify-icon>
@@ -581,6 +600,7 @@
     const tenant  = btn.dataset.submissionTenant;
     const plan    = btn.dataset.submissionPlan;
     const amount  = btn.dataset.submissionAmount;
+    const expected = btn.dataset.submissionExpected;
 
     // Set form target
     reviewForm.action = url;
@@ -600,10 +620,30 @@
       reviewConfirmLbl.textContent = 'Reject Submission';
     }
 
+    // FIX [MED-COUPON-01]: show the system-computed reference price right
+    // at the point of approval — this is the actual decision moment, not
+    // just the table row. Flag mismatches so a reviewer can't approve an
+    // underpaid submission without seeing the discrepancy first.
+    let amountLine = `<strong>Amount Paid:</strong> ${amount}`;
+    if (expected) {
+      const paidNum = parseFloat((amount || '').replace(/[^\d.-]/g, '')) || 0;
+      const expNum  = parseFloat(expected.replace(/[^\d.-]/g, '')) || 0;
+      const diff = paidNum - expNum;
+      let flag = '';
+      if (diff < -0.01) {
+        flag = `<span style="color:#dc3545;font-weight:600"> ⚠ short by ₱${Math.abs(diff).toFixed(2)}</span>`;
+      } else if (diff > 0.01) {
+        flag = `<span style="color:#b58900;font-weight:600"> (over by ₱${diff.toFixed(2)})</span>`;
+      } else {
+        flag = `<span style="color:#198754"> ✓ matches</span>`;
+      }
+      amountLine = `<strong>Amount Paid:</strong> ${amount}<br><strong>Expected:</strong> ${expected}${flag}`;
+    }
+
     reviewModalMeta.innerHTML = `
       <strong>Tenant:</strong> ${tenant}<br>
       <strong>Plan:</strong> ${plan}<br>
-      <strong>Amount:</strong> ${amount}
+      ${amountLine}
     `;
 
     reviewOverlay.classList.add('open');

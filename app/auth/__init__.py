@@ -49,7 +49,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from app import db, limiter
 from app.models.portfolio import Profile
 from app.models import User
-from app.forms import LoginForm, TOTPVerifyForm, ForgotPasswordForm
+from app.forms import LoginForm, RegisterForm, TOTPVerifyForm, ForgotPasswordForm
 from app.utils import log_activity
 from app.security import AccountLockout, log_security_event
 from app.tenant_security import (
@@ -211,40 +211,66 @@ def _is_safe_url(target: str) -> bool:
 
 
 def _render_login_page(form, action_url, title, subtitle, allow_google=True):
+    """
+    v6.0 — Auth surface unification.
+
+    Historically this rendered the standalone 'auth/login.html' template —
+    a second, visually-divergent sign-in screen that only ever appeared on
+    a FAILED /auth/login (or /<tenant>/auth/login, or admin.login_alias)
+    submission, since the GET path already redirects to the unified
+    auth.portal() screen. That meant a wrong password would silently swap
+    the user from the new glassmorphism portal onto a completely different
+    legacy page — the exact "two login pages" duplication this unification
+    pass removes. 'auth/login.html' and the never-imported 'auth/register.html'
+    are deleted; this function is now the ONLY thing standing between a
+    validation failure and the page the user sees, for every non-superadmin
+    login surface (default-tenant admin, real tenants, admin blueprint alias).
+
+    Superadmin is the one deliberate exception — see SECURITY NOTE below —
+    and keeps its own isolated, unlinked template so a bug in the public
+    sign-in/registration surface can never share blast radius with the
+    platform-owner privilege tier.
+    """
     from flask import request as _req
     from flask import current_app
-    # Determine the correct forgot-password URL based on which portal is serving the login.
-    # v5.6 FIX: The root /auth/login page (admin portal) previously routed to
-    # auth.forgot_password which uses the LINK-based flow (send_verification_email +
-    # token URL). That flow is broken/inconsistent with the OTP architecture used by
-    # every other portal. Admin portal now correctly routes to admin.forgot_password
-    # which uses the same OTP-based service layer (initiate_admin_reset → OTP → verify → reset).
+
     path = _req.path
-    if '/superadmin/' in path:
+    is_superadmin_ctx = '/superadmin/' in path
+    if is_superadmin_ctx:
         forgot_url = url_for('superadmin.forgot_password_request')
     elif getattr(g, 'tenant_slug', None) and not _is_default_tenant(
         getattr(g, 'tenant_slug', None)
     ):
-        # Real tenant slug (non-default) → tenant blueprint OTP flow
         forgot_url = url_for('tenant.auth_forgot_password', tenant_slug=g.tenant_slug)
     else:
-        # Default admin portal → admin blueprint OTP flow (v5.6: was auth.forgot_password)
         forgot_url = url_for('admin.forgot_password')
 
-    # Google Sign-In is NEVER offered on the superadmin portal, regardless of
-    # GOOGLE_OAUTH_ENABLED — superadmin auth stays password + TOTP only.
+    # SECURITY NOTE: Google Sign-In and the public registration tab are NEVER
+    # offered on the superadmin portal regardless of config — superadmin auth
+    # stays password + TOTP only, on its own template, never on auth/portal.html.
+    if is_superadmin_ctx:
+        return render_template(
+            'superadmin/login.html',
+            form=form,
+            action_url=action_url,
+            page_title=title,
+            page_subtitle=subtitle,
+            forgot_password_url=forgot_url,
+        )
+
     show_google = allow_google and bool(current_app.config.get('GOOGLE_OAUTH_ENABLED'))
 
     return render_template(
-        'auth/login.html',
-        form=form,
-        action_url=action_url,
-        page_title=title,
-        page_subtitle=subtitle,
+        'auth/portal.html',
+        active_tab='signin',
+        next_url=request.args.get('next', ''),
+        login_form=form,
+        register_form=RegisterForm(),
+        google_enabled=show_google,
+        portal_title=title,
+        portal_subtitle=subtitle,
+        login_action_url=action_url,
         forgot_password_url=forgot_url,
-        show_google_login=show_google,
-        google_login_url=url_for('auth.google_login', next=request.args.get('next'))
-            if show_google else None,
     )
 
 
@@ -313,12 +339,51 @@ def _complete_login(user, remember, next_page, default_next):
                 )
         return redirect(url_for('auth.verify_2fa'))
 
+    # v4.0 FIX (CRITICAL): Regenerate session before login_user() to prevent
+    # session fixation attacks. This clears any pre-login session data and
+    # ensures the session cookie is fresh.
+    _old_session_tenant = session.get('tenant_slug')
+    _old_tsig = session.get('_tsig')
+    _old_tsig_created = session.get('_tsig_created')
+    _old_tsig_uid = session.get('_tsig_user_id')
+    _old_session_token = session.get('_session_token')
+    session.clear()  # Clear pre-login session data
+    
+    # Restore only the TOTP/tenant data we just set
+    if _old_session_tenant:
+        session['tenant_slug'] = _old_session_tenant
+    if _old_tsig:
+        session['_tsig'] = _old_tsig
+    if _old_tsig_created:
+        session['_tsig_created'] = _old_tsig_created
+    if _old_tsig_uid is not None:
+        session['_tsig_user_id'] = _old_tsig_uid
+    if _old_session_token:
+        session['_session_token'] = _old_session_token
+    
     login_user(user, remember=remember)
     session['totp_verified'] = False
 
     if not _is_safe_url(next_page):
         next_page = None
-    return redirect(next_page or default_next)
+    # Centralize post-login routing: prefer the canonical resolver if available.
+    try:
+        from app.services.auth.router import route_user_after_login
+        canonical = route_user_after_login(user)
+    except Exception:
+        canonical = None
+
+    # DEBUG: log final routing decision for post-login tracing
+    try:
+        logger.info(
+            'AUTH COMPLETE: user_id=%s is_superadmin=%s is_admin=%s tenant=%s next_page=%s canonical=%s default_next=%s',
+            getattr(user, 'id', None), getattr(user, 'is_superadmin', False), getattr(user, 'is_admin', False),
+            getattr(user, 'tenant_slug', None), next_page, canonical, default_next,
+        )
+    except Exception:
+        logger.exception('AUTH COMPLETE: failed to log routing debug info for user')
+
+    return redirect(next_page or canonical or default_next)
 
 
 def _handle_login(require_admin: bool = False, require_superadmin: bool = False,
@@ -341,10 +406,44 @@ def _handle_login(require_admin: bool = False, require_superadmin: bool = False,
 
     if form.validate_on_submit():
         username_or_email = form.username.data.strip()
-        user = (
-            User.query.filter_by(username=username_or_email).first() or
-            User.query.filter_by(email=username_or_email).first()
-        )
+        # Lookup strategy:
+        # 1) Exact username match
+        # 2) If no username match, find all users with this email.
+        #    - If a single user, use it.
+        #    - If multiple, prefer a superadmin whose password matches.
+        #    - Otherwise prefer a user matching the current session tenant.
+        candidate = None
+        user = User.query.filter_by(username=username_or_email).first()
+        if user:
+            candidate = user
+        else:
+            users_by_email = User.query.filter_by(email=username_or_email).order_by(User.is_superadmin.desc()).all()
+            if len(users_by_email) == 1:
+                candidate = users_by_email[0]
+            elif users_by_email:
+                # Try superadmin with matching password first
+                for u in users_by_email:
+                    try:
+                        if u.is_superadmin and u.verify_password(form.password.data):
+                            candidate = u
+                            break
+                    except Exception:
+                        # verification can fail if password hash or other state is invalid
+                        continue
+
+                # Next prefer tenant-matching user
+                if not candidate:
+                    eff_tenant = tenant_slug or session.get('tenant_slug', _DEFAULT_TENANT_SLUG)
+                    for u in users_by_email:
+                        if u.tenant_slug == eff_tenant:
+                            candidate = u
+                            break
+
+                # Fallback to first
+                if not candidate:
+                    candidate = users_by_email[0]
+
+        user = candidate
 
         if user and AccountLockout.is_locked(user, db):
             remaining = AccountLockout.get_lockout_remaining(user, db)
@@ -435,8 +534,8 @@ def _authorize_and_login(user, tenant_slug, ip, *, require_admin, require_supera
 
 
 @auth.route('/login', methods=['GET', 'POST'])
-@limiter.limit('20 per minute')
-@limiter.limit('100 per hour')
+@limiter.limit('5 per minute')  # v4.0 FIX: tightened from 20/min for root login
+@limiter.limit('30 per hour')   # v4.0 FIX: tightened from 100/hr for consistency with superadmin
 def login():
     """
     Fallback /auth/login for Flask-Login @login_required redirects and direct
@@ -484,6 +583,12 @@ def login():
             _DEFAULT_TENANT_SLUG,
             session.get('tenant_slug'),
         )
+
+    if request.method == 'GET':
+        next_url = request.args.get('next', '')
+        if next_url and not _is_safe_url(next_url):
+            next_url = ''
+        return redirect(url_for('auth.portal', tab='login', next=next_url))
 
     effective_tenant = session.get('tenant_slug', _DEFAULT_TENANT_SLUG)
     if not _is_default_tenant(effective_tenant):
@@ -602,6 +707,9 @@ def verify_2fa():
 def logout():
     """
     Log out and redirect to an appropriate landing page.
+    
+    v4.0 FIX (CRITICAL): Now clears session_token to revoke HMAC signatures.
+    Prevents session replay even if cookie is captured before logout.
 
     FIX v3.4.2: For the 'default' tenant, redirect directly to url_for('root')
     rather than url_for('tenant.portfolio', tenant_slug='default').
@@ -621,8 +729,13 @@ def logout():
     except Exception:
         db.session.rollback()
 
+    # v4.0 FIX: Clear session_token from session to revoke HMAC (critical for logout revocation)
+    session.pop('_session_token', None)
     session.pop('totp_verified', None)
     session.pop('tenant_slug', None)
+    session.pop('_tsig', None)
+    session.pop('_tsig_created', None)
+    session.pop('_tsig_user_id', None)
     session.clear()
     logout_user()
     flash('You have been signed out.', 'info')
@@ -730,3 +843,11 @@ def reset_password(token: str):
 # Must be the LAST line: oauth.py imports `auth` and `_authorize_and_login`
 # back from this (already-initialized-up-to-here) module.
 from app.auth import oauth as _oauth_routes  # noqa: E402,F401
+
+# Importing app.auth.routes_signup registers @auth.route(...) register /
+# verify-email / portal against this blueprint object. This file existed
+# on disk but was never actually imported anywhere, so /auth/register and
+# the other routes it defines were unreachable (404) until this line was
+# added. Must come after the oauth import above, since routes_signup.py's
+# portal() route builds Google-enabled state via the same helpers.
+from app.auth import routes_signup as _signup_routes  # noqa: E402,F401

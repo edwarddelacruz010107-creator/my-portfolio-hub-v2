@@ -119,7 +119,7 @@ def test_csrf_before_request_hook_fires():
         print("  ✓ /superadmin/login: WTF_CSRF_SSL_STRICT disabled")
     
     # Test non-login route (should restore)
-    with app.test_request_context('/admin/dashboard'):
+    with app.test_request_context('/studio/dashboard'):
         from flask import request
         
         # Reset config
@@ -133,10 +133,10 @@ def test_csrf_before_request_hook_fires():
         # For non-login routes in production, should be re-enabled
         is_enabled = app.config.get('WTF_CSRF_SSL_STRICT') is True
         assert is_enabled, \
-            f"WTF_CSRF_SSL_STRICT not re-enabled for /admin/dashboard " \
+            f"WTF_CSRF_SSL_STRICT not re-enabled for /studio/dashboard " \
             f"(value: {app.config.get('WTF_CSRF_SSL_STRICT')})"
         
-        print("  ✓ /admin/dashboard: WTF_CSRF_SSL_STRICT re-enabled")
+        print("  ✓ /studio/dashboard: WTF_CSRF_SSL_STRICT re-enabled")
 
 def test_multiple_login_routes():
     """Test that hook works for all login routes."""

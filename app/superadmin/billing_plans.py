@@ -12,11 +12,13 @@
 
 from flask import Blueprint, render_template, request, flash, redirect, url_for
 from app.utils import BILLING_PLANS, get_plan_price, get_plan_price_label, normalize_plan_name
+from app.superadmin.blueprint import superadmin_required
 
 bp = Blueprint("superadmin_billing_plans", __name__, url_prefix="/billing")
 
 
 @bp.route("/plans", methods=["GET"])
+@superadmin_required
 def view_plans():
     """
     Display all plans with prices for BOTH monthly and yearly cycles.
@@ -40,10 +42,21 @@ def view_plans():
 
 
 @bp.route("/plans/edit/<plan_key>", methods=["GET", "POST"])
+@superadmin_required
 def edit_plan(plan_key: str):
     """
     Simple override editor.  Persists to PlatformSetting (key-value store).
     Extend this if you add a BillingPlanConfig model.
+
+    KNOWN LIMITATION (unchanged by FIX [RBAC-01], flagging for visibility):
+    the POST handler below mutates the module-level BILLING_PLANS dict
+    in-process. This is NOT persisted to the database and will NOT be
+    consistent across multiple gunicorn worker processes (each worker has
+    its own copy of this dict) and will NOT survive a restart/deploy.
+    Auth is now enforced (this fix); durable, cross-worker-consistent
+    persistence still requires the BillingPlanConfig model this docstring
+    already calls out — do not treat this route as production-safe for
+    actual price changes until that lands.
     """
     norm = normalize_plan_name(plan_key)
     plan = BILLING_PLANS.get(norm)

@@ -57,6 +57,42 @@ def plan_duration_days(plan: str, billing_cycle: str = "monthly") -> int:
 # Subscription activation  (call this after payment is confirmed)
 # ---------------------------------------------------------------------------
 
+def expire_trial_if_needed(tenant) -> bool:
+    """Transition a tenant trial into grace or readonly based on real expiry dates."""
+    if tenant is None:
+        return False
+
+    now = datetime.now(timezone.utc)
+    old_state = getattr(tenant, 'subscription_state', None) or 'trial'
+
+    trial_ends = getattr(tenant, 'trial_ends_at', None)
+    if trial_ends is not None and trial_ends.tzinfo is None:
+        trial_ends = trial_ends.replace(tzinfo=timezone.utc)
+
+    grace_ends = getattr(tenant, 'grace_period_ends_at', None)
+    if grace_ends is not None and grace_ends.tzinfo is None:
+        grace_ends = grace_ends.replace(tzinfo=timezone.utc)
+
+    if trial_ends is None:
+        return False
+
+    if trial_ends > now:
+        return False
+
+    if grace_ends is None:
+        grace_ends = trial_ends + timedelta(days=3)
+        tenant.grace_period_ends_at = grace_ends
+
+    if grace_ends > now:
+        tenant.subscription_state = 'grace'
+    else:
+        tenant.subscription_state = 'readonly'
+
+    tenant.subscription_status = tenant.subscription_state
+    tenant.plan_name = getattr(tenant, 'plan_name', 'starter') or 'starter'
+    return old_state != tenant.subscription_state
+
+
 def activate_subscription(
     subscription,
     plan: str | None = None,
@@ -111,6 +147,15 @@ def activate_subscription(
     subscription.billing_cycle = billing_cycle
     subscription.status        = 'active'
     subscription.amount_paid   = float(amount) if amount is not None else get_plan_price(norm, billing_cycle)
+    # Backwards-compat: some code/tests expect `price_paid` attribute
+    try:
+        subscription.price_paid = float(amount) if amount is not None else get_plan_price(norm, billing_cycle)
+    except Exception:
+        # Best-effort, do not raise for non-ORM/mocked objects
+        try:
+            setattr(subscription, 'price_paid', float(amount) if amount is not None else get_plan_price(norm, billing_cycle))
+        except Exception:
+            pass
 
     # Record PayMongo payment ID for idempotency + audit
     if paymongo_payment_id:
@@ -456,17 +501,17 @@ def subscription_access_status(profile) -> str:
         if profile.tenant_id is None:
             return "none"
 
-        # ── Trial check (must run before subscription lookup) ─────────────────
-        # A trialling tenant has no Subscription row yet.  If free_trial_ends is
-        # set and still in the future, report 'trial' regardless of sub state.
-        if getattr(profile, 'free_trial_ends', None):
-            trial_ends = profile.free_trial_ends
-            if trial_ends.tzinfo is None:
-                trial_ends = trial_ends.replace(tzinfo=_tz.utc)
-            if trial_ends > datetime.now(_tz.utc):
-                return "trial"
-            # Trial has expired — fall through to subscription check below.
-            # An active subscription can still save them (e.g. paid during trial).
+        tenant = getattr(profile, 'tenant', None)
+        if tenant is not None:
+            state = getattr(tenant, 'subscription_state', None)
+            if state in {'trial', 'grace', 'readonly', 'suspended'}:
+                return state
+            trial_ends = getattr(tenant, 'trial_ends_at', None)
+            if trial_ends is not None:
+                if trial_ends.tzinfo is None:
+                    trial_ends = trial_ends.replace(tzinfo=_tz.utc)
+                if trial_ends > datetime.now(_tz.utc):
+                    return "trial"
 
         sub = Subscription.current(profile.tenant_id)
 

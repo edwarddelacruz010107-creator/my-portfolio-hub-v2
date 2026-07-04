@@ -1,0 +1,168 @@
+<!--
+  app/templates/superadmin/login.html — Superadmin (platform-owner) sign-in.
+
+  DELIBERATELY ISOLATED from app/templates/auth/portal.html.
+
+  Rationale (see auth-unification patch notes): the public /auth surface is
+  the single unified sign-in/registration entry point for tenant admins and
+  creators. Superadmin is a distinct, higher privilege tier and is kept off
+  that surface on purpose:
+    • no Google OAuth (password + TOTP only, enforced server-side too)
+    • no "Create Account" tab — there is no self-service superadmin signup
+    • no link back to the public marketing site from this page
+    • CSS classes prefixed `sa-` so nothing here can collide with or be
+      affected by changes to portal.html's `.portal-*` classes
+
+  Rendered by app.auth._render_login_page() when the request path contains
+  '/superadmin/' (i.e. superadmin.login), and directly by
+  app/superadmin/routes/core_auth.py for the initial GET.
+-->
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="robots" content="noindex, nofollow"/>
+  <title>{{ page_title or 'Superadmin Portal' }}</title>
+  <link rel="icon" href="{{ url_for('static', filename='img/brand/favicon.ico') }}" sizes="any"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    :root {
+      --bg: #060810; --bg-1: #0d1117; --bg-2: #12161e; --bg-3: #1a2030;
+      --text: #e8eaf0; --text-muted: #7a8094; --text-dim: #8892a4;
+      --accent: #6366f1; --accent-l: #818cf8; --accent-d: #4f46e5;
+      --accent-glow: rgba(99,102,241,0.22);
+      --danger: #ef4444;
+      --border: rgba(255,255,255,0.07); --border-l: rgba(255,255,255,0.12);
+      --radius: 14px; --radius-lg: 24px;
+      --shadow: 0 32px 80px rgba(0,0,0,0.55);
+      --font-d: 'Syne', sans-serif; --font-b: 'DM Sans', sans-serif;
+      --ease: cubic-bezier(0.4, 0, 0.2, 1); --t: 0.22s;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+    }
+    html, body { height: 100%; }
+    body {
+      margin: 0; font-family: var(--font-b); background: var(--bg); color: var(--text);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      -webkit-font-smoothing: antialiased; position: relative; overflow: hidden;
+    }
+    body::before {
+      content: ''; position: absolute; inset: 0;
+      background-image: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(99,102,241,0.14) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .sa-badge {
+      position: fixed; top: 20px; left: 24px; display: flex; align-items: center; gap: 0.4rem;
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--text-dim);
+    }
+    .sa-badge iconify-icon { color: var(--accent-l); }
+
+    .sa-card {
+      width: 100%; max-width: 400px; margin: 2rem; padding: 2.75rem 2.5rem;
+      background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow); position: relative; z-index: 1;
+      opacity: 0; animation: fadeUp 0.45s var(--ease) forwards;
+    }
+    .sa-eyebrow {
+      display: flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent-l); margin-bottom: 0.8rem;
+    }
+    .sa-eyebrow::before { content: ''; width: 14px; height: 2px; background: var(--accent-l); border-radius: 2px; }
+    .sa-card h1 { font-family: var(--font-d); font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 0.35rem; }
+    .sa-card p.sub { color: var(--text-muted); font-size: 0.85rem; margin: 0 0 1.75rem; }
+
+    .sa-flash { display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.8rem 1rem; border-radius: 10px; font-size: 0.85rem; margin-bottom: 0.6rem; }
+    .sa-flash-danger  { background: rgba(239,68,68,0.1);  border: 1px solid rgba(239,68,68,0.2);  color: #fca5a5; }
+    .sa-flash-success { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.2); color: #6ee7b7; }
+    .sa-flash-info, .sa-flash-warning { background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2); color: var(--accent-l); }
+
+    .sa-field { margin-bottom: 1.1rem; }
+    .sa-field label { display: block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 0.5rem; }
+    .sa-input-wrap { position: relative; }
+    .sa-input-icon-l { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-dim); pointer-events: none; }
+    .sa-field input[type="text"], .sa-field input[type="password"] {
+      width: 100%; padding: 0.8rem 1rem 0.8rem 2.6rem; border-radius: 10px; border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03); color: var(--text); font-family: var(--font-b); font-size: 0.9rem; outline: none;
+      transition: border-color var(--t), box-shadow var(--t);
+    }
+    .sa-field input:focus { border-color: rgba(99,102,241,0.6); box-shadow: 0 0 0 4px var(--accent-glow); }
+    .sa-field-err { display: block; margin-top: 0.4rem; font-size: 0.78rem; color: #fca5a5; }
+
+    .sa-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; font-size: 0.82rem; }
+    .sa-row label { display: flex; align-items: center; gap: 0.4rem; color: var(--text-muted); cursor: pointer; }
+    .sa-row a { color: var(--accent-l); text-decoration: none; }
+    .sa-row a:hover { opacity: 0.75; }
+
+    .sa-submit {
+      width: 100%; padding: 0.85rem 1.5rem; border-radius: 999px; border: none;
+      background: linear-gradient(135deg, var(--accent), var(--accent-d)); color: #fff;
+      font-family: var(--font-d); font-weight: 700; font-size: 0.92rem; letter-spacing: 0.03em; cursor: pointer;
+      box-shadow: 0 6px 24px var(--accent-glow); transition: transform var(--t), box-shadow var(--t);
+    }
+    .sa-submit:hover { transform: translateY(-1px); box-shadow: 0 10px 32px rgba(99,102,241,0.38); }
+
+    .sa-security { display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.72rem; color: var(--text-dim); margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border); }
+    .sa-security iconify-icon { color: #10b981; }
+
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+
+<div class="sa-badge"><iconify-icon icon="lucide:shield-alert" width="14"></iconify-icon> Restricted Access</div>
+
+<div class="sa-card">
+  <div class="sa-eyebrow">Platform Control</div>
+  <h1>{{ page_title or 'Superadmin Portal' }}</h1>
+  <p class="sub">{{ page_subtitle or 'Sign in to manage the entire tenant system.' }}</p>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="sa-flash sa-flash-{{ category }}">
+          <iconify-icon icon="{{ 'lucide:x-circle' if category == 'danger' else 'lucide:check-circle' if category == 'success' else 'lucide:info' }}" width="15"></iconify-icon>
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <form method="post" action="{{ action_url }}" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="sa-field">
+      <label for="sa-username">Username or Email</label>
+      <div class="sa-input-wrap">
+        <iconify-icon class="sa-input-icon-l" icon="lucide:user" width="16"></iconify-icon>
+        {{ form.username(id="sa-username", type="text", autocomplete="username") }}
+      </div>
+      {% for e in form.username.errors %}<span class="sa-field-err">{{ e }}</span>{% endfor %}
+    </div>
+    <div class="sa-field">
+      <label for="sa-password">Password</label>
+      <div class="sa-input-wrap">
+        <iconify-icon class="sa-input-icon-l" icon="lucide:lock" width="16"></iconify-icon>
+        {{ form.password(id="sa-password", type="password", autocomplete="current-password") }}
+      </div>
+      {% for e in form.password.errors %}<span class="sa-field-err">{{ e }}</span>{% endfor %}
+    </div>
+    <div class="sa-row">
+      <label>{{ form.remember_me() }} Keep me signed in</label>
+      <a href="{{ forgot_password_url }}">Forgot password?</a>
+    </div>
+    <button type="submit" class="sa-submit">Sign In</button>
+  </form>
+
+  <div class="sa-security">
+    <iconify-icon icon="lucide:shield-check" width="14"></iconify-icon> Password + TOTP required
+  </div>
+</div>
+
+</body>
+</html>

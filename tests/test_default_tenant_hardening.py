@@ -131,7 +131,12 @@ class TestBugA:
             sess['tenant_slug'] = 'othertenant'   # stale slug from prior session
 
         resp = client.get('/auth/login')
-        assert resp.status_code == 200
+        assert resp.status_code in (200, 302)
+        if resp.status_code == 302:
+            location = resp.headers.get('Location', '')
+            assert '/auth?tab=login' in location or '/auth/?tab=login' in location, (
+                'GET /auth/login should redirect to the unified auth portal'
+            )
 
         with client.session_transaction() as sess:
             # v3.3 fix: must be 'default', not preserved 'othertenant'
@@ -143,7 +148,12 @@ class TestBugA:
     def test_auth_login_with_valid_tenant_param(self, client, app):
         """GET /auth/login?tenant=othertenant must set that slug."""
         resp = client.get('/auth/login?tenant=othertenant')
-        assert resp.status_code == 200
+        assert resp.status_code in (200, 302)
+        if resp.status_code == 302:
+            location = resp.headers.get('Location', '')
+            assert '/auth?tab=login' in location or '/auth/?tab=login' in location, (
+                'GET /auth/login?tenant=othertenant should redirect to the unified auth portal'
+            )
         with client.session_transaction() as sess:
             assert sess.get('tenant_slug') == 'othertenant'
 
@@ -187,8 +197,8 @@ class TestBugBD:
                     sess['tenant_slug'] = 'wrongtenant'
                     sess['totp_verified'] = False
 
-            # Any /admin/ request should auto-correct the session.
-            resp = c.get('/admin/', follow_redirects=True)
+            # Any /studio/ request should auto-correct the session.
+            resp = c.get('/studio/', follow_redirects=True)
             with c.session_transaction() as sess:
                 assert sess.get('tenant_slug') == 'default', (
                     "BUG-B/D: block_public_admin did not correct stale "
@@ -238,7 +248,7 @@ class TestBugAdminHelpers:
             mock_user.tenant_slug      = 'default'
 
             with patch('app.admin.current_user', mock_user):
-                with app.test_request_context('/admin/'):
+                with app.test_request_context('/studio/'):
                     result = _active_tenant_slug()
                     assert result == 'default', (
                         f"BUG-01: _active_tenant_slug() returned {result!r} "
@@ -257,7 +267,7 @@ class TestBugAdminHelpers:
             mock_user.tenant_slug      = 'default'
 
             with patch('app.admin.current_user', mock_user):
-                with app.test_request_context('/admin/'):
+                with app.test_request_context('/studio/'):
                     from flask import session
                     session['tenant_slug'] = 'othertenant'   # attacker-controlled
                     result = _active_tenant_slug()
@@ -277,7 +287,7 @@ class TestBugAdminHelpers:
             mock_user.is_superadmin    = True
 
             with patch('app.admin.current_user', mock_user):
-                with app.test_request_context('/admin/'):
+                with app.test_request_context('/studio/'):
                     from flask import session
                     session['tenant_slug'] = 'othertenant'
                     result = _active_tenant_slug()
@@ -296,7 +306,7 @@ class TestBugAdminHelpers:
             mock_user.is_authenticated = False
 
             with patch('app.admin.current_user', mock_user):
-                with app.test_request_context('/admin/'):
+                with app.test_request_context('/studio/'):
                     result = _active_tenant_slug()
                     assert result == 'default', (
                         f"Unauthenticated: expected 'default', got {result!r}."
@@ -322,7 +332,7 @@ class TestBugAdminHelpers:
             mock_user.tenant_slug      = 'default'
 
             with patch('app.admin.current_user', mock_user):
-                with app.test_request_context('/admin/'):
+                with app.test_request_context('/studio/'):
                     profile = _load_tenant_profile()
                     assert profile is not None, "_load_tenant_profile() returned None."
                     assert profile.tenant_slug == 'default', (
@@ -345,7 +355,7 @@ class TestBugResetPasswordRoute:
         )
 
     def test_route_accessible_when_logged_in(self, client, app):
-        """Logged-in user visiting /admin/reset-password-required must get 200."""
+        """Logged-in user visiting /studio/reset-password-required must get 200."""
         with app.test_client() as c:
             with app.app_context():
                 from app.models import User
@@ -355,36 +365,36 @@ class TestBugResetPasswordRoute:
                     sess['tenant_slug'] = 'default'
                     sess['totp_verified'] = False
 
-            resp = c.get('/admin/reset-password-required', follow_redirects=True)
+            resp = c.get('/studio/reset-password-required', follow_redirects=True)
             # Since require_password_reset=False, it should redirect to dashboard.
             assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------
-# BUG-06: unauthenticated /admin/ always resets to 'default'
+# BUG-06: unauthenticated /studio/ always resets to 'default'
 # ---------------------------------------------------------------------------
 
 class TestBugUnauthenticatedReset:
     def test_unauthenticated_admin_sets_default(self, client):
-        """GET /admin/ unauthenticated must set session['tenant_slug']='default'."""
+        """GET /studio/ unauthenticated must set session['tenant_slug']='default'."""
         # Pre-pollute session with a different slug.
         with client.session_transaction() as sess:
             sess['tenant_slug'] = 'othertenant'
 
-        resp = client.get('/admin/', follow_redirects=False)
+        resp = client.get('/studio/', follow_redirects=False)
         assert resp.status_code in (302, 303)  # redirect to login
 
         with client.session_transaction() as sess:
             assert sess.get('tenant_slug') == 'default', (
-                "BUG-06: unauthenticated /admin/ request preserved stale "
+                "BUG-06: unauthenticated /studio/ request preserved stale "
                 "tenant_slug instead of resetting to 'default'."
             )
 
     def test_unauthenticated_admin_redirect_target(self, client):
-        """Unauthenticated /admin/ must redirect to /auth/login."""
-        resp = client.get('/admin/', follow_redirects=False)
+        """Unauthenticated /studio/ must redirect to /auth/login."""
+        resp = client.get('/studio/', follow_redirects=False)
         assert '/auth/login' in resp.headers.get('Location', ''), (
-            "Unauthenticated /admin/ should redirect to /auth/login."
+            "Unauthenticated /studio/ should redirect to /auth/login."
         )
 
 
@@ -409,7 +419,7 @@ class TestContextProcessorTenantResolution:
             mock_user.username         = 'testadmin'
             mock_user.tenant_slug      = 'default'
 
-            with app.test_request_context('/admin/'):
+            with app.test_request_context('/studio/'):
                 # No session, no g.tenant_slug — simulates Flask-Login restore.
                 with patch('app.context_processors.current_user', mock_user):
                     result = _load_globals(app)
@@ -443,7 +453,7 @@ class TestCrossTenantIsolation:
             mock_user.tenant_slug      = 'default'
 
             with patch('app.admin.current_user', mock_user):
-                with app.test_request_context('/admin/'):
+                with app.test_request_context('/studio/'):
                     result = _require_tenant_object(mock_project)
                     assert result is None, (
                         "Cross-tenant isolation failure: default admin was able "
@@ -464,7 +474,7 @@ class TestCrossTenantIsolation:
             mock_user.is_superadmin    = True
 
             with patch('app.admin.current_user', mock_user):
-                with app.test_request_context('/admin/'):
+                with app.test_request_context('/studio/'):
                     result = _require_tenant_object(mock_project)
                     assert result is mock_project, (
                         "Superadmin should bypass tenant check but got None."
@@ -483,7 +493,7 @@ class TestCrossTenantIsolation:
             mock_user.tenant_slug      = 'default'
 
             with patch('app.admin.current_user', mock_user):
-                with app.test_request_context('/admin/'):
+                with app.test_request_context('/studio/'):
                     query = _tenant_slug_filter(Project.query)
                     # Compile the query and inspect WHERE clause
                     compiled = str(query.statement.compile(compile_kwargs={"literal_binds": True}))
@@ -556,7 +566,7 @@ class TestDefaultTenant2FA:
         mock_user.totp_enabled     = False
         mock_user.id               = 1
 
-        with app.test_request_context('/admin/'):
+        with app.test_request_context('/studio/'):
             from flask import session
             session['_user_id']    = '1'
             session['tenant_slug'] = 'stale-other-tenant'
@@ -576,18 +586,18 @@ class TestDefaultTenant2FA:
 
     def test_tenant_admin_login_trailing_slash_accepts_post(self, app):
         """
-        /<tenant_slug>/admin/login/ (trailing slash) must accept POST.
+        /<tenant_slug>/studio/login/ (trailing slash) must accept POST.
         Without the fix Flask returns 405 when the form action has a trailing slash.
         """
         client = app.test_client()
-        resp = client.post('/othertenant/admin/login/', data={
+        resp = client.post('/othertenant/studio/login/', data={
             'username': 'otheradmin',
             'password': 'TestPassword123!',
             'remember_me': False,
         }, follow_redirects=False)
         # 405 means the route exists but rejects POST → this should NOT happen
         assert resp.status_code != 405, (
-            f"POST to /othertenant/admin/login/ returned 405 — "
+            f"POST to /othertenant/studio/login/ returned 405 — "
             "trailing-slash route is missing methods=['GET', 'POST']"
         )
 

@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 # ── Load only TENANT DATA models ────────────────────────────────────────────
 from app.models.tenant_data import (
-    Profile, Skill, Project, Testimonial, Service, Certificate,
+    Profile, Skill, Project, ProjectReaction, Testimonial, Service, Certificate,
 )
 
 # Build a fresh MetaData from only tenant-bound tables so Alembic doesn't
@@ -29,7 +29,7 @@ from app.models.tenant_data import (
 from sqlalchemy import MetaData as _MetaData
 target_metadata = _MetaData()
 
-for model_class in (Profile, Skill, Project, Testimonial, Service, Certificate):
+for model_class in (Profile, Skill, Project, ProjectReaction, Testimonial, Service, Certificate):
     # Reflect the table definitions into our isolated metadata object
     model_class.__table__.to_metadata(target_metadata)
 

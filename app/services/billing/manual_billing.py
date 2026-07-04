@@ -211,12 +211,41 @@ def submit_manual_payment(
     sub.payment_method = method.name
     db.session.flush()
 
+    # FIX [MED-COUPON-01]: capture the system-computed reference price
+    # (list price minus any validated coupon) at the moment of submission,
+    # independent of the tenant-editable amount_paid field, so the
+    # superadmin review screen has something authoritative to diff against
+    # instead of trusting the self-reported figure at face value.
+    # Never let a discount-quote failure block the submission itself —
+    # this is a review aid, not a gate.
+    expected_amount = None
+    coupon_code_applied = None
+    try:
+        from app.services.billing import discount_checkout
+        quote = discount_checkout.quote_for_context(
+            tenant_id=profile.tenant_id,
+            plan=plan_norm,
+            billing_cycle=billing_cycle,
+            code=discount_checkout.peek_coupon(profile.tenant_id),
+        )
+        expected_amount = float(quote.amount_after)
+        coupon_code_applied = quote.campaign.code if quote.campaign else None
+    except Exception:
+        logger.exception(
+            'submit_manual_payment: failed to compute expected_amount for '
+            'tenant_id=%s plan=%s — submission will proceed without a '
+            'reference price for the reviewer.',
+            profile.tenant_id, plan_norm,
+        )
+
     submission = PaymentSubmission(
         tenant=profile.tenant,
         subscription_id=sub.id,
         payment_method_id=method.id,
         plan=plan_norm,
         amount_paid=float(amount_paid or get_plan_price(plan_norm)),
+        expected_amount=expected_amount,
+        coupon_code_applied=coupon_code_applied,
         payment_method=method.name,
         payment_reference=(payment_reference or '').strip(),
         payment_proof=proof_filename or '',

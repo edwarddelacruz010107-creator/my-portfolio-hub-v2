@@ -149,7 +149,17 @@ def send_message():
 def messages_inbox():
     """
     Superadmin inbox: shows all Inquiry threads across all tenants.
+    
+    INCLUDES:
+      • Landing page contact form submissions (tenant_slug='default', sender='visitor')
+      • Tenant admin inquiries (sender='tenant')
+      • Superadmin sent messages (sender='superadmin')
+    
     Tabs: All | From Tenants | Sent by Me | Unread
+      • 'all' (default): Shows all inquiries
+      • 'from_tenants': Shows inquiries from visitors and tenants (includes contact form submissions)
+      • 'sent': Shows superadmin-sent messages only
+      • 'unread': Shows threads with unread tenant replies
     """
     from app.models.portfolio import InquiryReply
     tab    = request.args.get('tab', 'all')

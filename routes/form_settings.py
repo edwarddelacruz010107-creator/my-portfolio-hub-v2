@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 # Tenant Admin Blueprint  →  /admin/settings/forms
 # ══════════════════════════════════════════════════════════════════════════════
 
-admin_forms = Blueprint('admin_forms', __name__, url_prefix='/admin/settings')
+admin_forms = Blueprint('admin_forms', __name__, url_prefix='/studio/settings')
 
 
 @admin_forms.route('/forms', methods=['GET', 'POST'])

@@ -62,7 +62,15 @@ logger = logging.getLogger(__name__)
 admin  = Blueprint('admin', __name__)
 
 
-from app.admin.blueprint import admin, admin_required, _active_tenant_slug, _tenant_slug_filter, _require_tenant_object
+from app.admin.blueprint import (
+    admin,
+    admin_required,
+    _active_tenant_slug,
+    _tenant_slug_filter,
+    _require_tenant_object,
+    _active_tenant_plan_features,
+    _active_tenant_plan_name,
+)
 
 logger = logging.getLogger(__name__)
 

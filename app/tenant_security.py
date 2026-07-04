@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 # This is the only definition in the codebase.  All modules import from here.
 RESERVED_SLUGS: frozenset[str] = frozenset({
     "admin",
+    "studio",
     "auth",
     "login",
     "logout",
@@ -65,6 +66,15 @@ RESERVED_SLUGS: frozenset[str] = frozenset({
     "contact",
     "setup",
     "system",
+    # ── Phase 1 (public SaaS foundation) — new top-level namespace ──────────
+    "explore",
+    "feed",
+    "pricing",
+    "templates",
+    "features",
+    "u",
+    "register",
+    "administrator",
 })
 
 _DEFAULT_TENANT_SLUG = "default"
@@ -101,10 +111,25 @@ def validate_slug(slug: str) -> tuple[bool, str]:
 
 # ── HMAC session signing ──────────────────────────────────────────────────────
 
-def _make_tsig(user_id: int, tenant_slug: str, created_at: str) -> str:
-    """Compute HMAC-SHA256 session tenant signature."""
+def _make_tsig(user_id: int, tenant_slug: str, created_at: str, session_token: str = "", *, legacy: bool = False) -> str:
+    """
+    Compute HMAC-SHA256 session tenant signature.
+
+    v4.0 FIX (CRITICAL): Now includes session_token to bind HMAC to a specific
+    session instance. Prevents replay attacks if session cookie is captured.
+    After logout, session_token is cleared, invalidating the HMAC even if the
+    cookie persists.
+
+    Legacy sessions created before the v4.0 token binding used the older format
+    without the session_token segment. Those signatures remain valid for a
+    compatibility window and are upgraded on the next successful request.
+    """
     secret = current_app.config.get("SECRET_KEY", "").encode("utf-8")
-    msg = f"{user_id}:{tenant_slug}:{created_at}".encode("utf-8")
+    if legacy:
+        msg = f"{user_id}:{tenant_slug}:{created_at}".encode("utf-8")
+    else:
+        # Include session_token in signature binding — critical for logout revocation
+        msg = f"{user_id}:{tenant_slug}:{created_at}:{session_token}".encode("utf-8")
     return hmac.new(secret, msg, hashlib.sha256).hexdigest()
 
 
@@ -112,15 +137,26 @@ def stamp_session_tenant(user_id: int, tenant_slug: str) -> None:
     """
     Write tenant_slug into session and store an HMAC signature.
     Call after every successful login and after 2FA verification.
+    
+    v4.0 FIX: Now generates and stores session_token, then includes it in HMAC.
     """
+    import secrets
     now = datetime.now(timezone.utc).isoformat()
-    sig = _make_tsig(user_id, tenant_slug, now)
-    session["tenant_slug"]    = tenant_slug
-    session["_tsig"]          = sig
-    session["_tsig_created"]  = now
-    session["_tsig_user_id"]  = user_id
+    
+    # v4.0: Generate a fresh session token (instance-specific identifier)
+    session_token = secrets.token_urlsafe(32)
+    
+    # HMAC now binds to this specific session token
+    sig = _make_tsig(user_id, tenant_slug, now, session_token)
+    
+    session["tenant_slug"]     = tenant_slug
+    session["_tsig"]           = sig
+    session["_tsig_created"]   = now
+    session["_tsig_user_id"]   = user_id
+    session["_session_token"] = session_token  # v4.0: store in session
+    
     logger.info(
-        "SESSION: stamped tenant=%r for user_id=%s at %s",
+        "SESSION: stamped tenant=%r for user_id=%s with session_token at %s",
         tenant_slug, user_id, now,
     )
 
@@ -130,21 +166,22 @@ def session_tenant_valid() -> bool:
     Validate the HMAC signature on session['tenant_slug'].
     Returns True if signature matches; False otherwise.
     Called by TenantGuard on every authenticated request.
+    
+    v4.0 FIX: Now validates session_token binding. If session_token is missing
+    or cleared (logout), HMAC is invalid regardless of other fields.
     """
     if not current_user.is_authenticated:
         return True  # Not applicable for unauthenticated requests
 
-    sig        = session.get("_tsig")
-    created_at = session.get("_tsig_created")
-    sig_uid    = session.get("_tsig_user_id")
-    tenant     = session.get("tenant_slug")
+    sig         = session.get("_tsig")
+    created_at  = session.get("_tsig_created")
+    sig_uid     = session.get("_tsig_user_id")
+    tenant      = session.get("tenant_slug")
+    sess_token  = session.get("_session_token")  # v4.0: check session_token
 
     if not sig or not created_at or sig_uid is None or not tenant:
-        # Missing signature — treat as invalid for authenticated users.
-        # This handles:
-        #   (a) sessions created before v3.7 (no sig yet)
-        #   (b) manual session tampering
-        # Re-stamp on the fly if user/tenant are consistent, else force re-auth.
+        # Missing signature/tenant metadata — treat as invalid for authenticated users.
+        # Legacy sessions may have no _session_token yet, which is handled below.
         return False
 
     # User ID must match the signed user ID
@@ -159,13 +196,27 @@ def session_tenant_valid() -> bool:
     except (TypeError, ValueError):
         return False
 
-    expected = _make_tsig(int(current_user.id), tenant, created_at)
+    # v4.0: Include session_token in HMAC validation when a session token exists.
+    expected = _make_tsig(int(current_user.id), tenant, created_at, sess_token or "")
     valid = hmac.compare_digest(sig, expected)
+
+    if not valid and not sess_token:
+        # Compatibility path for pre-v4.0 sessions: accept the legacy signature,
+        # then upgrade the session in place to the new token-bound format.
+        legacy_expected = _make_tsig(int(current_user.id), tenant, created_at, legacy=True)
+        if hmac.compare_digest(sig, legacy_expected):
+            logger.info(
+                "SESSION SIG: legacy session signature accepted for user_id=%s tenant=%r; upgrading to token-bound format",
+                current_user.id,
+                tenant,
+            )
+            stamp_session_tenant(int(current_user.id), tenant)
+            return True
 
     if not valid:
         _log_security(
             "session_sig_invalid",
-            f"HMAC mismatch for user_id={current_user.id} tenant={tenant!r}",
+            f"HMAC mismatch for user_id={current_user.id} tenant={tenant!r} — session_token binding failed. Possible logout revocation.",
             "critical",
         )
     return valid

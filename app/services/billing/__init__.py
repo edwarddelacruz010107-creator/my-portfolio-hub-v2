@@ -1,12 +1,12 @@
-"""
-billing domain services -- Phase 3 sub-packaging.
+"""Billing domain services facade."""
 
-This package's __init__.py doubles as the compatibility shim for the old
-flat `app/services/billing.py` module (now at app/services/billing/billing.py),
-since a domain package and a same-named flat module cannot coexist on disk.
-Old code doing `from app.services.billing import X` keeps working unchanged.
-"""
 from .billing import *  # noqa: F401,F403
 from . import billing as _self_module
+from .plan_service import PlanService
+from .subscription_state_service import SubscriptionStateService
+from .feature_gate_service import FeatureGateService
+from .lifecycle_service import LifecycleService
+from .access_control import AccessControlService
+
 globals().update({k: v for k, v in vars(_self_module).items() if not k.startswith("__")})
 del _self_module

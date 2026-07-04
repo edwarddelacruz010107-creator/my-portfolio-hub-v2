@@ -11,6 +11,8 @@ from app.superadmin.routes import messaging
 from app.superadmin.routes import billing
 from app.superadmin.routes import media
 from app.superadmin.routes import email_settings
+from app.superadmin.routes import landing_settings
+from app.superadmin.routes import pricing_settings
 from app.superadmin.routes import subscriptions
 from app.superadmin.routes import twofa
 from app.superadmin.routes import logs_monitor
@@ -19,6 +21,6 @@ from app.superadmin.routes import discounts
 
 __all__ = [
     "core_auth", "tenants", "messaging", "billing", "media",
-    "email_settings", "subscriptions", "twofa", "logs_monitor", "impersonation",
+    "email_settings", "landing_settings", "pricing_settings", "subscriptions", "twofa", "logs_monitor", "impersonation",
     "discounts",
 ]

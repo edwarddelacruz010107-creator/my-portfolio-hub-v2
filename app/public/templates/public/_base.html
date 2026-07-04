@@ -1,0 +1,143 @@
+<!--
+    app/public/templates/public/_base.html — Phase 1b design system shell.
+
+    Still deliberately NOT extending app/templates/base.html (tenant-scoped
+    title/meta blocks assume a `profile` object that doesn't exist in this
+    namespace — see the Phase 1a note this replaces). This IS now the
+    "proper shared shell" that note said Phase 4 should build.
+
+    "Templates" and "Features" nav items point at in-page anchors on the
+    landing page (#templates / #features) rather than new standalone
+    routes — the source spec asked for these as center-nav items but never
+    specified distinct page content for them, and inventing two more public
+    routes/templates for anchor-only content isn't a good use of this
+    phase's scope. Revisit if/when there's real "template gallery" content
+    to put behind /templates.
+-->
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="csrf-token" content="{{ csrf_token() }}"/>
+  <title>{% block title %}Portfolio Hub — Build Your Creator Portfolio{% endblock %}</title>
+  <meta name="description" content="{% block meta_desc %}Launch a modern portfolio, showcase your projects, and grow your creator identity with Portfolio Hub.{% endblock %}"/>
+  <meta name="robots" content="index, follow"/>
+
+  <!-- OpenGraph / SEO (Phase 10) -->
+  <meta property="og:site_name" content="Portfolio Hub"/>
+  <meta property="og:type" content="{% block og_type %}website{% endblock %}"/>
+  <meta property="og:title" content="{% block og_title %}{{ self.title() }}{% endblock %}"/>
+  <meta property="og:description" content="{% block og_desc %}{{ self.meta_desc() }}{% endblock %}"/>
+  <meta property="og:url" content="{{ request.url }}"/>
+  {% block og_image %}{% endblock %}
+  <meta name="twitter:card" content="summary_large_image"/>
+  <link rel="canonical" href="{% block canonical %}{{ request.base_url }}{% endblock %}"/>
+
+  <!-- Favicons / app icons (Phase: brand identity) -->
+  <link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon"/>
+  <link rel="icon" href="{{ url_for('static', filename='img/brand/favicon.ico') }}" sizes="any"/>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/brand/logo-mark.svg') }}"/>
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/brand/apple-touch-icon.png') }}"/>
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/brand/icon-192.png') }}"/>
+  <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='img/brand/icon-512.png') }}"/>
+  <meta property="og:image" content="{{ url_for('static', filename='img/brand/icon-512.png', _external=True) }}"/>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/public-design-system.css') }}"/>
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <a class="ph-skip-link" href="#ph-main">Skip to content</a>
+
+  <nav class="ph-nav" aria-label="Primary">
+    <div class="ph-nav-inner">
+      <a class="ph-nav-brand" href="{{ url_for('root') }}">
+        <img class="ph-nav-logo" src="{{ url_for('static', filename='img/brand/logo-mark.svg') }}" alt="" width="36" height="24" aria-hidden="true"/>
+        <span>Portfolio Hub</span>
+      </a>
+
+      <button class="ph-nav-toggle" id="ph-nav-toggle" aria-expanded="false" aria-controls="ph-nav-links" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+
+      <div class="ph-nav-links" id="ph-nav-links">
+        <a href="{{ url_for('public.explore') }}">Explore</a>
+        <a href="{{ url_for('public.feed') }}">Feed</a>
+        <a href="{{ url_for('public.pricing') }}">Pricing</a>
+        <a href="{{ url_for('root') }}#templates">Templates</a>
+        <a href="{{ url_for('root') }}#features">Features</a>
+      </div>
+
+      <div class="ph-nav-actions">
+        <button class="ph-theme-toggle" id="ph-theme-toggle" type="button" aria-label="Toggle dark/light mode" title="Toggle theme">
+          <span class="ph-theme-icon" aria-hidden="true">◐</span>
+        </button>
+        {% if current_user.is_authenticated %}
+          <a class="ph-btn ph-btn-ghost" href="{{ url_for('public.administrator_gateway') }}">Dashboard</a>
+          {% if current_user.tenant_slug %}
+          <a class="ph-btn ph-btn-ghost" href="{{ url_for('public.creator_link', tenant_slug=current_user.tenant_slug) }}">My Portfolio</a>
+          {% endif %}
+        {% else %}
+          <a class="ph-btn ph-btn-ghost" href="{{ url_for('auth.portal', tab='signin') }}">Sign In</a>
+          <a class="ph-btn ph-btn-primary" href="{{ url_for('auth.portal', tab='signup', next='/billing/plans') }}">Get Started</a>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+
+  <main id="ph-main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="ph-footer">
+    <div class="ph-footer-inner">
+      <div class="ph-footer-brand">
+        <img class="ph-nav-logo" src="{{ url_for('static', filename='img/brand/logo-mark.svg') }}" alt="" width="36" height="24" aria-hidden="true"/> Portfolio Hub
+        <p>The creator ecosystem for modern professional portfolios.</p>
+      </div>
+      <div class="ph-footer-col">
+        <h4>Platform</h4>
+        <a href="{{ url_for('public.explore') }}">Explore</a>
+        <a href="{{ url_for('public.feed') }}">Feed</a>
+        <a href="{{ url_for('public.pricing') }}">Pricing</a>
+      </div>
+      <div class="ph-footer-col">
+        <h4>Account</h4>
+        <a href="{{ url_for('auth.portal', tab='signin') }}">Sign In</a>
+        <a href="{{ url_for('auth.portal', tab='signup', next='/billing/plans') }}">Start Free</a>
+      </div>
+    </div>
+    <div class="ph-footer-bottom">
+      &copy; {{ now.year if now is defined else '' }} Portfolio Hub. All rights reserved.
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var stored = null;
+      try { stored = localStorage.getItem('phPublicTheme'); } catch (e) {}
+      if (stored === 'light' || stored === 'dark') { root.setAttribute('data-theme', stored); }
+
+      var toggle = document.getElementById('ph-theme-toggle');
+      if (toggle) {
+        toggle.addEventListener('click', function () {
+          var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+          root.setAttribute('data-theme', next);
+          try { localStorage.setItem('phPublicTheme', next); } catch (e) {}
+        });
+      }
+
+      var navToggle = document.getElementById('ph-nav-toggle');
+      var navLinks = document.getElementById('ph-nav-links');
+      if (navToggle && navLinks) {
+        navToggle.addEventListener('click', function () {
+          var open = navLinks.classList.toggle('is-open');
+          navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+      }
+    })();
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

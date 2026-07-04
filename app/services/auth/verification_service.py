@@ -31,6 +31,100 @@ class VerificationError(ValueError):
     pass
 
 
+# ═════════════════════════════════════════════════════════════════════════════
+# OTP-based email verification (v3.10)
+#
+# Reuses the existing PasswordResetOTP engine (app/services/auth/otp_service.py)
+# with user_type='email_verify' — same hashed-storage, 5-attempt-lockout,
+# tenant-rate-limited machinery already proven for password reset. No new
+# table, no migration. Additive to the token-link functions above; those are
+# left in place (unused by the new flow, not deleted) so nothing that already
+# depends on verify_token()/issue_verification_for() breaks.
+# ═════════════════════════════════════════════════════════════════════════════
+
+_EMAIL_VERIFY_USER_TYPE = 'email_verify'
+
+
+class OTPRateLimitedError(VerificationError):
+    """Raised when tenant-scoped OTP request rate limit is hit."""
+
+
+def issue_email_verification_otp(
+    user: User,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+) -> str:
+    """
+    Generate + persist a hashed 6-digit OTP for `user` and return the raw
+    code (caller is responsible for emailing it and committing the session).
+
+    Raises OTPRateLimitedError if the tenant has exceeded 5 requests/15min.
+    """
+    from app.services.auth.otp_service import (
+        check_tenant_otp_rate_limit, create_otp_record,
+    )
+
+    allowed, reason = check_tenant_otp_rate_limit(user.tenant_id, _EMAIL_VERIFY_USER_TYPE)
+    if not allowed:
+        raise OTPRateLimitedError(reason)
+
+    raw_otp = create_otp_record(
+        user_type=_EMAIL_VERIFY_USER_TYPE,
+        user_id=user.id,
+        email=user.email,
+        tenant_id=user.tenant_id,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+    db.session.commit()
+    return raw_otp
+
+
+def verify_email_verification_otp(user: User, raw_otp: str) -> None:
+    """
+    Verify `raw_otp` for `user`. Raises VerificationError with a
+    user-facing message on failure. On success, marks the user verified
+    and commits.
+    """
+    from app.services.auth.otp_service import verify_otp
+
+    ok, err = verify_otp(
+        user_type=_EMAIL_VERIFY_USER_TYPE,
+        user_id=user.id,
+        raw_otp=raw_otp,
+        tenant_id=user.tenant_id,
+    )
+    if not ok:
+        db.session.commit()  # persist attempt-count increment / record deletion
+        raise VerificationError(err)
+
+    user.email_verified = True
+    db.session.commit()
+
+
+def send_email_verification_otp(user: User, raw_otp: str) -> bool:
+    """Best-effort send via the tested MailerSend/SMTP provider chain."""
+    from app.services.auth.otp_service import DEFAULT_TTL_MIN
+    from app.models.core import GlobalEmailConfig
+    from app.services.email.email_service import send_email_verification_otp as _send
+
+    try:
+        ttl = max(1, GlobalEmailConfig.get(fresh=True).otp_expiry_minutes or DEFAULT_TTL_MIN)
+    except Exception:
+        ttl = DEFAULT_TTL_MIN
+
+    try:
+        return _send(
+            recipient_email=user.email,
+            username=user.username,
+            otp=raw_otp,
+            ttl_minutes=ttl,
+        )
+    except Exception:
+        logger.exception('send_email_verification_otp: dispatch failed for user_id=%s', user.id)
+        return False
+
+
 def _hash(raw: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 

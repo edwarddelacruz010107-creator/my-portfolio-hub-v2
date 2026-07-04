@@ -9,7 +9,10 @@ Run this if your database already exists and the column is missing:
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# BUG FIX (audit 2026-07-02): script lives at app/scripts/, 2 levels
+# under project root -- 2x dirname() landed on app/, not project root,
+# breaking any 'from run import app' / 'from app import ...' import.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from run import app
 from app import db

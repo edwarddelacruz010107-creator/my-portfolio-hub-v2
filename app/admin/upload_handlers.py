@@ -14,7 +14,7 @@ INTEGRATION:
 
     Or register the sub-blueprint:
         from app.admin.upload_handlers import uploads_bp
-        app.register_blueprint(uploads_bp, url_prefix='/admin')
+        app.register_blueprint(uploads_bp, url_prefix='/studio')
 """
 
 from __future__ import annotations

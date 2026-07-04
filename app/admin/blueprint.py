@@ -16,9 +16,13 @@ from typing import Optional
 
 from flask import (session, Blueprint, render_template, redirect, url_for,
                    flash, request, jsonify, current_app, Response)
-from flask_login import login_required, current_user
+from flask_login import login_required, current_user as _flask_current_user
 
 from app import db
+
+# Expose a module-level current_user symbol so legacy tests and patching
+# against app.admin.current_user continue to work.
+current_user = _flask_current_user
 from app.repositories import (
     project_repository,
     profile_repository,
@@ -54,7 +58,8 @@ from app.services.manual_billing import get_payment_method_for_tenant
 from app.utils import (save_image, delete_image, log_activity,
                         get_profile_completion, is_upload_file)
 from app.tenant_security import (
-    resolve_active_tenant, stamp_session_tenant,
+    resolve_active_tenant,
+    stamp_session_tenant as _tenant_stamp_session_tenant,
     RESERVED_SLUGS, session_tenant_valid,
 )
 from app import limiter  # Flask-Limiter instance
@@ -82,7 +87,8 @@ def admin_required(f):
     @wraps(f)
     @login_required
     def decorated(*args, **kwargs):
-        if not (current_user.is_admin or current_user.is_superadmin):
+        user = _get_current_user()
+        if not (getattr(user, 'is_admin', False) or getattr(user, 'is_superadmin', False)):
             flash('Admin access required.', 'danger')
             return redirect(_safe_root())
         return f(*args, **kwargs)
@@ -98,12 +104,35 @@ def _safe_root():
 
 # == Tenant resolution (shared across profile/projects/uploads/testimonials) ==
 
+def _get_current_user():
+    """Return the current_user, preferring the patchable admin package symbol."""
+    try:
+        import app.admin as _admin
+        return getattr(_admin, 'current_user', _flask_current_user)
+    except Exception:
+        return _flask_current_user
+
+
+def _get_stamp_session_tenant():
+    """Return the patchable app.admin stamp_session_tenant helper if present."""
+    try:
+        import app.admin as _admin
+        return getattr(_admin, 'stamp_session_tenant', _tenant_stamp_session_tenant)
+    except Exception:
+        return _tenant_stamp_session_tenant
+
+
 def _active_tenant_slug() -> str:
     """
     v3.7: Thin wrapper over resolve_active_tenant() (app.tenant_security).
     Kept for backward compatibility — all call sites in this blueprint
     already use this name.  The actual resolution logic lives in one place.
     """
+    user = _get_current_user()
+    if getattr(user, 'is_authenticated', False) and not getattr(user, 'is_superadmin', False):
+        slug = getattr(user, 'tenant_slug', None)
+        if slug:
+            return slug
     return resolve_active_tenant()
 
 
@@ -135,7 +164,8 @@ def _load_tenant_profile() -> Optional[Profile]:
     # The resolved slug was NOT 'default' (e.g. a non-default tenant admin whose
     # profile row doesn't exist yet).  Try 'default' as a last resort ONLY for
     # superadmin contexts to avoid cross-tenant leakage.
-    if current_user.is_authenticated and current_user.is_superadmin:
+    user = _get_current_user()
+    if getattr(user, 'is_authenticated', False) and getattr(user, 'is_superadmin', False):
         fallback = profile_repository.get_by_tenant_slug(_DEFAULT_TENANT_SLUG)
         if fallback:
             logger.info(
@@ -170,7 +200,8 @@ def _require_tenant_object(obj):
     """
     if obj is None:
         return None
-    if current_user.is_superadmin:
+    user = _get_current_user()
+    if getattr(user, 'is_superadmin', False):
         return obj  # Superadmin can access any object
     tenant_slug = _active_tenant_slug()
     obj_tenant = getattr(obj, 'tenant_slug', None)
@@ -178,7 +209,7 @@ def _require_tenant_object(obj):
         logger.warning(
             'TENANT isolation: user id=%s (tenant=%r) attempted to access '
             'object %s id=%s (tenant=%r) — blocked.',
-            getattr(current_user, 'id', '?'), tenant_slug,
+            getattr(user, 'id', '?'), tenant_slug,
             type(obj).__name__, getattr(obj, 'id', '?'), obj_tenant,
         )
         return None
@@ -261,7 +292,8 @@ def block_public_admin():
     # leaking between test clients on a session-scoped test app, and handles
     # edge cases where the login manager restores a stale user from memory).
     _session_has_user = bool(session.get('_user_id') or session.get('user_id'))
-    _truly_authenticated = current_user.is_authenticated and _session_has_user
+    user = _get_current_user()
+    _truly_authenticated = getattr(user, 'is_authenticated', False) and _session_has_user
 
     if not _truly_authenticated:
         # ALWAYS resolve to 'default' for unauthenticated /admin/ access.
@@ -280,20 +312,20 @@ def block_public_admin():
         return redirect(url_for('auth.login', next=request.url))
 
     # ── Authenticated: enforce tenant isolation ───────────────────────────────
-    if not current_user.is_superadmin:
-        user_tenant    = getattr(current_user, 'tenant_slug', None) or _DEFAULT_TENANT_SLUG
+    if not user.is_superadmin:
+        user_tenant    = getattr(user, 'tenant_slug', None) or _DEFAULT_TENANT_SLUG
         session_tenant = session.get('tenant_slug')
 
         if session_tenant != user_tenant:
             logger.info(
                 'TENANT correction in block_public_admin: user id=%s '
                 '(assigned tenant=%r) had session tenant=%r — correcting.',
-                current_user.id, user_tenant, session_tenant,
+                user.id, user_tenant, session_tenant,
             )
             # FIX v3.7: Use stamp_session_tenant (HMAC) instead of a bare
             # session write.  A raw write leaves _tsig stale → TenantGuard
             # rejects the next request, kicking users mid-2FA flow.
-            stamp_session_tenant(current_user.id, user_tenant)
+            _get_stamp_session_tenant()(user.id, user_tenant)
 
     # ── TOTP gate ─────────────────────────────────────────────────────────────
     # _bypass_endpoints: requests that must pass even without TOTP confirmation.
@@ -305,14 +337,14 @@ def block_public_admin():
         'admin.billing_payment', 'admin.billing_history',
     }
     if (
-        current_user.is_authenticated
-        and current_user.totp_enabled
+        getattr(user, 'is_authenticated', False)
+        and getattr(user, 'totp_enabled', False)
         and not session.get('totp_verified')
         and request.endpoint not in _bypass_endpoints
     ):
         # Stamp the session with a unique verification nonce to prevent
         # replay attacks where an old totp_verified=True cookie is reused.
-        session['_2fa_user_id']      = current_user.id
+        session['_2fa_user_id']      = user.id
         session['_2fa_remember']     = False
         session['_2fa_next']         = request.url
         session['_2fa_default_next'] = url_for('admin.dashboard')
@@ -334,8 +366,8 @@ def block_public_admin():
     # single combined set is used here for clarity.
     _sub_exempt = _bypass_endpoints | {'admin.license'}
     if (
-        current_user.is_authenticated
-        and not current_user.is_superadmin
+        getattr(user, 'is_authenticated', False)
+        and not getattr(user, 'is_superadmin', False)
         and request.endpoint not in _sub_exempt
     ):
         _trial_profile = _load_tenant_profile()

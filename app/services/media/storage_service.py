@@ -128,10 +128,11 @@ def _validate_file(
     file_obj: BinaryIO,
     filename: str,
     mime_type: str,
+    file_bytes: bytes | None = None,
 ) -> None:
     """
-    Validate MIME type and extension against whitelists.
-    Raises InvalidFileError on violation.
+    Validate MIME type, extension, magic bytes, and image content centrally.
+    Raises InvalidFileError on violation before any bytes are written.
     """
     ext = Path(filename).suffix.lower()
 
@@ -145,6 +146,19 @@ def _validate_file(
             f'File extension "{ext}" is not allowed.'
         )
 
+    from app.security import FileUploadPolicy, validate_magic_bytes
+    ext_no_dot = ext.lstrip('.')
+    if mime_type.startswith('image/'):
+        ok, err = FileUploadPolicy.validate_image_upload(
+            filename, len(file_bytes or b''), file_bytes=file_bytes, declared_mime=mime_type
+        )
+        if not ok:
+            raise InvalidFileError(err)
+    elif file_bytes is not None:
+        ok, err = validate_magic_bytes(file_bytes, ext_no_dot)
+        if not ok:
+            raise InvalidFileError(err)
+
 
 # ─── Image optimisation ───────────────────────────────────────────────────────
 
@@ -156,7 +170,8 @@ def _optimise_image(
     Convert PNG/JPEG → WebP and resize oversized images.
 
     Returns (optimised_bytes, output_mime_type).
-    If Pillow is unavailable, returns original data unchanged.
+    Image bytes are validated before this function is called. If optimisation
+    fails, raise InvalidFileError so unverified original bytes are not saved.
     """
     try:
         from PIL import Image as _Image
@@ -186,8 +201,8 @@ def _optimise_image(
         logger.warning('[StorageService] Pillow not available — skipping image optimisation')
         return data, mime_type
     except Exception as exc:
-        logger.warning('[StorageService] Image optimisation failed (%s) — using original', exc)
-        return data, mime_type
+        logger.warning('[StorageService] Image optimisation failed (%s) — rejecting upload', exc)
+        raise InvalidFileError('Uploaded image could not be processed safely.') from exc
 
 
 def _generate_thumbnail(data: bytes, mime_type: str, dest_path: Path) -> bool:
@@ -238,8 +253,8 @@ def save_upload(
     if original_size == 0:
         raise InvalidFileError('Uploaded file is empty.')
 
-    # ── 2. Validate MIME + extension ──────────────────────────────────────────
-    _validate_file(file_obj, filename, mime_type)
+    # ── 2. Validate MIME + extension + content before writing bytes ───────────
+    _validate_file(file_obj, filename, mime_type, raw_data)
 
     # ── 3. Capability checks (size + quota) ────────────────────────────────────
     caps = get_tenant_capabilities(tenant)

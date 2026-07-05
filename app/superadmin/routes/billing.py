@@ -59,11 +59,12 @@ from app.models.portfolio import (Profile, PaymentMethod, PaymentSubmission, Sub
                                    normalize_plan_name)
 
 
-from app.utils import log_activity, BILLING_PLANS, YEARLY_DISCOUNT
+from app.utils import log_activity, BILLING_PLANS, YEARLY_DISCOUNT, get_public_billing_plans
 from app.security import log_security_event
 from app.tenant_security import RESERVED_SLUGS, validate_slug, stamp_session_tenant
 from app.models.portfolio import TenantCommunicationSettings
 from app.models.portfolio import _utcnow
+from app.system_plan import ensure_default_tenant_administrator_plan, has_administrator_access, is_administrator_plan
 from app.services.billing import (
     compute_billing_metrics,
     tenant_billing_summary,
@@ -94,7 +95,7 @@ def billing_overview():
         metrics=metrics,
         tenants=tenants,
         recent_webhooks=recent_webhooks,
-        billing_plans=BILLING_PLANS,
+        billing_plans=get_public_billing_plans(),
         page_title='Subscription Overview',
     )
 
@@ -111,8 +112,14 @@ def billing_sync_tenant(profile_id):
 def billing_force_activate(profile_id):
     profile = profile_repository.get_or_404(profile_id)
     plan = request.form.get('plan') or profile.plan or 'Basic'
-    force_activate_subscription(profile, plan, actor=current_user.username)
-    flash(f'Subscription force-activated for {profile.tenant_slug}.', 'success')
+    if has_administrator_access(profile):
+        ensure_default_tenant_administrator_plan(commit=True)
+        flash('The protected system portfolio already has Administrator full access and cannot be reassigned.', 'info')
+    elif is_administrator_plan(plan):
+        flash('Administrator is an internal-only system plan and cannot be assigned to normal tenants.', 'warning')
+    else:
+        ok, message = force_activate_subscription(profile, plan, actor=current_user.username)
+        flash(message or f'Subscription force-activated for {profile.tenant_slug}.', 'success' if ok else 'warning')
     return redirect(url_for('superadmin.billing_overview'))
 
 @superadmin.route('/billing/payment-methods')

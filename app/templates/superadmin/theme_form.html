@@ -5,374 +5,860 @@
 {% block extra_css %}
 <style>
 /* ══════════════════════════════════════════════════════
-   Theme Editor — v6.5
+   SuperAdmin Theme Editor — polished SaaS editor UI
+   Scope: app/templates/superadmin/theme_form.html only
 ══════════════════════════════════════════════════════ */
-.tf-layout{display:grid;grid-template-columns:1fr 340px;gap:1.25rem;align-items:start}
-@media(max-width:900px){.tf-layout{grid-template-columns:1fr}}
-
-.tf-card{background:var(--card-bg,#1a1f2e);border:1px solid var(--border-color,#2d3448);
-  border-radius:14px;padding:1.5rem;margin-bottom:1.25rem}
-.tf-card-title{font-size:.95rem;font-weight:700;margin-bottom:1.1rem;
-  display:flex;align-items:center;gap:.5rem;color:var(--text-primary,#f1f5f9)}
-.tf-card-title iconify-icon{opacity:.6}
-
-.tf-grid{display:grid;grid-template-columns:1fr 1fr;gap:.85rem}
-.tf-grid.cols-1{grid-template-columns:1fr}
-@media(max-width:600px){.tf-grid{grid-template-columns:1fr}}
-.tf-full{grid-column:1/-1}
-
-.tf-group{display:flex;flex-direction:column;gap:.35rem}
-.tf-label{font-size:.72rem;font-weight:700;color:var(--text-muted,#9ca3af);
-  text-transform:uppercase;letter-spacing:.06em}
-.tf-input,.tf-select,.tf-textarea{background:var(--input-bg,#111827);
-  border:1px solid var(--border-color,#2d3448);border-radius:8px;
-  padding:.55rem .85rem;color:var(--text-primary,#f1f5f9);font-size:.9rem;
-  transition:border-color .2s;width:100%;box-sizing:border-box}
-.tf-input:focus,.tf-select:focus,.tf-textarea:focus{outline:none;border-color:#3b82f6;
-  box-shadow:0 0 0 3px rgba(59,130,246,.12)}
-.tf-textarea{resize:vertical;min-height:90px}
-.tf-hint{font-size:.72rem;color:#6b7280;margin-top:.1rem}
-
-.tf-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right .75rem center}
-
-/* Toggle */
-.tf-toggle-row{display:flex;align-items:center;justify-content:space-between;
-  padding:.7rem .85rem;background:var(--input-bg,#111827);border:1px solid var(--border-color,#2d3448);
-  border-radius:9px;cursor:pointer;transition:border-color .2s}
-.tf-toggle-row:hover{border-color:#4b5563}
-.tf-toggle-info{display:flex;flex-direction:column;gap:.15rem}
-.tf-toggle-title{font-size:.88rem;font-weight:600}
-.tf-toggle-sub{font-size:.72rem;color:var(--text-muted,#9ca3af)}
-.switch{position:relative;width:42px;height:22px;flex-shrink:0}
-.switch input{opacity:0;width:0;height:0;position:absolute}
-.switch-track{position:absolute;inset:0;background:#374151;border-radius:11px;transition:.25s;cursor:pointer}
-.switch-track::before{content:'';position:absolute;height:16px;width:16px;left:3px;bottom:3px;
-  background:#fff;border-radius:50%;transition:.25s}
-.switch input:checked+.switch-track{background:#3b82f6}
-.switch input:checked+.switch-track::before{transform:translateX(20px)}
-.switch input[name="is_featured"]:checked+.switch-track{background:#f59e0b}
-
-/* Feature matrix */
-.fm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
-@media(max-width:500px){.fm-grid{grid-template-columns:repeat(2,1fr)}}
-.fm-item{display:flex;align-items:center;gap:.5rem;padding:.55rem .7rem;
-  background:var(--input-bg,#111827);border:1px solid var(--border-color,#2d3448);
-  border-radius:8px;cursor:pointer;transition:border-color .15s,background .15s}
-.fm-item:hover{border-color:#4b5563}
-.fm-item input{display:none}
-.fm-item.checked{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.06)}
-.fm-dot{width:10px;height:10px;border-radius:50%;border:1.5px solid #4b5563;transition:.15s;flex-shrink:0}
-.fm-item.checked .fm-dot{background:#22c55e;border-color:#22c55e}
-.fm-name{font-size:.78rem;font-weight:600;text-transform:capitalize;flex:1}
-
-/* Image upload */
-.img-drop{border:2px dashed var(--border-color,#2d3448);border-radius:10px;
-  padding:1.25rem;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;
-  position:relative;overflow:hidden}
-.img-drop:hover,.img-drop.drag-over{border-color:#3b82f6;background:rgba(59,130,246,.05)}
+.theme-editor-shell{
+  --te-surface:var(--surface,var(--bg-2,#111827));
+  --te-surface-raised:var(--surface-raised,var(--bg-3,#161d2e));
+  --te-border:var(--border,rgba(255,255,255,.08));
+  --te-border-strong:var(--border-medium,rgba(255,255,255,.16));
+  --te-text:var(--text,var(--text-primary,#f8fafc));
+  --te-muted:var(--text-muted,#94a3b8);
+  --te-dim:var(--text-dim,#64748b);
+  --te-accent:var(--accent,#6366f1);
+  --te-accent-light:var(--accent-light,#818cf8);
+  --te-accent-bg:var(--accent-bg,rgba(99,102,241,.10));
+  --te-radius:var(--radius-xl,20px);
+  --te-shadow:var(--shadow-card,0 18px 48px rgba(0,0,0,.22));
+  padding-bottom:7rem;
+  animation:themeEditorIn .32s var(--ease-out,ease-out) both;
+}
+.theme-editor-shell *{box-sizing:border-box}
+.theme-editor-shell,
+.theme-editor-shell input,
+.theme-editor-shell select,
+.theme-editor-shell textarea,
+.theme-editor-shell button{
+  font-family:var(--font-body, inherit);
+}
+.theme-editor-title,
+.te-card-title,
+.fm-group-title,
+.theme-editor-kicker,
+.theme-editor-breadcrumb,
+.te-btn,
+.te-chip,
+.te-pill,
+.te-label,
+.te-toggle-title,
+.summary-label,
+.summary-value,
+.asset-title,
+.fm-name,
+.img-drop-txt,
+.upload-status{
+  font-family:var(--font-display,var(--font-body,inherit));
+}
+.theme-editor-header{
+  position:relative;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:1.25rem;
+  margin-bottom:1.5rem;
+  padding:1.35rem;
+  border:1px solid var(--te-border);
+  border-radius:calc(var(--te-radius) + 4px);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(99,102,241,.18), transparent 34%),
+    linear-gradient(135deg, rgba(255,255,255,.045), transparent 42%),
+    var(--te-surface);
+  box-shadow:var(--te-shadow);
+  overflow:hidden;
+}
+.theme-editor-header::after{
+  content:'';
+  position:absolute;
+  inset:auto -15% -65% auto;
+  width:360px;
+  height:360px;
+  background:radial-gradient(circle, rgba(129,140,248,.16), transparent 62%);
+  pointer-events:none;
+}
+.theme-editor-breadcrumb{
+  display:flex;
+  align-items:center;
+  gap:.45rem;
+  color:var(--te-muted);
+  font-size:.78rem;
+  font-weight:700;
+  letter-spacing:.01em;
+  margin-bottom:.7rem;
+  flex-wrap:wrap;
+}
+.theme-editor-breadcrumb a,
+.theme-editor-backlink{
+  color:var(--te-muted);
+  text-decoration:none;
+  display:inline-flex;
+  align-items:center;
+  gap:.35rem;
+  transition:color .18s var(--ease,ease), transform .18s var(--ease,ease);
+}
+.theme-editor-breadcrumb a:hover,
+.theme-editor-backlink:hover{color:var(--te-text);transform:translateX(-1px)}
+.theme-editor-kicker{
+  display:inline-flex;
+  align-items:center;
+  gap:.45rem;
+  padding:.35rem .62rem;
+  border:1px solid var(--border-accent,rgba(99,102,241,.24));
+  border-radius:999px;
+  color:var(--te-accent-light);
+  background:var(--te-accent-bg);
+  font-size:.72rem;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  margin-bottom:.65rem;
+}
+.theme-editor-title-row{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+.theme-editor-title{
+  margin:0;
+  color:var(--te-text);
+  font-size:clamp(1.45rem,2vw,2rem);
+  line-height:1.15;
+  letter-spacing:-.025em;
+  font-weight:800;
+}
+.theme-editor-subtitle{
+  margin:.55rem 0 0;
+  color:var(--te-muted);
+  max-width:720px;
+  font-size:.94rem;
+  line-height:1.55;
+}
+.theme-status-chips{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.9rem}
+.te-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:.38rem;
+  min-height:28px;
+  padding:.34rem .62rem;
+  border:1px solid var(--te-border);
+  border-radius:999px;
+  background:rgba(148,163,184,.08);
+  color:var(--te-muted);
+  font-size:.75rem;
+  font-weight:700;
+  white-space:nowrap;
+}
+.te-chip iconify-icon{opacity:.9}
+.te-chip.active,.te-pill.active{color:var(--success,#10b981);border-color:rgba(16,185,129,.28);background:var(--success-bg,rgba(16,185,129,.10))}
+.te-chip.inactive,.te-pill.inactive{color:var(--danger,#ef4444);border-color:rgba(239,68,68,.28);background:var(--danger-bg,rgba(239,68,68,.10))}
+.te-chip.featured,.te-pill.featured{color:var(--warn,#f59e0b);border-color:rgba(245,158,11,.32);background:var(--warn-bg,rgba(245,158,11,.10))}
+.te-chip.premium,.te-pill.premium{color:#c084fc;border-color:rgba(192,132,252,.32);background:rgba(168,85,247,.12)}
+.te-chip.free,.te-pill.free{color:var(--success,#10b981);border-color:rgba(16,185,129,.28);background:var(--success-bg,rgba(16,185,129,.10))}
+.te-chip.plan{color:var(--te-accent-light);border-color:var(--border-accent,rgba(99,102,241,.25));background:var(--te-accent-bg)}
+.theme-action-group{position:relative;z-index:1;display:flex;align-items:center;gap:.65rem;flex-wrap:wrap;justify-content:flex-end;min-width:260px}
+.te-btn{
+  min-height:42px;
+  border-radius:12px;
+  border:1px solid var(--te-border-strong);
+  padding:.68rem .95rem;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:.45rem;
+  color:var(--te-text);
+  background:rgba(255,255,255,.035);
+  text-decoration:none;
+  font-weight:700;
+  font-size:.86rem;
+  cursor:pointer;
+  line-height:1;
+  transition:transform .18s var(--ease,ease), border-color .18s var(--ease,ease), background .18s var(--ease,ease), box-shadow .18s var(--ease,ease);
+}
+.te-btn:hover{transform:translateY(-1px);border-color:var(--border-accent,rgba(99,102,241,.35));background:rgba(99,102,241,.08)}
+.te-btn:focus-visible{outline:none;box-shadow:0 0 0 4px var(--accent-glow,rgba(99,102,241,.25));border-color:var(--border-focus,rgba(99,102,241,.6))}
+.te-btn-primary{background:linear-gradient(135deg,var(--te-accent),var(--accent-dark,#4f46e5));color:#fff;border-color:transparent;box-shadow:0 14px 32px rgba(99,102,241,.24)}
+.te-btn-primary:hover{background:linear-gradient(135deg,var(--te-accent-light),var(--te-accent));box-shadow:0 18px 38px rgba(99,102,241,.32)}
+.te-btn-subtle{background:transparent;color:var(--te-muted)}
+.theme-editor-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,370px);gap:1.5rem;align-items:start}
+.theme-editor-main,.theme-editor-sidebar{min-width:0}
+.theme-editor-main{display:flex;flex-direction:column;gap:0}
+.theme-editor-sidebar{
+  position:sticky;
+  top:1rem;
+  max-height:calc(100vh - 2rem);
+  overflow-y:auto;
+  padding-right:.15rem;
+  padding-bottom:1rem;
+  scrollbar-width:thin;
+  overscroll-behavior:contain;
+}
+.theme-editor-sidebar::-webkit-scrollbar{width:8px}
+.theme-editor-sidebar::-webkit-scrollbar-thumb{background:var(--te-border-strong);border-radius:999px}
+.theme-editor-sidebar::-webkit-scrollbar-track{background:transparent}
+.theme-editor-card{
+  border:1px solid var(--te-border);
+  border-radius:var(--te-radius);
+  background:linear-gradient(180deg, rgba(255,255,255,.035), transparent 52%), var(--te-surface);
+  box-shadow:var(--te-shadow);
+  padding:1.35rem;
+  margin-bottom:1.25rem;
+  transition:transform .2s var(--ease,ease), border-color .2s var(--ease,ease), box-shadow .2s var(--ease,ease);
+}
+.theme-editor-card:hover{transform:translateY(-1px);border-color:var(--te-border-strong);box-shadow:0 18px 46px rgba(0,0,0,.24)}
+.te-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:.85rem;margin-bottom:1.2rem}
+.te-card-title-wrap{display:flex;gap:.75rem;align-items:flex-start;min-width:0}
+.te-card-icon{
+  width:38px;height:38px;display:grid;place-items:center;border-radius:12px;
+  background:var(--te-accent-bg);color:var(--te-accent-light);border:1px solid var(--border-accent,rgba(99,102,241,.22));flex:0 0 auto;
+}
+.te-card-title{margin:0;color:var(--te-text);font-size:1rem;font-weight:700;letter-spacing:-.015em}
+.te-card-help{margin:.18rem 0 0;color:var(--te-muted);font-size:.82rem;line-height:1.45}
+.te-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+.te-form-full{grid-column:1/-1}
+.te-field{display:flex;flex-direction:column;gap:.42rem;min-width:0}
+.te-label{
+  color:var(--te-text);
+  font-size:.79rem;
+  font-weight:700;
+  letter-spacing:.01em;
+}
+.te-input,.te-select,.te-textarea{
+  width:100%;
+  min-height:46px;
+  border:1px solid var(--te-border-strong);
+  border-radius:12px;
+  background:var(--te-surface-raised);
+  color:var(--te-text);
+  padding:.72rem .9rem;
+  font-size:.92rem;
+  font-weight:600;
+  transition:border-color .18s var(--ease,ease), box-shadow .18s var(--ease,ease), background .18s var(--ease,ease), transform .18s var(--ease,ease);
+}
+.te-input::placeholder,.te-textarea::placeholder{color:var(--te-dim);font-weight:500}
+.te-input:focus,.te-select:focus,.te-textarea:focus{
+  outline:none;
+  border-color:var(--border-focus,rgba(99,102,241,.6));
+  box-shadow:0 0 0 4px var(--accent-glow,rgba(99,102,241,.20));
+  background:var(--te-surface);
+}
+.te-textarea{min-height:112px;resize:vertical;line-height:1.55}
+.te-select{
+  appearance:none;
+  padding-right:2.35rem;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23818cf8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right .85rem center;
+}
+.te-hint{color:var(--te-muted);font-size:.76rem;line-height:1.45}
+.te-panel-stack{display:flex;flex-direction:column;gap:.85rem}
+.te-toggle-row{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:.85rem;
+  align-items:center;
+  padding:.95rem;
+  border:1px solid var(--te-border);
+  border-radius:14px;
+  background:var(--te-surface-raised);
+  cursor:pointer;
+  transition:background .18s var(--ease,ease), border-color .18s var(--ease,ease), transform .18s var(--ease,ease);
+}
+.te-toggle-row:hover{border-color:var(--border-accent,rgba(99,102,241,.28));transform:translateY(-1px)}
+.te-toggle-title-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.18rem}
+.te-toggle-title{color:var(--te-text);font-size:.9rem;font-weight:700}
+.te-toggle-sub{color:var(--te-muted);font-size:.77rem;line-height:1.45}
+.te-pill{
+  display:inline-flex;align-items:center;gap:.25rem;border:1px solid var(--te-border);border-radius:999px;
+  padding:.18rem .45rem;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--te-muted);background:rgba(148,163,184,.08)
+}
+.te-switch{position:relative;width:48px;height:28px;display:inline-block;flex:0 0 auto}
+.te-switch input{position:absolute;opacity:0;width:1px;height:1px}
+.te-switch-track{position:absolute;inset:0;background:rgba(148,163,184,.28);border:1px solid var(--te-border-strong);border-radius:999px;transition:.22s var(--ease,ease);box-shadow:inset 0 1px 3px rgba(0,0,0,.16)}
+.te-switch-track::before{content:'';position:absolute;width:20px;height:20px;left:3px;top:3px;background:#fff;border-radius:999px;transition:.22s var(--ease-spring,ease);box-shadow:0 3px 10px rgba(0,0,0,.28)}
+.te-switch input:checked+.te-switch-track{background:var(--te-accent);border-color:transparent}
+.te-switch input:checked+.te-switch-track::before{transform:translateX(20px)}
+.te-switch input:focus-visible+.te-switch-track{box-shadow:0 0 0 4px var(--accent-glow,rgba(99,102,241,.25))}
+.te-select-stack{display:flex;flex-direction:column;gap:.9rem;margin-top:.95rem}
+.summary-list{display:flex;flex-direction:column;gap:.62rem}
+.summary-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.6rem .72rem;border:1px solid var(--te-border);border-radius:12px;background:var(--te-surface-raised)}
+.summary-label{color:var(--te-muted);font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.summary-value{color:var(--te-text);font-size:.84rem;font-weight:700;text-align:right;word-break:break-word}
+.te-note-list{display:flex;flex-direction:column;gap:.55rem;margin:0;padding:0;list-style:none}
+.te-note-list li{display:flex;gap:.5rem;align-items:flex-start;color:var(--te-muted);font-size:.8rem;line-height:1.45}
+.te-note-list iconify-icon{color:var(--te-accent-light);margin-top:.08rem;flex:0 0 auto}
+.fm-group{margin-top:1rem}
+.fm-group:first-of-type{margin-top:0}
+.fm-group-title{display:flex;align-items:center;gap:.45rem;margin:0 0 .65rem;color:var(--te-text);font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.fm-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.65rem}
+.fm-item{
+  position:relative;
+  min-height:72px;
+  display:flex;
+  align-items:flex-start;
+  gap:.65rem;
+  padding:.78rem;
+  border:1px solid var(--te-border);
+  border-radius:14px;
+  background:var(--te-surface-raised);
+  cursor:pointer;
+  user-select:none;
+  transition:transform .18s var(--ease,ease), border-color .18s var(--ease,ease), background .18s var(--ease,ease), box-shadow .18s var(--ease,ease);
+}
+.fm-item:hover{transform:translateY(-1px);border-color:var(--border-accent,rgba(99,102,241,.32));background:rgba(99,102,241,.055)}
+.fm-item input{position:absolute;opacity:0;pointer-events:none}
+.fm-item:has(input:focus-visible){box-shadow:0 0 0 4px var(--accent-glow,rgba(99,102,241,.22));border-color:var(--border-focus,rgba(99,102,241,.6))}
+.fm-item.checked{border-color:rgba(16,185,129,.36);background:linear-gradient(135deg,var(--success-bg,rgba(16,185,129,.10)),transparent 70%),var(--te-surface-raised)}
+.fm-dot{width:18px;height:18px;margin-top:.05rem;border-radius:999px;border:2px solid var(--te-border-strong);display:grid;place-items:center;flex:0 0 auto;transition:.18s var(--ease,ease)}
+.fm-dot iconify-icon{display:none;color:#fff}
+.fm-item.checked .fm-dot{background:var(--success,#10b981);border-color:var(--success,#10b981)}
+.fm-item.checked .fm-dot iconify-icon{display:block}
+.fm-name{display:block;color:var(--te-text);font-size:.84rem;font-weight:700;line-height:1.25}
+.fm-desc{display:block;margin-top:.18rem;color:var(--te-muted);font-size:.69rem;line-height:1.35}
+.asset-block{border:1px solid var(--te-border);border-radius:16px;background:var(--te-surface-raised);padding:.9rem;margin-bottom:.85rem}
+.asset-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem;margin-bottom:.75rem}
+.asset-title{color:var(--te-text);font-size:.86rem;font-weight:700;margin:0}
+.asset-copy{color:var(--te-muted);font-size:.74rem;line-height:1.4;margin:.18rem 0 0}
+.img-drop{
+  position:relative;
+  display:grid;
+  place-items:center;
+  min-height:132px;
+  padding:1rem;
+  text-align:center;
+  border:1.5px dashed var(--te-border-strong);
+  border-radius:16px;
+  background:linear-gradient(135deg,rgba(99,102,241,.08),transparent 70%),var(--te-surface);
+  cursor:pointer;
+  overflow:hidden;
+  transition:transform .18s var(--ease,ease), border-color .18s var(--ease,ease), background .18s var(--ease,ease);
+}
+.img-drop:hover,.img-drop.drag-over{transform:translateY(-1px);border-color:var(--te-accent);background:var(--te-accent-bg)}
 .img-drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
-.img-drop-icon{font-size:1.8rem;color:#4b5563;margin-bottom:.4rem}
-.img-drop-txt{font-size:.8rem;color:var(--text-muted,#9ca3af)}
-.img-preview-wrap{position:relative;display:inline-block;margin-top:.75rem}
-.img-preview-wrap img{border-radius:8px;max-width:100%;height:140px;object-fit:cover;border:1px solid var(--border-color,#2d3448)}
-.img-preview-remove{position:absolute;top:4px;right:4px;background:rgba(239,68,68,.85);
-  border:none;color:#fff;border-radius:50%;width:22px;height:22px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;font-size:.65rem}
-
-.img-previews-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:.5rem}
-.img-prev-item{position:relative;border-radius:8px;overflow:hidden;aspect-ratio:16/9}
-.img-prev-item img{width:100%;height:100%;object-fit:cover}
-.img-prev-remove{position:absolute;top:4px;right:4px;background:rgba(239,68,68,.85);
-  border:none;color:#fff;border-radius:50%;width:20px;height:20px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;font-size:.6rem}
-
-/* Side panel */
-.tf-side-meta{font-size:.8rem;color:var(--text-muted,#9ca3af);line-height:1.7}
-.tf-side-meta strong{color:var(--text-primary,#f1f5f9);font-weight:600}
-
-/* Actions */
-.tf-actions{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;padding-top:1rem}
-.btn-save{background:#3b82f6;color:#fff;border:none;padding:.55rem 1.4rem;border-radius:9px;
-  font-size:.88rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:.45rem;
-  transition:background .2s}
-.btn-save:hover{background:#2563eb}
-.btn-cancel{background:transparent;color:var(--text-muted);border:1px solid var(--border-color,#2d3448);
-  padding:.5rem 1rem;border-radius:9px;font-size:.85rem;font-weight:600;cursor:pointer;
-  text-decoration:none;display:inline-flex;align-items:center;gap:.35rem;transition:border-color .15s}
-.btn-cancel:hover{border-color:#4b5563;color:var(--text-primary,#f1f5f9)}
-
-.upload-btn{background:rgba(59,130,246,.12);color:#60a5fa;border:1px solid rgba(59,130,246,.25);
-  padding:.4rem .8rem;border-radius:7px;font-size:.78rem;font-weight:600;cursor:pointer;
-  display:inline-flex;align-items:center;gap:.35rem;transition:background .15s}
-.upload-btn:hover{background:rgba(59,130,246,.22)}
-.upload-status{font-size:.75rem;margin-top:.35rem;padding:.25rem .5rem;border-radius:5px;display:none}
-.upload-status.ok{background:rgba(34,197,94,.12);color:#22c55e;display:block}
-.upload-status.err{background:rgba(239,68,68,.1);color:#f87171;display:block}
+.img-drop-icon{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;margin:0 auto .55rem;color:var(--te-accent-light);background:var(--te-accent-bg);border:1px solid var(--border-accent,rgba(99,102,241,.24))}
+.img-drop-txt{color:var(--te-text);font-size:.82rem;font-weight:700;line-height:1.45}
+.img-drop-txt small{display:block;color:var(--te-muted);font-size:.72rem;font-weight:600;margin-top:.14rem}
+.img-preview-wrap{position:relative;display:block;margin:.55rem 0 .8rem;border-radius:16px;overflow:hidden;border:1px solid var(--te-border);background:var(--te-surface-raised)}
+.img-preview-wrap img{display:block;width:100%;height:158px;object-fit:cover}
+.img-empty{display:flex;align-items:center;justify-content:center;gap:.45rem;min-height:72px;border:1px dashed var(--te-border);border-radius:14px;color:var(--te-muted);font-size:.78rem;font-weight:700;background:rgba(148,163,184,.055);margin:.55rem 0 .8rem}
+.img-previews-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;margin:.55rem 0 .75rem}
+.img-prev-item{position:relative;border-radius:14px;overflow:hidden;aspect-ratio:16/10;border:1px solid var(--te-border);background:var(--te-surface-raised)}
+.img-prev-item img{width:100%;height:100%;object-fit:cover;display:block}
+.img-prev-remove{position:absolute;top:.45rem;right:.45rem;border:none;color:#fff;background:rgba(239,68,68,.88);border-radius:999px;width:26px;height:26px;display:grid;place-items:center;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.28)}
+.img-prev-remove:focus-visible{outline:3px solid rgba(239,68,68,.35);outline-offset:2px}
+.upload-status{font-size:.76rem;margin-top:.5rem;padding:.48rem .6rem;border-radius:10px;display:none;font-weight:700}
+.upload-status.ok{background:var(--success-bg,rgba(16,185,129,.12));color:var(--success,#10b981);display:block}
+.upload-status.err{background:var(--danger-bg,rgba(239,68,68,.1));color:var(--danger,#ef4444);display:block}
+.side-meta{font-size:.82rem;color:var(--te-muted);line-height:1.7}
+.side-meta strong{color:var(--te-text);font-weight:700}
+.theme-sticky-actions{
+  position:sticky;
+  bottom:.9rem;
+  z-index:20;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  margin-top:1.5rem;
+  padding:.8rem .95rem;
+  border:1px solid var(--te-border-strong);
+  border-radius:18px;
+  background:var(--surface-overlay,var(--bg-overlay,rgba(17,24,39,.96)));
+  box-shadow:0 20px 58px rgba(0,0,0,.28);
+  backdrop-filter:blur(18px);
+}
+.sticky-helper{display:flex;align-items:center;gap:.5rem;color:var(--te-muted);font-size:.8rem;font-weight:700;line-height:1.35}
+.sticky-buttons{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;justify-content:flex-end}
+html[data-theme="light"] .theme-editor-header,
+html[data-theme="light"] .theme-editor-card{background:linear-gradient(180deg,rgba(255,255,255,.86),rgba(255,255,255,.98)),var(--te-surface)}
+html[data-theme="light"] .te-input,
+html[data-theme="light"] .te-select,
+html[data-theme="light"] .te-textarea,
+html[data-theme="light"] .te-toggle-row,
+html[data-theme="light"] .summary-row,
+html[data-theme="light"] .asset-block,
+html[data-theme="light"] .fm-item{background:#fff}
+@keyframes themeEditorIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (max-width:1180px){.theme-editor-grid{grid-template-columns:minmax(0,1fr) 330px}.fm-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:980px){
+  .theme-editor-header{flex-direction:column}.theme-action-group{width:100%;justify-content:flex-start}.theme-editor-grid{grid-template-columns:1fr}.theme-editor-sidebar{position:static;max-height:none;overflow:visible;padding-right:0}.theme-editor-shell{padding-bottom:8rem}
+}
+@media (max-width:640px){
+  .theme-editor-shell{padding-bottom:10rem}.theme-editor-header,.theme-editor-card{padding:1rem;border-radius:18px}.te-form-grid,.fm-grid,.img-previews-grid{grid-template-columns:1fr}.theme-action-group,.sticky-buttons{display:grid;grid-template-columns:1fr;width:100%}.te-btn{width:100%}.theme-sticky-actions{left:.75rem;right:.75rem;bottom:.75rem;flex-direction:column;align-items:stretch}.sticky-helper{font-size:.74rem}.theme-editor-title{font-size:1.35rem}
+}
+@media (prefers-reduced-motion:reduce){
+  .theme-editor-shell,.theme-editor-card,.te-btn,.te-toggle-row,.fm-item,.img-drop,.te-input,.te-select,.te-textarea{animation:none!important;transition:none!important}
+}
 </style>
 {% endblock %}
 
 {% block content %}
+{% set resolved_name = entry.name or fs_meta.get('name') or entry.slug %}
+{% set preview_images = entry.get_preview_images() %}
+{% if entry.is_premium is sameas true %}
+  {% set premium_label = 'Premium' %}
+  {% set premium_class = 'premium' %}
+{% elif entry.is_premium is sameas false %}
+  {% set premium_label = 'Free' %}
+  {% set premium_class = 'free' %}
+{% elif fs_meta.get('premium') %}
+  {% set premium_label = 'Premium via theme.json' %}
+  {% set premium_class = 'premium' %}
+{% else %}
+  {% set premium_label = 'Theme default' %}
+  {% set premium_class = 'free' %}
+{% endif %}
+{% set plan_label = entry.required_plan|capitalize if entry.required_plan else 'Any plan' %}
 
-<div class="page-header" style="margin-bottom:1.5rem">
-  <div class="page-header-left">
-    <a href="{{ url_for('superadmin.theme_catalog') }}" style="color:var(--text-muted);font-size:.82rem;display:inline-flex;align-items:center;gap:.3rem;text-decoration:none;margin-bottom:.4rem">
-      <iconify-icon icon="lucide:arrow-left" width="14"></iconify-icon> Theme Catalog
-    </a>
-    <h1 class="page-heading" style="font-size:1.4rem">{{ page_title }}</h1>
-  </div>
-</div>
-
-<form method="post" id="themeForm">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-
-  <div class="tf-layout">
-
-    <!-- ── LEFT COLUMN ────────────────────────────────────────────── -->
+<div class="theme-editor-shell">
+  <div class="theme-editor-header" aria-labelledby="themeEditorTitle">
     <div>
-
-      <!-- Basic info -->
-      <div class="tf-card">
-        <div class="tf-card-title">
-          <iconify-icon icon="lucide:info" width="16"></iconify-icon> Basic Information
-        </div>
-        <div class="tf-grid">
-          <div class="tf-group">
-            <label class="tf-label" for="name">Display Name</label>
-            <input class="tf-input" id="name" name="name" type="text"
-                   value="{{ entry.name or fs_meta.get('name') or entry.slug }}"
-                   placeholder="e.g. Developer Pro"/>
-          </div>
-          <div class="tf-group">
-            <label class="tf-label" for="category">Category</label>
-            <input class="tf-input" id="category" name="category" type="text"
-                   value="{{ entry.category or '' }}"
-                   placeholder="e.g. Portfolio, Creative"/>
-          </div>
-          <div class="tf-group tf-full">
-            <label class="tf-label" for="description">Description</label>
-            <textarea class="tf-textarea" id="description" name="description"
-                      placeholder="Short description shown on theme cards…">{{ entry.description or fs_meta.get('description') or '' }}</textarea>
-          </div>
-          <div class="tf-group">
-            <label class="tf-label" for="theme_author">Author / Studio</label>
-            <input class="tf-input" id="theme_author" name="theme_author" type="text"
-                   value="{{ entry.theme_author or '' }}" placeholder="e.g. PixelCraft Studio"/>
-          </div>
-          <div class="tf-group">
-            <label class="tf-label" for="theme_version">Version</label>
-            <input class="tf-input" id="theme_version" name="theme_version" type="text"
-                   value="{{ entry.theme_version or '' }}" placeholder="e.g. 2.1.0"/>
-          </div>
-          <div class="tf-group tf-full">
-            <label class="tf-label" for="theme_tags">Tags (comma-separated)</label>
-            <input class="tf-input" id="theme_tags" name="theme_tags" type="text"
-                   value="{{ entry.get_tags() | join(', ') }}"
-                   placeholder="dark, minimal, portfolio, creative"/>
-            <div class="tf-hint">Used for search and filtering in the tenant theme picker.</div>
-          </div>
-        </div>
+      <nav class="theme-editor-breadcrumb" aria-label="Breadcrumb">
+        <a href="{{ url_for('superadmin.dashboard') }}">SuperAdmin</a>
+        <span>/</span>
+        <a href="{{ url_for('superadmin.theme_catalog') }}">Theme Catalog</a>
+        <span>/</span>
+        <span>Edit Theme</span>
+      </nav>
+      <a class="theme-editor-backlink" href="{{ url_for('superadmin.theme_catalog') }}">
+        <iconify-icon icon="lucide:arrow-left" width="15"></iconify-icon>
+        Theme Catalog
+      </a>
+      <div class="theme-editor-kicker">
+        <iconify-icon icon="lucide:palette" width="14"></iconify-icon>
+        Catalog item editor
       </div>
-
-      <!-- Feature matrix -->
-      <div class="tf-card">
-        <div class="tf-card-title">
-          <iconify-icon icon="lucide:layout-grid" width="16"></iconify-icon> Feature Matrix
-        </div>
-        <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 1rem">
-          Mark which page sections / modules this theme supports. Unsupported sections are hidden for tenants using this theme.
-        </p>
-        {% set matrix = entry.get_feature_matrix() %}
-        {% set features = [
-          ('hero','Hero / Banner'),('about','About'),('projects','Projects'),
-          ('skills','Skills'),('services','Services'),('testimonials','Testimonials'),
-          ('timeline','Timeline'),('resume','Resume'),('contact','Contact'),
-          ('gallery','Gallery'),('blog','Blog'),('shop','Shop'),
-        ] %}
-        <div class="fm-grid">
-          {% for key, label in features %}
-          {% set supported = matrix.get(key, key in ['hero','about','projects','skills','contact']) %}
-          <label class="fm-item {% if supported %}checked{% endif %}" id="fmlabel_{{ key }}">
-            <input type="checkbox" name="feature_{{ key }}" {% if supported %}checked{% endif %}
-                   onchange="this.closest('.fm-item').classList.toggle('checked', this.checked)"/>
-            <div class="fm-dot"></div>
-            <span class="fm-name">{{ label }}</span>
-          </label>
-          {% endfor %}
-        </div>
+      <div class="theme-editor-title-row">
+        <h1 class="theme-editor-title" id="themeEditorTitle">{{ page_title }}</h1>
       </div>
-
-      <!-- Actions -->
-      <div class="tf-actions">
-        <button type="submit" class="btn-save">
-          <iconify-icon icon="lucide:save" width="16"></iconify-icon>
-          Save Changes
-        </button>
-        <a href="{{ url_for('superadmin.theme_catalog') }}" class="btn-cancel">
-          <iconify-icon icon="lucide:x" width="14"></iconify-icon> Cancel
-        </a>
+      <p class="theme-editor-subtitle">Update theme metadata, visibility, gating, supported sections, and preview assets shown in the tenant theme picker.</p>
+      <div class="theme-status-chips" aria-label="Theme status summary">
+        <span class="te-chip {% if entry.is_active %}active{% else %}inactive{% endif %}">
+          <iconify-icon icon="{% if entry.is_active %}lucide:check-circle-2{% else %}lucide:pause-circle{% endif %}" width="14"></iconify-icon>
+          {% if entry.is_active %}Active{% else %}Inactive{% endif %}
+        </span>
+        <span class="te-chip {{ premium_class }}">
+          <iconify-icon icon="{% if premium_class == 'premium' %}lucide:sparkles{% else %}lucide:unlock{% endif %}" width="14"></iconify-icon>
+          {{ premium_label }}
+        </span>
+        <span class="te-chip {% if entry.is_featured %}featured{% endif %}">
+          <iconify-icon icon="lucide:star" width="14"></iconify-icon>
+          {% if entry.is_featured %}Featured{% else %}Not Featured{% endif %}
+        </span>
+        <span class="te-chip plan">
+          <iconify-icon icon="lucide:shield-check" width="14"></iconify-icon>
+          {{ plan_label }}
+        </span>
       </div>
-
     </div>
 
-    <!-- ── RIGHT COLUMN ───────────────────────────────────────────── -->
-    <div>
+    <div class="theme-action-group" aria-label="Theme editor actions">
+      <button type="submit" form="themeForm" class="te-btn te-btn-primary">
+        <iconify-icon icon="lucide:save" width="16"></iconify-icon>
+        Save Changes
+      </button>
+      {% if entry.slug %}
+      <a class="te-btn" href="{{ url_for('public.theme_preview', theme_id=entry.slug) }}" target="_blank" rel="noopener">
+        <iconify-icon icon="lucide:eye" width="16"></iconify-icon>
+        Preview theme
+      </a>
+      {% endif %}
+      <a class="te-btn te-btn-subtle" href="{{ url_for('superadmin.theme_catalog') }}">
+        <iconify-icon icon="lucide:layout-grid" width="16"></iconify-icon>
+        Back to catalog
+      </a>
+    </div>
+  </div>
 
-      <!-- Visibility & gating -->
-      <div class="tf-card">
-        <div class="tf-card-title">
-          <iconify-icon icon="lucide:sliders" width="16"></iconify-icon> Visibility & Gating
-        </div>
+  <form method="post" id="themeForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
-        <div style="display:flex;flex-direction:column;gap:.55rem">
-          <label class="tf-toggle-row">
-            <div class="tf-toggle-info">
-              <div class="tf-toggle-title">Active</div>
-              <div class="tf-toggle-sub">Show this theme to tenants</div>
+    <div class="theme-editor-grid">
+      <main class="theme-editor-main" aria-label="Theme editor form">
+
+        <section class="theme-editor-card" aria-labelledby="basicInfoTitle">
+          <div class="te-card-header">
+            <div class="te-card-title-wrap">
+              <div class="te-card-icon"><iconify-icon icon="lucide:info" width="18"></iconify-icon></div>
+              <div>
+                <h2 class="te-card-title" id="basicInfoTitle">Basic Information</h2>
+                <p class="te-card-help">Core display details shown in the tenant theme picker.</p>
+              </div>
             </div>
-            <label class="switch"><input type="checkbox" name="is_active" {% if entry.is_active %}checked{% endif %}><span class="switch-track"></span></label>
-          </label>
-          <label class="tf-toggle-row">
-            <div class="tf-toggle-info">
-              <div class="tf-toggle-title">Featured</div>
-              <div class="tf-toggle-sub">Show in spotlight / carousel</div>
+          </div>
+
+          <div class="te-form-grid">
+            <div class="te-field">
+              <label class="te-label" for="name">Display Name</label>
+              <input class="te-input" id="name" name="name" type="text"
+                     value="{{ resolved_name }}"
+                     placeholder="e.g. Developer Pro"/>
             </div>
-            <label class="switch"><input type="checkbox" name="is_featured" {% if entry.is_featured %}checked{% endif %}><span class="switch-track"></span></label>
-          </label>
-        </div>
-
-        <div style="margin-top:1rem;display:flex;flex-direction:column;gap:.75rem">
-          <div class="tf-group">
-            <label class="tf-label" for="is_premium">Premium Status</label>
-            <select class="tf-select" id="is_premium" name="is_premium">
-              <option value="defer" {% if entry.is_premium is none %}selected{% endif %}>Defer to theme.json</option>
-              <option value="false" {% if entry.is_premium is sameas false %}selected{% endif %}>Free</option>
-              <option value="true"  {% if entry.is_premium is sameas true  %}selected{% endif %}>Premium</option>
-            </select>
-          </div>
-          <div class="tf-group">
-            <label class="tf-label" for="required_plan">Required Plan</label>
-            <select class="tf-select" id="required_plan" name="required_plan">
-              <option value="" {% if not entry.required_plan %}selected{% endif %}>Any plan</option>
-              <option value="pro"        {% if entry.required_plan == 'pro' %}selected{% endif %}>Pro</option>
-              <option value="enterprise" {% if entry.required_plan == 'enterprise' %}selected{% endif %}>Enterprise</option>
-            </select>
-          </div>
-          <div class="tf-group">
-            <label class="tf-label" for="sort_order">Sort Order</label>
-            <input class="tf-input" id="sort_order" name="sort_order" type="number"
-                   value="{{ entry.sort_order or 0 }}" min="0" max="9999"/>
-            <div class="tf-hint">Lower = shown first. 0 is default.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Images -->
-      <div class="tf-card">
-        <div class="tf-card-title">
-          <iconify-icon icon="lucide:image" width="16"></iconify-icon> Images
-        </div>
-
-        <!-- Thumbnail URL (quick) -->
-        <div class="tf-group" style="margin-bottom:.85rem">
-          <label class="tf-label">Thumbnail URL</label>
-          <input class="tf-input" name="thumbnail_url" type="url"
-                 value="{{ entry.thumbnail_url or '' }}"
-                 placeholder="https://… or leave blank to upload"/>
-          <div class="tf-hint">Paste a URL or use the upload button below.</div>
-        </div>
-
-        <!-- Thumbnail upload -->
-        {% if entry.id %}
-        <div class="tf-group" style="margin-bottom:1rem">
-          <label class="tf-label">Upload Thumbnail</label>
-          {% if entry.thumbnail_url %}
-          <div class="img-preview-wrap">
-            <img src="{{ entry.thumbnail_url }}" alt="thumbnail" id="thumbPreviewImg"/>
-          </div>
-          {% endif %}
-          <div class="img-drop" id="thumbDrop" style="margin-top:.5rem">
-            <input type="file" accept="image/*" id="thumbFile" onchange="uploadThumb(this)"/>
-            <div class="img-drop-icon"><iconify-icon icon="lucide:upload-cloud" width="28"></iconify-icon></div>
-            <div class="img-drop-txt">Drop image here or click to browse<br><small>PNG, JPG, WEBP, GIF · Max 5 MB</small></div>
-          </div>
-          <div class="upload-status" id="thumbStatus"></div>
-        </div>
-
-        <!-- Preview screenshots -->
-        <div class="tf-group">
-          <label class="tf-label">Screenshot Previews</label>
-          <div class="tf-hint" style="margin-bottom:.5rem">Up to 6 screenshots shown in the preview modal carousel.</div>
-          <div class="img-previews-grid" id="previewsGrid">
-            {% for url in entry.get_preview_images() %}
-            <div class="img-prev-item" id="prev_{{ loop.index }}">
-              <img src="{{ url }}" alt="preview {{ loop.index }}"/>
-              <button type="button" class="img-prev-remove"
-                      onclick="deletePreview('{{ url }}', this.closest('.img-prev-item'))">
-                <iconify-icon icon="lucide:x" width="11"></iconify-icon>
-              </button>
+            <div class="te-field">
+              <label class="te-label" for="category">Category</label>
+              <input class="te-input" id="category" name="category" type="text"
+                     value="{{ entry.category or '' }}"
+                     placeholder="e.g. Portfolio, Creative"/>
             </div>
-            {% endfor %}
+            <div class="te-field te-form-full">
+              <label class="te-label" for="description">Description</label>
+              <textarea class="te-textarea" id="description" name="description"
+                        placeholder="Short description shown on theme cards…">{{ entry.description or fs_meta.get('description') or '' }}</textarea>
+              <div class="te-hint">Keep this short and benefit-focused so tenants can scan catalog cards quickly.</div>
+            </div>
+            <div class="te-field">
+              <label class="te-label" for="theme_author">Author / Studio</label>
+              <input class="te-input" id="theme_author" name="theme_author" type="text"
+                     value="{{ entry.theme_author or '' }}" placeholder="e.g. PixelCraft Studio"/>
+            </div>
+            <div class="te-field">
+              <label class="te-label" for="theme_version">Version</label>
+              <input class="te-input" id="theme_version" name="theme_version" type="text"
+                     value="{{ entry.theme_version or '' }}" placeholder="e.g. 2.1.0"/>
+            </div>
+            <div class="te-field te-form-full">
+              <label class="te-label" for="theme_tags">Tags (comma-separated)</label>
+              <input class="te-input" id="theme_tags" name="theme_tags" type="text"
+                     value="{{ entry.get_tags() | join(', ') }}"
+                     placeholder="dark, minimal, portfolio, creative"/>
+              <div class="te-hint">Used for search and filtering in the tenant theme picker.</div>
+            </div>
           </div>
-          <div class="img-drop" id="prevDrop" style="margin-top:.5rem">
-            <input type="file" accept="image/*" id="prevFile" onchange="uploadPreview(this)"/>
-            <div class="img-drop-icon"><iconify-icon icon="lucide:plus" width="22"></iconify-icon></div>
-            <div class="img-drop-txt">Add screenshot</div>
+        </section>
+
+        <section class="theme-editor-card" aria-labelledby="featureMatrixTitle">
+          <div class="te-card-header">
+            <div class="te-card-title-wrap">
+              <div class="te-card-icon"><iconify-icon icon="lucide:layout-grid" width="18"></iconify-icon></div>
+              <div>
+                <h2 class="te-card-title" id="featureMatrixTitle">Feature Matrix</h2>
+                <p class="te-card-help">Unsupported sections are hidden from tenants using this theme.</p>
+              </div>
+            </div>
           </div>
-          <div class="upload-status" id="prevStatus"></div>
+
+          {% set matrix = entry.get_feature_matrix() %}
+          {% set feature_groups = [
+            ('Core sections', [('hero','Hero / Banner','Landing hero and intro area'),('about','About','Biography and profile story'),('contact','Contact','Contact section and CTA')]),
+            ('Portfolio content', [('projects','Projects','Project grid and case studies'),('skills','Skills','Skill groups and tools'),('services','Services','Service cards and offers')]),
+            ('Social proof', [('testimonials','Testimonials','Client quotes and ratings'),('timeline','Timeline','Experience timeline'),('resume','Resume','Resume or CV module')]),
+            ('Advanced sections', [('gallery','Gallery','Image gallery support'),('blog','Blog','Blog/news section'),('shop','Shop','Commerce-ready section')])
+          ] %}
+          {% for group_name, group_features in feature_groups %}
+          <div class="fm-group">
+            <h3 class="fm-group-title"><iconify-icon icon="lucide:layers-3" width="14"></iconify-icon>{{ group_name }}</h3>
+            <div class="fm-grid">
+              {% for key, label, desc in group_features %}
+              {% set supported = matrix.get(key, key in ['hero','about','projects','skills','contact']) %}
+              <label class="fm-item {% if supported %}checked{% endif %}" id="fmlabel_{{ key }}">
+                <input type="checkbox" name="feature_{{ key }}" {% if supported %}checked{% endif %}
+                       onchange="this.closest('.fm-item').classList.toggle('checked', this.checked)"/>
+                <span class="fm-dot" aria-hidden="true"><iconify-icon icon="lucide:check" width="12"></iconify-icon></span>
+                <span>
+                  <span class="fm-name">{{ label }}</span>
+                  <span class="fm-desc">{{ desc }}</span>
+                </span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </section>
+
+        <section class="theme-editor-card" aria-labelledby="imagesTitle">
+          <div class="te-card-header">
+            <div class="te-card-title-wrap">
+              <div class="te-card-icon"><iconify-icon icon="lucide:image" width="18"></iconify-icon></div>
+              <div>
+                <h2 class="te-card-title" id="imagesTitle">Images / Preview Assets</h2>
+                <p class="te-card-help">Thumbnail, banner, and screenshots used across catalog surfaces.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="asset-block">
+            <div class="asset-head">
+              <div>
+                <h3 class="asset-title">Thumbnail image</h3>
+                <p class="asset-copy">Recommended 1200×800. Used on theme cards.</p>
+              </div>
+            </div>
+            <div class="te-field">
+              <label class="te-label" for="thumbnail_url">Thumbnail URL</label>
+              <input class="te-input" id="thumbnail_url" name="thumbnail_url" type="url"
+                     value="{{ entry.thumbnail_url or '' }}"
+                     placeholder="https://… or leave blank to upload"/>
+              <div class="te-hint">Paste a hosted image URL or upload a replacement below.</div>
+            </div>
+
+            {% if entry.thumbnail_url %}
+            <div class="img-preview-wrap">
+              <img src="{{ entry.thumbnail_url }}" alt="{{ resolved_name }} thumbnail preview" id="thumbPreviewImg"/>
+            </div>
+            {% else %}
+            <div class="img-empty" id="thumbEmptyState">
+              <iconify-icon icon="lucide:image-off" width="16"></iconify-icon>
+              No image uploaded yet
+            </div>
+            {% endif %}
+
+            {% if entry.id %}
+            <div class="img-drop" id="thumbDrop">
+              <input type="file" accept="image/*" id="thumbFile" aria-label="Upload thumbnail image" onchange="uploadThumb(this)"/>
+              <div>
+                <div class="img-drop-icon"><iconify-icon icon="lucide:upload-cloud" width="24"></iconify-icon></div>
+                <div class="img-drop-txt">Drop image here or click to browse<small>PNG, JPG, WEBP, GIF · Max 5 MB</small></div>
+              </div>
+            </div>
+            <div class="upload-status" id="thumbStatus"></div>
+            {% else %}
+            <p class="te-hint">Save the theme first to enable image uploads.</p>
+            {% endif %}
+          </div>
+
+          <div class="asset-block">
+            <div class="asset-head">
+              <div>
+                <h3 class="asset-title">Preview screenshots</h3>
+                <p class="asset-copy">Up to 6 screenshots shown in the preview carousel.</p>
+              </div>
+            </div>
+            {% if preview_images %}
+            <div class="img-previews-grid" id="previewsGrid">
+              {% for url in preview_images %}
+              <div class="img-prev-item" id="prev_{{ loop.index }}">
+                <img src="{{ url }}" alt="{{ resolved_name }} preview {{ loop.index }}"/>
+                <button type="button" class="img-prev-remove" aria-label="Remove screenshot {{ loop.index }}"
+                        onclick="deletePreview('{{ url }}', this.closest('.img-prev-item'))">
+                  <iconify-icon icon="lucide:x" width="12"></iconify-icon>
+                </button>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="img-previews-grid" id="previewsGrid"></div>
+            <div class="img-empty" id="previewEmptyState">
+              <iconify-icon icon="lucide:images" width="16"></iconify-icon>
+              No screenshots uploaded yet
+            </div>
+            {% endif %}
+
+            {% if entry.id %}
+            <div class="img-drop" id="prevDrop">
+              <input type="file" accept="image/*" id="prevFile" aria-label="Add screenshot preview" onchange="uploadPreview(this)"/>
+              <div>
+                <div class="img-drop-icon"><iconify-icon icon="lucide:plus" width="22"></iconify-icon></div>
+                <div class="img-drop-txt">Add screenshot<small>Landscape images work best</small></div>
+              </div>
+            </div>
+            <div class="upload-status" id="prevStatus"></div>
+            {% else %}
+            <p class="te-hint">Save the theme first to enable screenshot uploads.</p>
+            {% endif %}
+          </div>
+
+          <div class="asset-block" style="margin-bottom:0">
+            <div class="asset-head">
+              <div>
+                <h3 class="asset-title">Banner image</h3>
+                <p class="asset-copy">Optional wide hero asset for preview or marketing surfaces.</p>
+              </div>
+            </div>
+            <div class="te-field">
+              <label class="te-label" for="banner_url">Banner URL</label>
+              <input class="te-input" id="banner_url" name="banner_url" type="url"
+                     value="{{ entry.banner_url or '' }}"
+                     placeholder="https://… wide hero banner image"/>
+            </div>
+          </div>
+        </section>
+
+
+        <div class="theme-sticky-actions" role="region" aria-label="Theme editor save actions">
+          <div class="sticky-helper">
+            <iconify-icon icon="lucide:info" width="16"></iconify-icon>
+            Theme changes affect what tenants see in the theme picker.
+          </div>
+          <div class="sticky-buttons">
+            <a class="te-btn te-btn-subtle" href="{{ url_for('superadmin.theme_catalog') }}">
+              <iconify-icon icon="lucide:x" width="16"></iconify-icon>
+              Cancel
+            </a>
+            {% if entry.slug %}
+            <a class="te-btn" href="{{ url_for('public.theme_preview', theme_id=entry.slug) }}" target="_blank" rel="noopener">
+              <iconify-icon icon="lucide:eye" width="16"></iconify-icon>
+              Preview Theme
+            </a>
+            {% endif %}
+            <button type="submit" class="te-btn te-btn-primary">
+              <iconify-icon icon="lucide:save" width="16"></iconify-icon>
+              Save Changes
+            </button>
+          </div>
         </div>
-        {% else %}
-        <p style="font-size:.8rem;color:var(--text-muted)">Save the theme first to enable image uploads.</p>
+      </main>
+
+      <aside class="theme-editor-sidebar" aria-label="Theme editor side panel">
+        <section class="theme-editor-card" aria-labelledby="visibilityTitle">
+          <div class="te-card-header">
+            <div class="te-card-title-wrap">
+              <div class="te-card-icon"><iconify-icon icon="lucide:sliders-horizontal" width="18"></iconify-icon></div>
+              <div>
+                <h2 class="te-card-title" id="visibilityTitle">Visibility &amp; Gating</h2>
+                <p class="te-card-help">Control catalog visibility and plan requirements without changing theme logic.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="te-panel-stack">
+            <label class="te-toggle-row" for="is_active_toggle">
+              <span>
+                <span class="te-toggle-title-row">
+                  <span class="te-toggle-title">Active</span>
+                  <span class="te-pill {% if entry.is_active %}active{% else %}inactive{% endif %}">{% if entry.is_active %}Visible{% else %}Hidden{% endif %}</span>
+                </span>
+                <span class="te-toggle-sub">Show this theme to tenants in the catalog.</span>
+              </span>
+              <span class="te-switch">
+                <input id="is_active_toggle" type="checkbox" name="is_active" {% if entry.is_active %}checked{% endif %}/>
+                <span class="te-switch-track"></span>
+              </span>
+            </label>
+
+            <label class="te-toggle-row" for="is_featured_toggle">
+              <span>
+                <span class="te-toggle-title-row">
+                  <span class="te-toggle-title">Featured</span>
+                  <span class="te-pill {% if entry.is_featured %}featured{% endif %}">{% if entry.is_featured %}Spotlight{% else %}Standard{% endif %}</span>
+                </span>
+                <span class="te-toggle-sub">Promote this theme in the catalog spotlight.</span>
+              </span>
+              <span class="te-switch">
+                <input id="is_featured_toggle" type="checkbox" name="is_featured" {% if entry.is_featured %}checked{% endif %}/>
+                <span class="te-switch-track"></span>
+              </span>
+            </label>
+          </div>
+
+          <div class="te-select-stack">
+            <div class="te-field">
+              <label class="te-label" for="is_premium">Premium Status</label>
+              <select class="te-select" id="is_premium" name="is_premium">
+                <option value="defer" {% if entry.is_premium is none %}selected{% endif %}>Defer to theme.json</option>
+                <option value="false" {% if entry.is_premium is sameas false %}selected{% endif %}>Free</option>
+                <option value="true"  {% if entry.is_premium is sameas true  %}selected{% endif %}>Premium</option>
+              </select>
+              <div class="te-hint">Controls whether tenants need a paid plan to use this theme.</div>
+            </div>
+            <div class="te-field">
+              <label class="te-label" for="required_plan">Required Plan</label>
+              <select class="te-select" id="required_plan" name="required_plan">
+                <option value="" {% if not entry.required_plan %}selected{% endif %}>Any plan</option>
+                <option value="pro"        {% if entry.required_plan == 'pro' %}selected{% endif %}>Pro</option>
+                <option value="enterprise" {% if entry.required_plan == 'enterprise' %}selected{% endif %}>Enterprise</option>
+              </select>
+              <div class="te-hint">Minimum plan required to unlock this theme.</div>
+            </div>
+            <div class="te-field">
+              <label class="te-label" for="sort_order">Sort Order</label>
+              <input class="te-input" id="sort_order" name="sort_order" type="number"
+                     value="{{ entry.sort_order or 0 }}" min="0" max="9999"/>
+              <div class="te-hint">Lower values appear first. 0 uses the default catalog order.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="theme-editor-card" aria-labelledby="summaryTitle">
+          <div class="te-card-header">
+            <div class="te-card-title-wrap">
+              <div class="te-card-icon"><iconify-icon icon="lucide:clipboard-list" width="18"></iconify-icon></div>
+              <div>
+                <h2 class="te-card-title" id="summaryTitle">Theme Status Summary</h2>
+                <p class="te-card-help">Quick read of the current saved catalog values.</p>
+              </div>
+            </div>
+          </div>
+          <div class="summary-list">
+            <div class="summary-row"><span class="summary-label">Theme key</span><span class="summary-value">{{ entry.slug }}</span></div>
+            <div class="summary-row"><span class="summary-label">Display name</span><span class="summary-value">{{ resolved_name }}</span></div>
+            <div class="summary-row"><span class="summary-label">Category</span><span class="summary-value">{{ entry.category or 'Uncategorized' }}</span></div>
+            <div class="summary-row"><span class="summary-label">Status</span><span class="summary-value">{% if entry.is_active %}Active{% else %}Inactive{% endif %}</span></div>
+            <div class="summary-row"><span class="summary-label">Premium</span><span class="summary-value">{{ premium_label }}</span></div>
+            <div class="summary-row"><span class="summary-label">Required plan</span><span class="summary-value">{{ plan_label }}</span></div>
+            <div class="summary-row"><span class="summary-label">Sort order</span><span class="summary-value">{{ entry.sort_order or 0 }}</span></div>
+          </div>
+        </section>
+
+        <section class="theme-editor-card" aria-labelledby="notesTitle">
+          <div class="te-card-header">
+            <div class="te-card-title-wrap">
+              <div class="te-card-icon"><iconify-icon icon="lucide:list-checks" width="18"></iconify-icon></div>
+              <div>
+                <h2 class="te-card-title" id="notesTitle">Editor Checklist</h2>
+                <p class="te-card-help">Small details that make catalog cards easier to evaluate.</p>
+              </div>
+            </div>
+          </div>
+          <ul class="te-note-list">
+            <li><iconify-icon icon="lucide:check-circle-2" width="15"></iconify-icon><span>Use a concise display name tenants can recognize.</span></li>
+            <li><iconify-icon icon="lucide:check-circle-2" width="15"></iconify-icon><span>Keep the feature matrix accurate so unsupported sections stay hidden.</span></li>
+            <li><iconify-icon icon="lucide:check-circle-2" width="15"></iconify-icon><span>Upload at least one screenshot before featuring a premium theme.</span></li>
+          </ul>
+        </section>
+
+        {% if fs_meta %}
+        <section class="theme-editor-card" aria-labelledby="metadataTitle">
+          <div class="te-card-header">
+            <div class="te-card-title-wrap">
+              <div class="te-card-icon"><iconify-icon icon="lucide:file-json" width="18"></iconify-icon></div>
+              <div>
+                <h2 class="te-card-title" id="metadataTitle">theme.json Metadata</h2>
+                <p class="te-card-help">Read-only filesystem metadata. Form fields override these values.</p>
+              </div>
+            </div>
+          </div>
+          <div class="side-meta">
+            <div><strong>ID:</strong> {{ fs_meta.get('id', entry.slug) }}</div>
+            {% if fs_meta.get('version') %}<div><strong>Version:</strong> {{ fs_meta.get('version') }}</div>{% endif %}
+            {% if fs_meta.get('author')  %}<div><strong>Author:</strong> {{ fs_meta.get('author') }}</div>{% endif %}
+            {% if fs_meta.get('premium') %}<div><strong>Premium:</strong> yes</div>{% endif %}
+            {% if fs_meta.get('tags')    %}<div><strong>Tags:</strong> {{ fs_meta.get('tags') | join(', ') }}</div>{% endif %}
+          </div>
+        </section>
         {% endif %}
 
-        <!-- Banner URL -->
-        <div class="tf-group" style="margin-top:.85rem">
-          <label class="tf-label">Banner URL</label>
-          <input class="tf-input" name="banner_url" type="url"
-                 value="{{ entry.banner_url or '' }}"
-                 placeholder="https://… wide hero banner image"/>
-        </div>
-      </div>
-
-      <!-- FS metadata (read-only) -->
-      {% if fs_meta %}
-      <div class="tf-card">
-        <div class="tf-card-title">
-          <iconify-icon icon="lucide:file-json" width="16"></iconify-icon> theme.json Metadata
-        </div>
-        <div class="tf-side-meta">
-          <div><strong>ID:</strong> {{ fs_meta.get('id', entry.slug) }}</div>
-          {% if fs_meta.get('version') %}<div><strong>Version:</strong> {{ fs_meta.get('version') }}</div>{% endif %}
-          {% if fs_meta.get('author')  %}<div><strong>Author:</strong> {{ fs_meta.get('author') }}</div>{% endif %}
-          {% if fs_meta.get('premium') %}<div><strong>Premium:</strong> yes</div>{% endif %}
-          {% if fs_meta.get('tags')    %}<div><strong>Tags:</strong> {{ fs_meta.get('tags') | join(', ') }}</div>{% endif %}
-          <div style="margin-top:.5rem;font-size:.7rem;opacity:.6">These are read from the filesystem theme.json. Fields above override them.</div>
-        </div>
-      </div>
-      {% endif %}
-
-      <!-- Stats -->
-      <div class="tf-card">
-        <div class="tf-card-title">
-          <iconify-icon icon="lucide:bar-chart-2" width="16"></iconify-icon> Analytics
-        </div>
-        <div class="tf-side-meta">
-          <div><strong>Install count:</strong> {{ entry.install_count or 0 }}</div>
-          <div><strong>Created:</strong> {{ entry.created_at.strftime('%Y-%m-%d') if entry.created_at else '—' }}</div>
-          <div><strong>Updated:</strong> {{ entry.updated_at.strftime('%Y-%m-%d') if entry.updated_at else '—' }}</div>
-        </div>
-      </div>
-
+        <section class="theme-editor-card" aria-labelledby="analyticsTitle">
+          <div class="te-card-header">
+            <div class="te-card-title-wrap">
+              <div class="te-card-icon"><iconify-icon icon="lucide:bar-chart-2" width="18"></iconify-icon></div>
+              <div>
+                <h2 class="te-card-title" id="analyticsTitle">Analytics</h2>
+                <p class="te-card-help">Lightweight activity snapshot for this theme item.</p>
+              </div>
+            </div>
+          </div>
+          <div class="side-meta">
+            <div><strong>Install count:</strong> {{ entry.install_count or 0 }}</div>
+            <div><strong>Created:</strong> {{ entry.created_at.strftime('%Y-%m-%d') if entry.created_at else '—' }}</div>
+            <div><strong>Updated:</strong> {{ entry.updated_at.strftime('%Y-%m-%d') if entry.updated_at else '—' }}</div>
+          </div>
+        </section>
+      </aside>
     </div>
 
-  </div>
-</form>
+  </form>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 const _ENTRY_ID  = {{ entry.id or 'null' }};
-const _CSRF      = document.querySelector('meta[name="csrf-token"]').content;
+const _CSRF_META = document.querySelector('meta[name="csrf-token"]');
+const _CSRF      = _CSRF_META ? _CSRF_META.content : document.querySelector('input[name="csrf_token"]').value;
+
+function setUploadStatus(id, type, message){
+  const st = document.getElementById(id);
+  if(!st) return;
+  st.className = type ? `upload-status ${type}` : 'upload-status';
+  st.textContent = message;
+  st.style.display = 'block';
+}
 
 /* ── Thumbnail upload ─────────────────────────────── */
 function uploadThumb(input){
@@ -380,24 +866,30 @@ function uploadThumb(input){
   const fd = new FormData();
   fd.append('thumbnail', input.files[0]);
   fd.append('csrf_token', _CSRF);
-  const st = document.getElementById('thumbStatus');
-  st.className='upload-status'; st.textContent='Uploading…'; st.style.display='block';
+  setUploadStatus('thumbStatus', '', 'Uploading…');
   fetch(`/superadmin/themes/${_ENTRY_ID}/upload-thumbnail`,{method:'POST',body:fd})
     .then(r=>r.json()).then(d=>{
       if(d.ok){
-        st.className='upload-status ok'; st.textContent='✓ Thumbnail saved.';
-        // Update preview
+        setUploadStatus('thumbStatus', 'ok', '✓ Thumbnail saved.');
         let img = document.getElementById('thumbPreviewImg');
-        if(!img){ img=document.createElement('img'); img.id='thumbPreviewImg'; img.alt='thumbnail';
-          document.getElementById('thumbDrop').parentNode.insertBefore(img, document.getElementById('thumbDrop')); }
+        const empty = document.getElementById('thumbEmptyState');
+        if(empty) empty.remove();
+        if(!img){
+          const wrap = document.createElement('div');
+          wrap.className = 'img-preview-wrap';
+          img = document.createElement('img');
+          img.id = 'thumbPreviewImg';
+          img.alt = 'Theme thumbnail preview';
+          wrap.appendChild(img);
+          document.getElementById('thumbDrop').parentNode.insertBefore(wrap, document.getElementById('thumbDrop'));
+        }
         img.src = d.url;
-        // Update URL input
         const urlInput = document.querySelector('input[name="thumbnail_url"]');
         if(urlInput) urlInput.value = d.url;
       } else {
-        st.className='upload-status err'; st.textContent='✗ '+d.message;
+        setUploadStatus('thumbStatus', 'err', '✗ '+(d.message || 'Upload failed.'));
       }
-    }).catch(()=>{ st.className='upload-status err'; st.textContent='Upload failed.'; });
+    }).catch(()=>{ setUploadStatus('thumbStatus', 'err', 'Upload failed.'); });
 }
 
 /* ── Preview screenshot upload ───────────────────── */
@@ -406,25 +898,37 @@ function uploadPreview(input){
   const fd = new FormData();
   fd.append('preview', input.files[0]);
   fd.append('csrf_token', _CSRF);
-  const st = document.getElementById('prevStatus');
-  st.className='upload-status'; st.textContent='Uploading…'; st.style.display='block';
+  setUploadStatus('prevStatus', '', 'Uploading…');
   fetch(`/superadmin/themes/${_ENTRY_ID}/upload-preview`,{method:'POST',body:fd})
     .then(r=>r.json()).then(d=>{
       if(d.ok){
-        st.className='upload-status ok'; st.textContent='✓ Screenshot added.';
+        setUploadStatus('prevStatus', 'ok', '✓ Screenshot added.');
+        const empty = document.getElementById('previewEmptyState');
+        if(empty) empty.remove();
         addPreviewItem(d.url);
         input.value='';
       } else {
-        st.className='upload-status err'; st.textContent='✗ '+d.message;
+        setUploadStatus('prevStatus', 'err', '✗ '+(d.message || 'Upload failed.'));
       }
-    }).catch(()=>{ st.className='upload-status err'; st.textContent='Upload failed.'; });
+    }).catch(()=>{ setUploadStatus('prevStatus', 'err', 'Upload failed.'); });
 }
 
 function addPreviewItem(url){
   const grid = document.getElementById('previewsGrid');
+  if(!grid) return;
   const div = document.createElement('div');
   div.className='img-prev-item';
-  div.innerHTML=`<img src="${url}" alt="preview"/><button type="button" class="img-prev-remove" onclick="deletePreview('${url}',this.closest('.img-prev-item'))"><iconify-icon icon="lucide:x" width="11"></iconify-icon></button>`;
+  const img = document.createElement('img');
+  img.src = url;
+  img.alt = 'Theme preview screenshot';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'img-prev-remove';
+  btn.setAttribute('aria-label', 'Remove screenshot');
+  btn.innerHTML = '<iconify-icon icon="lucide:x" width="12"></iconify-icon>';
+  btn.addEventListener('click', () => deletePreview(url, div));
+  div.appendChild(img);
+  div.appendChild(btn);
   grid.appendChild(div);
 }
 
@@ -433,7 +937,7 @@ function deletePreview(url, el){
   const fd = new FormData();
   fd.append('url', url); fd.append('csrf_token', _CSRF);
   fetch(`/superadmin/themes/${_ENTRY_ID}/delete-preview`,{method:'POST',body:fd})
-    .then(r=>r.json()).then(d=>{ if(d.ok) el.remove(); });
+    .then(r=>r.json()).then(d=>{ if(d.ok && el) el.remove(); });
 }
 
 /* ── Drag over highlight for drop zones ─────────── */
@@ -442,7 +946,9 @@ function deletePreview(url, el){
   if(!el) return;
   el.addEventListener('dragover', e=>{e.preventDefault(); el.classList.add('drag-over');});
   el.addEventListener('dragleave', ()=>el.classList.remove('drag-over'));
-  el.addEventListener('drop', e=>{e.preventDefault(); el.classList.remove('drag-over');
+  el.addEventListener('drop', e=>{
+    e.preventDefault();
+    el.classList.remove('drag-over');
     const inp = el.querySelector('input[type=file]');
     if(inp && e.dataTransfer.files.length){ inp.files=e.dataTransfer.files; inp.dispatchEvent(new Event('change')); }
   });

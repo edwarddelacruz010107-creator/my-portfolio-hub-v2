@@ -26,12 +26,20 @@ class UserRepository(BaseRepository[User]):
         return self.model.query.filter_by(username=username).first()
 
     def get_by_email(self, email: str) -> Optional[User]:
-        return self.model.query.filter_by(email=email).first()
+        # Email is unique for normal accounts, but the protected owner email can
+        # exist in two contexts. Return a user only when the lookup is
+        # deterministic; auth flows use tenant/portal-scoped helpers instead.
+        from app.services.auth.email_policy import get_email_matches
+
+        matches = get_email_matches(email)
+        return matches[0] if len(matches) == 1 else None
 
     def username_exists(self, username: str) -> bool:
         return self.get_by_username(username) is not None
 
     def email_exists(self, email: str) -> bool:
-        return self.get_by_email(email) is not None
+        from app.services.auth.email_policy import get_email_matches
+
+        return bool(get_email_matches(email))
 
 user_repository = UserRepository()

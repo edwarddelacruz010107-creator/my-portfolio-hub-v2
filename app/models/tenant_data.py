@@ -15,13 +15,19 @@ Any violation of this rule is a cross-tenant data leak (IDOR).
 """
 
 import re
-from datetime import datetime, timezone, date as date_type
+from datetime import date as date_type
 
 from app import db
+from app.utils.datetime_utils import ensure_utc_aware, utc_now
+from app.system_plan import (
+    ADMINISTRATOR_PLAN_NAME,
+    ADMINISTRATOR_PLAN_SLUG,
+    has_administrator_access,
+)
 
 
 def _utcnow():
-    return datetime.now(timezone.utc)
+    return utc_now()
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -87,7 +93,7 @@ class Profile(db.Model):
 
     def get_years_experience(self) -> int:
         if self.experience_start_year:
-            return max(0, datetime.now(timezone.utc).year - self.experience_start_year)
+            return max(0, utc_now().year - self.experience_start_year)
         return self.years_experience or 0
 
     def _get_subscription(self):
@@ -129,16 +135,24 @@ class Profile(db.Model):
     def effective_plan(self) -> str:
         """Current plan from active subscription, else profile/tenant default."""
         from app.models.core import normalize_plan_name
+        if has_administrator_access(self):
+            return ADMINISTRATOR_PLAN_SLUG
         sub = self._get_subscription()
         if sub and sub.plan and sub.status in ('active', 'pending'):
             return normalize_plan_name(sub.plan)
         return normalize_plan_name(self.plan or 'Basic')
+
+    @property
+    def is_administrator(self) -> bool:
+        return has_administrator_access(self)
 
     def plan_features(self) -> dict:
         from app.models.core import get_plan_features
         return get_plan_features(self.effective_plan())
 
     def plan_allows(self, feature: str) -> bool:
+        if self.is_administrator:
+            return True
         return bool(self.plan_features().get(feature))
 
     def project_limit(self):
@@ -151,6 +165,8 @@ class Profile(db.Model):
         return self.plan_features().get('max_media_uploads')
 
     def trial_days_remaining(self) -> int:
+        if self.is_administrator:
+            return 0
         tenant = getattr(self, 'tenant', None)
         trial_ends = None
         if tenant is not None:
@@ -159,12 +175,15 @@ class Profile(db.Model):
             trial_ends = getattr(self, 'free_trial_ends', None)
         if trial_ends is None:
             return 0
-        if trial_ends.tzinfo is None:
-            trial_ends = trial_ends.replace(tzinfo=timezone.utc)
-        delta = trial_ends - datetime.now(timezone.utc)
+        trial_ends = ensure_utc_aware(trial_ends)
+        if trial_ends is None:
+            return 0
+        delta = trial_ends - utc_now()
         return max(0, delta.days)
 
     def is_trial_active(self) -> bool:
+        if self.is_administrator:
+            return False
         tenant = getattr(self, 'tenant', None)
         trial_ends = None
         if tenant is not None:
@@ -173,11 +192,12 @@ class Profile(db.Model):
             trial_ends = getattr(self, 'free_trial_ends', None)
         if not trial_ends:
             return False
-        if trial_ends.tzinfo is None:
-            trial_ends = trial_ends.replace(tzinfo=timezone.utc)
-        return trial_ends > datetime.now(timezone.utc)
+        trial_ends = ensure_utc_aware(trial_ends)
+        return bool(trial_ends and trial_ends > utc_now())
 
     def is_expired(self) -> bool:
+        if self.is_administrator:
+            return False
         sub = self._get_subscription()
         if sub and sub.is_active():
             return False
@@ -193,9 +213,8 @@ class Profile(db.Model):
             return False
         if self.free_trial_ends:
             trial_ends = self.free_trial_ends
-            if trial_ends.tzinfo is None:
-                trial_ends = trial_ends.replace(tzinfo=timezone.utc)
-            if trial_ends <= datetime.now(timezone.utc):
+            trial_ends = ensure_utc_aware(trial_ends)
+            if trial_ends is not None and trial_ends <= utc_now():
                 if not sub or sub.status in ('expired', 'cancelled'):
                     return True
         if sub and sub.status == 'expired':
@@ -203,6 +222,8 @@ class Profile(db.Model):
         return False
 
     def enforce_expiry(self, commit: bool = True) -> bool:
+        if self.is_administrator:
+            return False
         if not self.is_expired():
             return False
         try:
@@ -223,6 +244,8 @@ class Profile(db.Model):
 
     @property
     def subscription_status(self) -> str:
+        if self.is_administrator:
+            return 'active'
         try:
             from app.services.billing import subscription_access_status
             return subscription_access_status(self)
@@ -236,10 +259,17 @@ class Profile(db.Model):
         return status
 
     def is_subscription_active(self) -> bool:
+        if self.is_administrator:
+            return True
         return self.subscription_status in ('trial', 'active', 'grace')
 
     def sync_license_from_subscription(self) -> None:
         from app.models.core import normalize_plan_name
+        if self.is_administrator:
+            self.plan = ADMINISTRATOR_PLAN_NAME
+            if hasattr(self, '_current_subscription_cache'):
+                del self._current_subscription_cache
+            return
         sub = self._get_subscription()
         if sub and sub.status == 'active':
             self.plan = normalize_plan_name(sub.plan)

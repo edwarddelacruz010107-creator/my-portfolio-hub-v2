@@ -100,9 +100,11 @@ def new_testimonial():
                     'warning',
                 )
             else:
-                img = save_image(form.author_avatar.data, 'profiles', max_size=(200, 200))
+                img, upload_error = save_image(form.author_avatar.data, 'profiles', max_size=(200, 200))
                 if img:
                     t.author_avatar = img
+                elif upload_error:
+                    flash(upload_error, 'warning')
         db.session.add(t)
         db.session.commit()
         log_activity('create', 'testimonial', t.author_name)
@@ -137,11 +139,13 @@ def edit_testimonial(id: int):
                     'warning',
                 )
             else:
-                new_img = save_image(form.author_avatar.data, 'profiles', max_size=(200, 200))
+                new_img, upload_error = save_image(form.author_avatar.data, 'profiles', max_size=(200, 200))
                 if new_img:
                     if t.author_avatar:
                         delete_image(t.author_avatar, 'profiles')
                     t.author_avatar = new_img
+                elif upload_error:
+                    flash(upload_error, 'warning')
         db.session.commit()
         log_activity('update', 'testimonial', t.author_name)
         flash('Testimonial updated!', 'success')

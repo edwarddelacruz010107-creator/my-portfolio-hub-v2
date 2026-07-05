@@ -15,7 +15,7 @@ DESIGN:
 
 Environment Variables:
   SUPERADMIN_USERNAME  (default: superadmin)
-  SUPERADMIN_EMAIL     (default: superadmin@portfolio.local)
+  SUPERADMIN_EMAIL     (default: delacruzedward735@gmail.com)
   SUPERADMIN_PASSWORD  (required for bootstrap; if absent and no user exists,
                         a secure random password is generated and logged ONCE)
 
@@ -62,15 +62,21 @@ def _run_bootstrap(app, db) -> None:
     from app.models import User
     from app.models.portfolio import Tenant
 
+    from app.services.auth.email_policy import (
+        EmailPolicyError,
+        assert_email_allowed_for_user,
+        normalize_email,
+    )
+
     username = (
         os.environ.get('SUPERADMIN_USERNAME')
         or app.config.get('SUPERADMIN_USERNAME')
         or 'superadmin'
     )
-    email = (
+    email = normalize_email(
         os.environ.get('SUPERADMIN_EMAIL')
         or app.config.get('SUPERADMIN_EMAIL')
-        or 'superadmin@portfolio.local'
+        or 'delacruzedward735@gmail.com'
     )
     # Read password from environment ONLY — never from config (avoids log dumps)
     env_password = os.environ.get('SUPERADMIN_PASSWORD', '').strip()
@@ -83,11 +89,17 @@ def _run_bootstrap(app, db) -> None:
             company_name='Default Portfolio',
             email=email,
             status='active',
-            plan='Basic',
+            plan='Administrator',
         )
         db.session.add(tenant)
         db.session.flush()
         logger.info("SUPERADMIN_BOOTSTRAP: created missing 'default' tenant")
+
+    try:
+        from app.system_plan import ensure_default_tenant_administrator_plan
+        ensure_default_tenant_administrator_plan(commit=True)
+    except Exception as exc:
+        logger.warning("SUPERADMIN_BOOTSTRAP: could not normalize Administrator plan: %s", exc)
 
     # ── Look up existing superadmin ──────────────────────────────────────────
     existing: User | None = (
@@ -97,6 +109,12 @@ def _run_bootstrap(app, db) -> None:
 
     if existing:
         changed = False
+
+        try:
+            email = assert_email_allowed_for_user(email, user=existing, role='superadmin')
+        except EmailPolicyError as exc:
+            logger.error("SUPERADMIN_BOOTSTRAP: configured email violates policy: %s", exc)
+            return
 
         # Ensure flags are correct (guards against manual DB tampering)
         if not existing.is_superadmin:
@@ -108,6 +126,11 @@ def _run_bootstrap(app, db) -> None:
                 "on user id=%s username=%r",
                 existing.id, existing.username,
             )
+
+        if existing.email != email:
+            existing.email = email
+            changed = True
+            logger.warning("SUPERADMIN_BOOTSTRAP: normalized superadmin email to protected owner email")
 
         # If SUPERADMIN_PASSWORD env var is set, rotate the hash.
         # This allows password recovery without Render shell access:
@@ -140,6 +163,12 @@ def _run_bootstrap(app, db) -> None:
         # change it immediately after first login.
         env_password = secrets.token_urlsafe(20)
         password_was_generated = True
+
+    try:
+        email = assert_email_allowed_for_user(email, role='superadmin')
+    except EmailPolicyError as exc:
+        logger.error("SUPERADMIN_BOOTSTRAP: cannot create superadmin with configured email: %s", exc)
+        return
 
     superadmin = User(
         username=username,

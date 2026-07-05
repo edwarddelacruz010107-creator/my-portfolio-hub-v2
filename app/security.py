@@ -214,6 +214,8 @@ _MAGIC_SIGNATURES: dict[str, tuple[bytes, ...]] = {
     # WEBP: "RIFF" at byte 0, "WEBP" at byte 8
     # We check both markers to be precise.
     'webp': (b'RIFF',),
+    # GIF: GIF87a or GIF89a
+    'gif':  (b'GIF87a', b'GIF89a'),
     # PDF: always starts with %PDF
     'pdf':  (b'%PDF',),
 }
@@ -304,6 +306,8 @@ class FileUploadPolicy:
             return False, 'Filename is required.', ''
 
         max_bytes = max_mb * 1024 * 1024
+        if file_size_bytes <= 0:
+            return False, 'Uploaded file is empty.', ''
         if file_size_bytes > max_bytes:
             return False, f'File must be smaller than {max_mb} MB.', ''
 
@@ -317,12 +321,41 @@ class FileUploadPolicy:
         return True, '', ext
 
     @classmethod
-    def validate_image_upload(cls, filename: str, file_size_bytes: int) -> tuple[bool, str]:
+    def validate_image_upload(
+        cls,
+        filename: str,
+        file_size_bytes: int,
+        file_bytes: bytes | None = None,
+        declared_mime: str | None = None,
+    ) -> tuple[bool, str]:
         ok, err, ext = cls._check_common(filename, file_size_bytes, cls.MAX_IMAGE_SIZE_MB)
         if not ok:
             return False, err
         if ext not in cls.ALLOWED_IMAGE_EXTENSIONS:
             return False, f"Only {', '.join(sorted(cls.ALLOWED_IMAGE_EXTENSIONS))} images are allowed."
+
+        allowed_mimes = {
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+            'application/octet-stream', '', None,
+        }
+        if declared_mime not in allowed_mimes:
+            return False, 'Uploaded image MIME type is not permitted.'
+
+        if file_bytes is not None:
+            ok_magic, magic_err = validate_magic_bytes(file_bytes, ext)
+            if not ok_magic:
+                return False, magic_err
+            try:
+                from PIL import Image, UnidentifiedImageError
+                import io
+                with Image.open(io.BytesIO(file_bytes)) as img:
+                    img.verify()
+                    if (img.format or '').upper() not in {'JPEG', 'PNG', 'GIF', 'WEBP'}:
+                        return False, 'Uploaded file is not a supported image.'
+            except ImportError:
+                logger.warning('Pillow not available; image validation used magic bytes only.')
+            except Exception:
+                return False, 'Uploaded file is not a valid image.'
         return True, ''
 
     @classmethod

@@ -3,64 +3,1165 @@
 {% block title %}Send Message{% endblock %}
 {% block page_title %}Send Message to Tenant{% endblock %}
 
-{% block content %}
-<div class="page-header page-header-premium">
-  <div class="page-header-left">
-    <h1 class="page-heading page-heading-lg">Send Message to Tenant</h1>
-    <p class="page-subtext page-subtext-muted">
-      Send CRM-style messages directly to tenant administrators or broadcast notices to all tenants.
-    </p>
-  </div>
-  <div class="page-header-right">
-    <a href="{{ url_for('superadmin.tenants') }}" class="btn btn-ghost btn-sm btn-pill">
-      <iconify-icon icon="lucide:chevron-left" width="16"></iconify-icon>
-      Back to Tenants
-    </a>
-  </div>
-</div>
+{% block extra_css %}
+<style>
+/* ══════════════════════════════════════════════════════
+   SuperAdmin Send Message — polished SaaS composer UI
+   Scope: app/templates/superadmin/send_message.html only
+══════════════════════════════════════════════════════ */
+.send-message-shell{
+  --sm-surface:var(--surface,var(--bg-2,#111827));
+  --sm-surface-raised:var(--surface-elevated,var(--surface-raised,var(--bg-3,#161d2e)));
+  --sm-border:var(--border,rgba(255,255,255,.09));
+  --sm-border-strong:var(--border-light,var(--border-medium,rgba(255,255,255,.16)));
+  --sm-text:var(--text,var(--text-primary,#f8fafc));
+  --sm-muted:var(--text-muted,#94a3b8);
+  --sm-dim:var(--text-dim,#64748b);
+  --sm-accent:var(--accent,#6366f1);
+  --sm-accent-light:var(--accent-light,#818cf8);
+  --sm-accent-soft:var(--accent-soft,var(--accent-bg,rgba(99,102,241,.12)));
+  --sm-radius:var(--radius-lg,18px);
+  --sm-radius-xl:var(--radius-xl,22px);
+  --sm-shadow:var(--shadow-card,0 18px 48px rgba(0,0,0,.22));
+  --sm-font-display:var(--font-display,'Syne',ui-sans-serif,system-ui,sans-serif);
+  --sm-font-body:var(--font-body,'DM Sans',ui-sans-serif,system-ui,sans-serif);
+  padding-bottom:2rem;
+  color:var(--sm-text);
+  animation:sendMessageIn .32s var(--ease-out,ease-out) both;
+}
+.send-message-shell *{box-sizing:border-box}
+.send-message-shell,
+.send-message-shell input,
+.send-message-shell select,
+.send-message-shell textarea,
+.send-message-shell button{
+  font-family:var(--sm-font-body);
+}
+.send-message-title,
+.sm-card-title,
+.sm-kicker,
+.sm-breadcrumb,
+.sm-chip,
+.sm-btn,
+.sm-section-title,
+.sm-summary-value,
+.sm-preview-subject,
+.sm-preview-type,
+.sm-status-pill{
+  font-family:var(--sm-font-display);
+}
+.sm-label,.sm-help,.sm-card-help,.sm-template-copy,.sm-template-note,.sm-summary-label,.sm-counter,.sm-action-help,.sm-preview-body,.sm-preview-recipient{font-family:var(--sm-font-body);}
+.send-message-header{
+  position:relative;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:1.25rem;
+  margin-bottom:1.5rem;
+  padding:1.35rem;
+  border:1px solid var(--sm-border);
+  border-radius:calc(var(--sm-radius-xl) + 4px);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(99,102,241,.18), transparent 34%),
+    linear-gradient(135deg, rgba(255,255,255,.045), transparent 44%),
+    var(--sm-surface);
+  box-shadow:var(--sm-shadow);
+  overflow:hidden;
+}
+.send-message-header::after{
+  content:'';
+  position:absolute;
+  inset:auto -12% -70% auto;
+  width:360px;
+  height:360px;
+  background:radial-gradient(circle, rgba(129,140,248,.16), transparent 62%);
+  pointer-events:none;
+}
+.send-message-header > *{position:relative;z-index:1}
+.sm-breadcrumb{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:.45rem;
+  margin-bottom:.7rem;
+  color:var(--sm-muted);
+  font-size:.72rem;
+  font-weight:700;
+  letter-spacing:.095em;
+  text-transform:uppercase;
+}
+.sm-breadcrumb span:last-child{color:var(--sm-accent-light)}
+.send-message-title-row{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:.75rem;
+}
+.send-message-title{
+  margin:0;
+  color:var(--sm-text);
+  font-size:clamp(1.8rem,2.6vw,2.55rem);
+  line-height:1.05;
+  font-weight:800;
+  letter-spacing:-.035em;
+}
+.send-message-subtitle{
+  max-width:780px;
+  margin:.72rem 0 0;
+  color:var(--sm-muted);
+  font-size:.98rem;
+  line-height:1.65;
+}
+.send-message-header-actions{
+  display:flex;
+  align-items:center;
+  gap:.65rem;
+  flex-shrink:0;
+}
+.sm-status-chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.5rem;
+  margin-top:1rem;
+}
+.sm-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:.4rem;
+  min-height:30px;
+  padding:.42rem .72rem;
+  border:1px solid var(--sm-border-strong);
+  border-radius:999px;
+  background:rgba(255,255,255,.045);
+  color:var(--sm-text);
+  font-size:.74rem;
+  font-weight:700;
+  letter-spacing:.015em;
+}
+.sm-chip-soft{
+  border-color:rgba(99,102,241,.35);
+  background:var(--sm-accent-soft);
+  color:var(--sm-accent-light);
+}
+.sm-chip-warn{
+  border-color:rgba(245,158,11,.36);
+  background:rgba(245,158,11,.11);
+  color:#fbbf24;
+}
+.sm-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:.5rem;
+  min-height:42px;
+  padding:.72rem .95rem;
+  border:1px solid var(--sm-border-strong);
+  border-radius:13px;
+  color:var(--sm-text);
+  background:rgba(255,255,255,.04);
+  text-decoration:none;
+  cursor:pointer;
+  font-size:.86rem;
+  font-weight:700;
+  line-height:1;
+  transition:transform .2s ease,border-color .2s ease,background .2s ease,box-shadow .2s ease;
+}
+.sm-btn:hover{transform:translateY(-1px);border-color:rgba(129,140,248,.45);background:rgba(255,255,255,.07)}
+.sm-btn:focus-visible{outline:3px solid rgba(99,102,241,.26);outline-offset:3px}
+.sm-btn-primary,
+#sendMessageSubmit{
+  border:0;
+  border-radius:13px;
+  min-height:44px;
+  padding:.8rem 1.05rem;
+  color:#fff;
+  background:linear-gradient(135deg,var(--sm-accent),var(--sm-accent-light));
+  box-shadow:0 14px 32px rgba(99,102,241,.28);
+  font-family:var(--sm-font-display);
+  font-size:.88rem;
+  font-weight:700;
+  cursor:pointer;
+  transition:transform .2s ease,filter .2s ease,box-shadow .2s ease;
+}
+.sm-btn-primary:hover,
+#sendMessageSubmit:hover{transform:translateY(-1px);filter:saturate(1.08);box-shadow:0 18px 40px rgba(99,102,241,.34)}
+#sendMessageSubmit:focus-visible{outline:3px solid rgba(99,102,241,.30);outline-offset:3px}
+.sm-btn-ghost{background:rgba(255,255,255,.035)}
+.sm-btn-sm{min-height:38px;padding:.6rem .85rem;font-size:.8rem}
+.send-message-form{margin:0}
+.send-message-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(320px,380px);
+  gap:1.5rem;
+  align-items:start;
+}
+.send-message-main,
+.message-sidebar{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:1rem;
+}
+.message-sidebar{
+  position:sticky;
+  top:calc(var(--topbar-height,72px) + 1rem);
+}
+.message-composer-card,
+.message-preview-card,
+.message-safety-card,
+.message-summary-card{
+  border:1px solid var(--sm-border);
+  border-radius:var(--sm-radius-xl);
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.045),transparent 42%),
+    var(--sm-surface);
+  box-shadow:var(--sm-shadow);
+  overflow:hidden;
+}
+.message-composer-card{padding:1.25rem}
+.message-preview-card,
+.message-safety-card,
+.message-summary-card{padding:1.15rem}
+.message-composer-card:hover,
+.message-preview-card:hover,
+.message-safety-card:hover,
+.message-summary-card:hover{border-color:rgba(129,140,248,.26)}
+.sm-card-header{
+  display:flex;
+  align-items:flex-start;
+  gap:.8rem;
+  margin-bottom:1.2rem;
+}
+.sm-card-icon{
+  width:38px;
+  height:38px;
+  flex:0 0 38px;
+  display:grid;
+  place-items:center;
+  border-radius:13px;
+  color:var(--sm-accent-light);
+  background:var(--sm-accent-soft);
+  border:1px solid rgba(99,102,241,.28);
+}
+.sm-card-title{
+  margin:0;
+  color:var(--sm-text);
+  font-size:1rem;
+  font-weight:800;
+  letter-spacing:-.018em;
+}
+.sm-card-help{
+  margin:.25rem 0 0;
+  color:var(--sm-muted);
+  font-size:.84rem;
+  line-height:1.55;
+}
+.sm-form-section{
+  padding:1rem;
+  border:1px solid var(--sm-border);
+  border-radius:18px;
+  background:rgba(255,255,255,.025);
+}
+.sm-form-section + .sm-form-section{margin-top:1rem}
+.sm-section-head{
+  display:flex;
+  align-items:center;
+  gap:.65rem;
+  margin-bottom:1rem;
+}
+.sm-section-icon{
+  width:30px;
+  height:30px;
+  display:grid;
+  place-items:center;
+  border-radius:10px;
+  color:var(--sm-accent-light);
+  background:rgba(99,102,241,.12);
+  border:1px solid rgba(99,102,241,.20);
+}
+.sm-section-title{
+  margin:0;
+  color:var(--sm-text);
+  font-size:.9rem;
+  font-weight:800;
+  letter-spacing:-.01em;
+}
+.sm-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.sm-field{min-width:0}
+.sm-field + .sm-field{margin-top:1rem}
+.sm-field-grid .sm-field + .sm-field{margin-top:0}
+.sm-label{
+  display:flex;
+  align-items:center;
+  gap:.35rem;
+  margin:0 0 .45rem;
+  color:var(--sm-text);
+  font-family:var(--sm-font-body);
+  color:color-mix(in srgb,var(--sm-text) 88%,var(--sm-muted));
+  font-size:.74rem;
+  font-weight:800;
+  letter-spacing:.095em;
+  text-transform:uppercase;
+}
+.sm-help{
+  margin:.45rem 0 0;
+  color:var(--sm-muted);
+  font-size:.78rem;
+  line-height:1.5;
+}
+.sm-select,
+.sm-input,
+.sm-textarea{
+  width:100%;
+  min-height:46px;
+  padding:.78rem .9rem;
+  border:1px solid var(--sm-border-strong);
+  border-radius:13px;
+  background:rgba(9,14,28,.42);
+  color:var(--sm-text);
+  font-family:var(--sm-font-body);
+  font-size:.94rem;
+  letter-spacing:-.005em;
+  outline:none;
+  transition:border-color .18s ease,box-shadow .18s ease,background .18s ease,transform .18s ease;
+}
+.sm-select:focus,
+.sm-input:focus,
+.sm-textarea:focus{
+  border-color:rgba(129,140,248,.70);
+  box-shadow:0 0 0 4px rgba(99,102,241,.16);
+  background:rgba(9,14,28,.62);
+}
+.sm-select:hover,
+.sm-input:hover,
+.sm-textarea:hover{border-color:rgba(129,140,248,.35)}
+.sm-input::placeholder,
+.sm-textarea::placeholder{color:color-mix(in srgb,var(--sm-muted) 70%,transparent)}
+.sm-textarea{
+  min-height:220px;
+  resize:vertical;
+  line-height:1.65;
+}
 
-<div class="form-card form-card-premium">
-  <form method="post" novalidate class="super-message-form">
+.sm-template-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(178px,1fr));
+  gap:.85rem;
+}
+.sm-template-card{
+  position:relative;
+  min-width:0;
+  min-height:158px;
+  display:flex;
+  flex-direction:column;
+  gap:.7rem;
+  padding:1rem;
+  border:1px solid var(--sm-border);
+  border-radius:18px;
+  background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.018));
+  overflow:hidden;
+  transition:transform .18s ease,border-color .18s ease,background .18s ease,box-shadow .18s ease;
+}
+.sm-template-card::before{
+  content:'';
+  position:absolute;
+  inset:0 0 auto 0;
+  height:3px;
+  background:linear-gradient(90deg,rgba(129,140,248,.75),rgba(34,211,238,.45));
+  opacity:0;
+  transition:opacity .18s ease;
+}
+.sm-template-card:hover,
+.sm-template-card.is-active{
+  transform:translateY(-2px);
+  border-color:rgba(129,140,248,.50);
+  background:linear-gradient(145deg,rgba(99,102,241,.13),rgba(255,255,255,.025));
+  box-shadow:0 16px 34px rgba(0,0,0,.16);
+}
+.sm-template-card:hover::before,
+.sm-template-card.is-active::before{opacity:1}
+.sm-template-card.is-active::after{
+  content:'Selected';
+  position:absolute;
+  top:.72rem;
+  right:.72rem;
+  padding:.22rem .48rem;
+  border:1px solid rgba(129,140,248,.38);
+  border-radius:999px;
+  background:rgba(99,102,241,.16);
+  color:var(--sm-accent-light);
+  font-family:var(--sm-font-body);
+  font-size:.62rem;
+  font-weight:800;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+}
+.sm-template-top{
+  display:flex;
+  align-items:flex-start;
+  gap:.68rem;
+  min-width:0;
+  padding-right:3.7rem;
+}
+.sm-template-icon{
+  width:34px;
+  height:34px;
+  flex:0 0 34px;
+  display:grid;
+  place-items:center;
+  border-radius:12px;
+  color:var(--sm-accent-light);
+  border:1px solid rgba(99,102,241,.28);
+  background:var(--sm-accent-soft);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+}
+.sm-template-title{
+  margin:.1rem 0 0;
+  color:var(--sm-text);
+  font-family:var(--sm-font-display);
+  font-size:.9rem;
+  font-weight:800;
+  line-height:1.22;
+  letter-spacing:.005em;
+  overflow-wrap:anywhere;
+}
+.sm-template-copy{
+  flex:1;
+  margin:0;
+  color:var(--sm-muted);
+  font-size:.76rem;
+  line-height:1.5;
+}
+.sm-template-btn{
+  width:100%;
+  min-height:36px;
+  padding:.58rem .7rem;
+  border:1px solid var(--sm-border-strong);
+  border-radius:12px;
+  background:rgba(255,255,255,.045);
+  color:var(--sm-text);
+  font-family:var(--sm-font-display);
+  font-size:.76rem;
+  font-weight:800;
+  cursor:pointer;
+  transition:transform .18s ease,border-color .18s ease,background .18s ease;
+}
+.sm-template-card.is-active .sm-template-btn{
+  border-color:rgba(129,140,248,.48);
+  background:rgba(99,102,241,.18);
+  color:#fff;
+}
+.sm-template-btn:hover,
+.sm-template-btn:focus-visible{
+  border-color:rgba(129,140,248,.58);
+  background:var(--sm-accent-soft);
+  transform:translateY(-1px);
+}
+.sm-template-note{
+  display:flex;
+  align-items:flex-start;
+  gap:.45rem;
+  margin:.85rem 0 0;
+  color:var(--sm-muted);
+  font-size:.76rem;
+  line-height:1.5;
+}
+.sm-template-note iconify-icon{flex:0 0 auto;margin-top:.08rem;color:var(--sm-accent-light)}
+
+.sm-field-footer{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:.8rem;
+  margin-top:.48rem;
+}
+.sm-counter{
+  white-space:nowrap;
+  color:var(--sm-dim);
+  font-size:.74rem;
+  font-weight:800;
+}
+.sm-error{
+  display:flex;
+  align-items:center;
+  gap:.35rem;
+  margin:.5rem 0 0;
+  color:#fca5a5;
+  font-size:.78rem;
+  font-weight:700;
+}
+.sm-broadcast-warning{
+  display:none;
+  align-items:flex-start;
+  gap:.7rem;
+  margin-top:.85rem;
+  padding:.82rem .9rem;
+  border:1px solid rgba(245,158,11,.35);
+  border-radius:15px;
+  background:linear-gradient(135deg,rgba(245,158,11,.14),rgba(245,158,11,.055));
+  color:#fde68a;
+  line-height:1.5;
+  animation:broadcastIn .22s ease both;
+}
+.sm-broadcast-warning strong{
+  display:block;
+  margin-bottom:.1rem;
+  color:#fbbf24;
+  font-family:var(--sm-font-display);
+  font-size:.84rem;
+  letter-spacing:-.005em;
+}
+.sm-broadcast-warning span{display:block;color:color-mix(in srgb,#fde68a 82%,var(--sm-muted));font-size:.8rem}
+.send-message-shell.is-broadcast .sm-broadcast-warning{display:flex}
+.sm-summary-list{display:grid;gap:.68rem}
+.sm-summary-row{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:1rem;
+  padding:.72rem .78rem;
+  border:1px solid var(--sm-border);
+  border-radius:14px;
+  background:rgba(255,255,255,.026);
+}
+.sm-summary-label{
+  color:var(--sm-muted);
+  font-family:var(--sm-font-body);
+  font-size:.72rem;
+  font-weight:800;
+  letter-spacing:.085em;
+  text-transform:uppercase;
+}
+.sm-summary-value{
+  max-width:58%;
+  color:var(--sm-text);
+  font-size:.82rem;
+  font-weight:700;
+  text-align:right;
+  word-break:break-word;
+}
+.sm-status-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:.35rem;
+  min-height:26px;
+  padding:.35rem .58rem;
+  border:1px solid var(--sm-border-strong);
+  border-radius:999px;
+  background:rgba(255,255,255,.045);
+  color:var(--sm-muted);
+  font-size:.72rem;
+  font-weight:700;
+}
+.send-message-shell.is-broadcast .broadcast-pill{
+  border-color:rgba(245,158,11,.4);
+  background:rgba(245,158,11,.12);
+  color:#fbbf24;
+}
+.sm-preview-frame{
+  border:1px solid var(--sm-border);
+  border-radius:18px;
+  background:rgba(8,13,26,.38);
+  overflow:hidden;
+}
+.sm-preview-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.8rem;
+  padding:.9rem;
+  border-bottom:1px solid var(--sm-border);
+  background:linear-gradient(135deg,rgba(99,102,241,.12),rgba(255,255,255,.025));
+}
+.sm-preview-avatar{
+  width:34px;
+  height:34px;
+  display:grid;
+  place-items:center;
+  border-radius:12px;
+  color:#fff;
+  background:linear-gradient(135deg,var(--sm-accent),var(--sm-accent-light));
+  box-shadow:0 10px 24px rgba(99,102,241,.24);
+}
+.sm-preview-meta{min-width:0;flex:1}
+.sm-preview-type{
+  display:inline-flex;
+  align-items:center;
+  gap:.35rem;
+  min-height:23px;
+  padding:.25rem .52rem;
+  border-radius:999px;
+  background:var(--sm-accent-soft);
+  color:var(--sm-accent-light);
+  font-size:.7rem;
+  font-weight:700;
+}
+.sm-preview-subject{
+  margin:.78rem .9rem .4rem;
+  color:var(--sm-text);
+  font-size:1rem;
+  font-weight:800;
+  line-height:1.35;
+  word-break:break-word;
+}
+.sm-preview-recipient{
+  display:flex;
+  align-items:center;
+  gap:.38rem;
+  margin:0 .9rem .72rem;
+  color:var(--sm-muted);
+  font-size:.78rem;
+}
+.sm-preview-body{
+  min-height:130px;
+  max-height:260px;
+  overflow:auto;
+  margin:0;
+  padding:0 .9rem 1rem;
+  color:var(--sm-muted);
+  font-size:.86rem;
+  line-height:1.65;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+.sm-preview-body.is-empty,
+.sm-preview-subject.is-empty{color:var(--sm-dim);font-style:italic}
+.sm-checklist{display:grid;gap:.72rem;margin:0;padding:0;list-style:none}
+.sm-checklist li{
+  display:flex;
+  align-items:flex-start;
+  gap:.55rem;
+  color:var(--sm-muted);
+  font-size:.82rem;
+  line-height:1.45;
+}
+.sm-checklist iconify-icon{
+  flex:0 0 auto;
+  margin-top:.1rem;
+  color:var(--sm-accent-light);
+}
+.message-action-bar{
+  position:sticky;
+  bottom:1rem;
+  z-index:20;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  margin-top:1rem;
+  padding:.8rem;
+  border:1px solid var(--sm-border-strong);
+  border-radius:18px;
+  background:color-mix(in srgb,var(--sm-surface) 92%,transparent);
+  box-shadow:var(--sm-shadow);
+  backdrop-filter:blur(18px);
+}
+.sm-action-help{
+  display:flex;
+  align-items:center;
+  gap:.55rem;
+  min-width:0;
+  color:var(--sm-muted);
+  font-size:.82rem;
+  font-weight:600;
+}
+.sm-action-help iconify-icon{flex:0 0 auto;color:var(--sm-accent-light)}
+.sm-action-buttons{display:flex;align-items:center;gap:.55rem;flex-shrink:0}
+html[data-theme='light'] .send-message-shell{
+  --sm-surface:#fff;
+  --sm-surface-raised:#f8fafc;
+  --sm-border:rgba(15,23,42,.095);
+  --sm-border-strong:rgba(15,23,42,.16);
+  --sm-text:#0f172a;
+  --sm-muted:#64748b;
+  --sm-dim:#94a3b8;
+  --sm-accent-soft:rgba(99,102,241,.10);
+  --sm-shadow:0 18px 42px rgba(15,23,42,.08);
+}
+html[data-theme='light'] .send-message-header,
+html[data-theme='light'] .message-composer-card,
+html[data-theme='light'] .message-preview-card,
+html[data-theme='light'] .message-safety-card,
+html[data-theme='light'] .message-summary-card{
+  background:linear-gradient(180deg,rgba(99,102,241,.04),transparent 45%),#fff;
+}
+html[data-theme='light'] .sm-select,
+html[data-theme='light'] .sm-input,
+html[data-theme='light'] .sm-textarea,
+html[data-theme='light'] .sm-preview-frame{
+  background:#fff;
+}
+html[data-theme='light'] .sm-select:focus,
+html[data-theme='light'] .sm-input:focus,
+html[data-theme='light'] .sm-textarea:focus{
+  background:#fff;
+}
+html[data-theme='light'] .message-action-bar{
+  background:rgba(255,255,255,.92);
+}
+html[data-theme='light'] .sm-chip,
+html[data-theme='light'] .sm-btn,
+html[data-theme='light'] .sm-form-section,
+html[data-theme='light'] .sm-summary-row{
+  background:rgba(248,250,252,.82);
+}
+html[data-theme='light'] .sm-template-card,
+html[data-theme='light'] .sm-template-btn{
+  background:rgba(248,250,252,.82);
+}
+@keyframes sendMessageIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes broadcastIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+@media (max-width:1180px){
+  .send-message-grid{grid-template-columns:minmax(0,1fr) 330px;gap:1.15rem}
+  .send-message-title{font-size:clamp(1.55rem,2.4vw,2.15rem)}
+}
+@media (max-width:1024px){
+  .send-message-header{flex-direction:column;padding:1.15rem}
+  .send-message-header-actions{width:100%;justify-content:flex-start;flex-wrap:wrap}
+  .send-message-grid{grid-template-columns:1fr}
+  .message-sidebar{position:static}
+}
+@media (max-width:768px){
+  .send-message-shell{padding-bottom:1rem}
+  .message-composer-card,.message-preview-card,.message-safety-card,.message-summary-card{border-radius:18px}
+  .message-composer-card{padding:1rem}
+  .sm-form-section{padding:.9rem}
+  .sm-field-grid{grid-template-columns:1fr}
+  .sm-template-grid{grid-template-columns:repeat(2,minmax(160px,1fr))}
+  .sm-field-grid .sm-field + .sm-field{margin-top:0}
+  .message-action-bar{position:static;align-items:stretch;flex-direction:column}
+  .sm-action-buttons{width:100%;flex-direction:column-reverse;align-items:stretch}
+  .sm-action-buttons .sm-btn,
+  .sm-action-buttons input[type='submit']{width:100%}
+  .sm-summary-row{flex-direction:column;gap:.32rem}
+  .sm-summary-value{max-width:100%;text-align:left}
+}
+@media (max-width:480px){
+  .send-message-header{padding:1rem;border-radius:18px}
+  .send-message-title{font-size:1.55rem}
+  .send-message-subtitle{font-size:.9rem}
+  .sm-status-chips{gap:.4rem}
+  .sm-chip{width:100%;justify-content:flex-start}
+  .sm-textarea{min-height:200px}
+  .sm-template-grid{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){
+  .send-message-shell,
+  .sm-broadcast-warning{animation:none!important}
+  .sm-btn,
+  #sendMessageSubmit,
+  .sm-select,
+  .sm-input,
+  .sm-textarea,
+  .sm-template-card,
+  .sm-template-card::before,
+  .sm-template-btn{transition:none!important}
+  .sm-btn:hover,
+  #sendMessageSubmit:hover,
+  .sm-template-card:hover,
+  .sm-template-btn:hover{transform:none!important}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="send-message-shell" id="sendMessageShell">
+  <section class="send-message-header" aria-labelledby="sendMessageTitle">
+    <div class="send-message-header-copy">
+      <nav class="sm-breadcrumb" aria-label="Breadcrumb">
+        <span>SuperAdmin</span>
+        <iconify-icon icon="lucide:chevron-right" width="13"></iconify-icon>
+        <span>Messages</span>
+        <iconify-icon icon="lucide:chevron-right" width="13"></iconify-icon>
+        <span>Send Message</span>
+      </nav>
+      <div class="send-message-title-row">
+        <h1 class="send-message-title" id="sendMessageTitle">Send Message to Tenant</h1>
+      </div>
+      <p class="send-message-subtitle">
+        Send direct tenant messages, service notices, billing updates, or platform announcements.
+      </p>
+      <div class="sm-status-chips" aria-label="Messaging capabilities">
+        <span class="sm-chip sm-chip-soft"><iconify-icon icon="lucide:message-square" width="14"></iconify-icon> Direct message</span>
+        <span class="sm-chip sm-chip-warn"><iconify-icon icon="lucide:radio-tower" width="14"></iconify-icon> Broadcast supported</span>
+        <span class="sm-chip"><iconify-icon icon="lucide:shield-check" width="14"></iconify-icon> Tenant admin notification</span>
+      </div>
+    </div>
+    <div class="send-message-header-actions">
+      <a href="{{ url_for('superadmin.tenants') }}" class="sm-btn sm-btn-ghost sm-btn-sm" aria-label="Back to tenants">
+        <iconify-icon icon="lucide:arrow-left" width="16"></iconify-icon>
+        Back to Tenants
+      </a>
+    </div>
+  </section>
+
+  <form method="post" novalidate class="send-message-form" id="sendMessageForm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
-    <div class="form-row">
-      <label class="field-label" for="tenant_slug">Tenant</label>
-      {{ form.tenant_slug(class='form-select') }}
-      <p class="field-help">Choose a single tenant or select All Tenants to broadcast.</p>
-      {% if form.tenant_slug.errors %}
-      <div class="field-error">{{ form.tenant_slug.errors[0] }}</div>
-      {% endif %}
-    </div>
+    <div class="send-message-grid">
+      <main class="send-message-main" aria-label="Message composer">
+        <section class="message-composer-card">
+          <div class="sm-card-header">
+            <span class="sm-card-icon"><iconify-icon icon="lucide:send" width="18"></iconify-icon></span>
+            <div>
+              <h2 class="sm-card-title">Message Composer</h2>
+              <p class="sm-card-help">Choose recipients, message category, and write the notice tenants will receive.</p>
+            </div>
+          </div>
 
-    <div class="form-row">
-      <label class="field-label" for="message_type">Message Type</label>
-      {{ form.message_type(class='form-select') }}
-      <p class="field-help">Pick a type so the tenant sees the reason for the message.</p>
-      {% if form.message_type.errors %}
-      <div class="field-error">{{ form.message_type.errors[0] }}</div>
-      {% endif %}
-    </div>
+          <div class="sm-form-section" aria-labelledby="recipientSectionTitle">
+            <div class="sm-section-head">
+              <span class="sm-section-icon"><iconify-icon icon="lucide:users" width="16"></iconify-icon></span>
+              <h3 class="sm-section-title" id="recipientSectionTitle">Recipient</h3>
+            </div>
+            <div class="sm-field">
+              <label class="sm-label" for="tenant_slug">Tenant</label>
+              {{ form.tenant_slug(class='sm-select', id='tenant_slug') }}
+              <p class="sm-help">Choose a single tenant or select All Tenants to broadcast.</p>
+              <div class="sm-broadcast-warning" id="broadcastWarning" role="status" aria-live="polite">
+                <iconify-icon icon="lucide:alert-triangle" width="18"></iconify-icon>
+                <span>
+                  <strong>Broadcast mode</strong>
+                  This message will be sent to all tenant administrators.
+                </span>
+              </div>
+              {% if form.tenant_slug.errors %}
+              <div class="sm-error"><iconify-icon icon="lucide:alert-circle" width="14"></iconify-icon>{{ form.tenant_slug.errors[0] }}</div>
+              {% endif %}
+            </div>
+          </div>
 
-    <div class="form-row">
-      <label class="field-label" for="subject">Subject</label>
-      {{ form.subject(class='form-input', placeholder='Subject for tenant admin') }}
-      {% if form.subject.errors %}
-      <div class="field-error">{{ form.subject.errors[0] }}</div>
-      {% endif %}
-    </div>
+          <div class="sm-form-section" aria-labelledby="detailsSectionTitle">
+            <div class="sm-section-head">
+              <span class="sm-section-icon"><iconify-icon icon="lucide:file-text" width="16"></iconify-icon></span>
+              <h3 class="sm-section-title" id="detailsSectionTitle">Message Details</h3>
+            </div>
+            <div class="sm-field-grid">
+              <div class="sm-field">
+                <label class="sm-label" for="message_type">Message Type</label>
+                {{ form.message_type(class='sm-select', id='message_type') }}
+                <p class="sm-help">Use the existing message categories to help tenants understand the notice.</p>
+                {% if form.message_type.errors %}
+                <div class="sm-error"><iconify-icon icon="lucide:alert-circle" width="14"></iconify-icon>{{ form.message_type.errors[0] }}</div>
+                {% endif %}
+              </div>
+              <div class="sm-field">
+                <label class="sm-label" for="subject">Subject</label>
+                {{ form.subject(class='sm-input', id='subject', placeholder='Example: Scheduled maintenance update') }}
+                <p class="sm-help">Use a clear subject so tenant admins understand the message quickly.</p>
+                {% if form.subject.errors %}
+                <div class="sm-error"><iconify-icon icon="lucide:alert-circle" width="14"></iconify-icon>{{ form.subject.errors[0] }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
 
-    <div class="form-row">
-      <label class="field-label" for="message">Message</label>
-      {{ form.message(class='form-textarea', rows=8, placeholder='Write your message to the tenant admin here...') }}
-      {% if form.message.errors %}
-      <div class="field-error">{{ form.message.errors[0] }}</div>
-      {% endif %}
-    </div>
 
-    <div class="form-actions">
-      {{ form.submit(class='btn btn-primary btn-lg') }}
-      <a href="{{ url_for('superadmin.tenants') }}" class="btn btn-ghost btn-lg">Cancel</a>
+          <div class="sm-form-section" aria-labelledby="templatesSectionTitle">
+            <div class="sm-section-head">
+              <span class="sm-section-icon"><iconify-icon icon="lucide:sparkles" width="16"></iconify-icon></span>
+              <h3 class="sm-section-title" id="templatesSectionTitle">Ready-made Messages</h3>
+            </div>
+            <div class="sm-template-grid" aria-label="Ready-made message templates">
+              <article class="sm-template-card" data-template-card="general">
+                <div class="sm-template-top">
+                  <span class="sm-template-icon"><iconify-icon icon="lucide:message-circle" width="15"></iconify-icon></span>
+                  <h4 class="sm-template-title">General Message</h4>
+                </div>
+                <p class="sm-template-copy">Quick professional update for one tenant or all tenants.</p>
+                <button type="button" class="sm-template-btn" data-template-key="general">Use template</button>
+              </article>
+              <article class="sm-template-card" data-template-card="alert">
+                <div class="sm-template-top">
+                  <span class="sm-template-icon"><iconify-icon icon="lucide:alert-triangle" width="15"></iconify-icon></span>
+                  <h4 class="sm-template-title">Alert</h4>
+                </div>
+                <p class="sm-template-copy">Urgent notice for important account or platform issues.</p>
+                <button type="button" class="sm-template-btn" data-template-key="alert">Use template</button>
+              </article>
+              <article class="sm-template-card" data-template-card="billing">
+                <div class="sm-template-top">
+                  <span class="sm-template-icon"><iconify-icon icon="lucide:credit-card" width="15"></iconify-icon></span>
+                  <h4 class="sm-template-title">Billing Update</h4>
+                </div>
+                <p class="sm-template-copy">Helpful billing, payment, or subscription reminder.</p>
+                <button type="button" class="sm-template-btn" data-template-key="billing">Use template</button>
+              </article>
+              <article class="sm-template-card" data-template-card="maintenance">
+                <div class="sm-template-top">
+                  <span class="sm-template-icon"><iconify-icon icon="lucide:wrench" width="15"></iconify-icon></span>
+                  <h4 class="sm-template-title">Maintenance Notice</h4>
+                </div>
+                <p class="sm-template-copy">Scheduled downtime, deployment window, or platform maintenance notice.</p>
+                <button type="button" class="sm-template-btn" data-template-key="maintenance">Use template</button>
+              </article>
+              <article class="sm-template-card" data-template-card="account">
+                <div class="sm-template-top">
+                  <span class="sm-template-icon"><iconify-icon icon="lucide:user-cog" width="15"></iconify-icon></span>
+                  <h4 class="sm-template-title">Account Reminder</h4>
+                </div>
+                <p class="sm-template-copy">Reminder for profile, security, or setup action items.</p>
+                <button type="button" class="sm-template-btn" data-template-key="account">Use template</button>
+              </article>
+            </div>
+            <p class="sm-template-note">
+              <iconify-icon icon="lucide:info" width="14"></iconify-icon>
+              <span>Templates only fill the existing subject and message fields. Review and personalize placeholders before sending.</span>
+            </p>
+          </div>
+
+          <div class="sm-form-section" aria-labelledby="bodySectionTitle">
+            <div class="sm-section-head">
+              <span class="sm-section-icon"><iconify-icon icon="lucide:pen-line" width="16"></iconify-icon></span>
+              <h3 class="sm-section-title" id="bodySectionTitle">Message Body</h3>
+            </div>
+            <div class="sm-field">
+              <label class="sm-label" for="message">Message</label>
+              {{ form.message(class='sm-textarea', id='message', rows=10, placeholder='Write your message to the tenant admin here...') }}
+              <div class="sm-field-footer">
+                <p class="sm-help">Keep messages concise, professional, and actionable.</p>
+                <span class="sm-counter" id="messageCounter">0 / 2000</span>
+              </div>
+              {% if form.message.errors %}
+              <div class="sm-error"><iconify-icon icon="lucide:alert-circle" width="14"></iconify-icon>{{ form.message.errors[0] }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </section>
+
+        <div class="message-action-bar" aria-label="Send message actions">
+          <div class="sm-action-help">
+            <iconify-icon icon="lucide:info" width="16"></iconify-icon>
+            <span>Messages are sent to tenant administrators according to the selected recipient.</span>
+          </div>
+          <div class="sm-action-buttons">
+            <a href="{{ url_for('superadmin.tenants') }}" class="sm-btn sm-btn-ghost" aria-label="Cancel and return to tenants">
+              <iconify-icon icon="lucide:x" width="16"></iconify-icon>
+              Cancel
+            </a>
+            {{ form.submit(class='sm-btn-primary', id='sendMessageSubmit') }}
+          </div>
+        </div>
+      </main>
+
+      <aside class="message-sidebar" aria-label="Message send summary and preview">
+        <section class="message-summary-card">
+          <div class="sm-card-header">
+            <span class="sm-card-icon"><iconify-icon icon="lucide:list-checks" width="18"></iconify-icon></span>
+            <div>
+              <h2 class="sm-card-title">Send Summary</h2>
+              <p class="sm-card-help">Review the recipient and delivery context before sending.</p>
+            </div>
+          </div>
+          <div class="sm-summary-list">
+            <div class="sm-summary-row">
+              <span class="sm-summary-label">Recipient</span>
+              <span class="sm-summary-value" id="summaryRecipient">All Tenants</span>
+            </div>
+            <div class="sm-summary-row">
+              <span class="sm-summary-label">Type</span>
+              <span class="sm-summary-value" id="summaryType">General Message</span>
+            </div>
+            <div class="sm-summary-row">
+              <span class="sm-summary-label">Delivery</span>
+              <span class="sm-summary-value">Tenant admin inbox</span>
+            </div>
+            <div class="sm-summary-row">
+              <span class="sm-summary-label">Status</span>
+              <span class="sm-status-pill"><iconify-icon icon="lucide:edit-3" width="13"></iconify-icon> Draft until sent</span>
+            </div>
+            <div class="sm-summary-row">
+              <span class="sm-summary-label">Mode</span>
+              <span class="sm-status-pill broadcast-pill" id="summaryMode"><iconify-icon icon="lucide:user" width="13"></iconify-icon> Direct</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="message-preview-card">
+          <div class="sm-card-header">
+            <span class="sm-card-icon"><iconify-icon icon="lucide:eye" width="18"></iconify-icon></span>
+            <div>
+              <h2 class="sm-card-title">Message Preview</h2>
+              <p class="sm-card-help">A live preview of the tenant-facing notice.</p>
+            </div>
+          </div>
+          <div class="sm-preview-frame">
+            <div class="sm-preview-top">
+              <span class="sm-preview-avatar"><iconify-icon icon="lucide:megaphone" width="17"></iconify-icon></span>
+              <div class="sm-preview-meta">
+                <span class="sm-preview-type" id="previewType"><iconify-icon icon="lucide:message-circle" width="12"></iconify-icon> General Message</span>
+              </div>
+            </div>
+            <h3 class="sm-preview-subject is-empty" id="previewSubject">Subject preview will appear here</h3>
+            <div class="sm-preview-recipient">
+              <iconify-icon icon="lucide:users" width="14"></iconify-icon>
+              <span id="previewRecipient">All Tenants</span>
+            </div>
+            <p class="sm-preview-body is-empty" id="previewBody">Write your message to see a preview.</p>
+          </div>
+        </section>
+
+        <section class="message-safety-card">
+          <div class="sm-card-header">
+            <span class="sm-card-icon"><iconify-icon icon="lucide:shield-check" width="18"></iconify-icon></span>
+            <div>
+              <h2 class="sm-card-title">Safety Checklist</h2>
+              <p class="sm-card-help">Quick reminders before sending tenant communications.</p>
+            </div>
+          </div>
+          <ul class="sm-checklist">
+            <li><iconify-icon icon="lucide:check-circle-2" width="15"></iconify-icon><span>Recipient reviewed.</span></li>
+            <li><iconify-icon icon="lucide:check-circle-2" width="15"></iconify-icon><span>Subject is clear.</span></li>
+            <li><iconify-icon icon="lucide:check-circle-2" width="15"></iconify-icon><span>Message has action or context.</span></li>
+            <li><iconify-icon icon="lucide:check-circle-2" width="15"></iconify-icon><span>Broadcast selected intentionally.</span></li>
+          </ul>
+        </section>
+      </aside>
     </div>
   </form>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const shell = document.getElementById('sendMessageShell');
+  const tenant = document.getElementById('tenant_slug');
+  const type = document.getElementById('message_type');
+  const subject = document.getElementById('subject');
+  const message = document.getElementById('message');
+  const submit = document.getElementById('sendMessageSubmit');
+  const counter = document.getElementById('messageCounter');
+  const summaryRecipient = document.getElementById('summaryRecipient');
+  const summaryType = document.getElementById('summaryType');
+  const summaryMode = document.getElementById('summaryMode');
+  const previewRecipient = document.getElementById('previewRecipient');
+  const previewType = document.getElementById('previewType');
+  const previewSubject = document.getElementById('previewSubject');
+  const previewBody = document.getElementById('previewBody');
+
+  if (!shell || !tenant || !type || !subject || !message) return;
+
+  const typeIcons = {
+    alert: 'lucide:alert-triangle',
+    billing: 'lucide:credit-card',
+    maintenance: 'lucide:wrench',
+    account: 'lucide:user-cog',
+    general: 'lucide:message-circle'
+  };
+
+  const readyMadeTemplates = {
+    general: {
+      subject: 'Platform update from MyPortfolioHub',
+      message: 'Hello,\n\nWe wanted to share a quick platform update with you. Please review the details below and let us know if you need any help.\n\nWhat changed:\n- [Add the main update here]\n- [Add any action needed here]\n\nThank you,\nMyPortfolioHub Team'
+    },
+    alert: {
+      subject: 'Important alert for your portfolio account',
+      message: 'Hello,\n\nWe are sending this alert because an important item may require your attention.\n\nSummary:\n- Issue: [Describe the alert]\n- Impact: [Explain who or what is affected]\n- Action needed: [Explain what the tenant admin should do]\n\nPlease review this as soon as possible.\n\nThank you,\nMyPortfolioHub Team'
+    },
+    billing: {
+      subject: 'Billing update for your portfolio subscription',
+      message: 'Hello,\n\nThis is a billing update regarding your MyPortfolioHub account.\n\nDetails:\n- Plan or invoice: [Add plan/invoice detail]\n- Amount or status: [Add amount/status if applicable]\n- Next step: [Explain payment, renewal, or confirmation action]\n\nPlease check your billing page or contact support if you have questions.\n\nThank you,\nMyPortfolioHub Team'
+    },
+    maintenance: {
+      subject: 'Scheduled maintenance notice',
+      message: 'Hello,\n\nWe will be performing scheduled maintenance on MyPortfolioHub.\n\nSchedule:\n- Date/time: [Add maintenance schedule]\n- Expected duration: [Add estimated duration]\n- Expected impact: [Add downtime or feature impact]\n\nWe recommend saving any work before the maintenance window begins.\n\nThank you for your patience,\nMyPortfolioHub Team'
+    },
+    account: {
+      subject: 'Reminder: review your portfolio account settings',
+      message: 'Hello,\n\nThis is a friendly reminder to review your MyPortfolioHub account settings.\n\nRecommended actions:\n- Confirm your portfolio details are updated\n- Review your contact and email settings\n- Check your theme, projects, and billing information\n\nKeeping your account updated helps your portfolio stay accurate and professional.\n\nThank you,\nMyPortfolioHub Team'
+    }
+  };
+
+  const templateButtons = Array.from(document.querySelectorAll('[data-template-key]'));
+  const templateCards = Array.from(document.querySelectorAll('[data-template-card]'));
+
+  function optionText(select){
+    if (!select || !select.options || select.selectedIndex < 0) return '';
+    return select.options[select.selectedIndex].text || '';
+  }
+
+  function cleanRecipientLabel(label){
+    return (label || '').replace(/\s*\([^)]*\)\s*$/, '').trim() || 'Selected tenant';
+  }
+
+
+  function setMessageType(key){
+    if (!type) return;
+    const hasOption = Array.from(type.options || []).some(option => option.value === key);
+    if (hasOption) type.value = key;
+  }
+
+  function highlightTemplate(key){
+    templateCards.forEach(card => {
+      card.classList.toggle('is-active', card.getAttribute('data-template-card') === key);
+    });
+  }
+
+  function applyReadyMadeTemplate(key){
+    const template = readyMadeTemplates[key];
+    if (!template) return;
+    setMessageType(key);
+    subject.value = template.subject;
+    message.value = template.message.replace(/\\n/g, '\n');
+    highlightTemplate(key);
+    updatePreview();
+    message.focus({preventScroll:true});
+  }
+
+  function updatePreview(){
+    const isBroadcast = tenant.value === 'all';
+    const tenantLabel = isBroadcast ? 'All Tenants' : cleanRecipientLabel(optionText(tenant));
+    const typeLabel = optionText(type) || 'General Message';
+    highlightTemplate(type.value);
+    const typeIcon = typeIcons[type.value] || 'lucide:message-circle';
+    const subjectText = (subject.value || '').trim();
+    const bodyText = (message.value || '').trim();
+    const len = message.value ? message.value.length : 0;
+
+    shell.classList.toggle('is-broadcast', isBroadcast);
+
+    if (summaryRecipient) summaryRecipient.textContent = tenantLabel;
+    if (summaryType) summaryType.textContent = typeLabel;
+    if (previewRecipient) previewRecipient.textContent = tenantLabel;
+    if (previewType) previewType.innerHTML = '<iconify-icon icon="' + typeIcon + '" width="12"></iconify-icon> ' + typeLabel;
+
+    if (summaryMode) {
+      summaryMode.innerHTML = isBroadcast
+        ? '<iconify-icon icon="lucide:radio-tower" width="13"></iconify-icon> Broadcast'
+        : '<iconify-icon icon="lucide:user" width="13"></iconify-icon> Direct';
+    }
+
+    if (previewSubject) {
+      previewSubject.textContent = subjectText || 'Subject preview will appear here';
+      previewSubject.classList.toggle('is-empty', !subjectText);
+    }
+
+    if (previewBody) {
+      previewBody.textContent = bodyText || 'Write your message to see a preview.';
+      previewBody.classList.toggle('is-empty', !bodyText);
+    }
+
+    if (counter) counter.textContent = len + ' / 2000';
+    if (submit) submit.value = isBroadcast ? 'Send Broadcast' : 'Send Message';
+  }
+
+  ['change','input','keyup'].forEach(evt => {
+    tenant.addEventListener(evt, updatePreview);
+    type.addEventListener(evt, updatePreview);
+    subject.addEventListener(evt, updatePreview);
+    message.addEventListener(evt, updatePreview);
+  });
+
+
+
+  templateButtons.forEach(button => {
+    button.addEventListener('click', () => applyReadyMadeTemplate(button.getAttribute('data-template-key')));
+  });
+
+  type.addEventListener('change', () => highlightTemplate(type.value));
+
+  updatePreview();
+})();
+</script>
 {% endblock %}

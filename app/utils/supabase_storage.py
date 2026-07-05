@@ -18,7 +18,6 @@ import logging
 from typing import Optional
 
 from flask import current_app
-from PIL import Image, UnidentifiedImageError
 from werkzeug.datastructures import FileStorage
 
 logger = logging.getLogger(__name__)
@@ -46,38 +45,29 @@ def _get_supabase_client():
 
 
 def _validate_image(file: FileStorage) -> bool:
-    """
-    Validate file extension and MIME type via Pillow.
-    Returns True if safe, False otherwise.
-    """
+    """Validate image through the central upload policy before storage."""
     if not file or not file.filename:
         return False
-
-    ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
-    if ext not in ALLOWED_EXTENSIONS:
-        logger.warning('Rejected upload: disallowed extension — %s', file.filename)
-        return False
-
     try:
         if hasattr(file, 'stream'):
             file.stream.seek(0)
-            stream = file.stream
-        else:
-            stream = file
-        img = Image.open(stream)
-        if img.format not in _PIL_SAFE_FORMATS:
-            logger.warning('Rejected upload: unsafe format %s', img.format)
-            stream.seek(0)
-            return False
-        stream.seek(0)
-        return True
-    except (UnidentifiedImageError, Exception) as exc:
-        logger.warning('Rejected upload: MIME validation failed — %s', exc)
-        try:
+            data = file.stream.read()
             file.stream.seek(0)
-        except Exception:
-            pass
+        else:
+            data = file.read()
+            file.seek(0)
+    except Exception as exc:
+        logger.warning('Rejected upload: could not read file — %s', exc)
         return False
+
+    from app.security import FileUploadPolicy
+    ok, err = FileUploadPolicy.validate_image_upload(
+        file.filename, len(data), file_bytes=data, declared_mime=getattr(file, 'mimetype', None)
+    )
+    if not ok:
+        logger.warning('Rejected upload: %s — %s', file.filename, err)
+        return False
+    return True
 
 
 def save_image(file: FileStorage, folder: str = 'uploads') -> Optional[str]:

@@ -25,19 +25,29 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from run import app
 from app import db
 from app.models import User
+from app.models.core import Tenant
 from app.repositories import tenant_repository, user_repository
+from app.services.auth.email_policy import EmailPolicyError, assert_email_allowed_for_user
 
 
 USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
-EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@portfolio.local')
+EMAIL = os.environ.get('ADMIN_EMAIL', 'delacruzedward735@gmail.com')
 PASSWORD = os.environ.get('ADMIN_PASSWORD')
 
 
 def main():
     with app.app_context():
-        # Check for existing user by username or email
-        if user_repository.get_by_username(USERNAME) or user_repository.get_by_email(EMAIL):
-            print('Admin user already exists (by username or email).')
+        # Check for existing user by username. Email reuse is governed by the
+        # central policy because the owner email is intentionally shared by
+        # SuperAdmin and the default portfolio admin.
+        if user_repository.get_by_username(USERNAME):
+            print('Admin user already exists (by username).')
+            return
+
+        try:
+            email = assert_email_allowed_for_user(EMAIL, role='tenant_admin', slug='default')
+        except EmailPolicyError as exc:
+            print(f'Cannot create admin user: {exc}')
             return
 
         generated = False
@@ -48,11 +58,11 @@ def main():
 
         tenant = tenant_repository.get_by_slug('default')
         if not tenant:
-            tenant = Tenant(slug='default', company_name='Default Portfolio', email=EMAIL, status='active')
+            tenant = Tenant(slug='default', company_name='Default Portfolio', email=email, status='active', plan='Administrator')
             db.session.add(tenant)
             db.session.flush()
 
-        u = User(username=USERNAME, email=EMAIL, is_admin=True, tenant=tenant, tenant_slug=tenant.slug)
+        u = User(username=USERNAME, email=email, is_admin=True, tenant=tenant, tenant_slug=tenant.slug)
         u.password = password
         db.session.add(u)
         db.session.commit()

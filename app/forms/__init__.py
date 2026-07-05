@@ -79,10 +79,12 @@ class RegisterForm(FlaskForm):
             raise ValidationError('That username is already taken.')
 
     def validate_email(self, field):
-        from app.models import User
-        existing = User.query.filter_by(email=field.data.strip().lower(), is_superadmin=False).first()
-        if existing:
-            raise ValidationError('An account with that email already exists. Try signing in.')
+        from app.services.auth.email_policy import EmailPolicyError, assert_public_signup_email_allowed
+
+        try:
+            field.data = assert_public_signup_email_allowed(field.data)
+        except EmailPolicyError as exc:
+            raise ValidationError(str(exc))
 
 
 class ResendVerificationForm(FlaskForm):
@@ -122,12 +124,17 @@ class SuperadminAccountForm(FlaskForm):
                 raise ValidationError('That username is already taken.')
 
     def validate_email(self, field):
-        from app.models import User
+        from app.services.auth.email_policy import EmailPolicyError, assert_email_allowed_for_user
 
-        if field.data.strip().lower() != current_user.email.lower():
-            existing = User.query.filter(User.email == field.data.strip().lower()).first()
-            if existing:
-                raise ValidationError('That email address is already in use.')
+        try:
+            field.data = assert_email_allowed_for_user(
+                field.data,
+                user=current_user,
+                tenant=getattr(current_user, 'tenant', None),
+                role='superadmin' if getattr(current_user, 'is_superadmin', False) else 'tenant_admin',
+            )
+        except EmailPolicyError as exc:
+            raise ValidationError(str(exc))
 
 
 # ── Profile ───────────────────────────────────────────────────────────────────
@@ -187,7 +194,6 @@ class TenantForm(FlaskForm):
             ('Basic', 'Basic'),
             ('Pro', 'Pro'),
             ('Enterprise', 'Enterprise'),
-            ('Administrator', 'Administrator'),
         ],
         default='Trial',
         validators=[Optional()],
@@ -201,35 +207,35 @@ class TenantForm(FlaskForm):
 
 
 class LandingPageSettingsForm(FlaskForm):
-    hero_badge = StringField('Hero Badge', validators=[Optional(), Length(max=80)])
-    hero_title = StringField('Hero Headline', validators=[Optional(), Length(max=200)])
-    hero_subtitle = TextAreaField('Hero Subtitle', validators=[Optional(), Length(max=400)])
-    hero_cta_primary_text = StringField('Primary CTA Label', validators=[Optional(), Length(max=80)])
-    hero_cta_primary_url = StringField('Primary CTA URL', validators=[Optional(), Length(max=255)])
-    hero_cta_secondary_text = StringField('Secondary CTA Label', validators=[Optional(), Length(max=80)])
-    hero_cta_secondary_url = StringField('Secondary CTA URL', validators=[Optional(), Length(max=255)])
-    hero_image_url = StringField('Hero Visual URL', validators=[Optional(), Length(max=500)])
-    hero_preview_name = StringField('Preview Profile Name', validators=[Optional(), Length(max=80)])
-    hero_preview_role = StringField('Preview Profile Role', validators=[Optional(), Length(max=100)])
-    hero_preview_url_text = StringField('Preview Browser URL Text', validators=[Optional(), Length(max=80)])
-    hero_stat_badge_text = StringField('Floating Badge Text', validators=[Optional(), Length(max=60)])
-    hero_stat_likes = StringField('Likes Stat', validators=[Optional(), Length(max=20)])
-    hero_stat_views = StringField('Views Stat', validators=[Optional(), Length(max=20)])
-    hero_stat_comments = StringField('Comments Stat', validators=[Optional(), Length(max=20)])
+    hero_badge = StringField('Hero Badge', validators=[Optional(), Length(max=80)], render_kw={'maxlength': 80})
+    hero_title = StringField('Hero Headline', validators=[Optional(), Length(max=200)], render_kw={'maxlength': 200})
+    hero_subtitle = TextAreaField('Hero Subtitle', validators=[Optional(), Length(max=400)], render_kw={'maxlength': 400})
+    hero_cta_primary_text = StringField('Primary CTA Label', validators=[Optional(), Length(max=80)], render_kw={'maxlength': 80})
+    hero_cta_primary_url = StringField('Primary CTA URL', validators=[Optional(), Length(max=255)], render_kw={'maxlength': 255})
+    hero_cta_secondary_text = StringField('Secondary CTA Label', validators=[Optional(), Length(max=80)], render_kw={'maxlength': 80})
+    hero_cta_secondary_url = StringField('Secondary CTA URL', validators=[Optional(), Length(max=255)], render_kw={'maxlength': 255})
+    hero_image_url = StringField('Hero Visual URL', validators=[Optional(), Length(max=500)], render_kw={'maxlength': 500})
+    hero_preview_name = StringField('Preview Profile Name', validators=[Optional(), Length(max=80)], render_kw={'maxlength': 80})
+    hero_preview_role = StringField('Preview Profile Role', validators=[Optional(), Length(max=100)], render_kw={'maxlength': 100})
+    hero_preview_url_text = StringField('Preview Browser URL Text', validators=[Optional(), Length(max=80)], render_kw={'maxlength': 80})
+    hero_stat_badge_text = StringField('Floating Badge Text', validators=[Optional(), Length(max=60)], render_kw={'maxlength': 60})
+    hero_stat_likes = StringField('Likes Stat', validators=[Optional(), Length(max=20)], render_kw={'maxlength': 20})
+    hero_stat_views = StringField('Views Stat', validators=[Optional(), Length(max=20)], render_kw={'maxlength': 20})
+    hero_stat_comments = StringField('Comments Stat', validators=[Optional(), Length(max=20)], render_kw={'maxlength': 20})
     hero_enable_widgets = BooleanField('Show floating widgets', validators=[Optional()])
     hero_enable_animation = BooleanField('Enable hero animation', validators=[Optional()])
-    features_heading = StringField('Features Heading', validators=[Optional(), Length(max=120)])
-    features_subtitle = TextAreaField('Features Subtitle', validators=[Optional(), Length(max=300)])
-    contact_heading = StringField('Contact Section Heading', validators=[Optional(), Length(max=120)])
-    contact_subtitle = TextAreaField('Contact Section Subtitle', validators=[Optional(), Length(max=300)])
-    founder_photo_url = StringField('Founder Photo URL', validators=[Optional(), Length(max=500)])
-    founder_preview_image = StringField('Founder Preview Image URL', validators=[Optional(), Length(max=500)])
-    founder_role = StringField('Founder Role', validators=[Optional(), Length(max=100)])
-    founder_title = StringField('Founder Title', validators=[Optional(), Length(max=100)])
-    founder_name = StringField('Founder Name', validators=[Optional(), Length(max=100)])
-    founder_description = TextAreaField('Founder Description', validators=[Optional(), Length(max=400)])
-    founder_portfolio_url = StringField('Founder Portfolio URL', validators=[Optional(), Length(max=255)])
-    founder_contact_url = StringField('Founder Contact URL', validators=[Optional(), Length(max=255)])
+    features_heading = StringField('Features Heading', validators=[Optional(), Length(max=120)], render_kw={'maxlength': 120})
+    features_subtitle = TextAreaField('Features Subtitle', validators=[Optional(), Length(max=300)], render_kw={'maxlength': 300})
+    contact_heading = StringField('Contact Section Heading', validators=[Optional(), Length(max=120)], render_kw={'maxlength': 120})
+    contact_subtitle = TextAreaField('Contact Section Subtitle', validators=[Optional(), Length(max=300)], render_kw={'maxlength': 300})
+    founder_photo_url = StringField('Founder Photo URL', validators=[Optional(), Length(max=500)], render_kw={'maxlength': 500})
+    founder_preview_image = StringField('Founder Preview Image URL', validators=[Optional(), Length(max=500)], render_kw={'maxlength': 500})
+    founder_role = StringField('Founder Role', validators=[Optional(), Length(max=100)], render_kw={'maxlength': 100})
+    founder_title = StringField('Founder Title', validators=[Optional(), Length(max=100)], render_kw={'maxlength': 100})
+    founder_name = StringField('Founder Name', validators=[Optional(), Length(max=100)], render_kw={'maxlength': 100})
+    founder_description = TextAreaField('Founder Description', validators=[Optional(), Length(max=400)], render_kw={'maxlength': 400})
+    founder_portfolio_url = StringField('Founder Portfolio URL', validators=[Optional(), Length(max=255)], render_kw={'maxlength': 255})
+    founder_contact_url = StringField('Founder Contact URL', validators=[Optional(), Length(max=255)], render_kw={'maxlength': 255})
     submit = SubmitField('Save Landing Content')
 
 
@@ -239,33 +245,33 @@ class PricingSettingsForm(FlaskForm):
     here; see app/public/services/pricing_service.py for the split)."""
 
     # Section copy
-    heading = StringField('Section Heading', validators=[Optional(), Length(max=120)])
-    subtitle = TextAreaField('Section Subtitle', validators=[Optional(), Length(max=300)])
-    footnote = TextAreaField('Footnote (shown when checkout is disabled)', validators=[Optional(), Length(max=300)])
+    heading = StringField('Section Heading', validators=[Optional(), Length(max=120)], render_kw={'maxlength': 120})
+    subtitle = TextAreaField('Section Subtitle', validators=[Optional(), Length(max=300)], render_kw={'maxlength': 300})
+    footnote = TextAreaField('Footnote (shown when checkout is disabled)', validators=[Optional(), Length(max=300)], render_kw={'maxlength': 300})
     yearly_toggle_enabled = BooleanField('Show monthly / yearly toggle', validators=[Optional()])
 
     # Basic plan
-    basic_badge_text = StringField('Badge Text', validators=[Optional(), Length(max=40)])
-    basic_cta_text = StringField('CTA Label', validators=[Optional(), Length(max=40)])
-    basic_cta_url = StringField('CTA URL', validators=[Optional(), Length(max=255)])
-    basic_description_override = TextAreaField('Description Override', validators=[Optional(), Length(max=200)])
-    basic_features_override = TextAreaField('Feature List Override (one per line)', validators=[Optional(), Length(max=1000)])
+    basic_badge_text = StringField('Badge Text', validators=[Optional(), Length(max=40)], render_kw={'maxlength': 40})
+    basic_cta_text = StringField('CTA Label', validators=[Optional(), Length(max=40)], render_kw={'maxlength': 40})
+    basic_cta_url = StringField('CTA URL', validators=[Optional(), Length(max=255)], render_kw={'maxlength': 255})
+    basic_description_override = TextAreaField('Description Override', validators=[Optional(), Length(max=200)], render_kw={'maxlength': 200})
+    basic_features_override = TextAreaField('Feature List Override (one per line)', validators=[Optional(), Length(max=1000)], render_kw={'maxlength': 1000})
     basic_highlighted = BooleanField('Highlight this plan', validators=[Optional()])
 
     # Pro plan
-    pro_badge_text = StringField('Badge Text', validators=[Optional(), Length(max=40)])
-    pro_cta_text = StringField('CTA Label', validators=[Optional(), Length(max=40)])
-    pro_cta_url = StringField('CTA URL', validators=[Optional(), Length(max=255)])
-    pro_description_override = TextAreaField('Description Override', validators=[Optional(), Length(max=200)])
-    pro_features_override = TextAreaField('Feature List Override (one per line)', validators=[Optional(), Length(max=1000)])
+    pro_badge_text = StringField('Badge Text', validators=[Optional(), Length(max=40)], render_kw={'maxlength': 40})
+    pro_cta_text = StringField('CTA Label', validators=[Optional(), Length(max=40)], render_kw={'maxlength': 40})
+    pro_cta_url = StringField('CTA URL', validators=[Optional(), Length(max=255)], render_kw={'maxlength': 255})
+    pro_description_override = TextAreaField('Description Override', validators=[Optional(), Length(max=200)], render_kw={'maxlength': 200})
+    pro_features_override = TextAreaField('Feature List Override (one per line)', validators=[Optional(), Length(max=1000)], render_kw={'maxlength': 1000})
     pro_highlighted = BooleanField('Highlight this plan', validators=[Optional()])
 
     # Enterprise plan
-    enterprise_badge_text = StringField('Badge Text', validators=[Optional(), Length(max=40)])
-    enterprise_cta_text = StringField('CTA Label', validators=[Optional(), Length(max=40)])
-    enterprise_cta_url = StringField('CTA URL', validators=[Optional(), Length(max=255)])
-    enterprise_description_override = TextAreaField('Description Override', validators=[Optional(), Length(max=200)])
-    enterprise_features_override = TextAreaField('Feature List Override (one per line)', validators=[Optional(), Length(max=1000)])
+    enterprise_badge_text = StringField('Badge Text', validators=[Optional(), Length(max=40)], render_kw={'maxlength': 40})
+    enterprise_cta_text = StringField('CTA Label', validators=[Optional(), Length(max=40)], render_kw={'maxlength': 40})
+    enterprise_cta_url = StringField('CTA URL', validators=[Optional(), Length(max=255)], render_kw={'maxlength': 255})
+    enterprise_description_override = TextAreaField('Description Override', validators=[Optional(), Length(max=200)], render_kw={'maxlength': 200})
+    enterprise_features_override = TextAreaField('Feature List Override (one per line)', validators=[Optional(), Length(max=1000)], render_kw={'maxlength': 1000})
     enterprise_highlighted = BooleanField('Highlight this plan', validators=[Optional()])
 
     submit = SubmitField('Save Pricing Content')

@@ -63,9 +63,15 @@ def _save_uploaded_image(file_storage, prefix: str) -> str | None:
         return None
     if not _allowed_image(file_storage.filename):
         return None
-    # Read into memory to check size before writing
     data = file_storage.read()
     if len(data) > _MAX_IMAGE_SIZE:
+        return None
+    from app.security import FileUploadPolicy
+    ok, err = FileUploadPolicy.validate_image_upload(
+        file_storage.filename, len(data), file_bytes=data, declared_mime=getattr(file_storage, 'mimetype', None)
+    )
+    if not ok:
+        logger.warning('Rejected theme image upload %s: %s', file_storage.filename, err)
         return None
     ext = file_storage.filename.rsplit('.', 1)[1].lower()
     fname = f'{prefix}_{uuid.uuid4().hex[:12]}.{ext}'

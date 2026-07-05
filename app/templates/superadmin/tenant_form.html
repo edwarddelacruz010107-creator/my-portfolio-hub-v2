@@ -21,6 +21,7 @@
   <div class="form-main-col">
     <form method="post" id="tenantForm">
       {{ form.hidden_tag() }}
+      {% set is_system_tenant = profile and (profile.tenant_slug in ['default', 'administrator'] or (profile.plan or '')|lower == 'administrator') %}
 
       <!-- Tenant Identity -->
       <div class="form-card">
@@ -52,7 +53,8 @@
                   class='field-input slug-field' + (' field-error' if form.tenant_slug.errors else ''),
                   placeholder='e.g. john-doe',
                   id='tenantSlug',
-                  autocomplete='off'
+                  autocomplete='off',
+                  readonly=is_system_tenant
               ) }}
             </div>
             {% if form.tenant_slug.errors %}
@@ -70,7 +72,13 @@
           <div class="form-row-2">
             <div class="form-field">
               {{ form.plan.label(class='field-label') }}
-              {{ form.plan(class='field-input field-select') }}
+              {% if is_system_tenant %}
+                <input type="hidden" name="{{ form.plan.name }}" value="Administrator">
+              {% endif %}
+              {{ form.plan(class='field-input field-select', disabled=is_system_tenant) }}
+              {% if is_system_tenant %}
+                <div class="field-hint">Protected system portfolio — Administrator plan cannot be downgraded or purchased.</div>
+              {% endif %}
             </div>
             <div class="form-field">
               {{ form.monthly_rate.label(class='field-label') }}

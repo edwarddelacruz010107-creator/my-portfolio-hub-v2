@@ -106,7 +106,13 @@ services:
       - key: MAILERSEND_FROM_EMAIL
         sync: false
       - key: MAILERSEND_FROM_NAME
-        value: "Portfolio CMS"
+        value: "MyPortfolioHub"
+      - key: SUPERADMIN_REPLY_TO_EMAIL
+        sync: false
+      - key: RESEND_FROM_NAME
+        value: "MyPortfolioHub"
+      - key: RESEND_FROM_EMAIL
+        sync: false
 
       # ── Supabase (optional) ──────────────────────────────────────
       - key: SUPABASE_URL

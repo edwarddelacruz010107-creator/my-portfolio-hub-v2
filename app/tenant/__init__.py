@@ -40,7 +40,7 @@ from app.models.portfolio import (
     Inquiry, Subscription, TenantCommunicationSettings,
     normalize_plan_name,
 )
-from app.utils import BILLING_PLANS, is_paymongo_enabled, log_activity
+from app.utils import BILLING_PLANS, get_public_billing_plans, is_paymongo_enabled, log_activity
 from app.services.billing import subscription_access_status, is_in_grace_period
 from app.services.billing_handlers import (
     billing_payment_context,
@@ -49,6 +49,7 @@ from app.services.billing_handlers import (
     handle_billing_plans_post,
 )
 from app.services.manual_billing import get_payment_method_for_tenant
+from app.system_plan import has_administrator_access
 # PHASE 1 FIX: this blueprint previously defined its own drifted copy of the
 # reserved-slug set (missing 'billing', 'webhooks', 'contact', 'setup',
 # 'system', and unaware of the new Phase 1 public-namespace slugs). There is
@@ -353,7 +354,8 @@ def billing():
         abort(404)
     if not _tenant_billing_access_allowed(tenant):
         abort(403)
-    subscription = profile.current_subscription()
+    is_admin_plan = has_administrator_access(profile)
+    subscription = None if is_admin_plan else profile.current_subscription()
     return render_template(
         'billing/index.html',
         profile=profile,
@@ -361,7 +363,8 @@ def billing():
         subscription_status=subscription_access_status(profile),
         license_status=profile.license_status(),
         trial_days_left=profile.trial_days_remaining(),
-        plans=BILLING_PLANS,
+        plans=get_public_billing_plans(),
+        is_administrator_plan=is_admin_plan,
         tenant_slug=tenant,
         paymongo_enabled=is_paymongo_enabled(),
         billing_routes={
@@ -382,8 +385,9 @@ def billing_plans():
     if not _tenant_billing_access_allowed(tenant):
         abort(403)
 
-    subscription = profile.current_subscription()
-    form = PlanSelectionForm(plan=normalize_plan_name(subscription.plan if subscription else profile.plan or 'Basic'))
+    is_admin_plan = has_administrator_access(profile)
+    subscription = None if is_admin_plan else profile.current_subscription()
+    form = PlanSelectionForm(plan='Basic' if is_admin_plan else normalize_plan_name(subscription.plan if subscription else profile.plan or 'Basic'))
 
     # Check for payment success/failure from PayMongo
     status = request.args.get('status')
@@ -440,6 +444,10 @@ def billing_payment(method_id):
         abort(404)
     if not _tenant_billing_access_allowed(tenant):
         abort(403)
+
+    if has_administrator_access(profile):
+        flash('Administrator plan has full access and does not require payment.', 'info')
+        return redirect(url_for('tenant.billing', tenant_slug=tenant))
 
     method = get_payment_method_for_tenant(method_id, profile.tenant_id)
     if not method:

@@ -141,6 +141,15 @@
 .sec-title.green{color:#4ade80}
 .sec-list{margin:0;padding-left:1.1rem;color:var(--text-muted,#9ca3af);font-size:.8rem;line-height:1.6}
 
+.delivery-provider{margin:.7rem 0 .95rem;padding:.75rem;border:1px solid var(--border-color,#2d3448);border-radius:10px;background:rgba(15,23,42,.28)}
+.delivery-provider-title{font-size:.82rem;font-weight:800;color:var(--text-primary,#f1f5f9);margin-bottom:.35rem}
+.delivery-provider-sender{font-size:.72rem;color:var(--text-muted,#9ca3af);margin-bottom:.55rem;word-break:break-all}
+.delivery-list{list-style:none;margin:0;padding:0;display:grid;gap:.42rem}
+.delivery-list li{display:grid;grid-template-columns:18px 1fr;gap:.4rem;font-size:.75rem;line-height:1.4;color:var(--text-muted,#9ca3af)}
+.delivery-mark{font-weight:800;text-align:center}
+.delivery-mark.ok{color:#22c55e}.delivery-mark.warn{color:#f59e0b}.delivery-mark.bad{color:#ef4444}
+.delivery-note{display:block;color:#6b7280;font-size:.7rem;margin-top:.08rem}
+
 /* SMTP test result inline */
 .smtp-result{margin-top:.75rem;padding:.65rem 1rem;border-radius:8px;font-size:.82rem;
   font-weight:500;display:none;align-items:flex-start;gap:.5rem;line-height:1.4}
@@ -475,9 +484,41 @@
       </ul>
     </div>
     <div class="sec-section">
-      <div class="sec-title green">🌐 SPF / DKIM / DMARC</div>
+      <div class="sec-title green">🌐 Deliverability Checklist</div>
+      {% if deliverability_checklists %}
+        {% for pname, checklist in deliverability_checklists.items() %}
+          <div class="delivery-provider">
+            <div class="delivery-provider-title">{{ checklist['title'] }}</div>
+            <div class="delivery-provider-sender">From: {{ checklist['sender'] or 'Not set' }}</div>
+            <ul class="delivery-list">
+              {% for item in checklist['items'] %}
+                <li>
+                  {% if item['ok'] is sameas true %}
+                    <span class="delivery-mark ok">✓</span>
+                  {% elif item['ok'] is sameas false %}
+                    <span class="delivery-mark bad">!</span>
+                  {% else %}
+                    <span class="delivery-mark warn">•</span>
+                  {% endif %}
+                  <span>
+                    {{ item['label'] }}
+                    {% if item['note'] %}<span class="delivery-note">{{ item['note'] }}</span>{% endif %}
+                  </span>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endfor %}
+      {% else %}
+        <ul class="sec-list">
+          <li>Turn on at least one configured provider to see active-provider diagnostics.</li>
+          <li>Use a verified domain sender before production.</li>
+        </ul>
+      {% endif %}
       <ul class="sec-list">
-        <li>Configure DNS records for maximum deliverability</li>
+        <li>For <code>myportfoliohub.online</code>, configure SPF, DKIM, and DMARC in DNS.</li>
+        <li>Starting DMARC: <code>v=DMARC1; p=none; rua=mailto:postmaster@myportfoliohub.online</code></li>
+        <li>After testing: <code>v=DMARC1; p=quarantine; rua=mailto:postmaster@myportfoliohub.online</code></li>
         <li>Check with <a href="https://mail-tester.com" target="_blank" style="color:#4ade80">mail-tester.com</a></li>
       </ul>
     </div>

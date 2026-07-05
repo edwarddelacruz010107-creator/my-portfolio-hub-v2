@@ -178,11 +178,11 @@ def new_project():
                     'warning',
                 )
             else:
-                img = save_image(form.image.data, 'projects')
+                img, upload_error = save_image(form.image.data, 'projects')
                 if img:
                     project.image = img
-                else:
-                    flash('Image upload failed — check format/size.', 'warning')
+                elif upload_error:
+                    flash(upload_error, 'warning')
 
         db.session.add(project)
         db.session.commit()
@@ -229,13 +229,13 @@ def edit_project(id: int):
                     'warning',
                 )
             else:
-                new_img = save_image(form.image.data, 'projects')
+                new_img, upload_error = save_image(form.image.data, 'projects')
                 if new_img:
                     if project.image:
                         delete_image(project.image, 'projects')
                     project.image = new_img
-                else:
-                    flash('Image upload failed — check format/size.', 'warning')
+                elif upload_error:
+                    flash(upload_error, 'warning')
 
         db.session.commit()
         log_activity('update', 'project', project.title)

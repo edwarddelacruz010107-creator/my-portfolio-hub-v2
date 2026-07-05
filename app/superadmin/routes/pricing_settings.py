@@ -11,15 +11,19 @@ Draft/publish pattern mirrors app/superadmin/routes/landing_settings.py.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
-from flask import render_template, redirect, url_for, flash, request
+from flask import render_template, redirect, url_for, flash, request, jsonify
+from flask_wtf.csrf import validate_csrf
+from werkzeug.datastructures import MultiDict
 
 from app import db, limiter
 from app.forms import PricingSettingsForm
 from app.models.core import PlatformSetting
 from app.public.services.pricing_service import (
     get_pricing_content,
+    get_plan_config,
     plan_config_key,
     draft_key,
     SECTION_KEYS,
@@ -41,6 +45,22 @@ _MAX_FEATURE_LEN = 120
 # and open-redirect-flavored schemes — this field is rendered as an
 # <a href> on the public pricing page.
 _ALLOWED_CTA_SCHEMES = {"http", "https", ""}
+
+# Autosave allow-list. Two shapes of field live on this page:
+#  - section-level fields (heading/subtitle/footnote/yearly_toggle_enabled):
+#    simple flat PlatformSetting draft rows, same as landing_settings.py.
+#  - per-plan fields (basic_badge_text, pro_cta_url, ...): each plan's six
+#    fields live together inside ONE JSON blob (plan_config_key), so
+#    autosaving one must read-modify-write that blob, never overwrite it.
+_SECTION_AUTOSAVE_FIELDS = set(SECTION_KEYS) | {"yearly_toggle_enabled"}
+_PLAN_FIELD_SUFFIXES = (
+    "badge_text", "cta_text", "cta_url",
+    "description_override", "features_override", "highlighted",
+)
+_PLAN_AUTOSAVE_FIELDS = {
+    f"{slug}_{suffix}" for slug in _PLAN_SLUGS.values() for suffix in _PLAN_FIELD_SUFFIXES
+}
+_SLUG_TO_PLAN_NAME = {slug: name for name, slug in _PLAN_SLUGS.items()}
 
 
 def _is_safe_cta_url(url: str) -> bool:
@@ -133,6 +153,114 @@ def _save_form_data(form: PricingSettingsForm, publish: bool = False) -> None:
         PlatformSetting.set_json(plan_config_key(plan_name, draft=True), config)
         if publish:
             PlatformSetting.set_json(plan_config_key(plan_name, draft=False), config)
+
+
+def _validate_single_field(field_name: str, raw_value) -> tuple[bool, str, object]:
+    """Run just one PricingSettingsForm field's own validators (Length /
+    Optional) against a candidate value. Returns (is_valid, error, cleaned_data).
+    Mirrors the manual-save path's validation exactly, scoped to one field —
+    never instantiates the rest of the form's data.
+    """
+    is_bool = field_name.endswith("_highlighted") or field_name == "yearly_toggle_enabled"
+    formdata = MultiDict({field_name: ("y" if raw_value else "") if is_bool else (raw_value or "")})
+    probe = PricingSettingsForm(formdata=formdata, meta={"csrf": False})
+    bound = getattr(probe, field_name)
+    if not bound.validate(probe):
+        return False, (bound.errors[0] if bound.errors else "Invalid value."), None
+    return True, "", bound.data
+
+
+@superadmin.route('/settings/pricing/autosave', methods=['POST'])
+@superadmin_required
+@limiter.limit('40 per minute')
+def pricing_autosave():
+    """Per-field draft autosave for the Pricing CMS form.
+
+    Not a wrapper around `_save_form_data` — that function writes every
+    field on the form from whatever it's bound to, which would blank out
+    sibling fields on a request that only carries the one field the user
+    just edited. This route always writes exactly one thing:
+      - a single flat draft key, for section-level fields, or
+      - one key inside one plan's JSON blob (read-modify-write), for
+        per-plan fields — never touching a sibling plan's blob, except
+        for `highlighted`, where server-side exclusivity is enforced
+        deliberately (see _save_form_data's own comment on this: never
+        trust the client to have kept the radio-style behavior honest).
+    """
+    payload = request.get_json(silent=True) or {}
+    field = (payload.get('field') or '').strip()
+    raw_value = payload.get('value', '')
+
+    try:
+        validate_csrf(payload.get('csrf_token') or request.headers.get('X-CSRFToken') or '')
+    except Exception:
+        return jsonify({'success': False, 'error': 'Your session expired. Refresh the page and try again.'}), 400
+
+    if field not in _SECTION_AUTOSAVE_FIELDS and field not in _PLAN_AUTOSAVE_FIELDS:
+        return jsonify({'success': False, 'error': 'Unknown field.'}), 400
+
+    is_valid, error, cleaned = _validate_single_field(field, raw_value)
+    if not is_valid:
+        return jsonify({'success': False, 'field': field, 'error': error}), 422
+
+    try:
+        if field in _SECTION_AUTOSAVE_FIELDS:
+            if field == 'yearly_toggle_enabled':
+                PlatformSetting.set_bool(draft_key(YEARLY_TOGGLE_KEY), bool(cleaned))
+            else:
+                published_key = SECTION_KEYS[field]
+                PlatformSetting.set_string(draft_key(published_key), (cleaned or '').strip())
+        else:
+            # Split on the known slug prefix rather than the last underscore,
+            # since suffixes themselves contain underscores (e.g. description_override).
+            slug = next(s for s in _PLAN_SLUGS.values() if field.startswith(s + '_'))
+            suffix = field[len(slug) + 1:]
+            plan_name = _SLUG_TO_PLAN_NAME[slug]
+
+            config = get_plan_config(plan_name, draft_first=True, fallback_to_published=True)
+
+            if suffix == 'cta_url':
+                url = (cleaned or '').strip()
+                if not _is_safe_cta_url(url):
+                    return jsonify({
+                        'success': False, 'field': field,
+                        'error': 'Use a relative path (/billing/plans) or a full http(s):// link.',
+                    }), 422
+                config['cta_url'] = url
+            elif suffix == 'features_override':
+                config['features_override'] = _parse_features(cleaned)
+            elif suffix == 'highlighted':
+                highlighted = bool(cleaned)
+                config['highlighted'] = highlighted
+                if highlighted:
+                    # Enforce single-highlighted-plan invariant on the draft
+                    # side too — clear every sibling plan's draft blob.
+                    for other_name, other_slug in _PLAN_SLUGS.items():
+                        if other_slug == slug:
+                            continue
+                        other_config = get_plan_config(other_name, draft_first=True, fallback_to_published=True)
+                        if other_config.get('highlighted'):
+                            other_config['highlighted'] = False
+                            PlatformSetting.set_json(plan_config_key(other_name, draft=True), other_config)
+            else:  # badge_text, cta_text, description_override
+                config[suffix] = (cleaned or '').strip()
+
+            PlatformSetting.set_json(plan_config_key(plan_name, draft=True), config)
+
+        db.session.commit()
+    except ValueError:
+        db.session.rollback()
+        return jsonify({'success': False, 'field': field, 'error': 'That value is too long to save.'}), 422
+    except Exception as exc:
+        logger.exception('Autosave failed for pricing field %s: %s', field, exc)
+        db.session.rollback()
+        return jsonify({'success': False, 'field': field, 'error': 'Could not save. Try again.'}), 500
+
+    return jsonify({
+        'success': True,
+        'field': field,
+        'saved_at': datetime.now(timezone.utc).isoformat(),
+    }), 200
 
 
 @superadmin.route('/settings/pricing/preview')

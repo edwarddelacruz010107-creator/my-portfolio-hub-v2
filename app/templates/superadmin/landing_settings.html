@@ -11,318 +11,363 @@
   </div>
 </div>
 
-<form method="POST" class="admin-form" id="landingSettingsForm">
-  {{ form.hidden_tag() }}
-  <div class="form-card">
-    <div class="form-card-header">
-      <h3>Hero Section</h3>
-      <div class="form-card-note">Draft values are saved separately until you publish.</div>
-    </div>
-    <div class="form-card-body">
-      <div class="form-field">
-        {{ form.hero_badge.label(class='field-label') }}
-        {{ form.hero_badge(class='field-input' + (' field-error' if form.hero_badge.errors else ''), placeholder='Now live · Portfolio builder v7') }}
-        {% if form.hero_badge.errors %}
-          <div class="field-err">{{ form.hero_badge.errors[0] }}</div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.hero_title.label(class='field-label') }}
-        {{ form.hero_title(class='field-input' + (' field-error' if form.hero_title.errors else ''), placeholder='Build your professional portfolio in minutes') }}
-        {% if form.hero_title.errors %}
-          <div class="field-err">{{ form.hero_title.errors[0] }}</div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.hero_subtitle.label(class='field-label') }}
-        {{ form.hero_subtitle(class='field-input field-textarea' + (' field-error' if form.hero_subtitle.errors else ''), rows=4, placeholder='Describe the main benefit of your product or platform.') }}
-        {% if form.hero_subtitle.errors %}
-          <div class="field-err">{{ form.hero_subtitle.errors[0] }}</div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.hero_cta_primary_text.label(class='field-label') }}
-        {{ form.hero_cta_primary_text(class='field-input' + (' field-error' if form.hero_cta_primary_text.errors else ''), placeholder='Get Started Free') }}
-        {% if form.hero_cta_primary_text.errors %}
-          <div class="field-err">{{ form.hero_cta_primary_text.errors[0] }}</div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.hero_cta_primary_url.label(class='field-label') }}
-        {{ form.hero_cta_primary_url(class='field-input' + (' field-error' if form.hero_cta_primary_url.errors else ''), placeholder='/auth/portal?tab=signup') }}
-        {% if form.hero_cta_primary_url.errors %}
-          <div class="field-err">{{ form.hero_cta_primary_url.errors[0] }}</div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.hero_cta_secondary_text.label(class='field-label') }}
-        {{ form.hero_cta_secondary_text(class='field-input' + (' field-error' if form.hero_cta_secondary_text.errors else ''), placeholder='Sign In') }}
-        {% if form.hero_cta_secondary_text.errors %}
-          <div class="field-err">{{ form.hero_cta_secondary_text.errors[0] }}</div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.hero_cta_secondary_url.label(class='field-label') }}
-        {{ form.hero_cta_secondary_url(class='field-input' + (' field-error' if form.hero_cta_secondary_url.errors else ''), placeholder='/auth/portal?tab=login') }}
-        {% if form.hero_cta_secondary_url.errors %}
-          <div class="field-err">{{ form.hero_cta_secondary_url.errors[0] }}</div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.hero_image_url.label(class='field-label') }}
-        {{ form.hero_image_url(class='field-input' + (' field-error' if form.hero_image_url.errors else ''), placeholder='https://example.com/hero-image.webp') }}
-        {% if form.hero_image_url.errors %}
-          <div class="field-err">{{ form.hero_image_url.errors[0] }}</div>
-        {% endif %}
-        <div class="field-hint">Use a public image URL or upload a hero visual below.</div>
-      </div>
-      <div class="form-field">
-        <label class="field-label">Upload Hero Image</label>
-        <input type="file" accept="image/*" id="heroUpload" onchange="uploadLandingImage(this,'hero')" class="field-input" />
-        <div id="heroUploadStatus" class="field-hint"></div>
-        {% if form.hero_image_url.data %}
-          <div class="image-preview" style="margin-top:.75rem; max-width:320px;">
-            <img src="{{ form.hero_image_url.data }}" alt="Hero image preview" style="width:100%; border-radius:.75rem;" />
+<div class="settings-shell">
+  <nav class="settings-nav" aria-label="Landing page sections">
+    <a href="#section-hero"><iconify-icon icon="lucide:flag" width="15"></iconify-icon> Hero</a>
+    <a href="#section-features"><iconify-icon icon="lucide:grid-2x2" width="15"></iconify-icon> Features</a>
+    <a href="#section-contact"><iconify-icon icon="lucide:mail" width="15"></iconify-icon> Contact</a>
+    <a href="#section-founder"><iconify-icon icon="lucide:user-circle" width="15"></iconify-icon> Founder</a>
+  </nav>
+
+  <form method="POST" class="admin-form settings-main" id="landingSettingsForm" data-settings-form data-autosave-url="{{ url_for('superadmin.landing_autosave') }}">
+    {{ form.hidden_tag() }}
+
+    <details class="form-card form-card-collapsible" id="section-hero" data-settings-section open>
+      <summary>
+        <div class="form-card-heading-group">
+          <span class="form-card-icon"><iconify-icon icon="lucide:flag" width="16"></iconify-icon></span>
+          <div>
+            <h3 style="margin:0;">Hero Section</h3>
+            <div class="form-card-note" style="margin-top:2px;">Draft values are saved separately until you publish.</div>
           </div>
-        {% endif %}
-        <div class="field-hint">When an image is uploaded it becomes the single hero preview shown on the landing page — the old sample profile card is not shown alongside it.</div>
-      </div>
-      <div class="form-field">
-        {{ form.hero_preview_url_text.label(class='field-label') }}
-        {{ form.hero_preview_url_text(class='field-input' + (' field-error' if form.hero_preview_url_text.errors else ''), placeholder='myportfoliohub.online/you') }}
-        <div class="field-hint">Text shown in the mock browser address bar.</div>
-      </div>
-      <div class="form-field">
-        {{ form.hero_preview_name.label(class='field-label') }}
-        {{ form.hero_preview_name(class='field-input' + (' field-error' if form.hero_preview_name.errors else ''), placeholder='Optional — shown as a caption on the uploaded image') }}
-      </div>
-      <div class="form-field">
-        {{ form.hero_preview_role.label(class='field-label') }}
-        {{ form.hero_preview_role(class='field-input' + (' field-error' if form.hero_preview_role.errors else ''), placeholder='Optional — e.g. Product Designer') }}
-      </div>
-      <div class="form-field">
-        {{ form.hero_stat_badge_text.label(class='field-label') }}
-        {{ form.hero_stat_badge_text(class='field-input' + (' field-error' if form.hero_stat_badge_text.errors else ''), placeholder='Portfolio published') }}
-      </div>
-      <div class="form-field" style="display:flex; gap:1rem; flex-wrap:wrap;">
-        <div style="flex:1; min-width:120px;">
-          {{ form.hero_stat_likes.label(class='field-label') }}
-          {{ form.hero_stat_likes(class='field-input', placeholder='128') }}
         </div>
-        <div style="flex:1; min-width:120px;">
-          {{ form.hero_stat_views.label(class='field-label') }}
-          {{ form.hero_stat_views(class='field-input', placeholder='214') }}
-        </div>
-        <div style="flex:1; min-width:120px;">
-          {{ form.hero_stat_comments.label(class='field-label') }}
-          {{ form.hero_stat_comments(class='field-input', placeholder='12') }}
-        </div>
-      </div>
-      <div class="form-field" style="display:flex; gap:1.5rem; flex-wrap:wrap; align-items:center;">
-        <label class="field-label" style="display:flex; align-items:center; gap:.5rem; margin:0;">
-          {{ form.hero_enable_widgets() }} Show floating widgets
-        </label>
-        <label class="field-label" style="display:flex; align-items:center; gap:.5rem; margin:0;">
-          {{ form.hero_enable_animation() }} Enable hero animation
-        </label>
-      </div>
-    </div>
-  </div>
+        <iconify-icon class="form-card-chevron" icon="lucide:chevron-down" width="18"></iconify-icon>
+      </summary>
+      <div class="form-card-body">
 
-  <div class="form-card">
-    <div class="form-card-header">
-      <h3>Features Section</h3>
-    </div>
-    <div class="form-card-body">
-      <div class="form-field">
-        {{ form.features_heading.label(class='field-label') }}
-        {{ form.features_heading(class='field-input' + (' field-error' if form.features_heading.errors else ''), placeholder='Everything a portfolio needs, built in') }}
-        {% if form.features_heading.errors %}
-          <div class="field-err">{{ form.features_heading.errors[0] }}</div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.features_subtitle.label(class='field-label') }}
-        {{ form.features_subtitle(class='field-input field-textarea' + (' field-error' if form.features_subtitle.errors else ''), rows=3, placeholder='One workspace to structure your work, tell your story, and keep it looking sharp — automatically.') }}
-        {% if form.features_subtitle.errors %}
-          <div class="field-err">{{ form.features_subtitle.errors[0] }}</div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-
-  <div class="form-card">
-    <div class="form-card-header">
-      <h3>Contact Section</h3>
-    </div>
-    <div class="form-card-body">
-      <div class="form-field">
-        {{ form.contact_heading.label(class='field-label') }}
-        {{ form.contact_heading(class='field-input' + (' field-error' if form.contact_heading.errors else ''), placeholder='Let\'s talk') }}
-        {% if form.contact_heading.errors %}
-          <div class="field-err">{{ form.contact_heading.errors[0] }}</div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.contact_subtitle.label(class='field-label') }}
-        {{ form.contact_subtitle(class='field-input field-textarea' + (' field-error' if form.contact_subtitle.errors else ''), rows=3, placeholder='Questions about plans, migrations, or enterprise? We reply within one business day.') }}
-        {% if form.contact_subtitle.errors %}
-          <div class="field-err">{{ form.contact_subtitle.errors[0] }}</div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-
-  <div class="form-card">
-    <div class="form-card-header">
-      <h3>Founder Section</h3>
-    </div>
-    <div class="form-card-body">
-      <div class="form-field">
-        {{ form.founder_photo_url.label(class='field-label') }}
-        {{ form.founder_photo_url(class='field-input' + (' field-error' if form.founder_photo_url.errors else ''), placeholder='https://example.com/founder.jpg') }}
-        {% if form.founder_photo_url.errors %}
-          <div class="field-err">{{ form.founder_photo_url.errors[0] }}</div>
-        {% endif %}
-        <div class="field-hint">Upload a professional founder portrait for the trust-building showcase.</div>
-      </div>
-      <div class="form-field">
-        <label class="field-label">Upload Founder Portrait</label>
-        <input type="file" accept="image/png,image/jpeg,image/webp" id="founderUpload" onchange="uploadLandingImage(this,'founder')" class="field-input" />
-        <div id="founderUploadStatus" class="field-hint"></div>
-        {% if form.founder_photo_url.data %}
-          <div class="image-preview" style="margin-top:.75rem; max-width:200px;">
-            <img src="{{ form.founder_photo_url.data }}" alt="Founder preview" style="width:100%; border-radius:.75rem;" />
+        <div class="form-subgroup">
+          <div class="form-subgroup-label">
+            <iconify-icon icon="lucide:type" width="13"></iconify-icon> Headline &amp; copy
           </div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.founder_preview_image.label(class='field-label') }}
-        {{ form.founder_preview_image(class='field-input' + (' field-error' if form.founder_preview_image.errors else ''), placeholder='https://example.com/preview-image.webp') }}
-        {% if form.founder_preview_image.errors %}
-          <div class="field-err">{{ form.founder_preview_image.errors[0] }}</div>
-        {% endif %}
-        <div class="field-hint">Upload a small product preview card image to accompany the founder portrait.</div>
-      </div>
-      <div class="form-field">
-        <label class="field-label">Upload Preview Card Image</label>
-        <input type="file" accept="image/png,image/jpeg,image/webp" id="founderPreviewUpload" onchange="uploadLandingImage(this,'founder_preview')" class="field-input" />
-        <div id="founderPreviewUploadStatus" class="field-hint"></div>
-        {% if form.founder_preview_image.data %}
-          <div class="image-preview" style="margin-top:.75rem; max-width:320px;">
-            <img src="{{ form.founder_preview_image.data }}" alt="Founder preview screenshot" style="width:100%; border-radius:.75rem;" />
+          <div class="form-field">
+            {{ form.hero_badge.label(class='field-label') }}
+            {{ form.hero_badge(class='field-input' + (' field-error' if form.hero_badge.errors else ''), placeholder='Now live · Portfolio builder v7') }}
+            {% if form.hero_badge.errors %}
+              <div class="field-err">{{ form.hero_badge.errors[0] }}</div>
+            {% endif %}
           </div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.founder_title.label(class='field-label') }}
-        {{ form.founder_title(class='field-input' + (' field-error' if form.founder_title.errors else ''), placeholder='Founder & Creator') }}
-        {% if form.founder_title.errors %}
-          <div class="field-err">{{ form.founder_title.errors[0] }}</div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.founder_name.label(class='field-label') }}
-        {{ form.founder_name(class='field-input' + (' field-error' if form.founder_name.errors else ''), placeholder='Founder Name') }}
-        {% if form.founder_name.errors %}
-          <div class="field-err">{{ form.founder_name.errors[0] }}</div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.founder_role.label(class='field-label') }}
-        {{ form.founder_role(class='field-input' + (' field-error' if form.founder_role.errors else ''), placeholder='Founder of MyPortfolioHub') }}
-        {% if form.founder_role.errors %}
-          <div class="field-err">{{ form.founder_role.errors[0] }}</div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.founder_description.label(class='field-label') }}
-        {{ form.founder_description(class='field-input field-textarea' + (' field-error' if form.founder_description.errors else ''), rows=5, placeholder='Building a platform where every professional can showcase projects, experience, certifications, and skills in one beautiful portfolio they truly own.') }}
-        {% if form.founder_description.errors %}
-          <div class="field-err">{{ form.founder_description.errors[0] }}</div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.founder_portfolio_url.label(class='field-label') }}
-        {{ form.founder_portfolio_url(class='field-input' + (' field-error' if form.founder_portfolio_url.errors else ''), placeholder='https://portfolio.myportfoliohub.com/username') }}
-        {% if form.founder_portfolio_url.errors %}
-          <div class="field-err">{{ form.founder_portfolio_url.errors[0] }}</div>
-        {% endif %}
-      </div>
-      <div class="form-field">
-        {{ form.founder_contact_url.label(class='field-label') }}
-        {{ form.founder_contact_url(class='field-input' + (' field-error' if form.founder_contact_url.errors else ''), placeholder='mailto:hello@example.com') }}
-        {% if form.founder_contact_url.errors %}
-          <div class="field-err">{{ form.founder_contact_url.errors[0] }}</div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
+          <div class="form-field">
+            {{ form.hero_title.label(class='field-label') }}
+            {{ form.hero_title(class='field-input' + (' field-error' if form.hero_title.errors else ''), placeholder='Build your professional portfolio in minutes') }}
+            {% if form.hero_title.errors %}
+              <div class="field-err">{{ form.hero_title.errors[0] }}</div>
+            {% endif %}
+          </div>
+          <div class="form-field">
+            {{ form.hero_subtitle.label(class='field-label') }}
+            {{ form.hero_subtitle(class='field-input field-textarea' + (' field-error' if form.hero_subtitle.errors else ''), rows=3, placeholder='Describe the main benefit of your product or platform.') }}
+            {% if form.hero_subtitle.errors %}
+              <div class="field-err">{{ form.hero_subtitle.errors[0] }}</div>
+            {% endif %}
+          </div>
+        </div>
 
-  <div class="form-actions-bar" style="position: relative; z-index: 10; margin-top: 2rem; padding: 1rem 0; border-top: 1px solid var(--border); display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-start;">
-    <a href="{{ url_for('superadmin.settings') }}" class="btn btn-ghost">
-      <iconify-icon icon="lucide:arrow-left" width="15"></iconify-icon>
-      Back to Settings
-    </a>
-    <button type="submit" name="action" value="save" class="btn btn-primary">Save Draft</button>
-    <button type="submit" name="action" value="publish" class="btn btn-secondary">Publish Now</button>
-    <a href="{{ url_for('superadmin.landing_settings_preview') }}" class="btn btn-ghost">Preview Draft</a>
-  </div>
-</form>
+        <div class="form-subgroup">
+          <div class="form-subgroup-label">
+            <iconify-icon icon="lucide:mouse-pointer-click" width="13"></iconify-icon> Call to action
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              {{ form.hero_cta_primary_text.label(class='field-label') }}
+              {{ form.hero_cta_primary_text(class='field-input' + (' field-error' if form.hero_cta_primary_text.errors else ''), placeholder='Get Started Free') }}
+              {% if form.hero_cta_primary_text.errors %}
+                <div class="field-err">{{ form.hero_cta_primary_text.errors[0] }}</div>
+              {% endif %}
+            </div>
+            <div class="form-field">
+              {{ form.hero_cta_primary_url.label(class='field-label') }}
+              {{ form.hero_cta_primary_url(class='field-input' + (' field-error' if form.hero_cta_primary_url.errors else ''), placeholder='/auth/portal?tab=signup') }}
+              {% if form.hero_cta_primary_url.errors %}
+                <div class="field-err">{{ form.hero_cta_primary_url.errors[0] }}</div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              {{ form.hero_cta_secondary_text.label(class='field-label') }}
+              {{ form.hero_cta_secondary_text(class='field-input' + (' field-error' if form.hero_cta_secondary_text.errors else ''), placeholder='Sign In') }}
+              {% if form.hero_cta_secondary_text.errors %}
+                <div class="field-err">{{ form.hero_cta_secondary_text.errors[0] }}</div>
+              {% endif %}
+            </div>
+            <div class="form-field">
+              {{ form.hero_cta_secondary_url.label(class='field-label') }}
+              {{ form.hero_cta_secondary_url(class='field-input' + (' field-error' if form.hero_cta_secondary_url.errors else ''), placeholder='/auth/portal?tab=login') }}
+              {% if form.hero_cta_secondary_url.errors %}
+                <div class="field-err">{{ form.hero_cta_secondary_url.errors[0] }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="form-subgroup">
+          <div class="form-subgroup-label">
+            <iconify-icon icon="lucide:image" width="13"></iconify-icon> Hero visual
+          </div>
+          <div class="form-field">
+            {{ form.hero_image_url.label(class='field-label') }}
+            {{ form.hero_image_url(class='field-input' + (' field-error' if form.hero_image_url.errors else ''), placeholder='https://example.com/hero-image.webp') }}
+            {% if form.hero_image_url.errors %}
+              <div class="field-err">{{ form.hero_image_url.errors[0] }}</div>
+            {% endif %}
+            <div class="field-hint">Use a public image URL, or upload a hero visual below.</div>
+          </div>
+          <div class="form-field">
+            <label class="field-label">Upload Hero Image</label>
+            {% set uploader_category   = 'hero' %}
+            {% set uploader_label      = 'Hero image' %}
+            {% set uploader_hint       = 'PNG, JPG, WEBP, or GIF · up to 5MB · 1600×900 recommended' %}
+            {% set uploader_upload_url = url_for('superadmin.landing_upload_image') %}
+            {% set uploader_target_id  = form.hero_image_url.id %}
+            {% set uploader_current    = form.hero_image_url.data %}
+            {% set uploader_ratio      = 'hero' %}
+            {% include 'superadmin/_media_uploader.html' with context %}
+            <div class="field-hint">When an image is uploaded it becomes the single hero preview shown on the landing page — the old sample profile card is not shown alongside it.</div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              {{ form.hero_preview_url_text.label(class='field-label') }}
+              {{ form.hero_preview_url_text(class='field-input' + (' field-error' if form.hero_preview_url_text.errors else ''), placeholder='myportfoliohub.online/you') }}
+              <div class="field-hint">Text shown in the mock browser address bar.</div>
+            </div>
+            <div class="form-field">
+              {{ form.hero_stat_badge_text.label(class='field-label') }}
+              {{ form.hero_stat_badge_text(class='field-input' + (' field-error' if form.hero_stat_badge_text.errors else ''), placeholder='Portfolio published') }}
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              {{ form.hero_preview_name.label(class='field-label') }}
+              {{ form.hero_preview_name(class='field-input' + (' field-error' if form.hero_preview_name.errors else ''), placeholder='Optional — shown as a caption on the uploaded image') }}
+            </div>
+            <div class="form-field">
+              {{ form.hero_preview_role.label(class='field-label') }}
+              {{ form.hero_preview_role(class='field-input' + (' field-error' if form.hero_preview_role.errors else ''), placeholder='Optional — e.g. Product Designer') }}
+            </div>
+          </div>
+        </div>
+
+        <div class="form-subgroup">
+          <div class="form-subgroup-label">
+            <iconify-icon icon="lucide:sliders-horizontal" width="13"></iconify-icon> Stats &amp; toggles
+          </div>
+          <div class="form-grid-3">
+            <div class="form-field">
+              {{ form.hero_stat_likes.label(class='field-label') }}
+              {{ form.hero_stat_likes(class='field-input', placeholder='128') }}
+            </div>
+            <div class="form-field">
+              {{ form.hero_stat_views.label(class='field-label') }}
+              {{ form.hero_stat_views(class='field-input', placeholder='214') }}
+            </div>
+            <div class="form-field">
+              {{ form.hero_stat_comments.label(class='field-label') }}
+              {{ form.hero_stat_comments(class='field-input', placeholder='12') }}
+            </div>
+          </div>
+          <div class="form-toggle-row">
+            <label class="form-toggle">
+              {{ form.hero_enable_widgets() }} Show floating widgets
+            </label>
+            <label class="form-toggle">
+              {{ form.hero_enable_animation() }} Enable hero animation
+            </label>
+          </div>
+        </div>
+
+      </div>
+    </details>
+
+    <details class="form-card form-card-collapsible" id="section-features" data-settings-section>
+      <summary>
+        <div class="form-card-heading-group">
+          <span class="form-card-icon"><iconify-icon icon="lucide:grid-2x2" width="16"></iconify-icon></span>
+          <h3 style="margin:0;">Features Section</h3>
+        </div>
+        <iconify-icon class="form-card-chevron" icon="lucide:chevron-down" width="18"></iconify-icon>
+      </summary>
+      <div class="form-card-body">
+        <div class="form-field">
+          {{ form.features_heading.label(class='field-label') }}
+          {{ form.features_heading(class='field-input' + (' field-error' if form.features_heading.errors else ''), placeholder='Everything a portfolio needs, built in') }}
+          {% if form.features_heading.errors %}
+            <div class="field-err">{{ form.features_heading.errors[0] }}</div>
+          {% endif %}
+        </div>
+        <div class="form-field">
+          {{ form.features_subtitle.label(class='field-label') }}
+          {{ form.features_subtitle(class='field-input field-textarea' + (' field-error' if form.features_subtitle.errors else ''), rows=3, placeholder='One workspace to structure your work, tell your story, and keep it looking sharp — automatically.') }}
+          {% if form.features_subtitle.errors %}
+            <div class="field-err">{{ form.features_subtitle.errors[0] }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </details>
+
+    <details class="form-card form-card-collapsible" id="section-contact" data-settings-section>
+      <summary>
+        <div class="form-card-heading-group">
+          <span class="form-card-icon"><iconify-icon icon="lucide:mail" width="16"></iconify-icon></span>
+          <h3 style="margin:0;">Contact Section</h3>
+        </div>
+        <iconify-icon class="form-card-chevron" icon="lucide:chevron-down" width="18"></iconify-icon>
+      </summary>
+      <div class="form-card-body">
+        <div class="form-field">
+          {{ form.contact_heading.label(class='field-label') }}
+          {{ form.contact_heading(class='field-input' + (' field-error' if form.contact_heading.errors else ''), placeholder='Let\'s talk') }}
+          {% if form.contact_heading.errors %}
+            <div class="field-err">{{ form.contact_heading.errors[0] }}</div>
+          {% endif %}
+        </div>
+        <div class="form-field">
+          {{ form.contact_subtitle.label(class='field-label') }}
+          {{ form.contact_subtitle(class='field-input field-textarea' + (' field-error' if form.contact_subtitle.errors else ''), rows=3, placeholder='Questions about plans, migrations, or enterprise? We reply within one business day.') }}
+          {% if form.contact_subtitle.errors %}
+            <div class="field-err">{{ form.contact_subtitle.errors[0] }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </details>
+
+    <details class="form-card form-card-collapsible" id="section-founder" data-settings-section open>
+      <summary>
+        <div class="form-card-heading-group">
+          <span class="form-card-icon"><iconify-icon icon="lucide:user-circle" width="16"></iconify-icon></span>
+          <h3 style="margin:0;">Founder Section</h3>
+        </div>
+        <iconify-icon class="form-card-chevron" icon="lucide:chevron-down" width="18"></iconify-icon>
+      </summary>
+      <div class="form-card-body">
+
+        <div class="form-subgroup">
+          <div class="form-subgroup-label">
+            <iconify-icon icon="lucide:image" width="13"></iconify-icon> Portrait &amp; preview card
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              {{ form.founder_photo_url.label(class='field-label') }}
+              {{ form.founder_photo_url(class='field-input' + (' field-error' if form.founder_photo_url.errors else ''), placeholder='https://example.com/founder.jpg') }}
+              {% if form.founder_photo_url.errors %}
+                <div class="field-err">{{ form.founder_photo_url.errors[0] }}</div>
+              {% endif %}
+              <div class="field-hint">Professional founder portrait for the trust-building showcase.</div>
+            </div>
+            <div class="form-field">
+              {{ form.founder_preview_image.label(class='field-label') }}
+              {{ form.founder_preview_image(class='field-input' + (' field-error' if form.founder_preview_image.errors else ''), placeholder='https://example.com/preview-image.webp') }}
+              {% if form.founder_preview_image.errors %}
+                <div class="field-err">{{ form.founder_preview_image.errors[0] }}</div>
+              {% endif %}
+              <div class="field-hint">Small product preview card image alongside the portrait.</div>
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              <label class="field-label">Upload Founder Portrait</label>
+              {% set uploader_category   = 'founder' %}
+              {% set uploader_label      = 'Founder portrait' %}
+              {% set uploader_hint       = 'PNG, JPG, or WEBP · up to 5MB · square recommended' %}
+              {% set uploader_upload_url = url_for('superadmin.landing_upload_image') %}
+              {% set uploader_target_id  = form.founder_photo_url.id %}
+              {% set uploader_current    = form.founder_photo_url.data %}
+              {% set uploader_ratio      = 'square' %}
+              {% set uploader_accept     = 'image/png,image/jpeg,image/webp' %}
+              {% include 'superadmin/_media_uploader.html' with context %}
+            </div>
+            <div class="form-field">
+              <label class="field-label">Upload Preview Card Image</label>
+              {% set uploader_category   = 'founder_preview' %}
+              {% set uploader_label      = 'Preview card image' %}
+              {% set uploader_hint       = 'PNG, JPG, or WEBP · up to 5MB · 4:3 recommended' %}
+              {% set uploader_upload_url = url_for('superadmin.landing_upload_image') %}
+              {% set uploader_target_id  = form.founder_preview_image.id %}
+              {% set uploader_current    = form.founder_preview_image.data %}
+              {% set uploader_ratio      = 'card' %}
+              {% set uploader_accept     = 'image/png,image/jpeg,image/webp' %}
+              {% include 'superadmin/_media_uploader.html' with context %}
+            </div>
+          </div>
+        </div>
+
+        <div class="form-subgroup">
+          <div class="form-subgroup-label">
+            <iconify-icon icon="lucide:user" width="13"></iconify-icon> Bio
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              {{ form.founder_name.label(class='field-label') }}
+              {{ form.founder_name(class='field-input' + (' field-error' if form.founder_name.errors else ''), placeholder='Founder Name') }}
+              {% if form.founder_name.errors %}
+                <div class="field-err">{{ form.founder_name.errors[0] }}</div>
+              {% endif %}
+            </div>
+            <div class="form-field">
+              {{ form.founder_title.label(class='field-label') }}
+              {{ form.founder_title(class='field-input' + (' field-error' if form.founder_title.errors else ''), placeholder='Founder & Creator') }}
+              {% if form.founder_title.errors %}
+                <div class="field-err">{{ form.founder_title.errors[0] }}</div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="form-field">
+            {{ form.founder_role.label(class='field-label') }}
+            {{ form.founder_role(class='field-input' + (' field-error' if form.founder_role.errors else ''), placeholder='Founder of MyPortfolioHub') }}
+            {% if form.founder_role.errors %}
+              <div class="field-err">{{ form.founder_role.errors[0] }}</div>
+            {% endif %}
+          </div>
+          <div class="form-field">
+            {{ form.founder_description.label(class='field-label') }}
+            {{ form.founder_description(class='field-input field-textarea' + (' field-error' if form.founder_description.errors else ''), rows=4, placeholder='Building a platform where every professional can showcase projects, experience, certifications, and skills in one beautiful portfolio they truly own.') }}
+            {% if form.founder_description.errors %}
+              <div class="field-err">{{ form.founder_description.errors[0] }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="form-subgroup">
+          <div class="form-subgroup-label">
+            <iconify-icon icon="lucide:link" width="13"></iconify-icon> Links
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              {{ form.founder_portfolio_url.label(class='field-label') }}
+              {{ form.founder_portfolio_url(class='field-input' + (' field-error' if form.founder_portfolio_url.errors else ''), placeholder='https://portfolio.myportfoliohub.com/username') }}
+              {% if form.founder_portfolio_url.errors %}
+                <div class="field-err">{{ form.founder_portfolio_url.errors[0] }}</div>
+              {% endif %}
+            </div>
+            <div class="form-field">
+              {{ form.founder_contact_url.label(class='field-label') }}
+              {{ form.founder_contact_url(class='field-input' + (' field-error' if form.founder_contact_url.errors else ''), placeholder='mailto:hello@example.com') }}
+              {% if form.founder_contact_url.errors %}
+                <div class="field-err">{{ form.founder_contact_url.errors[0] }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </details>
+
+    <div class="sticky-actions-bar">
+      <a href="{{ url_for('superadmin.settings') }}" class="btn btn-ghost">
+        <iconify-icon icon="lucide:arrow-left" width="15"></iconify-icon>
+        Back to Settings
+      </a>
+      <span class="sticky-actions-spacer"></span>
+      <span class="sticky-actions-status" data-role="save-status"><span class="dot"></span>No changes</span>
+      <a href="{{ url_for('superadmin.landing_settings_preview') }}" class="btn btn-ghost">Preview Draft</a>
+      <button type="submit" name="action" value="save" class="btn btn-primary">Save Draft</button>
+      <button type="submit" name="action" value="publish" class="btn btn-secondary">Publish Now</button>
+    </div>
+  </form>
+</div>
 {% endblock %}
 
 {% block extra_js %}
-<script>
-  const _CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
-
-  function uploadLandingImage(input, category) {
-    if (!input.files || !input.files.length) {
-      return;
-    }
-    const file = input.files[0];
-    const allowed = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
-    const ext = file.name.split('.').pop().toLowerCase();
-    if (!allowed.includes(ext)) {
-      const status = document.getElementById(category + 'UploadStatus');
-      status.textContent = 'Allowed file types: PNG, JPG, JPEG, WEBP, GIF.';
-      status.className = 'field-hint field-error';
-      return;
-    }
-
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('category', category);
-    fd.append('csrf_token', _CSRF_TOKEN);
-    const status = document.getElementById(category + 'UploadStatus');
-    status.textContent = 'Uploading...';
-    status.className = 'field-hint';
-
-    fetch('{{ url_for('superadmin.landing_upload_image') }}', {
-      method: 'POST',
-      body: fd,
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        status.textContent = 'Upload saved. The draft image URL has been set.';
-        const urlField = document.getElementById(
-          category === 'hero' ? '{{ form.hero_image_url.id }}' :
-          category === 'founder' ? '{{ form.founder_photo_url.id }}' :
-          category === 'founder_preview' ? '{{ form.founder_preview_image.id }}' :
-          ''
-        );
-        if (urlField) {
-          urlField.value = data.url;
-        }
-      } else {
-        status.textContent = data.error || 'Upload failed.';
-        status.className = 'field-hint field-error';
-      }
-    })
-    .catch(() => {
-      status.textContent = 'Upload failed.';
-      status.className = 'field-hint field-error';
-    });
-  }
-</script>
+{# Upload handling is provided globally by app/static/js/media-uploader.js,
+   and the sticky-bar dirty state + section nav highlighting by
+   app/static/js/settings-form.js (both loaded from superadmin/base.html). #}
 {% endblock %}

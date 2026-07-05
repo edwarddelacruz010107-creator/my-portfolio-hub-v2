@@ -249,7 +249,8 @@ def initiate_superadmin_reset(
     # Generic — returned unconditionally regardless of account match
     generic = 'If a superadmin account exists with those credentials, an OTP has been sent.'
 
-    email = (submitted_email or '').strip().lower()
+    from app.services.auth.email_policy import normalize_email
+    email = normalize_email(submitted_email)
     uname = (submitted_username or '').strip()
 
     if not email or not uname:
@@ -338,25 +339,41 @@ def verify_superadmin_otp(
     Returns (ok: bool, message: str, reset_token: str | None).
     reset_token is a short-lived token stored (hashed) on the User row.
     """
-    email = (submitted_email or '').strip().lower()
-    user  = User.query.filter_by(is_superadmin=True, email=email).first()
+    from app.services.auth.email_policy import normalize_email
+    email = normalize_email(submitted_email)
+    from app.models.core import PasswordResetOTP
 
-    if not user:
-        # No enumeration — same message as a real OTP failure
-        return False, 'Invalid OTP or account.', None
-
-    ok, msg = verify_otp(
-        user_type='superadmin',
-        user_id=user.id,
-        raw_otp=raw_otp,
-        # tenant_id not supplied — superadmin is tenantless
+    candidates = (
+        PasswordResetOTP.query
+        .filter_by(user_type='superadmin', email=email, used=False)
+        .order_by(PasswordResetOTP.created_at.desc())
+        .limit(10)
+        .all()
     )
-
-    if not ok:
-        log_security_event(
-            'sa_otp_failed', user,
-            f'Superadmin OTP verification failed: {msg}', 'warning',
-        )
+    user = None
+    msg = 'Invalid OTP or account.'
+    for record in candidates:
+        if record.is_expired:
+            db.session.delete(record)
+            continue
+        if record.verify((raw_otp or '').strip()):
+            candidate = User.query.filter_by(id=record.user_id, is_superadmin=True).first()
+            if candidate:
+                ok, msg = verify_otp(
+                    user_type='superadmin',
+                    user_id=candidate.id,
+                    raw_otp=raw_otp,
+                )
+                if not ok:
+                    log_security_event(
+                        'sa_otp_failed', candidate,
+                        f'Superadmin OTP verification failed: {msg}', 'warning',
+                    )
+                    return False, msg, None
+                user = candidate
+                break
+    if not user:
+        db.session.commit()
         return False, msg, None
 
     token = user.generate_reset_token(expires_in_minutes=_get_reset_token_ttl_minutes())
@@ -682,7 +699,8 @@ def initiate_admin_reset(
         return False, 'Password recovery is currently disabled.'
 
     generic = 'If an account exists with those credentials, an OTP has been sent.'
-    email   = (submitted_email or '').strip().lower()
+    from app.services.auth.email_policy import normalize_email
+    email   = normalize_email(submitted_email)
     uname   = (submitted_username or '').strip()
 
     if not email or not uname:
@@ -774,19 +792,41 @@ def verify_admin_otp(
 ) -> tuple[bool, str, str | None]:
     """DO NOT TOUCH — admin flow, not in scope for v4.0."""
     email = (submitted_email or '').strip().lower()
-    # tenant_id is optional: when not supplied (e.g. pre-login forgot-password flow),
-    # resolve the user by email alone. Email is unique among non-superadmin users.
     if tenant_id:
         user = User.query.filter_by(email=email, tenant_id=tenant_id, is_superadmin=False).first()
+        if not user:
+            return False, 'Invalid OTP or account.', None
+        ok, msg = verify_otp('admin', user.id, raw_otp, tenant_id=user.tenant_id)
+        if not ok:
+            return False, msg, None
     else:
-        user = User.query.filter_by(email=email, is_superadmin=False).first()
-
-    if not user:
-        return False, 'Invalid OTP or account.', None
-
-    ok, msg = verify_otp('admin', user.id, raw_otp, tenant_id=user.tenant_id)
-    if not ok:
-        return False, msg, None
+        # Duplicate emails are supported across tenant contexts. Resolve the
+        # OTP by the stored OTP row and Google-safe user_id instead of picking
+        # the first User row with this email.
+        from app.models.core import PasswordResetOTP
+        candidates = (
+            PasswordResetOTP.query
+            .filter_by(user_type='admin', email=email, used=False)
+            .order_by(PasswordResetOTP.created_at.desc())
+            .limit(10)
+            .all()
+        )
+        user = None
+        for record in candidates:
+            if record.is_expired:
+                db.session.delete(record)
+                continue
+            if record.verify((raw_otp or '').strip()):
+                candidate = User.query.filter_by(id=record.user_id, is_superadmin=False).first()
+                if candidate:
+                    ok, msg = verify_otp('admin', candidate.id, raw_otp, tenant_id=candidate.tenant_id)
+                    if not ok:
+                        return False, msg, None
+                    user = candidate
+                    break
+        if not user:
+            db.session.commit()
+            return False, 'Invalid OTP or account.', None
 
     token = user.generate_reset_token(expires_in_minutes=_get_reset_token_ttl_minutes())
     db.session.commit()
@@ -973,7 +1013,8 @@ def verify_tenant_otp(
     tenant_slug: str,
 ) -> tuple[bool, str, str | None]:
     """DO NOT TOUCH — tenant flow, not in scope for v4.0."""
-    email  = (submitted_email or '').strip().lower()
+    from app.services.auth.email_policy import normalize_email
+    email  = normalize_email(submitted_email)
     tenant = Tenant.query.filter_by(slug=tenant_slug).first()
 
     if not tenant:

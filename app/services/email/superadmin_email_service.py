@@ -46,6 +46,29 @@ _TRANSIENT_SMTP = (
 )
 
 
+def _clean_sender_name(value: str | None) -> str:
+    name = (value or '').strip()
+    # Old installs often have the generic default persisted. For signup OTPs
+    # and password/security mail, the public brand should be clear.
+    return 'MyPortfolioHub' if not name or name == 'Portfolio CMS' else name
+
+
+def _safe_error(value: str | None, limit: int = 180) -> str:
+    text = str(value or '').replace('\n', ' ').replace('\r', ' ')
+    text = re.sub(r'(Bearer\s+)[A-Za-z0-9._\-]+', r'\1[redacted]', text)
+    text = re.sub(r'(api[_-]?key["\':= ]+)[^,} ]+', r'\1[redacted]', text, flags=re.I)
+    return text[:limit]
+
+
+def _reply_to_for(sender_email: str) -> str:
+    return (
+        os.environ.get('SUPERADMIN_REPLY_TO_EMAIL', '').strip()
+        or os.environ.get('EMAIL_REPLY_TO', '').strip()
+        or os.environ.get('REPLY_TO_EMAIL', '').strip()
+        or sender_email
+    )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # SMTP send
 # ─────────────────────────────────────────────────────────────────────────────
@@ -57,13 +80,16 @@ def _send_smtp(cfg: dict, to: str, subject: str, html: str, text: str) -> tuple[
     username = cfg['username']
     password = cfg['password']
     from_email = cfg['sender_email']
-    from_name  = cfg.get('sender_name', 'Portfolio CMS')
+    from_name  = _clean_sender_name(cfg.get('sender_name', 'MyPortfolioHub'))
+    reply_to   = cfg.get('reply_to') or _reply_to_for(from_email)
     enc      = (cfg.get('encryption') or 'tls').lower()
 
     msg = MIMEMultipart('alternative')
     msg['Subject'] = subject
     msg['From']    = formataddr((from_name, from_email))
     msg['To']      = to
+    if reply_to:
+        msg['Reply-To'] = reply_to
     msg.attach(MIMEText(text, 'plain', 'utf-8'))
     msg.attach(MIMEText(html,  'html',  'utf-8'))
 
@@ -100,7 +126,8 @@ def _send_smtp(cfg: dict, to: str, subject: str, html: str, text: str) -> tuple[
 def _send_resend(cfg: dict, to: str, subject: str, html: str, text: str) -> tuple[bool, str]:
     api_key = cfg['api_key']
     from_email = cfg['sender_email']
-    from_name  = cfg.get('sender_name', 'Portfolio CMS')
+    from_name  = _clean_sender_name(cfg.get('sender_name', 'MyPortfolioHub'))
+    reply_to   = cfg.get('reply_to') or _reply_to_for(from_email)
 
     payload = json.dumps({
         'from':    f'{from_name} <{from_email}>',
@@ -108,6 +135,7 @@ def _send_resend(cfg: dict, to: str, subject: str, html: str, text: str) -> tupl
         'subject': subject,
         'html':    html,
         'text':    text,
+        'reply_to': reply_to,
     }).encode()
 
     req = urllib.request.Request(
@@ -142,7 +170,8 @@ def _send_resend(cfg: dict, to: str, subject: str, html: str, text: str) -> tupl
 def _send_mailersend(cfg: dict, to: str, subject: str, html: str, text: str) -> tuple[bool, str]:
     api_key = cfg['api_key']
     from_email = cfg['sender_email']
-    from_name  = cfg.get('sender_name', 'Portfolio CMS')
+    from_name  = _clean_sender_name(cfg.get('sender_name', 'MyPortfolioHub'))
+    reply_to   = cfg.get('reply_to') or _reply_to_for(from_email)
 
     payload = json.dumps({
         'from': {'email': from_email, 'name': from_name},
@@ -150,6 +179,7 @@ def _send_mailersend(cfg: dict, to: str, subject: str, html: str, text: str) -> 
         'subject': subject,
         'html': html,
         'text': text,
+        'reply_to': {'email': reply_to} if reply_to else None,
     }).encode()
 
     req = urllib.request.Request(
@@ -215,13 +245,14 @@ def _resolve_configs() -> list[dict]:
             api_key = cfg.get_portal_key('superadmin') if cfg else ''
             api_key = api_key or _e('SUPERADMIN_MAILERSEND_API_KEY') or _e('MAILERSEND_API_KEY')
             sender_email = (cfg.get_portal_sender_email('superadmin') if cfg else '') or _e('MAILERSEND_FROM_EMAIL')
-            sender_name  = (cfg.get_portal_sender_name('superadmin') if cfg else '') or _e('MAILERSEND_FROM_NAME', 'Portfolio CMS')
+            sender_name  = _clean_sender_name((cfg.get_portal_sender_name('superadmin') if cfg else '') or _e('MAILERSEND_FROM_NAME', 'MyPortfolioHub'))
             if api_key and sender_email:
                 configs.append({
                     'provider': 'mailersend',
                     'api_key': api_key,
                     'sender_email': sender_email,
                     'sender_name': sender_name,
+                    'reply_to': _reply_to_for(sender_email),
                 })
 
         elif provider == 'smtp':
@@ -236,7 +267,7 @@ def _resolve_configs() -> list[dict]:
             except Exception:
                 password = _e('SUPERADMIN_SMTP_PASSWORD') or _e('SMTP_PASSWORD')
             sender_email = (cfg.sa_smtp_sender_email if cfg else '') or _e('SUPERADMIN_FROM_EMAIL') or _e('SMTP_FROM_EMAIL')
-            sender_name  = (cfg.sa_smtp_sender_name if cfg else '') or _e('SUPERADMIN_FROM_NAME') or _e('SMTP_FROM_NAME', 'Portfolio CMS')
+            sender_name  = _clean_sender_name((cfg.sa_smtp_sender_name if cfg else '') or _e('SUPERADMIN_FROM_NAME') or _e('SMTP_FROM_NAME', 'MyPortfolioHub'))
             encryption   = (cfg.sa_smtp_encryption if cfg else '') or 'tls'
             # Sender email falls back to username when blank (common Gmail setup)
             sender_email = sender_email or username
@@ -250,6 +281,7 @@ def _resolve_configs() -> list[dict]:
                     'sender_email': sender_email,
                     'sender_name': sender_name,
                     'encryption': encryption,
+                    'reply_to': _reply_to_for(sender_email),
                 })
 
         elif provider == 'resend':
@@ -258,13 +290,14 @@ def _resolve_configs() -> list[dict]:
                 continue
             api_key = (cfg.sa_resend_api_key if cfg else '') or _e('RESEND_API_KEY')
             sender_email = (cfg.sa_resend_sender_email if cfg else '') or _e('RESEND_FROM_EMAIL')
-            sender_name  = (cfg.sa_resend_sender_name if cfg else '') or _e('RESEND_FROM_NAME', 'Portfolio CMS')
+            sender_name  = _clean_sender_name((cfg.sa_resend_sender_name if cfg else '') or _e('RESEND_FROM_NAME', 'MyPortfolioHub'))
             if api_key and sender_email:
                 configs.append({
                     'provider': 'resend',
                     'api_key': api_key,
                     'sender_email': sender_email,
                     'sender_name': sender_name,
+                    'reply_to': _reply_to_for(sender_email),
                 })
 
     return configs
@@ -293,6 +326,8 @@ def send_email(
     """
     plain = text or _html_to_text(html)
     providers = _resolve_configs()
+    provider_names = [str(p.get('provider') or 'unknown') for p in providers]
+    logger.info('[SAEmail] Provider candidates=%s to=%s subject=%r', provider_names or ['legacy-env-smtp'], to, subject)
 
     if not providers:
         # Last-resort: env-only SMTP (backward compat)
@@ -303,6 +338,7 @@ def send_email(
     last_err = 'No providers configured'
     for pcfg in providers:
         name = pcfg['provider']
+        logger.info('[SAEmail] Selected provider candidate=%s to=%s', name, to)
         for attempt in range(1 + _MAX_RETRIES):
             try:
                 if name == 'mailersend':
@@ -317,19 +353,19 @@ def send_email(
                 if ok:
                     logger.info('[SAEmail] Sent via %s to=%s subject=%r', name, to, subject)
                     return True, ''
-                last_err = err
+                last_err = _safe_error(err)
                 if 'invalid' in err.lower() or 'refused' in err.lower() or 'authentication' in err.lower():
                     break  # permanent — skip to next provider
             except (ConnectionError, OSError, TimeoutError) as e:
                 last_err = f'{name}: {type(e).__name__}'
-                logger.warning('[SAEmail] Transient %s attempt=%d: %s', name, attempt + 1, str(e)[:80])
+                logger.warning('[SAEmail] Transient %s attempt=%d: %s', name, attempt + 1, _safe_error(str(e), 80))
                 if attempt < _MAX_RETRIES:
                     time.sleep(_BACKOFF)
                 continue
             break  # non-transient failure — try next provider
         # next provider
 
-    logger.error('[SAEmail] All providers failed for to=%s: %s', to, last_err)
+    logger.error('[SAEmail] All providers failed for to=%s: %s', to, _safe_error(last_err))
     return False, last_err
 
 

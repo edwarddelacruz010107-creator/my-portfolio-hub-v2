@@ -104,10 +104,25 @@
       font-size: 0.85rem; font-weight: 600; cursor: pointer; padding: 0;
     }
     .otp-resend button:disabled { color: var(--text-dim); cursor: not-allowed; }
+    .otp-resend-help {
+      display: block; margin-top: 0.45rem; color: var(--text-dim); font-size: 0.78rem; line-height: 1.45;
+    }
+    .otp-resend-help.is-ready { color: var(--text-muted); }
 
     .otp-alt { text-align: center; margin-top: 1rem; }
     .otp-alt a { color: var(--text-dim); font-size: 0.82rem; text-decoration: none; }
     .otp-alt a:hover { color: var(--text-muted); }
+    .otp-state {
+      padding: 1rem; border-radius: 14px; background: var(--bg-2); border: 1px solid var(--border-l);
+      text-align: center; color: var(--text-muted); font-size: 0.9rem; line-height: 1.55; margin: 1rem 0 0;
+    }
+    .otp-state strong { color: var(--text); }
+    .otp-state-actions { display: grid; gap: 0.75rem; margin-top: 1rem; }
+    .otp-state-actions a {
+      display: flex; justify-content: center; align-items: center; gap: 0.45rem; padding: 0.8rem 1rem; border-radius: 10px;
+      text-decoration: none; font-size: 0.9rem; font-weight: 700; color: #fff; background: linear-gradient(135deg, var(--accent) 0%, var(--accent-d) 100%);
+    }
+    .otp-state-actions a.secondary { background: transparent; color: var(--text-muted); border: 1px solid var(--border-l); }
   </style>
 </head>
 <body>
@@ -130,6 +145,7 @@
       {% endfor %}
     {% endwith %}
 
+    {% if signup_state|default('active') in ['active', 'legacy_user'] %}
     <form method="post" action="{{ url_for('auth.verify_email_sent') }}" id="otpForm" novalidate>
       {{ form.hidden_tag() }}
       <input type="hidden" name="email" value="{{ email }}"/>
@@ -152,13 +168,33 @@
       <form method="post" action="{{ url_for('auth.resend_verification') }}" id="resendForm" style="display:inline;">
         <input type="hidden" name="email" value="{{ email }}"/>
         {{ form.csrf_token }}
-        <button type="submit" id="resendBtn">Resend code</button>
+        <button type="submit" id="resendBtn"
+                data-initial-remaining="{{ resend_cooldown_remaining|default(0)|int }}"
+                data-cooldown-seconds="{{ resend_cooldown_seconds|default(60)|int }}">
+          Resend code
+        </button>
       </form>
+      <span id="resendHelp" class="otp-resend-help">
+        For security, resend is available after a short cooldown.
+      </span>
     </div>
 
     <div class="otp-alt">
       <a href="{{ url_for('auth.login') }}">Back to sign in</a>
     </div>
+    {% else %}
+    <div class="otp-state">
+      {% if signup_state == 'expired' %}
+        <strong>This signup session expired.</strong><br> Please create your account again so we can send a fresh verification code.
+      {% else %}
+        <strong>No active signup session was found.</strong><br> Please create your account again to receive a verification code.
+      {% endif %}
+      <div class="otp-state-actions">
+        <a href="{{ url_for('auth.portal', tab='register') }}"><iconify-icon icon="lucide:user-plus" width="16"></iconify-icon> Create account</a>
+        <a class="secondary" href="{{ url_for('auth.login') }}">Back to sign in</a>
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   <script>
@@ -192,43 +228,89 @@
         });
       });
 
-      form.addEventListener('submit', function (e) {
-        sync();
-        if (hidden.value.length !== 6) {
-          e.preventDefault();
-          boxesWrap.classList.add('is-error');
-          setTimeout(function () { boxesWrap.classList.remove('is-error'); }, 400);
-          return;
-        }
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<iconify-icon icon="lucide:loader-2" width="16"></iconify-icon> Verifying…';
-      });
+      if (form && hidden && boxesWrap && submitBtn) {
+        form.addEventListener('submit', function (e) {
+          sync();
+          if (hidden.value.length !== 6) {
+            e.preventDefault();
+            boxesWrap.classList.add('is-error');
+            setTimeout(function () { boxesWrap.classList.remove('is-error'); }, 400);
+            return;
+          }
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<iconify-icon icon="lucide:loader-2" width="16"></iconify-icon> Verifying…';
+        });
+      }
 
-      // ── Resend cooldown (60s, client-side UX only — server enforces the
-      // real rate limit via check_tenant_otp_rate_limit) ──
+      // ── Resend cooldown ───────────────────────────────────────────────
+      // The server owns the real cooldown. The template passes the backend
+      // remaining seconds so refreshes do not restart a fake 60-second lock.
       var resendBtn = document.getElementById('resendBtn');
       var resendLabel = document.getElementById('resendLabel');
-      var COOLDOWN = 60;
+      var resendHelp = document.getElementById('resendHelp');
+      var cooldownTimer = null;
 
-      function startCooldown() {
-        var remaining = COOLDOWN;
+      function parseSeconds(value, fallback) {
+        var n = parseInt(value, 10);
+        return isNaN(n) ? fallback : Math.max(0, n);
+      }
+
+      function setResendReady() {
+        if (!resendBtn) return;
+        if (cooldownTimer) clearInterval(cooldownTimer);
+        resendBtn.disabled = false;
+        resendBtn.textContent = 'Resend code';
+        if (resendLabel) resendLabel.textContent = "Didn't get it?";
+        if (resendHelp) {
+          resendHelp.textContent = 'You can request another code now.';
+          resendHelp.classList.add('is-ready');
+        }
+      }
+
+      function renderCooldown(remaining) {
+        if (!resendBtn) return;
         resendBtn.disabled = true;
-        var tick = setInterval(function () {
+        resendBtn.textContent = 'Resend available in ' + remaining + 's';
+        if (resendLabel) resendLabel.textContent = 'Code not received?';
+        if (resendHelp) {
+          resendHelp.textContent = 'For security, resend is available after a short cooldown. You can request another code in ' + remaining + ' seconds.';
+          resendHelp.classList.remove('is-ready');
+        }
+      }
+
+      function startCooldown(initialRemaining) {
+        if (!resendBtn) return;
+        var remaining = parseSeconds(initialRemaining, 0);
+        if (remaining <= 0) {
+          setResendReady();
+          return;
+        }
+        renderCooldown(remaining);
+        cooldownTimer = setInterval(function () {
           remaining -= 1;
-          resendBtn.textContent = 'Resend code (' + remaining + 's)';
           if (remaining <= 0) {
-            clearInterval(tick);
-            resendBtn.disabled = false;
-            resendBtn.textContent = 'Resend code';
+            setResendReady();
+            return;
           }
+          renderCooldown(remaining);
         }, 1000);
       }
-      startCooldown();
 
-      document.getElementById('resendForm').addEventListener('submit', function () {
-        resendBtn.disabled = true;
-        resendBtn.textContent = 'Sending…';
-      });
+      if (resendBtn) {
+        startCooldown(resendBtn.getAttribute('data-initial-remaining'));
+      }
+
+      var resendForm = document.getElementById('resendForm');
+      if (resendForm && resendBtn) {
+        resendForm.addEventListener('submit', function () {
+          resendBtn.disabled = true;
+          resendBtn.textContent = 'Sending…';
+          if (resendHelp) {
+            resendHelp.textContent = 'Sending a fresh verification code through MyPortfolioHub email delivery…';
+            resendHelp.classList.remove('is-ready');
+          }
+        });
+      }
 
       // ── Theme (shares 'phPublicTheme' key with the rest of the public site) ──
       (function () {

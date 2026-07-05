@@ -350,6 +350,14 @@ html[data-theme="light"] .stat-card .stat-big {
   border-color: var(--border-accent);
 }
 
+/* Error state border — migrated from superadmin.css during Phase 5
+   .field-input consolidation. This compound selector was the one piece
+   of live behavior not already covered by the rules above. */
+.form-input.field-error,
+.field-input.field-error {
+  border-color: var(--danger);
+}
+
 /* Form label — uppercase tracking, consistent */
 .form-label,
 .field-label,
@@ -1705,4 +1713,212 @@ html[data-theme="light"] .modal-card {
 html[data-theme="light"] .content-panel {
   background: #ffffff;
   border-color: rgba(15,23,42,0.08);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   § 23. SUPERADMIN NAVIGATION + TYPOGRAPHY CONSISTENCY PASS
+   Applies the Platform Overview font reference across every
+   SuperAdmin navigation/page surface without changing templates,
+   routes, forms, or backend behavior.
+═══════════════════════════════════════════════════════════════ */
+
+/* Global SuperAdmin app font foundation */
+.admin-body,
+.admin-main,
+.admin-content,
+.sidebar,
+.admin-topbar,
+.flash-container,
+.modal,
+.form-card,
+.dash-panel,
+.content-panel,
+.sa-table-card,
+.data-table,
+.admin-table,
+input,
+select,
+textarea,
+button {
+  font-family: var(--font-body, 'DM Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+}
+
+/* Keep dashboard-style display type for high-emphasis labels only */
+.page-heading,
+.page-heading-lg,
+.hero-title,
+.panel-header h2,
+.form-card h3,
+.form-card-header,
+.dash-panel h2,
+.stat-card .stat-value,
+.stat-card .stat-big,
+.stat-value,
+.stat-big,
+.empty-state-title,
+.modal-title {
+  font-family: var(--font-display, 'Syne', var(--font-body), sans-serif);
+}
+
+/* Sidebar navigation typography: cleaner, less chunky, same on every route */
+.logo-text,
+.sa-identity-name,
+.sa-identity-role,
+.nav-label,
+.nav-item,
+.preview-btn,
+.logout-btn,
+.nav-badge,
+.nav-section-badge {
+  font-family: var(--font-body, 'DM Sans', ui-sans-serif, system-ui, sans-serif);
+}
+
+.logo-text {
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--text);
+}
+
+.sa-identity-name {
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.sa-identity-role {
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.nav-label {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+.nav-item {
+  height: 40px;
+  padding-inline: var(--space-4);
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1;
+}
+
+.nav-item.active {
+  font-weight: 800;
+  letter-spacing: -0.012em;
+}
+
+.nav-icon {
+  opacity: 0.9;
+  transition: transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.nav-item:hover .nav-icon,
+.nav-item.active .nav-icon {
+  opacity: 1;
+  transform: translateX(1px);
+}
+
+.preview-btn,
+.logout-btn {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* Topbar typography + actions match the dashboard reference */
+.topbar-title,
+.topbar-actions,
+.topbar-actions .btn,
+.sa-topbar-chip,
+.theme-toggle-pill {
+  font-family: var(--font-body, 'DM Sans', ui-sans-serif, system-ui, sans-serif);
+}
+
+.topbar-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: -0.004em;
+}
+
+.topbar-actions .btn,
+.btn.btn-primary,
+.btn.btn-secondary,
+.btn.btn-ghost,
+.btn.btn-danger,
+.btn.btn-sm {
+  font-family: var(--font-body, 'DM Sans', ui-sans-serif, system-ui, sans-serif);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.sa-topbar-chip {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.075em;
+}
+
+/* Shared form/table typography so navigation pages feel consistent */
+.form-label,
+.field-label,
+label,
+.table th,
+.data-table th,
+.admin-table th,
+.sa-table th {
+  font-family: var(--font-body, 'DM Sans', ui-sans-serif, system-ui, sans-serif);
+  font-weight: 800;
+  letter-spacing: 0.055em;
+}
+
+.form-input,
+.form-select,
+.form-textarea,
+.form-control,
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='number'],
+input[type='url'],
+select,
+textarea {
+  font-family: var(--font-body, 'DM Sans', ui-sans-serif, system-ui, sans-serif);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+/* Better mobile navigation readability without changing behavior */
+@media (max-width: 900px) {
+  .admin-topbar {
+    padding-inline: var(--space-4);
+  }
+
+  .topbar-title {
+    font-size: 0.84rem;
+  }
+
+  .nav-item {
+    height: 42px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-icon {
+    transition: none;
+  }
+
+  .nav-item:hover .nav-icon,
+  .nav-item.active .nav-icon {
+    transform: none;
+  }
 }

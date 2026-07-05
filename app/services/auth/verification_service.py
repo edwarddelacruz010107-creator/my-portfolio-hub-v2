@@ -14,12 +14,13 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 from typing import Optional
 
 from flask import current_app, url_for
 
 from app import db
+from app.utils.datetime_utils import ensure_utc_aware, utc_expiry, utc_now
 from app.models import User
 
 logger = logging.getLogger(__name__)
@@ -103,23 +104,31 @@ def verify_email_verification_otp(user: User, raw_otp: str) -> None:
 
 
 def send_email_verification_otp(user: User, raw_otp: str) -> bool:
-    """Best-effort send via the tested MailerSend/SMTP provider chain."""
+    """Send signup verification OTP through SuperAdmin Email & Forms providers."""
     from app.services.auth.otp_service import DEFAULT_TTL_MIN
-    from app.models.core import GlobalEmailConfig
-    from app.services.email.email_service import send_email_verification_otp as _send
+    from app.services.auth.signup_otp_email_service import (
+        get_signup_otp_ttl_minutes,
+        send_signup_verification_otp as _send,
+    )
+
+    ttl = get_signup_otp_ttl_minutes(DEFAULT_TTL_MIN)
 
     try:
-        ttl = max(1, GlobalEmailConfig.get(fresh=True).otp_expiry_minutes or DEFAULT_TTL_MIN)
-    except Exception:
-        ttl = DEFAULT_TTL_MIN
-
-    try:
-        return _send(
+        result = _send(
             recipient_email=user.email,
             username=user.username,
             otp=raw_otp,
             ttl_minutes=ttl,
+            context='legacy_user_email_verify',
         )
+        if not result.ok:
+            logger.error(
+                'send_email_verification_otp: dispatch failed user_id=%s provider_candidates=%s error=%s',
+                user.id,
+                result.provider_hint,
+                result.error,
+            )
+        return bool(result.ok)
     except Exception:
         logger.exception('send_email_verification_otp: dispatch failed for user_id=%s', user.id)
         return False
@@ -132,7 +141,7 @@ def _hash(raw: str) -> str:
 def issue_verification_for(user: User) -> str:
     raw = secrets.token_urlsafe(32)
     user.email_verification_token   = _hash(raw)
-    user.email_verification_expires = datetime.now(timezone.utc) + _TTL
+    user.email_verification_expires = utc_now() + _TTL
     db.session.commit()
     return raw
 
@@ -143,12 +152,10 @@ def verify_token(raw_token: str) -> User:
     user = User.query.filter_by(email_verification_token=_hash(raw_token)).first()
     if not user:
         raise VerificationError('Invalid or already-used verification link.')
-    exp = user.email_verification_expires
+    exp = ensure_utc_aware(user.email_verification_expires)
     if exp is None:
         raise VerificationError('Invalid verification link.')
-    if exp.tzinfo is None:
-        exp = exp.replace(tzinfo=timezone.utc)
-    if exp < datetime.now(timezone.utc):
+    if exp < utc_now():
         raise VerificationError('This verification link has expired. Request a new one.')
     user.email_verified              = True
     user.email_verification_token    = None

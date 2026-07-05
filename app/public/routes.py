@@ -33,6 +33,7 @@ from .services.landing_service import (
     get_community_stats,
 )
 from .services.pricing_service import get_pricing_content
+from .services.theme_showcase_service import get_showcase_themes, get_theme_detail
 from app.forms import LandingContactForm
 from app.models.portfolio import Inquiry
 from app.services.email.email_service import EmailService
@@ -60,6 +61,7 @@ def render_landing_page():
     administrator = get_administrator_card()
     landing_content = get_landing_content()
     form = LandingContactForm()
+    theme_showcase = get_showcase_themes(limit=6)
     return render_template(
         'public/index.html',
         featured_creators=featured_creators,
@@ -71,6 +73,9 @@ def render_landing_page():
         administrator=administrator,
         landing_content=landing_content,
         contact_form=form,
+        themes=theme_showcase['themes'],
+        themes_total=theme_showcase['total'],
+        themes_has_more=theme_showcase['has_more'],
     )
 
 
@@ -197,6 +202,49 @@ def pricing():
         yearly_toggle_enabled=pricing_content['yearly_toggle_enabled'],
         paymongo_enabled=is_paymongo_enabled(),
     )
+
+
+@public_bp.route('/themes/<theme_id>/preview')
+@limiter.limit('30 per hour')
+def theme_preview(theme_id: str):
+    """
+    Public, unauthenticated, READ-ONLY preview of a theme rendered with
+    static sample content (never real tenant data -- see
+    app/public/services/theme_preview_data.py). Mirrors the pattern in
+    app/admin/routes/profile_appearance.py::preview_theme, minus the
+    plan/ownership gate: a marketing-page visitor previewing a premium
+    theme's look carries no privilege-escalation risk since nothing here
+    persists or touches a real tenant's `selected_theme`.
+    """
+    from types import SimpleNamespace
+    from app.theme_engine import get_theme_engine, is_valid_theme_id
+    from .services.theme_preview_data import build_sample_context
+
+    if not is_valid_theme_id(theme_id):
+        abort(404)
+
+    engine = get_theme_engine()
+    meta = engine.get_theme_meta(theme_id)
+    if not meta or not meta.get('catalog_active', True):
+        abort(404)
+
+    # Throwaway shim carries the requested theme through resolve_theme()
+    # without ever touching a real Profile row. is_administrator=True
+    # bypasses the plan gate for this read-only preview by design (see
+    # docstring above) -- it only affects which template renders, never
+    # persists, never authenticates as anything.
+    preview_profile = SimpleNamespace(
+        selected_theme=theme_id,
+        is_administrator=True,
+        plan='enterprise',
+    )
+
+    sample_ctx = build_sample_context(
+        tenant_slug='preview',
+        contact_url=url_for('public.contact'),
+    )
+
+    return engine.render(preview_profile, 'index.html', **sample_ctx)
 
 
 @public_bp.route('/administrator')

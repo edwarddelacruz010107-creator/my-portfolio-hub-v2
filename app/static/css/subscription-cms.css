@@ -1,0 +1,333 @@
+/* ==========================================================================
+   Subscription Settings — page-scoped polish layer
+   ==========================================================================
+   Scoped to /superadmin/subscriptions (.subscription-settings-shell).
+
+   This page's old inline <style> block referenced CSS variables that were
+   never defined in the superadmin stylesheet chain (--bg-secondary,
+   --border-color, --primary-color, --warning-color, --text-primary,
+   --text-secondary, --bg-tertiary) — they only exist in style.css, which
+   isn't loaded on superadmin pages. That's why inputs/cards looked washed
+   out. Everything below uses real design-system.css tokens instead.
+
+   Shared primitives already loaded globally and reused as-is (no
+   redefinition here): .breadcrumb-trail, .form-card-collapsible,
+   .sticky-actions-bar, .form-grid-2, .field-label/.field-input/
+   .field-textarea/.field-hint/.field-err, .status-pill/.status-active/
+   .status-pending, .admin-table, .empty-state-card, .badge.
+   ========================================================================== */
+
+.subscription-settings-shell {
+  max-width: 1360px;
+  margin: 0 auto;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────── */
+
+.subscription-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+}
+
+.subscription-header .page-subtext { max-width: 62ch; }
+
+.subscription-header-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* ── Summary strip ───────────────────────────────────────────────────── */
+
+.billing-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.billing-summary-item {
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.billing-summary-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-bottom: var(--space-1);
+}
+
+.billing-summary-value {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .billing-summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .billing-summary-strip { grid-template-columns: 1fr; }
+}
+
+/* ── Section intro ───────────────────────────────────────────────────── */
+
+.subscription-section-intro { margin-bottom: var(--space-5); }
+.subscription-section-intro h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 4px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.subscription-section-intro h2 iconify-icon { color: var(--accent-light); }
+
+/* ── Plans grid ──────────────────────────────────────────────────────── */
+
+.billing-plans-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-5);
+  margin-bottom: var(--space-2);
+}
+
+@media (max-width: 1180px) {
+  .billing-plans-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .billing-plans-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Plan card ───────────────────────────────────────────────────────── */
+
+.billing-plan-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  transition: transform var(--dur-normal, 0.2s) var(--ease), box-shadow var(--dur-normal, 0.2s) var(--ease), border-color var(--dur-normal, 0.2s) var(--ease);
+}
+
+.billing-plan-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--border-accent);
+}
+
+/* Per-plan accent header strip */
+.billing-plan-card[data-plan="basic"] .billing-plan-preview {
+  background: linear-gradient(135deg, rgba(100, 116, 139, 0.10), transparent 65%);
+}
+.billing-plan-card[data-plan="pro"] .billing-plan-preview {
+  background: linear-gradient(135deg, var(--accent-bg-md), transparent 65%);
+}
+.billing-plan-card[data-plan="enterprise"] .billing-plan-preview {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.14), transparent 65%);
+}
+
+.billing-plan-preview {
+  padding: var(--space-5);
+}
+
+.billing-plan-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.billing-plan-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+/* ── Price row: never wraps awkwardly ───────────────────────────────── */
+
+.billing-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  flex-wrap: nowrap;
+  margin-bottom: var(--space-3);
+}
+
+.billing-price-amount {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.billing-price-period {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.billing-plan-desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: var(--space-3);
+}
+
+.billing-feature-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+}
+
+.billing-feature-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.billing-feature-list iconify-icon {
+  color: var(--success);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.billing-feature-more {
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  padding-left: 18px;
+}
+
+/* ── Edit section (nested <details>, reuses .form-card-collapsible) ──── */
+
+.billing-plan-edit {
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+}
+
+.billing-plan-edit > summary {
+  padding: var(--space-4) var(--space-5);
+}
+
+.billing-plan-edit > .form-card-body {
+  padding: 0 var(--space-5) var(--space-5);
+}
+
+/* Remove native number-input spinners inside plan edit forms only */
+.billing-plan-edit input[type="number"]::-webkit-outer-spin-button,
+.billing-plan-edit input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.billing-plan-edit input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* ── Action bar helper text ──────────────────────────────────────────── */
+
+.billing-action-bar-note {
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  margin-right: auto;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.billing-action-bar-note.is-dirty {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .billing-action-bar-note { display: none; }
+}
+
+/* ── Plan badge colors (page-scoped — these classes were previously only
+       defined inline on this page and referenced undefined tokens) ────── */
+
+.subscription-settings-shell .badge-basic {
+  background: var(--bg-3);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+.subscription-settings-shell .badge-pro {
+  background: var(--accent-bg);
+  color: var(--accent-light);
+  border: 1px solid var(--border-accent);
+}
+.subscription-settings-shell .badge-enterprise {
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+/* Status variants not covered by the global .status-pill set */
+.subscription-settings-shell .status-expired {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.subscription-settings-shell .status-no_subscription {
+  background: var(--bg-3);
+  color: var(--text-dim);
+}
+
+/* ── Tenant subscriptions table section ──────────────────────────────── */
+
+.subscription-tenants-section { margin-top: var(--space-8); }
+
+.subscription-settings-shell .tenant-info { display: flex; flex-direction: column; gap: 2px; }
+.subscription-settings-shell .tenant-info .muted.small { color: var(--text-dim); font-size: 0.76rem; }
+
+/* ── Motion (reuses fadeUp keyframe already defined in animations.css;
+       prefers-reduced-motion handled globally there) ────────────────── */
+
+.subscription-header,
+.billing-summary-strip,
+.billing-plans-grid .billing-plan-card {
+  animation: fadeUp var(--dur-slow) var(--ease) both;
+}
+
+.billing-plans-grid .billing-plan-card:nth-child(1) { animation-delay: 20ms; }
+.billing-plans-grid .billing-plan-card:nth-child(2) { animation-delay: 70ms; }
+.billing-plans-grid .billing-plan-card:nth-child(3) { animation-delay: 120ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .subscription-header,
+  .billing-summary-strip,
+  .billing-plans-grid .billing-plan-card {
+    animation: none;
+  }
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .subscription-header { flex-direction: column; }
+}

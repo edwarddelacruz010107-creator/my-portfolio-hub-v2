@@ -329,91 +329,42 @@
         <p>Switch anytime — your content stays exactly the same, only the look changes.</p>
       </div>
 
+      {% if themes %}
       <div class="theme-grid">
-
-        <article class="theme-card" data-reveal style="--tc1:#7C5CFF;--tc2:#22D3EE;--tc3:#0D0F16;--tc4:#F6F7FA;">
+        {% for theme in themes %}
+        <article class="theme-card{% if theme.premium %} theme-card-premium{% endif %}" data-reveal
+                  style="--d:{{ loop.index0 * 60 }}ms;--tc1:{{ theme.primary_color }};--tc2:{{ theme.secondary_color }};--tc3:{{ theme.background_color }};--tc4:{{ theme.text_color }};">
+          {% if theme.premium %}<span class="theme-badge">Premium</span>{% endif %}
           <div class="theme-preview">
-            <div class="theme-mock-bar"></div>
-            <div class="theme-mock-lines"><span></span><span class="short"></span></div>
-            <div class="theme-swatches"><span style="background:var(--tc1)"></span><span style="background:var(--tc2)"></span><span style="background:var(--tc3)"></span></div>
+            {% if theme.preview_image %}
+              <img class="theme-preview-img" src="{{ theme.preview_image }}" alt="{{ theme.name }} theme preview" loading="lazy">
+            {% else %}
+              <div class="theme-mock-bar"></div>
+              <div class="theme-mock-lines"><span></span><span class="short"></span></div>
+              <div class="theme-swatches"><span style="background:var(--tc1)"></span><span style="background:var(--tc2)"></span><span style="background:var(--tc3)"></span></div>
+            {% endif %}
           </div>
           <div class="theme-meta">
-            <span class="theme-name">Nova</span>
-            <span class="theme-tag">Neon · Bold</span>
+            <span class="theme-name">{{ theme.name }}</span>
+            <span class="theme-tag">{{ theme.tagline or (theme.category | title) }}</span>
           </div>
-          <a href="#" class="btn-mph btn-outline btn-sm btn-block ripple-wrap">Preview theme</a>
+          <a href="{{ url_for('public.theme_preview', theme_id=theme.id) }}" target="_blank" rel="noopener"
+             class="btn-mph btn-outline btn-sm btn-block ripple-wrap">Preview theme</a>
         </article>
-
-        <article class="theme-card" data-reveal style="--tc1:#34D399;--tc2:#0EA5E9;--tc3:#0B1220;--tc4:#F6F7FA;">
-          <div class="theme-preview">
-            <div class="theme-mock-bar"></div>
-            <div class="theme-mock-lines"><span></span><span class="short"></span></div>
-            <div class="theme-swatches"><span style="background:var(--tc1)"></span><span style="background:var(--tc2)"></span><span style="background:var(--tc3)"></span></div>
-          </div>
-          <div class="theme-meta">
-            <span class="theme-name">Slate</span>
-            <span class="theme-tag">Minimal · Clean</span>
-          </div>
-          <a href="#" class="btn-mph btn-outline btn-sm btn-block ripple-wrap">Preview theme</a>
-        </article>
-
-        <article class="theme-card" data-reveal style="--d:60ms;--tc1:#F59E0B;--tc2:#EF4444;--tc3:#1A1206;--tc4:#FFF7ED;">
-          <div class="theme-preview">
-            <div class="theme-mock-bar"></div>
-            <div class="theme-mock-lines"><span></span><span class="short"></span></div>
-            <div class="theme-swatches"><span style="background:var(--tc1)"></span><span style="background:var(--tc2)"></span><span style="background:var(--tc3)"></span></div>
-          </div>
-          <div class="theme-meta">
-            <span class="theme-name">Ember</span>
-            <span class="theme-tag">Warm · Creative</span>
-          </div>
-          <a href="#" class="btn-mph btn-outline btn-sm btn-block ripple-wrap">Preview theme</a>
-        </article>
-
-        <article class="theme-card" data-reveal style="--d:60ms;--tc1:#94A3B8;--tc2:#334155;--tc3:#0B0D12;--tc4:#F1F5F9;">
-          <div class="theme-preview">
-            <div class="theme-mock-bar"></div>
-            <div class="theme-mock-lines"><span></span><span class="short"></span></div>
-            <div class="theme-swatches"><span style="background:var(--tc1)"></span><span style="background:var(--tc2)"></span><span style="background:var(--tc3)"></span></div>
-          </div>
-          <div class="theme-meta">
-            <span class="theme-name">Signal</span>
-            <span class="theme-tag">Corporate · Sharp</span>
-          </div>
-          <a href="#" class="btn-mph btn-outline btn-sm btn-block ripple-wrap">Preview theme</a>
-        </article>
-
-        <article class="theme-card" data-reveal style="--d:120ms;--tc1:#EC4899;--tc2:#8B5CF6;--tc3:#160B1A;--tc4:#FDF4FF;">
-          <div class="theme-preview">
-            <div class="theme-mock-bar"></div>
-            <div class="theme-mock-lines"><span></span><span class="short"></span></div>
-            <div class="theme-swatches"><span style="background:var(--tc1)"></span><span style="background:var(--tc2)"></span><span style="background:var(--tc3)"></span></div>
-          </div>
-          <div class="theme-meta">
-            <span class="theme-name">Aurora</span>
-            <span class="theme-tag">Vivid · Portfolio-first</span>
-          </div>
-          <a href="#" class="btn-mph btn-outline btn-sm btn-block ripple-wrap">Preview theme</a>
-        </article>
-
-        <article class="theme-card" data-reveal style="--d:120ms;--tc1:#D6D3D1;--tc2:#78716C;--tc3:#141312;--tc4:#FAFAF9;">
-          <div class="theme-preview">
-            <div class="theme-mock-bar"></div>
-            <div class="theme-mock-lines"><span></span><span class="short"></span></div>
-            <div class="theme-swatches"><span style="background:var(--tc1)"></span><span style="background:var(--tc2)"></span><span style="background:var(--tc3)"></span></div>
-          </div>
-          <div class="theme-meta">
-            <span class="theme-name">Origami</span>
-            <span class="theme-tag">Monochrome · Editorial</span>
-          </div>
-          <a href="#" class="btn-mph btn-outline btn-sm btn-block ripple-wrap">Preview theme</a>
-        </article>
-
+        {% endfor %}
       </div>
 
+      {% if themes_has_more %}
       <div class="text-center mt-5" data-reveal>
-        <a href="#" class="btn-mph btn-outline ripple-wrap">See all 24 themes <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+        <a href="{{ url_for('root') }}#themes" class="btn-mph btn-outline ripple-wrap">See all {{ themes_total }} themes <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
       </div>
+      {% endif %}
+      {% else %}
+      <div class="theme-empty-state" data-reveal>
+        <i class="bi bi-palette" aria-hidden="true"></i>
+        <p>New themes are on the way — check back soon.</p>
+      </div>
+      {% endif %}
     </div>
   </section>
 
@@ -474,44 +425,61 @@
   <!-- =========================================================
        PROJECT SHOWCASE
   ========================================================= -->
-  <section id="projects" class="section-alt">
+  <section id="projects" class="section-alt landing-case-studies">
     <div class="container-mph">
-      <div class="section-head" data-reveal>
+      <div class="section-head case-study-header" data-reveal>
         <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Projects</span>
         <h2>Case studies <span class="text-gradient">worth a closer look</span></h2>
-        <p>Individual projects pulled straight from portfolios published on the platform.</p>
+        <p>Explore real projects published by creators using MyPortfolioHub.</p>
       </div>
 
-      <div class="showcase-grid">
+      <div class="case-study-grid{% if trending_projects and trending_projects|length == 1 %} single-card{% endif %}" aria-live="polite">
         {% if trending_projects %}
           {% for project in trending_projects %}
-          <article class="proj-card" data-reveal{% if loop.index0 %} style="--d:{{ loop.index0 * 60 }}ms"{% endif %}>
+          {% set project_title = project.title|default('Untitled Project', true) %}
+          {% set project_desc = project.description_short|default(project.description|default('No description added yet.', true), true) %}
+          {% set project_category = project.category|default('Project', true) %}
+          {% set creator_name = project.creator_name|default('Creator', true) %}
+          {% set creator_slug = project.creator_slug|default(project.tenant_slug|default('', true), true) %}
+          {% set case_url = project.url|default('', true) %}
+          <article class="proj-card case-study-card" data-reveal{% if loop.index0 %} style="--d:{{ loop.index0 * 60 }}ms"{% endif %}>
             <div class="proj-cover">
               {% if project.image %}
-                <img src="{{ project.image|upload_url('projects') }}" alt="{{ project.title }}" loading="lazy">
+                <img src="{{ project.image|upload_url('projects') }}" alt="Preview of {{ project_title }}" loading="lazy">
               {% else %}
-                <div class="proj-cover-placeholder"></div>
+                <div class="proj-cover-placeholder" aria-hidden="true">
+                  <i class="bi bi-window-stack"></i>
+                </div>
               {% endif %}
+              <div class="proj-cover-shade" aria-hidden="true"></div>
+              <div class="proj-cover-badges">
+                <span class="proj-category-badge">{{ project_category }}</span>
+                {% if creator_name %}<span class="proj-creator-badge">{{ creator_name }}</span>{% endif %}
+              </div>
             </div>
+
             <div class="proj-body">
               {% if project.tags %}
-                <div class="proj-tags">
-                  {% for tag in project.tags %}
+                <div class="proj-tags" aria-label="Project tags">
+                  {% for tag in project.tags[:3] %}
                     <span class="pf-tag">{{ tag }}</span>
                   {% endfor %}
                 </div>
               {% endif %}
-              <h3 class="proj-title">{{ project.title }}</h3>
-              <p class="proj-desc">{{ project.description_short }}</p>
+
+              <h3 class="proj-title">{{ project_title }}</h3>
+              <p class="proj-desc">{{ project_desc }}</p>
+
               <div class="proj-author">
-                <span>by {{ project.creator_name }}</span>
+                <span>by {{ creator_name }}</span>
               </div>
-              <div class="proj-footer">
+
+              <div class="project-card-actions">
                 <button
-                  class="like-btn{% if project.liked %} liked{% endif %}{% if not current_user.is_authenticated %} signin-required{% endif %}"
+                  class="like-btn project-action-btn project-action-like{% if project.liked %} liked{% endif %}{% if not current_user.is_authenticated %} signin-required{% endif %}"
                   type="button"
                   aria-pressed="{{ 'true' if project.liked else 'false' }}"
-                  aria-label="{% if project.liked %}Unlike this project{% else %}Like this project{% endif %}"
+                  aria-label="{% if project.liked %}Unlike {{ project_title }}{% else %}Like {{ project_title }}{% endif %}"
                   data-project-id="{{ project.id }}"
                   data-liked="{{ '1' if project.liked else '0' }}"
                 >
@@ -519,17 +487,47 @@
                   <span class="like-label">{% if project.liked %}Liked{% else %}Like{% endif %}</span>
                   <span class="like-count">{{ project.like_count or 0 }}</span>
                 </button>
-                <a href="{{ project.url }}" class="btn-mph btn-outline btn-sm">View case study</a>
-                <a href="{{ url_for('public.creator_link', tenant_slug=project.creator_slug) }}" class="btn-mph btn-primary btn-sm">View portfolio</a>
+
+                {% if case_url %}
+                <a href="{{ case_url }}" class="project-action-btn project-action-case" aria-label="View case study for {{ project_title }}">
+                  <i class="bi bi-journal-text" aria-hidden="true"></i>
+                  <span>View case study</span>
+                </a>
+                {% else %}
+                <span class="project-action-btn project-action-case is-disabled" aria-disabled="true">
+                  <i class="bi bi-journal-text" aria-hidden="true"></i>
+                  <span>Case study unavailable</span>
+                </span>
+                {% endif %}
+
+                {% if creator_slug %}
+                <a href="{{ url_for('public.creator_link', tenant_slug=creator_slug) }}" class="project-action-btn project-action-portfolio" aria-label="View {{ creator_name }} portfolio">
+                  <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                  <span>View portfolio</span>
+                </a>
+                {% else %}
+                <span class="project-action-btn project-action-portfolio is-disabled" aria-disabled="true">
+                  <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                  <span>Portfolio unavailable</span>
+                </span>
+                {% endif %}
               </div>
-              <div class="proj-meta-row">
-                <span class="proj-meta-item">👁 {{ project.view_count or 0 }} views</span>
+
+              <div class="proj-meta-row" aria-label="Project activity stats">
+                <span class="proj-meta-item"><i class="bi bi-eye" aria-hidden="true"></i>{{ project.view_count or 0 }} views</span>
+                <span class="proj-meta-item"><i class="bi bi-heart" aria-hidden="true"></i>{{ project.like_count or 0 }} likes</span>
+                {% if project_category %}<span class="proj-meta-item"><i class="bi bi-tag" aria-hidden="true"></i>{{ project_category }}</span>{% endif %}
               </div>
             </div>
           </article>
           {% endfor %}
         {% else %}
-          <p style="opacity:.7;grid-column:1/-1;text-align:center;">No published projects yet — check back soon or <a href="{{ url_for('auth.portal', tab='signup') }}">create a portfolio</a>.</p>
+          <div class="case-study-empty" data-reveal>
+            <i class="bi bi-window-plus" aria-hidden="true"></i>
+            <h3>No published projects yet</h3>
+            <p>Case studies from creators will appear here as soon as projects are published.</p>
+            <a href="{{ url_for('auth.portal', tab='signup') }}" class="btn-mph btn-outline">Create a portfolio</a>
+          </div>
         {% endif %}
       </div>
 
@@ -602,7 +600,7 @@
   <!-- =========================================================
        COMMUNITY ACTIVITY
   ========================================================= -->
-  <section id="community">
+  <section id="community" class="community-section">
     <div class="container-mph">
       <div class="section-head center" data-reveal>
         <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Community</span>
@@ -610,26 +608,56 @@
         <p>Real-time moments from professionals building in public.</p>
       </div>
 
-      <div class="activity-list" style="max-width:820px;margin:0 auto;">
+      <div class="community-feed activity-list" aria-live="polite">
         {% for p in trending_projects %}
-        <div class="activity-item" data-reveal{% if loop.index0 %} style="--d:{{ loop.index0 * 60 }}ms"{% endif %}>
+        {% set update_title = p.title|default('Untitled Project', true) %}
+        {% set update_creator = p.creator_name|default('Creator', true) %}
+        {% set update_category = p.category|default('Project', true) %}
+        {% set update_slug = p.creator_slug|default(p.tenant_slug|default('', true), true) %}
+        {% set update_url = p.url|default('', true) %}
+        <article class="community-update-card activity-item" data-reveal{% if loop.index0 %} style="--d:{{ loop.index0 * 60 }}ms"{% endif %}>
           {% if p.image %}
-            {% if p.image.startswith('http') %}
-              <img class="activity-avatar" src="{{ p.image }}" alt="" loading="lazy">
-            {% else %}
-              <img class="activity-avatar" src="{{ url_for('static', filename='uploads/projects/' ~ p.image) }}" alt="" loading="lazy">
-            {% endif %}
+            <img class="community-avatar activity-avatar" src="{{ p.image|upload_url('projects') }}" alt="Preview of {{ update_title }}" loading="lazy">
           {% else %}
-            <div class="activity-avatar" style="background:linear-gradient(135deg,#7c3aed,#22d3ee);"></div>
+            <div class="community-avatar activity-avatar" aria-hidden="true">
+              <i class="bi bi-stars"></i>
+            </div>
           {% endif %}
-          <div class="activity-text">
-            <strong>{{ p.creator_name }}</strong> published
-            <a href="{{ url_for('public.creator_link', tenant_slug=p.tenant_slug) }}" style="color:inherit;text-decoration:underline;">{{ p.title }}</a>
-            {% if p.category %} · <span class="cat">{{ p.category }}</span>{% endif %}
+
+          <div class="community-update-body activity-text">
+            <div class="community-update-meta">
+              <strong>{{ update_creator }}</strong>
+              <span>published</span>
+              <span class="community-update-badge">{{ update_category }}</span>
+            </div>
+            <a
+              href="{{ update_url if update_url else (url_for('public.creator_link', tenant_slug=update_slug) if update_slug else '#projects') }}"
+              class="community-update-link"
+            >{{ update_title }}</a>
+            <div class="community-update-stats">
+              <span><i class="bi bi-eye" aria-hidden="true"></i>{{ p.view_count or 0 }} views</span>
+              <span><i class="bi bi-heart" aria-hidden="true"></i>{{ p.like_count or 0 }} likes</span>
+            </div>
           </div>
-        </div>
+
+          {% if update_url %}
+          <a href="{{ update_url }}" class="community-view-link" aria-label="View project {{ update_title }}">
+            View project
+            <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          </a>
+          {% elif update_slug %}
+          <a href="{{ url_for('public.creator_link', tenant_slug=update_slug) }}" class="community-view-link" aria-label="View {{ update_creator }} portfolio">
+            View portfolio
+            <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          </a>
+          {% endif %}
+        </article>
         {% else %}
-        <p style="opacity:.7;text-align:center;">No recent activity yet.</p>
+        <div class="community-empty" data-reveal>
+          <i class="bi bi-megaphone" aria-hidden="true"></i>
+          <h3>No community updates yet</h3>
+          <p>When creators publish projects, updates will appear here.</p>
+        </div>
         {% endfor %}
       </div>
     </div>
@@ -859,8 +887,14 @@
             <a href="#" class="social-btn" aria-label="MyPortfolioHub on GitHub"><i class="bi bi-github" aria-hidden="true"></i></a>
           </div>
 
-          <div class="map-placeholder" role="img" aria-label="Map placeholder showing San Francisco office location">
-            <i class="bi bi-pin-map" aria-hidden="true"></i> Map preview — connect Google Maps API
+          <div class="map-card">
+            <div class="map-card-canvas" role="img" aria-label="Map showing San Francisco office location">
+              <i class="bi bi-pin-map" aria-hidden="true"></i> San Francisco, CA
+            </div>
+            <div class="map-card-footer">
+              <span>37.7749° N, 122.4194° W</span>
+              <span>Remote-first</span>
+            </div>
           </div>
         </div>
 

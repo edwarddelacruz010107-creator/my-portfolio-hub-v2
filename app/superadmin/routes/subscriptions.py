@@ -59,7 +59,14 @@ from app.models.portfolio import (Profile, PaymentMethod, PaymentSubmission, Sub
                                    normalize_plan_name)
 
 
-from app.utils import log_activity, BILLING_PLANS, YEARLY_DISCOUNT, get_yearly_discount
+from app.utils import (
+    log_activity, BILLING_PLANS, YEARLY_DISCOUNT, get_yearly_discount,
+    get_public_billing_plans, get_system_billing_plans,
+)
+from app.system_plan import (
+    ADMINISTRATOR_PLAN_NAME, ensure_default_tenant_administrator_plan,
+    has_administrator_access, is_administrator_plan,
+)
 from app.security import log_security_event
 from app.tenant_security import RESERVED_SLUGS, validate_slug, stamp_session_tenant
 from app.models.portfolio import TenantCommunicationSettings
@@ -86,7 +93,7 @@ def subscription_settings():
     if request.method == 'POST':
         if request.form.get('action') == 'update_plans':
             # Update subscription plans
-            for plan_key, plan_data in BILLING_PLANS.items():
+            for plan_key, plan_data in get_public_billing_plans().items():
                 label = request.form.get(f'plan_label_{plan_key}', plan_data['label']).strip() or plan_data['label']
                 price = request.form.get(f'plan_price_{plan_key}', plan_data['price'])
                 duration = request.form.get(f'plan_duration_{plan_key}', plan_data.get('duration_days', 30))
@@ -144,8 +151,14 @@ def subscription_settings():
             profile = profile_repository.get(request.form.get('tenant_id'))
             if profile:
                 plan = request.form.get('plan') or profile.plan or 'Basic'
-                force_activate_subscription(profile, plan, actor=current_user.username)
-                flash(f'Subscription activated for {profile.tenant_slug}.', 'success')
+                if has_administrator_access(profile):
+                    ensure_default_tenant_administrator_plan(commit=True)
+                    flash('The protected system portfolio already has full Administrator access and cannot be reassigned.', 'info')
+                elif is_administrator_plan(plan):
+                    flash('Administrator is an internal-only system plan and cannot be assigned to normal tenants.', 'warning')
+                else:
+                    ok, message = force_activate_subscription(profile, plan, actor=current_user.username)
+                    flash(message or f'Subscription activated for {profile.tenant_slug}.', 'success' if ok else 'warning')
             else:
                 flash('Tenant not found.', 'danger')
             return redirect(url_for('superadmin.subscription_settings'))
@@ -162,27 +175,50 @@ def subscription_settings():
         elif request.form.get('action') == 'reset_subscription':
             profile = profile_repository.get(request.form.get('tenant_id'))
             if profile:
-                subscription = profile.current_subscription()
-                if subscription:
-                    subscription.status = 'pending'
-                    subscription.started_at = None
-                    subscription.expires_at = None
-                    subscription.cancelled_at = None
-                    db.session.commit()
-                    log_activity('update', 'subscription', profile.tenant_slug, 'Reset tenant subscription')
-                    flash(f'Subscription reset for {profile.tenant_slug}.', 'success')
+                if has_administrator_access(profile):
+                    ensure_default_tenant_administrator_plan(commit=True)
+                    flash('The protected system portfolio cannot be reset, downgraded, or expired.', 'info')
                 else:
-                    flash(f'No subscription found for {profile.tenant_slug}.', 'warning')
+                    subscription = profile.current_subscription()
+                    if subscription:
+                        subscription.status = 'pending'
+                        subscription.started_at = None
+                        subscription.expires_at = None
+                        subscription.cancelled_at = None
+                        db.session.commit()
+                        log_activity('update', 'subscription', profile.tenant_slug, 'Reset tenant subscription')
+                        flash(f'Subscription reset for {profile.tenant_slug}.', 'success')
+                    else:
+                        flash(f'No subscription found for {profile.tenant_slug}.', 'warning')
             else:
                 flash('Tenant not found.', 'danger')
             return redirect(url_for('superadmin.subscription_settings'))
 
-    # Gather subscription data for all tenants
+    # Gather subscription data for all tenants.  The protected system portfolio
+    # is displayed as an internal Administrator plan, independent of old Basic
+    # subscription rows that may still exist from previous seeds.
     tenants_data = []
+    public_plans = get_public_billing_plans()
     for profile in profile_repository.query.order_by(Profile.tenant_slug).all():
+        if has_administrator_access(profile):
+            tenants_data.append({
+                'id': profile.id,
+                'tenant_slug': profile.tenant_slug,
+                'name': profile.name,
+                'plan': ADMINISTRATOR_PLAN_NAME,
+                'plan_price_label': 'Internal only',
+                'status': 'active',
+                'started_at': None,
+                'expires_at': None,
+                'payment_method': 'system-protected',
+                'amount_paid': 0.0,
+                'is_system_plan': True,
+            })
+            continue
+
         subscription = profile.current_subscription()
         plan_name = subscription.plan if subscription else profile.plan or 'Basic'
-        plan_price_label = BILLING_PLANS.get(plan_name, {}).get('price_label', '')
+        plan_price_label = public_plans.get(plan_name, {}).get('price_label', '')
         tenants_data.append({
             'id': profile.id,
             'tenant_slug': profile.tenant_slug,
@@ -194,12 +230,14 @@ def subscription_settings():
             'expires_at': subscription.expires_at if subscription else None,
             'payment_method': subscription.payment_method if subscription else None,
             'amount_paid': subscription.amount_paid if subscription else 0.0,
+            'is_system_plan': False,
         })
 
     return render_template(
         'superadmin/subscription_settings.html',
         tenants=tenants_data,
-        billing_plans=BILLING_PLANS,
+        billing_plans=public_plans,
+        system_billing_plans=get_system_billing_plans(),
         page_title='Subscription Settings',
     )
 
@@ -215,7 +253,10 @@ def _generate_license_key(plan: str, slug: str) -> str:
     return _utils_generate_license_key(plan, slug)
 
 def _license_plan_details(plan: str) -> dict:
-    return BILLING_PLANS.get(normalize_plan_name(plan), BILLING_PLANS['Basic'])
+    if is_administrator_plan(plan):
+        return get_system_billing_plans()[ADMINISTRATOR_PLAN_NAME]
+    public_plans = get_public_billing_plans()
+    return public_plans.get(normalize_plan_name(plan), public_plans['Basic'])
 
 def _license_expiration_info(profile):
     plan_name = profile.license_plan or profile.plan or 'Basic'

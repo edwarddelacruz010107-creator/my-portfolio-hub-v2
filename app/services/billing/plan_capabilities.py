@@ -42,6 +42,8 @@ from typing import Literal
 
 logger = logging.getLogger(__name__)
 
+from app.system_plan import has_administrator_access
+
 # ─── Sentinel for "unlimited" numeric caps ────────────────────────────────────
 UNLIMITED = None
 
@@ -232,16 +234,37 @@ _CAPABILITIES: dict[str, PlanCapability] = {
         max_team_members        = UNLIMITED,
         analytics_level         = 'enterprise',
     ),
+    'Administrator': PlanCapability(
+        plan_name               = 'Administrator',
+        max_pages               = UNLIMITED,
+        max_projects            = UNLIMITED,
+        storage_limit_bytes     = UNLIMITED,
+        max_upload_size_bytes   = UNLIMITED,
+        can_use_custom_smtp     = True,
+        can_use_resend          = True,
+        can_use_mailersend      = True,
+        daily_email_limit       = UNLIMITED,
+        can_use_custom_domain   = True,
+        can_remove_branding     = True,
+        can_use_ai_features     = 'full',
+        max_team_members        = UNLIMITED,
+        analytics_level         = 'enterprise',
+    ),
 }
 
 # Map legacy / alias names → canonical keys
 _ALIASES: dict[str, str] = {
     'trial':        'Trial',
+    'free_trial':   'Trial',
     'basic':        'Basic',
+    'starter':      'Basic',
     'pro':          'Pro',
     'professional': 'Pro',
+    'business':     'Enterprise',
     'enterprise':   'Enterprise',
-    'administrator':'Basic',   # bootstrap admin gets basic caps
+    'administrator':'Administrator',
+    'admin':        'Administrator',
+    'system':       'Administrator',
 }
 
 
@@ -264,6 +287,8 @@ def get_tenant_capabilities(tenant) -> PlanCapability:
     Convenience wrapper: accepts a Tenant ORM instance.
     Uses effective_plan() (subscription-aware).
     """
+    if has_administrator_access(tenant):
+        return get_capabilities('Administrator')
     plan = tenant.effective_plan() if callable(getattr(tenant, 'effective_plan', None)) else (tenant.plan or 'Trial')
     return get_capabilities(plan)
 
@@ -335,6 +360,9 @@ def check_email_provider_access(tenant, provider: str) -> tuple[bool, str]:
     return True, 'ok'
 
 
-def all_plans_summary() -> list[dict]:
-    """Return capability dicts for all plans — used by billing/plans page."""
-    return [cap.as_dict() for cap in _CAPABILITIES.values()]
+def all_plans_summary(include_system: bool = False) -> list[dict]:
+    """Return capability dicts. System plans are hidden unless requested."""
+    items = _CAPABILITIES.values() if include_system else (
+        _CAPABILITIES[name] for name in ('Trial', 'Basic', 'Pro', 'Enterprise')
+    )
+    return [cap.as_dict() for cap in items]

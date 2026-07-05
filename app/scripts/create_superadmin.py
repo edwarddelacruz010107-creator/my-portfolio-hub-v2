@@ -24,9 +24,10 @@ from app import db
 from app.models import User
 from app.models.core import Tenant  # BUG FIX: was unimported — NameError on any fresh-DB bootstrap
 from app.repositories import tenant_repository, user_repository
+from app.services.auth.email_policy import EmailPolicyError, assert_email_allowed_for_user
 
 USERNAME = os.environ.get('ADMIN_USERNAME', 'superadmin')
-EMAIL = os.environ.get('ADMIN_EMAIL', 'superadmin@portfolio.local')
+EMAIL = os.environ.get('ADMIN_EMAIL', 'delacruzedward735@gmail.com')
 PASSWORD = os.environ.get('SUPERADMIN_PASSWORD') or os.environ.get('ADMIN_PASSWORD')
 
 # SECURITY: removed hardcoded 'superadmin1234!@' fallback. That value was
@@ -51,7 +52,7 @@ def _upsert_default_tenant():
         tenant = Tenant(
             slug='default',
             company_name='Default Portfolio',
-            email='superadmin@portfolio.local',
+            email='delacruzedward735@gmail.com',
             status='active',
         )
         db.session.add(tenant)
@@ -61,11 +62,18 @@ def _upsert_default_tenant():
 
 def main():
     with app.app_context():
-        existing = user_repository.get_by_username(USERNAME) or user_repository.get_by_email(EMAIL)
+        existing = user_repository.get_by_username(USERNAME)
         password = PASSWORD
+
+        try:
+            email = assert_email_allowed_for_user(EMAIL, user=existing, role='superadmin')
+        except EmailPolicyError as exc:
+            print(f'Cannot create superadmin user: {exc}')
+            return
 
         if existing:
             existing.password = password
+            existing.email = email
             existing.is_admin = True
             existing.is_superadmin = True
             existing.require_password_reset = True
@@ -84,7 +92,7 @@ def main():
 
         tenant = _upsert_default_tenant()
 
-        u = User(username=USERNAME, email=EMAIL, is_admin=True, is_superadmin=True, tenant=tenant, tenant_slug=tenant.slug)
+        u = User(username=USERNAME, email=email, is_admin=True, is_superadmin=True, tenant=tenant, tenant_slug=tenant.slug)
         u.password = password
         u.require_password_reset = True
         db.session.add(u)
@@ -92,7 +100,7 @@ def main():
 
         print('✔  Created superadmin user:')
         print(f'   Username: {USERNAME}')
-        print(f'   Email: {EMAIL}')
+        print(f'   Email: {email}')
         if _GENERATED_PASSWORD:
             print(f'   Password (generated, one-time): {password}')
             print('   ⚠️  Store this now — it will not be shown again. Change it on first login.')

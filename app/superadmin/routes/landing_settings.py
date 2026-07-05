@@ -4,9 +4,12 @@ app/superadmin/routes/landing_settings.py — Superadmin landing page content ed
 
 import logging
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import render_template, redirect, url_for, flash, request, abort, jsonify, current_app
+from flask_wtf.csrf import validate_csrf
+from werkzeug.datastructures import MultiDict
 
 from app import db, limiter
 from app.forms import LandingContactForm, LandingPageSettingsForm
@@ -63,6 +66,11 @@ _PUBLISHED_LANDING_BOOL_KEYS = {
 _ALLOWED_IMAGE_EXTS = {'png', 'jpg', 'jpeg', 'webp', 'gif'}
 _MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB
 
+# Autosave allow-list: only these field names may be written by the
+# per-field autosave endpoint. Prevents mass-assignment onto arbitrary
+# PlatformSetting keys from a crafted JSON body.
+_AUTOSAVE_FIELDS = set(_PUBLISHED_LANDING_KEYS) | set(_PUBLISHED_LANDING_BOOL_KEYS)
+
 
 def _draft_key(published_key: str) -> str:
     return f'{published_key}_draft'
@@ -112,6 +120,61 @@ def _save_landing_settings(form, publish: bool = False) -> None:
             PlatformSetting.set_bool(published_key, value)
 
 
+@superadmin.route('/settings/landing/autosave', methods=['POST'])
+@superadmin_required
+@limiter.limit('40 per minute')
+def landing_autosave():
+    """Per-field draft autosave for the Landing CMS form.
+
+    Scope is deliberately narrow: exactly one field's draft key is
+    written per call, and only the draft key — never the published/live
+    key. This is NOT a wrapper around `_save_landing_settings`: calling
+    that on a request carrying just one changed field would blank out
+    every sibling field's draft with an empty string. Each call here
+    binds a single named field into a throwaway form instance, runs only
+    that field's own validators, and — if valid — writes only that
+    field's draft PlatformSetting row.
+    """
+    payload = request.get_json(silent=True) or {}
+    field = (payload.get('field') or '').strip()
+    raw_value = payload.get('value', '')
+
+    try:
+        validate_csrf(payload.get('csrf_token') or request.headers.get('X-CSRFToken') or '')
+    except Exception:
+        return jsonify({'success': False, 'error': 'Your session expired. Refresh the page and try again.'}), 400
+
+    if field not in _AUTOSAVE_FIELDS:
+        return jsonify({'success': False, 'error': 'Unknown field.'}), 400
+
+    is_bool_field = field in _PUBLISHED_LANDING_BOOL_KEYS
+    formdata = MultiDict({field: ('y' if raw_value else '') if is_bool_field else (raw_value or '')})
+    field_form = LandingPageSettingsForm(formdata=formdata, meta={'csrf': False})
+    bound_field = getattr(field_form, field)
+
+    if not bound_field.validate(field_form):
+        error = bound_field.errors[0] if bound_field.errors else 'Invalid value.'
+        return jsonify({'success': False, 'field': field, 'error': error}), 422
+
+    published_key = _PUBLISHED_LANDING_KEYS.get(field) or _PUBLISHED_LANDING_BOOL_KEYS[field]
+    try:
+        if is_bool_field:
+            PlatformSetting.set_bool(_draft_key(published_key), bool(bound_field.data))
+        else:
+            PlatformSetting.set_string(_draft_key(published_key), bound_field.data or '')
+        db.session.commit()
+    except Exception as exc:
+        logger.exception('Autosave failed for landing field %s: %s', field, exc)
+        db.session.rollback()
+        return jsonify({'success': False, 'field': field, 'error': 'Could not save. Try again.'}), 500
+
+    return jsonify({
+        'success': True,
+        'field': field,
+        'saved_at': datetime.now(timezone.utc).isoformat(),
+    }), 200
+
+
 def _landing_upload_dir() -> Path:
     static_folder = current_app.static_folder or Path(current_app.root_path) / 'static'
     upload_dir = Path(static_folder) / 'uploads' / 'landing'
@@ -146,6 +209,12 @@ def landing_upload_image():
         return jsonify({'success': False, 'error': 'Empty file.'}), 422
     if len(file_bytes) > _MAX_IMAGE_SIZE:
         return jsonify({'success': False, 'error': 'Image too large. Max 5 MB.'}), 422
+    from app.security import FileUploadPolicy
+    ok, err = FileUploadPolicy.validate_image_upload(
+        f.filename, len(file_bytes), file_bytes=file_bytes, declared_mime=getattr(f, 'mimetype', None)
+    )
+    if not ok:
+        return jsonify({'success': False, 'error': err}), 422
 
     ext = f.filename.rsplit('.', 1)[1].lower()
     filename = f'{category}_{uuid.uuid4().hex[:12]}.{ext}'

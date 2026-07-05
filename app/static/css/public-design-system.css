@@ -135,6 +135,40 @@ body:has(.ph-nav) { margin: 0; font-family: var(--ph-font); background: var(--ph
 .ph-input, .ph-select { background: var(--ph-surface); border: 1px solid var(--ph-border); color: var(--ph-text); border-radius: var(--ph-radius-sm); padding: 10px 14px; font-size: 0.9rem; font-family: inherit; }
 .ph-input { flex: 1; min-width: 200px; }
 .ph-pagination { display: flex; gap: 10px; justify-content: center; margin-top: 36px; }
+.ph-pagination .ph-btn[aria-disabled="true"] { opacity: 0.4; pointer-events: none; }
+.ph-pagination-status { font-size: 0.82rem; color: var(--ph-text-dim); display: flex; align-items: center; padding: 0 6px; }
+
+/* ── Project cards (explore / feed) ──────────────────────────────────── */
+.ph-project-card { background: var(--ph-surface); border: 1px solid var(--ph-border); border-radius: var(--ph-radius-md); padding: 20px; transition: transform .18s, border-color .18s, box-shadow .18s; }
+.ph-project-card:hover { transform: translateY(-4px); border-color: var(--ph-accent); box-shadow: var(--ph-shadow-md); }
+.ph-project-card h3 { margin: 0 0 4px; font-size: 1.02rem; }
+.ph-project-card h3 a { color: inherit; text-decoration: none; }
+.ph-project-card .ph-creator-byline { font-size: 0.82rem; color: var(--ph-text-dim); margin: 0 0 12px; text-decoration: none; }
+.ph-project-card .ph-creator-byline:hover { color: var(--ph-accent); }
+.ph-project-card p.ph-project-desc { font-size: 0.86rem; color: var(--ph-text-dim); margin: 0 0 14px; line-height: 1.5; }
+
+.ph-like-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--ph-surface-strong); border: 1px solid var(--ph-border);
+  color: var(--ph-text-dim); border-radius: 999px; padding: 6px 12px;
+  font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  transition: color .15s, border-color .15s, transform .1s;
+}
+.ph-like-btn:hover { color: var(--ph-accent); border-color: var(--ph-accent); }
+.ph-like-btn:active { transform: scale(0.96); }
+.ph-like-btn.is-liked { color: #fff; background: var(--ph-gradient); border-color: transparent; }
+.ph-like-btn:disabled { opacity: 0.6; cursor: wait; }
+.ph-view-count { font-size: 0.78rem; color: var(--ph-text-dim); }
+
+/* ── Toast (shared by public-reactions.js) ───────────────────────────── */
+.ph-toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 12px);
+  background: rgba(220, 38, 38, 0.95); color: #fff; padding: 12px 20px;
+  border-radius: 999px; font-size: 0.9rem; box-shadow: var(--ph-shadow-md);
+  opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s;
+  z-index: 999; max-width: 90%; text-align: center;
+}
+.ph-toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
 
 /* ── Footer ──────────────────────────────────────────────────────────── */
 .ph-footer { border-top: 1px solid var(--ph-border); margin-top: 60px; padding: 48px 24px 24px; }

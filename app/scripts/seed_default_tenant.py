@@ -15,13 +15,16 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 import argparse
 from app import create_app, db
 from app.models import User
+from app.models.core import Tenant
+from app.models.tenant_data import Profile
 from app.repositories import tenant_repository, user_repository, profile_repository
+from app.services.auth.email_policy import EmailPolicyError, assert_email_allowed_for_user
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--slug',     default='default',     help='Tenant slug to seed')
 parser.add_argument('--name',     default='Your Name',   help='Profile name')
 parser.add_argument('--username', default='admin',       help='Admin username')
-parser.add_argument('--email',    default='admin@example.com', help='Admin email')
+parser.add_argument('--email',    default='delacruzedward735@gmail.com', help='Admin email')
 parser.add_argument('--password', default='changeme123', help='Admin password')
 args = parser.parse_args()
 
@@ -33,7 +36,7 @@ with app.app_context():
         tenant = Tenant(
             slug=args.slug,
             company_name=args.name,
-            email=args.email,
+            email=email,
             status='active',
             plan='Basic',
         )
@@ -53,12 +56,21 @@ with app.app_context():
     else:
         print(f"[=] Profile already exists for tenant '{args.slug}'")
 
-    # Ensure User exists
-    user = user_repository.get_by_email(args.email)
+    # Ensure User exists. Use username/tenant context; email alone can be the
+    # protected owner shared email and must not be resolved with .first().
+    user = user_repository.get_by_username(args.username)
     if not user:
+        try:
+            email = assert_email_allowed_for_user(
+                args.email, role='tenant_admin', slug=args.slug
+            )
+        except EmailPolicyError as exc:
+            print(f"[!] Cannot create admin user: {exc}")
+            email = None
+    if not user and email:
         user = User(
             username=args.username,
-            email=args.email,
+            email=email,
             tenant=tenant,
             is_admin=True,
             is_superadmin=False,

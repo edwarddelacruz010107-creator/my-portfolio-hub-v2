@@ -465,6 +465,28 @@ class _SelfPingThread(threading.Thread):
 
             self._stop_event.wait(timeout=self._interval)
 
+    @staticmethod
+    def _requests_verify_path(requests_module):
+        """Return a safe TLS verify value for heartbeat-only HTTP checks.
+
+        Windows/dev machines can accidentally inherit REQUESTS_CA_BUNDLE,
+        CURL_CA_BUNDLE, or SSL_CERT_FILE from another tool. When that path is
+        stale, requests raises OSError before it becomes a RequestException.
+        The heartbeat is best-effort, so do not let a bad local CA env var spam
+        tracebacks or affect the Flask app. Use requests/certifi's bundled CA
+        store for heartbeat calls only when the configured env path is invalid.
+        """
+        for env_name in ("REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "SSL_CERT_FILE"):
+            bundle_path = (os.environ.get(env_name) or "").strip()
+            if bundle_path and not os.path.isfile(bundle_path):
+                logger.warning(
+                    "Heartbeat ignoring invalid TLS CA bundle from %s=%s; using bundled certifi CA store for this ping",
+                    env_name,
+                    bundle_path,
+                )
+                return requests_module.certs.where()
+        return True
+
     def _ping_self(self) -> None:
         """Hit the local /heartbeat endpoint."""
         import requests  # imported lazily to avoid import-time issues
@@ -475,7 +497,12 @@ class _SelfPingThread(threading.Thread):
             headers["X-Heartbeat-Token"] = self._secret
 
         try:
-            resp = requests.get(url, headers=headers, timeout=10)
+            resp = requests.get(
+                url,
+                headers=headers,
+                timeout=10,
+                verify=self._requests_verify_path(requests),
+            )
             ok   = resp.status_code == 200
             _state["last_selfping_at"] = _now_iso()
             _state["selfping_ok"]      = ok
@@ -489,9 +516,9 @@ class _SelfPingThread(threading.Thread):
                     resp.status_code,
                     resp.text[:200],
                 )
-        except requests.RequestException as exc:
+        except (requests.RequestException, OSError) as exc:
             _state["selfping_ok"] = False
-            logger.error("Self-ping request error: %s", exc)
+            logger.warning("Self-ping request error ignored: %s", exc)
 
     def _ping_betterstack(self) -> None:
         """Forward a ping to BetterStack to reset the heartbeat timer there."""
@@ -501,7 +528,11 @@ class _SelfPingThread(threading.Thread):
         import requests
 
         try:
-            resp = requests.get(self._betterstack_url, timeout=10)
+            resp = requests.get(
+                self._betterstack_url,
+                timeout=10,
+                verify=self._requests_verify_path(requests),
+            )
             if resp.status_code == 200:
                 logger.debug("BetterStack heartbeat ping sent (HTTP 200)")
             else:
@@ -509,8 +540,8 @@ class _SelfPingThread(threading.Thread):
                     "BetterStack heartbeat ping returned HTTP %s",
                     resp.status_code,
                 )
-        except requests.RequestException as exc:
-            logger.error("BetterStack ping failed: %s", exc)
+        except (requests.RequestException, OSError) as exc:
+            logger.warning("BetterStack ping failed (ignored): %s", exc)
 
     def stop(self) -> None:
         """Signal the thread to exit on the next interval."""

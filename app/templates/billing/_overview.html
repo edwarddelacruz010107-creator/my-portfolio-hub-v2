@@ -7,10 +7,16 @@
   {%- endif -%}
 {%- endmacro %}
 
+{% set is_admin_plan = is_administrator_plan|default(false) %}
+
 <div class="page-hd">
   <div class="page-hd-left">
     <h1>Billing &amp; Subscription</h1>
+    {% if is_admin_plan %}
+    <p>This protected system portfolio has full platform access. No checkout, payment, or trial countdown is required.</p>
+    {% else %}
     <p>Manage your plan and pay securely via PayMongo. Subscriptions activate automatically.</p>
+    {% endif %}
   </div>
 </div>
 
@@ -31,20 +37,23 @@
 {% set is_pending_paymongo = is_pending and sub and sub.payment_method == 'paymongo' %}
 {% set is_pending_manual = is_pending and not is_pending_paymongo %}
 {% set is_expired = status in ('expired', 'none', 'unlicensed') %}
+{% set is_admin_plan = is_administrator_plan|default(false) %}
 
-<div class="subscription-status-card {% if is_active %}status-active{% elif is_trial %}status-trial{% elif is_grace %}status-awaiting{% elif is_expired %}status-expired{% else %}status-awaiting{% endif %}" style="margin-bottom:1.5rem">
+<div class="subscription-status-card {% if is_admin_plan %}status-active{% elif is_active %}status-active{% elif is_trial %}status-trial{% elif is_grace %}status-awaiting{% elif is_expired %}status-expired{% else %}status-awaiting{% endif %}" style="margin-bottom:1.5rem">
   <div>
     <div class="sub-status-label">Current Plan</div>
     <div class="sub-status-name">
-      {{ sub.plan if sub else profile.plan or 'Basic' }}
+      {{ 'Administrator' if is_admin_plan else (sub.plan if sub else profile.plan or 'Basic') }}
       <span class="badge-status
-        {% if is_active %}badge-active
+        {% if is_admin_plan %}badge-active
+        {% elif is_active %}badge-active
         {% elif is_trial %}badge-trial
         {% elif is_grace %}badge-warning
         {% elif is_expired %}badge-expired
         {% else %}badge-inactive{% endif %}"
         style="vertical-align:middle;margin-left:0.5rem">
-        {% if is_active %}Active
+        {% if is_admin_plan %}Administrator
+        {% elif is_active %}Active
         {% elif is_trial %}Trial — {{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }} left
         {% elif is_grace %}Grace Period
         {% elif is_pending_manual %}Pending Review
@@ -54,7 +63,16 @@
       </span>
     </div>
     <div class="sub-status-meta" style="margin-top:0.75rem">
-      {% if sub %}
+      {% if is_admin_plan %}
+      <div class="sub-meta-item">
+        <span class="sub-meta-key">Access</span>
+        <span class="sub-meta-val">Full platform access</span>
+      </div>
+      <div class="sub-meta-item">
+        <span class="sub-meta-key">Payment</span>
+        <span class="sub-meta-val">Not required</span>
+      </div>
+      {% elif sub %}
       <div class="sub-meta-item">
         <span class="sub-meta-key">Status</span>
         <span class="sub-meta-val">{{ sub.status_label }}</span>
@@ -78,17 +96,21 @@
         <span class="sub-meta-val" style="color:var(--warn)">{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</span>
       </div>
       {% endif %}
+      {% if not is_admin_plan %}
       <div class="sub-meta-item">
         <span class="sub-meta-key">Processor</span>
         <span class="sub-meta-val">⚡ PayMongo</span>
       </div>
+      {% endif %}
     </div>
   </div>
   <div class="sub-actions">
+    {% if not is_admin_plan %}
     <a href="{{ billing_route(billing_routes['plans']) }}" class="btn btn-primary btn-sm">
       <iconify-icon icon="lucide:layers" width="14"></iconify-icon>
       {% if is_active %}Change Plan{% else %}Subscribe{% endif %}
     </a>
+    {% endif %}
     <a href="{{ billing_route(billing_routes['history']) }}" class="btn btn-ghost btn-sm">
       <iconify-icon icon="lucide:history" width="14"></iconify-icon>
       History
@@ -96,7 +118,12 @@
   </div>
 </div>
 
-{% if is_grace %}
+{% if is_admin_plan %}
+<div class="alert alert-info" style="margin-bottom:1.5rem;background:rgba(124,58,237,0.10);border-color:rgba(167,139,250,0.35)">
+  <iconify-icon icon="lucide:shield-check" width="16"></iconify-icon>
+  <span><strong>Administrator Plan</strong> — protected system portfolio, full access forever, hidden from tenant checkout.</span>
+</div>
+{% elif is_grace %}
 <div class="alert alert-warning" style="margin-bottom:1.5rem">
   <iconify-icon icon="lucide:clock" width="16"></iconify-icon>
   <span>Your subscription expired but you're in the <strong>grace period</strong>. Renew now to avoid suspension.</span>
@@ -132,6 +159,19 @@
     </div>
     <div class="paymongo-badge-sm"><span>⚡</span> PayMongo</div>
   </div>
+  {% if is_admin_plan %}
+  <div class="plan-card-v2 selected" style="max-width:460px">
+    <div class="plan-name">Administrator</div>
+    <div class="plan-price"><span class="amount">Full platform access</span></div>
+    <div class="plan-desc">All premium themes, Pro/Enterprise features, custom branding, email services, certificates, badges, analytics, and marketplace access are unlocked.</div>
+    <ul class="plan-features">
+      <li>No trial expiration</li>
+      <li>No PayMongo checkout</li>
+      <li>Internal system plan only</li>
+    </ul>
+    <span class="badge-status badge-active" style="align-self:flex-start;margin-top:auto">Protected System Plan</span>
+  </div>
+  {% else %}
   <div class="plan-cards-grid">
     {% for key, details in plans.items() %}
     {% set is_current = (sub and sub.plan == key) or (not sub and profile and profile.plan == key) %}
@@ -155,6 +195,7 @@
     </div>
     {% endfor %}
   </div>
+  {% endif %}
 </div>
 
 <style>

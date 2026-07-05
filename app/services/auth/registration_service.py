@@ -18,12 +18,18 @@ import re
 import secrets
 import hashlib
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 from typing import Optional
 
 from app import db
+from app.utils.datetime_utils import utc_now
 from app.models import Profile, Tenant, User
 from app.security import log_security_event
+from app.services.auth.email_policy import (
+    EmailPolicyError,
+    assert_public_signup_email_allowed,
+    normalize_email,
+)
 from app.utils import log_activity
 
 logger = logging.getLogger(__name__)
@@ -70,7 +76,7 @@ def _unique_username(email: str) -> str:
 def _issue_verification_token(user: User) -> str:
     raw = secrets.token_urlsafe(32)
     user.email_verification_token   = hashlib.sha256(raw.encode()).hexdigest()
-    user.email_verification_expires = datetime.now(timezone.utc) + _VERIFICATION_TTL
+    user.email_verification_expires = utc_now() + _VERIFICATION_TTL
     return raw
 
 
@@ -89,7 +95,7 @@ def register_local_user(
     Never assigns superadmin. Never joins the DEFAULT tenant.
     """
     username = (username or '').strip()
-    email = (email or '').strip().lower()
+    email = normalize_email(email)
     full_name = (full_name or '').strip()
     if not username:
         raise RegistrationError('Please choose a username.')
@@ -101,10 +107,12 @@ def register_local_user(
         raise RegistrationError('A valid email is required.')
     if not full_name:
         raise RegistrationError('Please provide your full name.')
-    if User.query.filter_by(email=email, is_superadmin=False).first():
-        raise RegistrationError('An account with that email already exists.')
+    try:
+        assert_public_signup_email_allowed(email)
+    except EmailPolicyError as exc:
+        raise RegistrationError(str(exc))
 
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     trial_ends = now + timedelta(days=7)
 
     tenant = Tenant(

@@ -115,8 +115,9 @@
             </div>
             <div class="tenant-name-info">
               <span class="tenant-name-main">{{ t.name or 'Untitled Tenant' }}</span>
-              {% if t.tenant_slug == 'default' %}
-                <span class="tenant-plan-badge plan-administrator">Administrator</span>
+              {% set is_system_tenant = t.tenant_slug in ['default', 'administrator'] or (t.plan or '')|lower == 'administrator' %}
+              {% if is_system_tenant %}
+                <span class="tenant-plan-badge plan-administrator">ADMINISTRATOR</span>
               {% elif t.plan %}
                 <span class="tenant-plan-badge plan-{{ t.plan|lower }}">{{ t.plan }}</span>
               {% endif %}
@@ -143,8 +144,9 @@
 
         <!-- Plan -->
         <td>
-          <span class="plan-tag plan-{{ (t.plan or 'basic')|lower|replace(' ','_') }}">
-            {{ t.plan or 'Basic' }}
+          {% set plan_label = 'Administrator' if (t.tenant_slug in ['default', 'administrator'] or (t.plan or '')|lower == 'administrator') else (t.plan or 'Basic') %}
+          <span class="plan-tag plan-{{ plan_label|lower|replace(' ','_') }}">
+            {{ 'ADMINISTRATOR' if plan_label == 'Administrator' else plan_label }}
           </span>
         </td>
 

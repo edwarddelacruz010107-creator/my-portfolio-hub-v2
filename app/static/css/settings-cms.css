@@ -1,0 +1,282 @@
+/* ==========================================================================
+   Settings / CMS layout — reusable across superadmin settings pages
+   ==========================================================================
+   Builds a Stripe/Linear-style settings page: a slim sticky section nav on
+   desktop, denser field grouping via grid utilities, collapsible cards for
+   less-frequently-touched sections, and a sticky save/publish bar that
+   stays reachable no matter how long the page is.
+
+   Everything here is built on design-system.css tokens — no new colors,
+   radii, or spacing values are introduced.
+   ========================================================================== */
+
+/* ── Page shell: sticky nav + content column ───────────────────────────── */
+
+.settings-shell {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.settings-nav {
+  position: sticky;
+  top: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-right: var(--space-2);
+  border-right: 1px solid var(--border);
+}
+
+.settings-nav a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: background var(--transition), color var(--transition);
+  white-space: nowrap;
+}
+
+.settings-nav a:hover {
+  color: var(--text);
+  background: var(--bg-3);
+}
+
+.settings-nav a.is-active {
+  color: var(--accent-light);
+  background: var(--accent-bg);
+}
+
+.settings-nav a iconify-icon {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.settings-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .settings-shell { grid-template-columns: 1fr; }
+  .settings-nav {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: var(--space-3);
+    margin-bottom: var(--space-2);
+  }
+  .settings-nav a { flex-shrink: 0; }
+}
+
+/* ── Field grid utilities (replace one-off inline flex styles) ─────────── */
+
+.form-grid-2,
+.form-grid-3 {
+  display: grid;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.form-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.form-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.form-grid-2 .form-field,
+.form-grid-3 .form-field {
+  margin-bottom: 0;
+}
+
+@media (max-width: 640px) {
+  .form-grid-2,
+  .form-grid-3 { grid-template-columns: 1fr; }
+}
+
+/* ── Subgroups within a card — visual rhythm without a full new card ───── */
+
+.form-subgroup {
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+.form-subgroup:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.form-subgroup-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: var(--space-4);
+}
+
+.form-subgroup-label iconify-icon {
+  color: var(--accent-light);
+  opacity: 0.9;
+}
+
+/* ── Toggle row (checkbox pairs) ─────────────────────────────────────── */
+
+.form-toggle-row {
+  display: flex;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.form-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+
+/* ── Collapsible cards (<details> based, no JS required) ───────────────── */
+
+.form-card-collapsible {
+  padding: 0;
+}
+
+.form-card-collapsible > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-6);
+  margin: 0;
+}
+
+.form-card-collapsible > summary::-webkit-details-marker { display: none; }
+
+.form-card-collapsible .form-card-heading-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.form-card-collapsible .form-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--accent-bg);
+  color: var(--accent-light);
+  flex-shrink: 0;
+}
+
+.form-card-collapsible .form-card-chevron {
+  color: var(--text-dim);
+  transition: transform var(--transition);
+  flex-shrink: 0;
+}
+
+.form-card-collapsible[open] > summary .form-card-chevron {
+  transform: rotate(180deg);
+}
+
+.form-card-collapsible > .form-card-body {
+  padding: 0 var(--space-6) var(--space-6);
+}
+
+.form-card-collapsible > summary:hover {
+  background: var(--bg-3);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+/* ── Sticky save/publish action bar ─────────────────────────────────────── */
+
+.sticky-actions-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-overlay);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.sticky-actions-bar .sticky-actions-spacer {
+  flex: 1;
+}
+
+.sticky-actions-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.sticky-actions-status .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.sticky-actions-status.is-dirty { color: var(--warn); }
+.sticky-actions-status.is-dirty .dot { background: var(--warn); }
+
+.sticky-actions-status.is-saving { color: var(--text-dim); }
+.sticky-actions-status.is-saving .dot {
+  background: var(--accent);
+  animation: settings-pulse 1s ease-in-out infinite;
+}
+
+.sticky-actions-status.is-saved { color: var(--success); }
+.sticky-actions-status.is-saved .dot { background: var(--success); }
+
+.sticky-actions-status.is-error { color: var(--danger); }
+.sticky-actions-status.is-error .dot { background: var(--danger); }
+
+@keyframes settings-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.field-char-count {
+  margin-top: var(--space-1);
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  text-align: right;
+}
+
+.field-char-count.is-near-limit { color: var(--warn); }
+
+@media (max-width: 640px) {
+  .sticky-actions-bar { padding: var(--space-3); }
+  .sticky-actions-status { display: none; }
+}

@@ -19,9 +19,10 @@ from run import app
 from app import db
 from app.models import User
 from app.repositories import user_repository
+from app.services.auth.email_policy import EmailPolicyError, assert_email_allowed_for_user
 
 USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
-NEW_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@portfolio.local')
+NEW_EMAIL = os.environ.get('ADMIN_EMAIL', 'delacruzedward735@gmail.com')
 
 def main():
     with app.app_context():
@@ -29,11 +30,22 @@ def main():
         if not u:
             print(f'No user found with username: {USERNAME}')
             return
+        try:
+            normalized = assert_email_allowed_for_user(
+                NEW_EMAIL,
+                user=u,
+                tenant=getattr(u, 'tenant', None),
+                role='superadmin' if getattr(u, 'is_superadmin', False) else 'tenant_admin',
+                slug=getattr(u, 'tenant_slug', None),
+            )
+        except EmailPolicyError as exc:
+            print(f'Cannot update email: {exc}')
+            return
         old = u.email
-        u.email = NEW_EMAIL
+        u.email = normalized
         db.session.add(u)
         db.session.commit()
-        print(f"Updated user '{USERNAME}' email: {old} -> {NEW_EMAIL}")
+        print(f"Updated user '{USERNAME}' email: {old} -> {normalized}")
 
 if __name__ == '__main__':
     main()

@@ -11,6 +11,7 @@
 {% set is_grace   = status == 'grace' %}
 {% set is_pending = status == 'pending' %}
 {% set is_expired = status in ('expired', 'none', 'unlicensed') %}
+{% set is_admin_plan = is_administrator_plan|default(false) %}
 
 {# ── Page header ── #}
 <div class="page-hd">
@@ -19,7 +20,12 @@
     <p>Manage your plan and payment method.</p>
   </div>
   <div class="page-hd-right">
-    {% if trial_days_left is defined and trial_days_left and is_trial %}
+    {% if is_admin_plan %}
+    <span class="activation-eta-badge" style="background:rgba(124,58,237,0.12);border-color:rgba(167,139,250,0.35);color:#a78bfa">
+      <iconify-icon icon="lucide:shield-check" width="14"></iconify-icon>
+      Administrator — Full access
+    </span>
+    {% elif trial_days_left is defined and trial_days_left and is_trial %}
     <span class="activation-eta-badge" style="background:rgba(245,158,11,0.12);border-color:rgba(245,158,11,0.35);color:#f59e0b">
       <iconify-icon icon="lucide:clock" width="14"></iconify-icon>
       Trial — {{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }} left
@@ -29,7 +35,12 @@
 </div>
 
 {# ── Alert banners ── #}
-{% if is_trial %}
+{% if is_admin_plan %}
+<div class="alert alert-info" style="margin-bottom:1.5rem;background:rgba(124,58,237,0.10);border-color:rgba(167,139,250,0.35)">
+  <iconify-icon icon="lucide:shield-check" width="16"></iconify-icon>
+  <span><strong>Administrator Plan</strong> — This is the protected system portfolio with full platform access. No checkout, trial countdown, or payment is required.</span>
+</div>
+{% elif is_trial %}
 <div class="alert alert-warning" style="margin-bottom:1.5rem">
   <iconify-icon icon="lucide:clock" width="16"></iconify-icon>
   <span><strong>{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</strong> left in your trial.
@@ -54,7 +65,8 @@
 
 {# ── Current subscription card ── #}
 <div class="subscription-status-card
-  {% if is_active %}status-active
+  {% if is_admin_plan %}status-active
+  {% elif is_active %}status-active
   {% elif is_trial %}status-trial
   {% elif is_grace %}status-awaiting
   {% elif is_expired %}status-expired
@@ -64,16 +76,18 @@
   <div>
     <div class="sub-status-label">Current Plan</div>
     <div class="sub-status-name">
-      {{ sub.plan if sub else profile.plan or 'Basic' }}
+      {{ 'Administrator' if is_admin_plan else (sub.plan if sub else profile.plan or 'Basic') }}
       <span class="badge-status
-        {% if is_active %}badge-active
+        {% if is_admin_plan %}badge-active
+        {% elif is_active %}badge-active
         {% elif is_trial %}badge-trial
         {% elif is_grace %}badge-warning
         {% elif is_pending %}badge-warning
         {% elif is_expired %}badge-expired
         {% else %}badge-inactive{% endif %}"
         style="vertical-align:middle;margin-left:0.5rem">
-        {% if is_active %}Active
+        {% if is_admin_plan %}Administrator
+        {% elif is_active %}Active
         {% elif is_trial %}Trial
         {% elif is_grace %}Grace Period
         {% elif is_pending %}Pending Review
@@ -83,7 +97,16 @@
     </div>
 
     <div class="sub-status-meta" style="margin-top:0.75rem">
-      {% if sub %}
+      {% if is_admin_plan %}
+      <div class="sub-meta-item">
+        <span class="sub-meta-key">Access</span>
+        <span class="sub-meta-val">Full platform access</span>
+      </div>
+      <div class="sub-meta-item">
+        <span class="sub-meta-key">Payment</span>
+        <span class="sub-meta-val">Not required</span>
+      </div>
+      {% elif sub %}
         {% if sub.expires_at and is_active %}
         <div class="sub-meta-item">
           <span class="sub-meta-key">Next Billing</span>
@@ -119,10 +142,12 @@
   </div>
 
   <div class="sub-actions">
+    {% if not is_admin_plan %}
     <a href="{{ url_for('admin.billing_plans') }}" class="btn btn-primary btn-sm">
       <iconify-icon icon="lucide:layers" width="14"></iconify-icon>
       {% if is_active %}Change Plan{% else %}Subscribe{% endif %}
     </a>
+    {% endif %}
     <a href="{{ url_for('admin.billing_history') }}" class="btn btn-ghost btn-sm">
       <iconify-icon icon="lucide:history" width="14"></iconify-icon>
       Payment History
@@ -143,6 +168,20 @@
     </span>
   </div>
 
+  {% if is_admin_plan %}
+  <div class="plan-card-v2 selected" style="max-width:460px">
+    <div class="plan-name">Administrator</div>
+    <div class="plan-price"><span class="amount">Full access</span></div>
+    <div class="plan-desc">Protected system portfolio. All premium features, themes, analytics, branding, email services, certificates, and badges are unlocked.</div>
+    <ul class="plan-features">
+      <li>No trial expiration</li>
+      <li>No payment required</li>
+      <li>All Pro and Enterprise features unlocked</li>
+      <li>All current and future premium themes unlocked</li>
+    </ul>
+    <span class="badge-status badge-active" style="align-self:flex-start;margin-top:auto">Protected System Plan</span>
+  </div>
+  {% else %}
   <div class="plan-cards-grid">
     {% for key, details in plans.items() %}
     {% set is_current = (sub and sub.plan == key) or (not sub and profile and profile.plan == key) %}
@@ -173,6 +212,7 @@
     </div>
     {% endfor %}
   </div>
+  {% endif %}
 </div>
 
 {% endblock %}

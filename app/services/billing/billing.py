@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from app.utils import (
     BILLING_PLANS,
@@ -23,7 +23,16 @@ from app.utils import (
     get_plan_price,
     get_plan_price_label,
 )
+from app.system_plan import (
+    ADMINISTRATOR_PLAN_NAME,
+    ADMINISTRATOR_PLAN_SLUG,
+    ensure_default_tenant_administrator_plan,
+    has_administrator_access,
+    is_administrator_plan,
+    is_default_system_tenant,
+)
 import logging
+from app.utils.datetime_utils import ensure_utc_aware, utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +55,8 @@ def plan_duration_days(plan: str, billing_cycle: str = "monthly") -> int:
     yearly  → plan['duration_days'] × 12     (default 360)
     """
     norm = normalize_plan_name(plan)
+    if is_administrator_plan(norm):
+        return 36500
     data = BILLING_PLANS.get(norm, BILLING_PLANS["Basic"])
     base_days: int = int(data.get("duration_days", 30))
     if billing_cycle == "yearly":
@@ -61,17 +72,22 @@ def expire_trial_if_needed(tenant) -> bool:
     """Transition a tenant trial into grace or readonly based on real expiry dates."""
     if tenant is None:
         return False
+    if has_administrator_access(tenant):
+        tenant.status = 'active'
+        tenant.subscription_state = 'active'
+        tenant.trial_status = 'active'
+        tenant.trial_ends_at = None
+        tenant.grace_period_ends_at = None
+        tenant.subscription_expires_at = None
+        return False
 
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     old_state = getattr(tenant, 'subscription_state', None) or 'trial'
 
     trial_ends = getattr(tenant, 'trial_ends_at', None)
-    if trial_ends is not None and trial_ends.tzinfo is None:
-        trial_ends = trial_ends.replace(tzinfo=timezone.utc)
+    trial_ends = ensure_utc_aware(trial_ends)
 
-    grace_ends = getattr(tenant, 'grace_period_ends_at', None)
-    if grace_ends is not None and grace_ends.tzinfo is None:
-        grace_ends = grace_ends.replace(tzinfo=timezone.utc)
+    grace_ends = ensure_utc_aware(getattr(tenant, 'grace_period_ends_at', None))
 
     if trial_ends is None:
         return False
@@ -119,24 +135,36 @@ def activate_subscription(
         source:              Event source label (e.g. 'payment.paid') — informational only.
     """
     if now is None:
-        now = datetime.now(tz=timezone.utc)
+        now = utc_now()
 
     # Fallback: use existing plan if caller doesn't supply one
     if plan is None:
         plan = subscription.plan or "Basic"
 
-    days = plan_duration_days(plan, billing_cycle)
     norm = normalize_plan_name(plan)
+    if is_administrator_plan(norm):
+        subscription.plan = ADMINISTRATOR_PLAN_NAME
+        subscription.billing_cycle = 'system'
+        subscription.status = 'cancelled'
+        subscription.started_at = now
+        subscription.expires_at = None
+        subscription.cancelled_at = now
+        subscription.amount_paid = 0.0
+        try:
+            subscription.price_paid = 0.0
+        except Exception:
+            pass
+        return
+
+    days = plan_duration_days(plan, billing_cycle)
 
     # Determine whether this is a renewal of an active subscription
-    is_active = (
-        subscription.expires_at is not None
-        and subscription.expires_at > now
-    )
+    current_expires_at = ensure_utc_aware(subscription.expires_at)
+    is_active = current_expires_at is not None and current_expires_at > now
 
     if is_active:
         # ADDITIVE RENEWAL: extend from the current expiry date
-        subscription.expires_at = subscription.expires_at + timedelta(days=days)
+        subscription.expires_at = current_expires_at + timedelta(days=days)
     else:
         # NEW / EXPIRED: start fresh
         subscription.started_at = now
@@ -177,7 +205,7 @@ def mark_subscription_cancelled(
     import logging
     logger = logging.getLogger(__name__)
 
-    now = datetime.now(tz=timezone.utc)
+    now = utc_now()
     subscription.status       = 'cancelled'
     subscription.cancelled_at = now
     subscription.last_webhook_at = now
@@ -214,7 +242,7 @@ def mark_subscription_expired(
     import logging
     logger = logging.getLogger(__name__)
 
-    now = datetime.now(tz=timezone.utc)
+    now = utc_now()
     subscription.status          = 'expired'
     subscription.last_webhook_at = now
 
@@ -270,6 +298,18 @@ def get_or_create_pending_subscription(
         raise ValueError(f"get_or_create_pending_subscription: tenant_id must be int, got {type(tenant_id)}")
 
     norm = normalize_plan_name(plan)
+    if is_administrator_plan(norm):
+        raise ValueError('Administrator plan is internal-only and cannot be checked out or activated as a tenant subscription.')
+
+    try:
+        from app.models.core import Tenant
+        tenant = db_session.get(Tenant, tenant_id)
+        if has_administrator_access(tenant):
+            raise ValueError('The protected system portfolio uses Administrator plan and does not create tenant subscriptions.')
+    except ValueError:
+        raise
+    except Exception:
+        pass
 
     # 1. Active subscription — update plan/cycle for next renewal, return it
     active_sub = (
@@ -349,6 +389,8 @@ def initiate_checkout(
     from flask import current_app
 
     norm  = normalize_plan_name(plan)
+    if is_administrator_plan(norm) or has_administrator_access(profile):
+        return '', 'Administrator plan is internal-only and cannot be purchased or checked out.'
     price = get_plan_price(norm, billing_cycle)
 
     # CRIT-06 FIX: pass tenant_id (int), not the profile object
@@ -449,7 +491,7 @@ def is_in_grace_period(profile) -> bool:
 
         grace_days = int(current_app.config.get("BILLING_GRACE_PERIOD_DAYS", 3))
 
-        if profile is None or profile.tenant_id is None:
+        if profile is None or profile.tenant_id is None or has_administrator_access(profile):
             return False
 
         sub = Subscription.current(profile.tenant_id)
@@ -458,11 +500,9 @@ def is_in_grace_period(profile) -> bool:
         if sub.status == "active":
             return False
 
-        expires = sub.expires_at
-        if expires.tzinfo is None:
-            expires = expires.replace(tzinfo=timezone.utc)
+        expires = ensure_utc_aware(sub.expires_at)
 
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         if now <= expires:
             return False
 
@@ -490,10 +530,11 @@ def subscription_access_status(profile) -> str:
     """
     try:
         from app.models.portfolio import Subscription
-        from datetime import datetime, timezone as _tz
-
+        
         if profile is None:
             return "none"
+        if has_administrator_access(profile):
+            return "active"
 
         if profile.tenant and profile.tenant.status == "suspended":
             return "suspended"
@@ -508,9 +549,8 @@ def subscription_access_status(profile) -> str:
                 return state
             trial_ends = getattr(tenant, 'trial_ends_at', None)
             if trial_ends is not None:
-                if trial_ends.tzinfo is None:
-                    trial_ends = trial_ends.replace(tzinfo=_tz.utc)
-                if trial_ends > datetime.now(_tz.utc):
+                trial_ends = ensure_utc_aware(trial_ends)
+                if trial_ends and trial_ends > utc_now():
                     return "trial"
 
         sub = Subscription.current(profile.tenant_id)
@@ -553,9 +593,10 @@ def compute_billing_metrics(db_session=None) -> dict:
         from app.utils import get_plan_price, normalize_plan_name
 
         _session = db_session or _db.session
-        now = datetime.now(timezone.utc)
+        now = utc_now()
 
         all_subs = _session.query(Subscription).all()
+        all_subs = [s for s in all_subs if not is_administrator_plan(getattr(s, 'plan', None))]
 
         total_active    = sum(1 for s in all_subs if s.status == 'active')
         total_pending   = sum(1 for s in all_subs if s.status == 'pending')
@@ -585,7 +626,8 @@ def compute_billing_metrics(db_session=None) -> dict:
                 active_by_plan[plan] = active_by_plan.get(plan, 0) + 1
 
         total_trial = _session.query(Profile).filter(
-            Profile.free_trial_ends > now
+            Profile.free_trial_ends > now,
+            Profile.plan != ADMINISTRATOR_PLAN_NAME,
         ).count()
 
         return {
@@ -613,6 +655,16 @@ def tenant_billing_summary(profile) -> dict:
     """Return a per-tenant billing summary dict for the superadmin tenant detail view."""
     try:
         from app.utils import normalize_plan_name
+        if profile and has_administrator_access(profile):
+            return {
+                'status': 'active',
+                'plan': ADMINISTRATOR_PLAN_NAME,
+                'expires_at': None,
+                'started_at': getattr(getattr(profile, 'tenant', None), 'subscription_started_at', None),
+                'price_paid': 0.0,
+                'trial_ends': None,
+                'trial_active': False,
+            }
         sub = profile.current_subscription() if profile else None
         return {
             'status':       subscription_access_status(profile),
@@ -646,6 +698,11 @@ def force_activate_subscription(
 
     _reviewer = reviewer or actor or 'superadmin'
     try:
+        if has_administrator_access(profile):
+            ensure_default_tenant_administrator_plan(commit=True)
+            return True, 'Protected system portfolio kept on Administrator plan.'
+        if is_administrator_plan(plan):
+            return False, 'Administrator plan is internal-only and can only belong to the default portfolio.'
         sub = get_or_create_pending_subscription(
             _db.session, profile.tenant_id, plan, billing_cycle=billing_cycle
         )
@@ -688,7 +745,11 @@ def sync_subscription_from_paymongo(profile_or_id, db_session=None) -> tuple:
             sub = _session.get(Subscription, int(profile_or_id))
 
         if sub is None:
+            if has_administrator_access(profile_or_id):
+                return True, 'Administrator plan does not require PayMongo sync.'
             return False, 'No active subscription found'
+        if is_administrator_plan(getattr(sub, 'plan', None)):
+            return True, 'Administrator plan does not require PayMongo sync.'
 
         external_id = (
             getattr(sub, 'paymongo_subscription_id', None)

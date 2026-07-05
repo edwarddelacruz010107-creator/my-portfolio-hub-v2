@@ -24,6 +24,8 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/a11y.css') }}"/>
   <!-- ③ DESIGN SYSTEM UNIFICATION — loaded last to resolve inconsistencies -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/superadmin-unify.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/media-uploader.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/settings-cms.css') }}"/>
   <link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon">
   {% block extra_css %}{% endblock %}
 </head>
@@ -300,6 +302,8 @@
 <script src="{{ url_for('static', filename='js/theme-engine.js') }}"></script>
 <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
 <script src="{{ url_for('static', filename='js/dashboard-motion.js') }}"></script>
+<script src="{{ url_for('static', filename='js/media-uploader.js') }}"></script>
+<script src="{{ url_for('static', filename='js/settings-form.js') }}"></script>
 
 <script>
 /* ── Sidebar toggle ──────────────────────────────────────────── */

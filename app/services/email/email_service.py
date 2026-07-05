@@ -52,6 +52,8 @@ import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
+from flask import has_app_context
+from app.models.core import GlobalEmailConfig
 
 logger = logging.getLogger(__name__)
 
@@ -67,15 +69,15 @@ def _smtp_enabled() -> bool:
     Email & Forms Settings page) → SMTP_ENABLED environment variable, for
     deployments that don't use the DB-backed config at all.
     """
-    try:
-        from app.models.core import GlobalEmailConfig
-        cfg = GlobalEmailConfig.get(fresh=True)
-        if cfg is not None and cfg.sa_smtp_active:
-            return True
-    except Exception:
-        logger.debug('email_service._smtp_enabled: GlobalEmailConfig lookup failed', exc_info=True)
-    return os.environ.get('SMTP_ENABLED', 'false').lower() in ('1', 'true', 'yes')
+    if not has_app_context():
+        return False
 
+    try:
+        cfg = GlobalEmailConfig.get(fresh=True)
+        return bool(cfg and cfg.smtp_enabled)
+    except Exception:
+        logger.exception("SMTP lookup failed")
+        return False
 
 def _smtp_config() -> dict:
     """
@@ -689,46 +691,39 @@ def send_email_verification_otp(
     """
     Send a 6-digit OTP for new-signup email verification.
 
-    Sibling of send_otp_email() (password reset) — same MailerSend-primary /
-    SMTP-fallback delivery path via the shared EmailService instance, but with
-    verification-specific copy so recipients don't mistake this for a
-    password-reset code. Does NOT touch send_otp_email() or its portal_map;
-    zero regression risk to the password-reset flow.
+    Account-creation verification must use the active SuperAdmin → Email &
+    Forms provider chain, not an old environment-only tenant mailer path. The
+    dispatcher below reuses the same centralized provider resolver used by the
+    SuperAdmin test-email button and supports SMTP, MailerSend, Resend, and
+    existing fallback order.
     """
-    subject = '[Portfolio CMS] Verify your email — your code inside'
-    text = (
-        f'Hi {username},\n\n'
-        f'Welcome to Portfolio CMS. Use this code to verify your email address:\n\n'
-        f'    {otp}\n\n'
-        f'This code expires in {ttl_minutes} minutes.\n'
-        f'Do NOT share it with anyone.\n\n'
-        f'If you did not create this account, you can safely ignore this email.\n\n'
-        f'— Portfolio CMS'
-    )
-    html = f'''
-<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:2rem;
-            border:1px solid #e5e7eb;border-radius:8px;">
-  <h2 style="color:#1f2937;margin-top:0;">Verify your email</h2>
-  <p>Hi {username}, welcome to Portfolio CMS. Enter this code to verify your account:</p>
-  <div style="background:#f9fafb;border:1px solid #d1d5db;border-radius:6px;
-              padding:1.5rem;text-align:center;margin:1.5rem 0;">
-    <span style="font-size:2rem;font-weight:700;letter-spacing:.4rem;color:#4f46e5;">{otp}</span>
-  </div>
-  <p style="color:#6b7280;font-size:.9rem;">
-    Expires in <strong>{ttl_minutes} minutes</strong>. Do not share this code.
-  </p>
-  <hr style="border:none;border-top:1px solid #e5e7eb;margin:1.5rem 0;">
-  <p style="color:#9ca3af;font-size:.8rem;">
-    Didn't create this account? You can safely ignore this email.
-  </p>
-</div>'''
+    try:
+        from app.services.auth.signup_otp_email_service import send_signup_verification_otp
 
-    ok, err = _service.send_email(to=recipient_email, subject=subject, text=text, html=html)
-    if ok:
-        logger.info('verification_otp_email: delivered to=%s', recipient_email)
-    else:
-        logger.error('verification_otp_email: ALL PROVIDERS FAILED to=%s error=%s', recipient_email, err)
-    return ok
+        result = send_signup_verification_otp(
+            recipient_email=recipient_email,
+            username=username,
+            otp=otp,
+            ttl_minutes=ttl_minutes,
+            context='email_service_compat',
+        )
+        if result.ok:
+            logger.info(
+                'verification_otp_email: delivered to=%s provider_candidates=%s',
+                recipient_email,
+                result.provider_hint,
+            )
+            return True
+        logger.error(
+            'verification_otp_email: ALL PROVIDERS FAILED to=%s provider_candidates=%s error=%s',
+            recipient_email,
+            result.provider_hint,
+            result.error,
+        )
+        return False
+    except Exception:
+        logger.exception('verification_otp_email: unexpected dispatch failure to=%s', recipient_email)
+        return False
 
 
 def send_subscription_email(

@@ -1,0 +1,95 @@
+{#
+  app/public/templates/public/feed.html
+
+  Backs GET /public/feed (app/public/routes.py::feed). Context passed
+  from that route: projects, total, categories, category, page,
+  has_next, has_prev -- all real, already-queried data.
+#}
+{% extends "public/_base.html" %}
+
+{% block title %}Latest Projects — Portfolio Hub{% endblock %}
+{% block meta_desc %}The newest published projects across every active Portfolio Hub creator.{% endblock %}
+
+{% block content %}
+<section class="ph-section">
+  <div class="ph-section-head">
+    <div>
+      <h2>Latest projects</h2>
+      <p>Freshly published work from creators across the platform.</p>
+    </div>
+  </div>
+
+  <form class="ph-toolbar" method="get" action="{{ url_for('public.feed') }}">
+    <select class="ph-select" name="category" aria-label="Filter by category" onchange="this.form.submit()">
+      <option value="">All categories</option>
+      {% for cat in categories %}
+      <option value="{{ cat }}" {% if cat == category %}selected{% endif %}>{{ cat }}</option>
+      {% endfor %}
+    </select>
+    {% if category %}
+    <a href="{{ url_for('public.feed') }}" class="ph-btn ph-btn-ghost">Clear filter</a>
+    {% endif %}
+    <span class="ph-pagination-status" style="margin-left:auto;">{{ total }} project{{ 's' if total != 1 else '' }}</span>
+  </form>
+
+  {% if projects %}
+  <div class="ph-grid">
+    {% for project in projects %}
+    <article class="ph-project-card">
+      {% if project.image %}
+        <img class="ph-project-thumb" src="{{ project.image }}" alt="" loading="lazy">
+      {% else %}
+        <div class="ph-project-thumb ph-placeholder" aria-hidden="true"></div>
+      {% endif %}
+      <h3><a href="{{ project.url }}">{{ project.title }}</a></h3>
+      <a class="ph-creator-byline" href="/u/{{ project.creator_slug }}">by {{ project.creator_name }}</a>
+      {% if project.description_short %}<p class="ph-project-desc">{{ project.description_short }}</p>{% endif %}
+      <div class="ph-tag-row">
+        {% if project.category %}<span class="ph-tag">{{ project.category }}</span>{% endif %}
+        {% for tag in project.tags %}<span class="ph-tag">{{ tag }}</span>{% endfor %}
+      </div>
+      <div class="ph-card-meta">
+        <button
+          type="button"
+          class="ph-like-btn"
+          data-project-id="{{ project.id }}"
+          data-liked="{{ '1' if project.liked else '0' }}"
+          data-auth-required="{{ '0' if current_user.is_authenticated else '1' }}"
+          aria-pressed="{{ 'true' if project.liked else 'false' }}"
+        >♥ <span class="ph-like-count">{{ project.like_count }}</span></button>
+        <span class="ph-view-count">{{ project.view_count }} views</span>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="ph-empty-state">
+    {% if category %}
+      No published projects in "<strong>{{ category }}</strong>" yet.
+    {% else %}
+      No published projects yet — check back soon.
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if has_prev or has_next %}
+  <nav class="ph-pagination" aria-label="Pagination">
+    {% if has_prev %}
+      <a class="ph-btn ph-btn-outline" href="{{ url_for('public.feed', category=category, page=page-1) }}">← Previous</a>
+    {% else %}
+      <span class="ph-btn ph-btn-outline" aria-disabled="true">← Previous</span>
+    {% endif %}
+    <span class="ph-pagination-status">Page {{ page }}</span>
+    {% if has_next %}
+      <a class="ph-btn ph-btn-outline" href="{{ url_for('public.feed', category=category, page=page+1) }}">Next →</a>
+    {% else %}
+      <span class="ph-btn ph-btn-outline" aria-disabled="true">Next →</span>
+    {% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/public-reactions.js') }}"></script>
+{% endblock %}

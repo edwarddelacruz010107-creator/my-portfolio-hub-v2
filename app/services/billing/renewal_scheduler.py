@@ -18,9 +18,10 @@ These flags are reset when the tenant renews (handled by billing service hooks).
 """
 
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 
 from flask import current_app
+from app.utils.datetime_utils import ensure_utc_aware, utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +35,8 @@ def _is_monthly(sub) -> bool:
     if sub.billing_cycle and sub.billing_cycle.lower() in ('monthly', 'month'):
         return True
     if sub.started_at and sub.expires_at:
-        started = sub.started_at if sub.started_at.tzinfo else sub.started_at.replace(tzinfo=timezone.utc)
-        expires = sub.expires_at if sub.expires_at.tzinfo else sub.expires_at.replace(tzinfo=timezone.utc)
+        started = ensure_utc_aware(sub.started_at)
+        expires = ensure_utc_aware(sub.expires_at)
         duration_days = (expires - started).days
         return duration_days <= 31
     return False
@@ -46,8 +47,8 @@ def _is_yearly_or_longer(sub) -> bool:
     if sub.billing_cycle and sub.billing_cycle.lower() in ('yearly', 'annual', 'year'):
         return True
     if sub.started_at and sub.expires_at:
-        started = sub.started_at if sub.started_at.tzinfo else sub.started_at.replace(tzinfo=timezone.utc)
-        expires = sub.expires_at if sub.expires_at.tzinfo else sub.expires_at.replace(tzinfo=timezone.utc)
+        started = ensure_utc_aware(sub.started_at)
+        expires = ensure_utc_aware(sub.expires_at)
         duration_days = (expires - started).days
         return duration_days >= 365
     return False
@@ -57,8 +58,10 @@ def _days_until_expiry(sub) -> int | None:
     """Return days until expiry (can be negative if already expired). None if no expires_at."""
     if not sub.expires_at:
         return None
-    expires = sub.expires_at if sub.expires_at.tzinfo else sub.expires_at.replace(tzinfo=timezone.utc)
-    delta = expires - datetime.now(timezone.utc)
+    expires = ensure_utc_aware(sub.expires_at)
+    if expires is None:
+        return None
+    delta = expires - utc_now()
     return delta.days
 
 
@@ -139,7 +142,7 @@ def run_renewal_check(app=None):
             from app.models.portfolio import Subscription, Tenant
             from app.models.portfolio import SubscriptionNotification
 
-            now = datetime.now(timezone.utc)
+            now = utc_now()
             logger.info('[RenewalScheduler] Starting daily check at %s UTC', now.isoformat())
 
             active_subs = (

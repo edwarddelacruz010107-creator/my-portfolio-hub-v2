@@ -47,6 +47,7 @@ from flask import (Blueprint, render_template, redirect, url_for,
 from flask_login import login_user, logout_user, login_required, current_user
 
 from app import db, limiter
+from app.utils.datetime_utils import ensure_utc_aware, utc_now
 from app.models.portfolio import Profile
 from app.models import User
 from app.forms import LoginForm, RegisterForm, TOTPVerifyForm, ForgotPasswordForm
@@ -406,44 +407,23 @@ def _handle_login(require_admin: bool = False, require_superadmin: bool = False,
 
     if form.validate_on_submit():
         username_or_email = form.username.data.strip()
-        # Lookup strategy:
-        # 1) Exact username match
-        # 2) If no username match, find all users with this email.
-        #    - If a single user, use it.
-        #    - If multiple, prefer a superadmin whose password matches.
-        #    - Otherwise prefer a user matching the current session tenant.
-        candidate = None
+        lookup_email = username_or_email.lower()
+        # Lookup strategy with the restricted duplicate-email policy:
+        # 1) Exact username match (usernames stay globally unique).
+        # 2) Email login is deterministic only when the email is unique, scoped
+        #    to the current tenant, or explicitly in the superadmin portal.
+        #    Never choose the first row for a duplicated email.
         user = User.query.filter_by(username=username_or_email).first()
-        if user:
-            candidate = user
-        else:
-            users_by_email = User.query.filter_by(email=username_or_email).order_by(User.is_superadmin.desc()).all()
-            if len(users_by_email) == 1:
-                candidate = users_by_email[0]
-            elif users_by_email:
-                # Try superadmin with matching password first
-                for u in users_by_email:
-                    try:
-                        if u.is_superadmin and u.verify_password(form.password.data):
-                            candidate = u
-                            break
-                    except Exception:
-                        # verification can fail if password hash or other state is invalid
-                        continue
+        if not user:
+            from app.services.auth.email_policy import resolve_email_for_login
 
-                # Next prefer tenant-matching user
-                if not candidate:
-                    eff_tenant = tenant_slug or session.get('tenant_slug', _DEFAULT_TENANT_SLUG)
-                    for u in users_by_email:
-                        if u.tenant_slug == eff_tenant:
-                            candidate = u
-                            break
-
-                # Fallback to first
-                if not candidate:
-                    candidate = users_by_email[0]
-
-        user = candidate
+            user = resolve_email_for_login(
+                lookup_email,
+                tenant_slug=tenant_slug or session.get('tenant_slug'),
+                require_superadmin=True if require_superadmin else (False if require_admin else None),
+            )
+            if not user:
+                log_security_event('ambiguous_or_missing_email_login', None, f'Email login could not be resolved safely for {lookup_email} from {ip}', 'warning')
 
         if user and AccountLockout.is_locked(user, db):
             remaining = AccountLockout.get_lockout_remaining(user, db)
@@ -614,8 +594,8 @@ def verify_2fa():
     user_id = session.get('_2fa_user_id')
     login_time_str=session.get('_2fa_login_time')
     if login_time_str:
-        from datetime import datetime, timezone
-        if (datetime.now(timezone.utc)-datetime.fromisoformat(login_time_str)).total_seconds()>300:
+        login_time = ensure_utc_aware(datetime.fromisoformat(login_time_str))
+        if login_time is None or (utc_now() - login_time).total_seconds() > 300:
             session.pop('_2fa_user_id',None); session.pop('_2fa_login_time',None)
             flash('2FA session expired. Please sign in again.','warning')
             return redirect(url_for('auth.login'))

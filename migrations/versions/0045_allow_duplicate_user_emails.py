@@ -56,4 +56,3 @@ def downgrade() -> None:
     except Exception:
         # If duplicates exist, creating the unique constraint will raise — leave as-is
         pass
-*** End Patch

@@ -25,6 +25,12 @@ from flask_login import UserMixin
 from sqlalchemy.ext.hybrid import hybrid_property
 
 from app import db
+from app.utils.datetime_utils import ensure_utc_aware, is_expired as datetime_is_expired, utc_expiry, utc_now
+from app.system_plan import (
+    ADMINISTRATOR_PLAN_SLUG,
+    has_administrator_access,
+    is_administrator_plan,
+)
 
 import threading
 
@@ -41,10 +47,10 @@ _comm_logger = _logging.getLogger(__name__)
 
 
 def _utcnow():
-    return datetime.now(timezone.utc)
+    return utc_now()
 
 
-SUBSCRIPTION_PLAN_ORDER = {'starter': 1, 'pro': 2, 'business': 3, 'enterprise': 4}
+SUBSCRIPTION_PLAN_ORDER = {'starter': 1, 'pro': 2, 'business': 3, 'enterprise': 4, 'administrator': 99}
 
 _PLAN_ALIASES = {
     'basic': 'starter',
@@ -53,8 +59,11 @@ _PLAN_ALIASES = {
     'professional': 'pro',
     'business': 'business',
     'enterprise': 'enterprise',
-    'administrator': 'enterprise',
+    'administrator': 'administrator',
+    'admin': 'administrator',
+    'system': 'administrator',
 }
+
 
 PAID_PLAN_NAMES = frozenset({'starter', 'pro', 'business', 'enterprise'})
 
@@ -92,6 +101,41 @@ PLAN_FEATURES = {
         'api_access': True,
         'theme_customization': True,
     },
+    'enterprise': {
+        'max_projects': None,
+        'max_skills': None,
+        'max_media_uploads': None,
+        'custom_domain': True,
+        'analytics': True,
+        'white_label': True,
+        'team_members': True,
+        'api_access': True,
+        'theme_customization': True,
+        'premium_themes': True,
+        'email_services': True,
+        'certificates': True,
+        'badges': True,
+    },
+    'administrator': {
+        'max_projects': None,
+        'max_skills': None,
+        'max_media_uploads': None,
+        'custom_domain': True,
+        'analytics': True,
+        'white_label': True,
+        'team_members': True,
+        'api_access': True,
+        'theme_customization': True,
+        'theme_marketplace': True,
+        'premium_themes': True,
+        'developer_themes': True,
+        'custom_branding': True,
+        'email_services': True,
+        'certificates': True,
+        'badges': True,
+        'storage_limit_mb': None,
+        'all_features': True,
+    },
 }
 
 
@@ -103,7 +147,10 @@ def normalize_plan_name(plan: str) -> str:
 
 
 def get_plan_features(plan: str) -> dict:
-    return PLAN_FEATURES.get(normalize_plan_name(plan), PLAN_FEATURES['starter'])
+    normalized = normalize_plan_name(plan)
+    if is_administrator_plan(normalized):
+        return PLAN_FEATURES['administrator'].copy()
+    return PLAN_FEATURES.get(normalized, PLAN_FEATURES['starter']).copy()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -215,6 +262,8 @@ class Tenant(db.Model):
 
     def effective_plan(self) -> str:
         """Current plan from active subscription, else tenant.plan."""
+        if has_administrator_access(self):
+            return ADMINISTRATOR_PLAN_SLUG
         active = next(
             (s for s in self.subscriptions if s.is_active()),
             None,
@@ -223,6 +272,8 @@ class Tenant(db.Model):
 
     @property
     def subscription_status(self) -> str:
+        if has_administrator_access(self):
+            return 'active'
         state = (self.subscription_state or '').strip().lower()
         if state in {'trial', 'active', 'grace', 'readonly', 'expired', 'suspended', 'cancelled'}:
             return state
@@ -233,14 +284,20 @@ class Tenant(db.Model):
         return 'none'
 
     def has_feature(self, feature: str) -> bool:
+        if has_administrator_access(self):
+            return True
         if self.subscription_state in {'readonly', 'suspended', 'expired', 'cancelled'}:
             return False
-        return bool(get_plan_features(self.plan).get(feature, False))
+        return bool(get_plan_features(self.effective_plan()).get(feature, False))
 
     def can_publish(self) -> bool:
+        if has_administrator_access(self):
+            return True
         return self.subscription_state in {'trial', 'active'}
 
     def can_upload(self) -> bool:
+        if has_administrator_access(self):
+            return True
         return self.subscription_state in {'trial', 'active'}
 
     @subscription_status.setter
@@ -250,6 +307,8 @@ class Tenant(db.Model):
         self.trial_status = state
 
     def is_active_subscription(self) -> bool:
+        if has_administrator_access(self):
+            return True
         return any(s.is_active() for s in self.subscriptions)
 
     def plan_features(self) -> dict:
@@ -272,9 +331,9 @@ class User(UserMixin, db.Model):
 
     id            = db.Column(db.Integer, primary_key=True)
     username      = db.Column(db.String(64),  unique=True, nullable=False, index=True)
-    # Allow duplicate emails so the same address can be used for a
-    # superadmin account and a tenant-scoped admin account with different
-    # passwords. Database migration will remove the unique constraint.
+    # Email uniqueness is enforced by app.services.auth.email_policy and the
+    # partial unique index from migration 0048: all normal emails are unique;
+    # only the protected owner email may be shared by SuperAdmin + default admin.
     email         = db.Column(db.String(120), unique=False, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     tenant_slug   = db.Column(db.String(120), nullable=False, index=True, default='default')
@@ -339,12 +398,10 @@ class User(UserMixin, db.Model):
         if not totp.verify(code, valid_window=window):
             return False
         code_hash = hashlib.sha256(code.encode()).hexdigest()
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         if self.last_totp_code_hash == code_hash and self.last_totp_verified_at:
-            last = self.last_totp_verified_at
-            if last.tzinfo is None:
-                last = last.replace(tzinfo=timezone.utc)
-            if (now - last).total_seconds() < 60:
+            last = ensure_utc_aware(self.last_totp_verified_at)
+            if last and (now - last).total_seconds() < 60:
                 return False
         self.last_totp_code_hash   = code_hash
         self.last_totp_verified_at = now
@@ -393,18 +450,18 @@ class User(UserMixin, db.Model):
     def generate_reset_token(self, expires_in_minutes: int = 30) -> str:
         token = secrets.token_urlsafe(32)
         self.password_reset_token   = hashlib.sha256(token.encode()).hexdigest()
-        self.password_reset_expires = datetime.now(timezone.utc) + timedelta(minutes=expires_in_minutes)
+        self.password_reset_expires = utc_expiry(minutes=expires_in_minutes)
         return token
 
     def verify_reset_token(self, token: str) -> bool:
         if not self.password_reset_token or not self.password_reset_expires:
             return False
-        expires = self.password_reset_expires
-        if expires.tzinfo is None:
-            expires = expires.replace(tzinfo=timezone.utc)
+        expires = ensure_utc_aware(self.password_reset_expires)
+        if expires is None:
+            return False
         return (
             secrets.compare_digest(self.password_reset_token, hashlib.sha256(token.encode()).hexdigest())
-            and datetime.now(timezone.utc) < expires
+            and utc_now() < expires
         )
 
     def clear_reset_token(self):
@@ -446,15 +503,16 @@ class PendingSignup(db.Model):
 
     def set_otp(self, raw: str, ttl_minutes: int) -> None:
         self.otp_hash = hashlib.sha256(raw.encode()).hexdigest()
-        self.otp_expires_at = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
+        self.otp_expires_at = utc_expiry(minutes=ttl_minutes)
         self.otp_attempts = 0
-        self.last_otp_sent_at = datetime.now(timezone.utc)
+        self.last_otp_sent_at = utc_now()
 
     def verify_otp(self, raw: str, max_attempts: int = 5) -> tuple[bool, str]:
         if self.otp_attempts >= max_attempts:
             return False, 'Too many failed attempts. Request a new code.'
 
-        if datetime.now(timezone.utc) >= self.otp_expires_at:
+        expires_at = ensure_utc_aware(self.otp_expires_at)
+        if expires_at is None or utc_now() >= expires_at:
             return False, 'The code has expired. Request a new one.'
 
         if self.otp_hash != hashlib.sha256(raw.encode()).hexdigest():
@@ -465,10 +523,8 @@ class PendingSignup(db.Model):
 
     @property
     def is_expired(self) -> bool:
-        exp = self.expires_at
-        if exp.tzinfo is None:
-            exp = exp.replace(tzinfo=timezone.utc)
-        return datetime.now(timezone.utc) >= exp
+        exp = ensure_utc_aware(self.expires_at)
+        return True if exp is None else utc_now() >= exp
 
     def __repr__(self):
         return f'<PendingSignup {self.email}>'
@@ -537,10 +593,8 @@ class Subscription(db.Model):
             return self
         if self.expires_at is None:
             return self
-        expires = self.expires_at
-        if expires.tzinfo is None:
-            expires = expires.replace(tzinfo=timezone.utc)
-        if expires <= datetime.now(timezone.utc):
+        expires = ensure_utc_aware(self.expires_at)
+        if expires is not None and expires <= utc_now():
             self.status = 'expired'
             if commit:
                 db.session.add(self)
@@ -554,20 +608,16 @@ class Subscription(db.Model):
     def is_expired(self) -> bool:
         if self.expires_at is None:
             return False
-        expires = self.expires_at
-        if expires.tzinfo is None:
-            expires = expires.replace(tzinfo=timezone.utc)
-        return expires <= datetime.now(timezone.utc)
+        expires = ensure_utc_aware(self.expires_at)
+        return False if expires is None else expires <= utc_now()
 
     def is_active(self) -> bool:
         if self.status != 'active':
             return False
         if self.expires_at is None:
             return True
-        expires = self.expires_at
-        if expires.tzinfo is None:
-            expires = expires.replace(tzinfo=timezone.utc)
-        return expires > datetime.now(timezone.utc)
+        expires = ensure_utc_aware(self.expires_at)
+        return False if expires is None else expires > utc_now()
 
     @property
     def normalized_plan(self) -> str:
@@ -664,19 +714,15 @@ class DiscountCampaign(db.Model):
     def is_expired(self) -> bool:
         if self.expires_at is None:
             return False
-        expires = self.expires_at
-        if expires.tzinfo is None:
-            expires = expires.replace(tzinfo=timezone.utc)
-        return expires <= datetime.now(timezone.utc)
+        expires = ensure_utc_aware(self.expires_at)
+        return False if expires is None else expires <= utc_now()
 
     @property
     def has_started(self) -> bool:
         if self.starts_at is None:
             return True
-        starts = self.starts_at
-        if starts.tzinfo is None:
-            starts = starts.replace(tzinfo=timezone.utc)
-        return starts <= datetime.now(timezone.utc)
+        starts = ensure_utc_aware(self.starts_at)
+        return True if starts is None else starts <= utc_now()
 
     @property
     def usage_remaining(self):
@@ -1231,10 +1277,8 @@ class PasswordResetOTP(db.Model):
 
     @property
     def is_expired(self) -> bool:
-        exp = self.expires_at
-        if exp.tzinfo is None:
-            exp = exp.replace(tzinfo=timezone.utc)
-        return datetime.now(timezone.utc) >= exp
+        exp = ensure_utc_aware(self.expires_at)
+        return True if exp is None else utc_now() >= exp
 
     @property
     def is_valid(self) -> bool:

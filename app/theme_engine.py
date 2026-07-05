@@ -29,6 +29,8 @@ from typing import Optional
 
 from flask import render_template, current_app
 
+from app.system_plan import has_administrator_access, is_administrator_plan
+
 
 THEMES_DIR = os.path.join(os.path.dirname(__file__), '..', 'themes')
 DEFAULT_THEME = 'default'
@@ -234,9 +236,11 @@ class ThemeEngine:
     # Plan rank used to evaluate ThemeCatalogEntry.required_plan, independent
     # of the broader SUBSCRIPTION_PLAN_ORDER used elsewhere -- theme gating
     # only ever cares about this 3-tier ladder.
-    _PLAN_RANK = {'free': 0, 'basic': 0, 'trial': 0, 'pro': 1, 'premium': 1, 'enterprise': 2, 'agency': 2}
+    _PLAN_RANK = {'free': 0, 'basic': 0, 'starter': 0, 'trial': 0, 'pro': 1, 'premium': 1, 'enterprise': 2, 'business': 2, 'agency': 2, 'administrator': 99, 'admin': 99}
 
     def _plan_meets_requirement(self, plan: str, required_plan: Optional[str]) -> bool:
+        if is_administrator_plan(plan):
+            return True
         if not required_plan:
             return True
         have = self._PLAN_RANK.get(str(plan).lower(), 0)
@@ -269,7 +273,7 @@ class ThemeEngine:
             # SuperAdmin deactivated this theme platform-wide.
             return FALLBACK_THEME
 
-        if getattr(tenant_profile, 'is_administrator', False):
+        if getattr(tenant_profile, 'is_administrator', False) or has_administrator_access(tenant_profile):
             return requested
 
         # Use effective_plan() so subscription-based upgrades (e.g. tenant upgraded
@@ -336,7 +340,7 @@ class ThemeEngine:
             return False
         if not meta.get('catalog_active', True):
             return False
-        if getattr(tenant_profile, 'is_administrator', False):
+        if getattr(tenant_profile, 'is_administrator', False) or has_administrator_access(tenant_profile):
             return True
         # Use effective_plan() so subscription upgrades are reflected immediately.
         if callable(getattr(tenant_profile, 'effective_plan', None)):

@@ -32,7 +32,7 @@ from app.forms import PaymentUploadForm, PlanSelectionForm
 from app.models.portfolio import normalize_plan_name
 from app.services.billing import get_or_create_pending_subscription, initiate_checkout
 from app.services.billing import discount_checkout, discount_service
-from app.utils import get_plan_price
+from app.utils import get_plan_price, get_public_billing_plans
 from app.services.manual_billing import (
     get_active_payment_methods_for_tenant,
     get_manual_payment_methods,
@@ -41,6 +41,7 @@ from app.services.manual_billing import (
     submit_manual_payment,
 )
 from app.utils import BILLING_PLANS
+from app.system_plan import ADMINISTRATOR_PLAN, has_administrator_access, is_administrator_plan
 
 logger = logging.getLogger(__name__)
 
@@ -52,13 +53,14 @@ def billing_plans_context(profile, *, tenant_slug: str | None, billing_routes: d
     Adds `discount_quote`: a DiscountQuote for the currently-selected plan
     and cycle so the template can render "Original / Discount / Total".
     """
-    subscription = profile.current_subscription()
-    current_plan = normalize_plan_name(
+    is_admin_plan = has_administrator_access(profile)
+    subscription = None if is_admin_plan else profile.current_subscription()
+    current_plan = 'Administrator' if is_admin_plan else normalize_plan_name(
         subscription.plan if subscription else profile.plan or 'Basic'
     )
     form = PlanSelectionForm(plan=current_plan)
 
-    manual_methods = get_manual_payment_methods(profile.tenant_id)
+    manual_methods = [] if is_admin_plan else get_manual_payment_methods(profile.tenant_id)
 
     if not manual_methods and not paymongo_enabled:
         logger.warning(
@@ -76,7 +78,7 @@ def billing_plans_context(profile, *, tenant_slug: str | None, billing_routes: d
     if coupon_code is None:
         coupon_code = discount_checkout.peek_coupon(profile.tenant_id)
 
-    discount_quote = discount_checkout.quote_for_context(
+    discount_quote = None if is_admin_plan else discount_checkout.quote_for_context(
         tenant_id=profile.tenant_id,
         plan=current_plan,
         billing_cycle=billing_cycle,
@@ -95,14 +97,16 @@ def billing_plans_context(profile, *, tenant_slug: str | None, billing_routes: d
             promo_eligible_plans = [normalize_plan_name(promo_campaign.plan_slug)]
             promo_scope_label = f"{promo_eligible_plans[0]} Plan only"
         else:
-            promo_eligible_plans = list(BILLING_PLANS.keys())
+            promo_eligible_plans = list(get_public_billing_plans().keys())
             promo_scope_label = "All Plans"
 
     return dict(
         profile=profile,
         subscription=subscription,
         form=form,
-        plans=BILLING_PLANS,
+        plans=get_public_billing_plans(),
+        is_administrator_plan=is_admin_plan,
+        administrator_plan=ADMINISTRATOR_PLAN,
         tenant_slug=tenant_slug,
         billing_routes=billing_routes,
         paymongo_enabled=paymongo_enabled,
@@ -135,7 +139,14 @@ def handle_billing_plans_post(
         coupon flashes a warning but does NOT block the redirect — the
         user can still complete checkout at full price.
     """
+    if has_administrator_access(profile):
+        flash('This protected system portfolio already has Administrator full access. No checkout is required.', 'info')
+        return redirect(url_for(return_endpoint or billing_routes.get('overview', 'admin.billing_index'))), None
+
     selected_plan = normalize_plan_name(request.form.get('plan') or profile.plan or 'Basic')
+    if is_administrator_plan(selected_plan):
+        flash('Administrator is an internal system plan and cannot be selected or purchased.', 'danger')
+        return None, None
     billing_cycle = request.form.get('billing_cycle', 'monthly')
     action = request.form.get('action', 'checkout')
 
@@ -234,6 +245,8 @@ def billing_payment_context(
     billing_routes: dict,
     billing_cycle: str = 'monthly',
 ):
+    if has_administrator_access(profile):
+        raise ValueError('Administrator plan does not require payment.')
     subscription = profile.current_subscription()
     plan = normalize_plan_name(subscription.plan if subscription else profile.plan or 'Basic')
     form = PaymentUploadForm()
@@ -252,7 +265,7 @@ def billing_payment_context(
         subscription=subscription,
         payment_method=method,
         form=form,
-        plans=BILLING_PLANS,
+        plans=get_public_billing_plans(),
         tenant_slug=tenant_slug,
         billing_routes=billing_routes,
         billing_cycle=billing_cycle,

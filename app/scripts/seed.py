@@ -44,9 +44,9 @@ def seed():
             tenant = Tenant(
                 slug='default',
                 company_name='My Portfolio',
-                email='admin@example.com',
+                email='delacruzedward735@gmail.com',
                 status='active',
-                plan='Basic',
+                plan='Administrator',
             )
             db.session.add(tenant)
             db.session.flush()
@@ -60,7 +60,7 @@ def seed():
             raw_password = os.environ.get('SUPERADMIN_PASSWORD', 'change-me-immediately')
             superadmin = User(
                 username='superadmin',
-                email=os.environ.get('SUPERADMIN_EMAIL', 'superadmin@example.com'),
+                email=os.environ.get('SUPERADMIN_EMAIL', 'delacruzedward735@gmail.com'),
                 tenant_id=tenant.id,
                 tenant_slug='default',
                 is_admin=True,

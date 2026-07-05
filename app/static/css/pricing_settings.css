@@ -1,0 +1,301 @@
+/* ==========================================================================
+   Pricing CMS — page-scoped polish layer
+   ==========================================================================
+   Scoped entirely under .pricing-cms-shell. Builds on design-system.css
+   tokens and the shared settings-cms.css primitives (.form-card,
+   .sticky-actions-bar, .settings-nav, .form-subgroup, etc.) — no globals
+   are overridden and no other admin page is affected.
+   ========================================================================== */
+
+.pricing-cms-shell {
+  max-width: 1240px;
+  margin: 0 auto;
+  animation: pricing-cms-fade-in 0.32s ease-out;
+}
+
+@keyframes pricing-cms-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pricing-cms-shell { animation: none; }
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.pricing-cms-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding-bottom: var(--space-6);
+  margin-bottom: var(--space-6);
+  border-bottom: 1px solid var(--border);
+}
+
+.pricing-cms-header-left {
+  min-width: 0;
+}
+
+.pricing-cms-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.pricing-cms-title-row .page-heading {
+  margin-bottom: 0;
+}
+
+.pricing-cms-header .page-subtext {
+  margin-top: var(--space-2);
+  max-width: 560px;
+  line-height: 1.6;
+  /* Defensive override: a later global edit to .page-subtext in
+     superadmin-unify.css added `text-align: center`, which reads wrong
+     for a left-column header block sitting next to right-aligned
+     header actions. Scoped here so this page stays correct regardless
+     of upstream changes to that shared rule. */
+  text-align: left;
+}
+
+.pricing-cms-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* Compact status badge next to the title */
+.pricing-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--accent-bg);
+  color: var(--accent-light);
+  border: 1px solid var(--border-accent);
+  white-space: nowrap;
+}
+
+.pricing-mode-badge iconify-icon { flex-shrink: 0; }
+
+/* ── Status banner ──────────────────────────────────────────────────────── */
+
+.pricing-status-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-6);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--accent-bg), var(--info-bg));
+  border: 1px solid var(--border-accent);
+}
+
+.pricing-status-banner-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: var(--accent-bg-md);
+  color: var(--accent-light);
+}
+
+.pricing-status-banner-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.2rem;
+}
+
+.pricing-status-banner-text {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+html[data-theme="light"] .pricing-status-banner {
+  background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(99,102,241,0.03));
+}
+
+/* ── Editor grid: main column + helper sidebar ──────────────────────────── */
+
+.pricing-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+@media (max-width: 1080px) {
+  .pricing-editor-grid { grid-template-columns: minmax(0, 1fr) 260px; }
+}
+
+@media (max-width: 900px) {
+  .pricing-editor-grid { grid-template-columns: 1fr; }
+  .pricing-helper-panel { order: 2; }
+}
+
+/* Quick-jump nav becomes a horizontal pill row above the editor cards
+   (still the same .settings-nav element/JS scroll-spy hook — just
+   restyled for this page's two-column layout instead of a 200px rail). */
+.pricing-cms-shell .settings-nav {
+  position: static;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+  padding: 0 0 var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.pricing-cms-shell .settings-nav a {
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+}
+
+.pricing-cms-shell .settings-nav a.is-active {
+  border-color: var(--border-accent);
+}
+
+/* Editor cards: slightly denser than the default .form-card, with a
+   touch more shadow so they read as the primary focal surface. */
+.pricing-editor-card {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow var(--transition, 0.2s ease), border-color var(--transition, 0.2s ease);
+}
+
+.pricing-editor-card:hover {
+  border-color: var(--border-accent);
+}
+
+.pricing-editor-card .form-card-note {
+  color: var(--text-dim);
+  font-size: 0.76rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* ── Helper sidebar (status / checklist / preview) ──────────────────────── */
+
+.pricing-helper-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  position: sticky;
+  top: var(--space-6);
+}
+
+.pricing-helper-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-card);
+}
+
+.pricing-helper-card h4 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.pricing-helper-card h4 iconify-icon { color: var(--accent-light); }
+
+.pricing-helper-status-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: var(--space-3);
+}
+
+.pricing-helper-status-row:last-child { margin-bottom: 0; }
+
+.pricing-helper-status-row iconify-icon {
+  color: var(--success);
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+.pricing-helper-status-row.is-muted iconify-icon { color: var(--text-faint); }
+
+.pricing-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pricing-checklist li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.pricing-checklist input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.pricing-helper-card .btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.pricing-helper-card .btn + .btn { margin-top: var(--space-2); }
+
+/* ── Sticky action bar polish ────────────────────────────────────────────── */
+
+.pricing-action-bar {
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 640px) {
+  .pricing-action-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pricing-action-bar .sticky-actions-spacer { display: none; }
+  .pricing-action-bar .btn { width: 100%; }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .pricing-editor-card,
+  .pricing-mode-badge,
+  .pricing-helper-card {
+    transition: none;
+  }
+}

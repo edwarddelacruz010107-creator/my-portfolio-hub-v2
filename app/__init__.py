@@ -516,6 +516,12 @@ def create_app(config_name: str = 'default') -> Flask:
                 _ensure_profile_columns()
                 _ensure_default_tenant()
 
+            try:
+                from app.system_plan import ensure_default_tenant_administrator_plan
+                ensure_default_tenant_administrator_plan(commit=True)
+            except Exception as exc:
+                logger.warning("Could not repair default tenant Administrator plan at startup: %s", exc)
+
             logger.info("Database connection verified at startup")
 
             try:
@@ -1324,7 +1330,7 @@ def _ensure_profile_columns():
                 if slug in existing_tenants:
                     continue
                 display_name = 'Default Portfolio' if slug == 'default' else slug.replace('-', ' ').title()
-                email = 'hello@example.com' if slug == 'default' else 'hello@example.com'
+                email = 'delacruzedward735@gmail.com' if slug == 'default' else 'hello@example.com'
                 execute_with_retry(
                     db.text(
                         'INSERT INTO tenants (slug, company_name, email, status, plan, created_at, updated_at) '
@@ -1504,9 +1510,9 @@ def _ensure_default_tenant():
             tenant = Tenant(
                 slug='default',
                 company_name='Default Portfolio',
-                email='hello@example.com',
+                email='delacruzedward735@gmail.com',
                 status='active',
-                plan='Basic',
+                plan='Administrator',
             )
             db.session.add(tenant)
             db.session.flush()
@@ -1519,7 +1525,7 @@ def _ensure_default_tenant():
                 title='Full Stack Developer',
                 subtitle='Building beautiful digital experiences',
                 bio='Welcome to my portfolio.',
-                email='hello@example.com',
+                email='delacruzedward735@gmail.com',
             )
             profile.social_links = {}
             db.session.add(profile)
@@ -1533,6 +1539,12 @@ def _ensure_default_tenant():
             bootstrap_default_tenant_form_settings(db)
         except Exception as exc:
             logger.warning("Could not bootstrap default tenant form settings: %s", exc)
+
+        try:
+            from app.system_plan import ensure_default_tenant_administrator_plan
+            ensure_default_tenant_administrator_plan(commit=True)
+        except Exception as exc:
+            logger.warning("Could not normalize default tenant Administrator plan: %s", exc)
     except Exception as exc:
         db.session.rollback()
         logger.warning("Could not ensure default tenant: %s", exc)
@@ -1572,9 +1584,9 @@ def register_cli_commands(app):
             tenant = Tenant(
                 slug='default',
                 company_name='Default Portfolio',
-                email='hello@example.com',
+                email='delacruzedward735@gmail.com',
                 status='active',
-                plan='Basic',
+                plan='Administrator',
             )
             db.session.add(tenant)
             db.session.flush()
@@ -1589,7 +1601,7 @@ def register_cli_commands(app):
                 bio='Welcome to my portfolio. Edit this via /admin/',
                 bio_short='Full-stack developer focused on clean design.',
                 location='Remote',
-                email='hello@example.com',
+                email='delacruzedward735@gmail.com',
                 years_experience=5,
                 experience_start_year=2019,
                 clients_count=10,
@@ -1614,6 +1626,12 @@ def register_cli_commands(app):
             click.echo('✔  Updated admin user tenant → default')
 
         db.session.commit()
+        try:
+            from app.system_plan import ensure_default_tenant_administrator_plan
+            ensure_default_tenant_administrator_plan(commit=True)
+            click.echo('✔  Default tenant normalized to Administrator plan')
+        except Exception as exc:
+            click.echo(f'⚠  Could not normalize Administrator plan (non-fatal): {exc}')
         click.echo('   → Access admin at /admin/ after logging in at /auth/login')
 
         # Obj #2: Bootstrap TenantFormSettings so default portfolio contact
@@ -1721,7 +1739,7 @@ def register_cli_commands(app):
         if not tenant:
             tenant = Tenant(
                 slug='default', company_name='Default Portfolio',
-                email='admin@portfolio.local', status='active', plan='Basic',
+                email='delacruzedward735@gmail.com', status='active', plan='Administrator',
             )
             db.session.add(tenant)
             db.session.flush()
@@ -1730,7 +1748,7 @@ def register_cli_commands(app):
             temp_password = _secrets.token_urlsafe(12)
             admin = User(
                 username='admin',
-                email='admin@portfolio.local',
+                email='delacruzedward735@gmail.com',
                 tenant_slug='default',
                 tenant=tenant,
                 is_admin=True,
@@ -1752,7 +1770,7 @@ def register_cli_commands(app):
                 bio='I help clients build modern, scalable web applications.',
                 bio_short='Experienced full-stack developer focused on clean design.',
                 location='Remote',
-                email='hello@portfolio.local',
+                email='delacruzedward735@gmail.com',
                 years_experience=5,
                 experience_start_year=2019,
                 clients_count=12,
@@ -1767,6 +1785,12 @@ def register_cli_commands(app):
             db.session.add(profile)
 
         db.session.commit()
+        try:
+            from app.system_plan import ensure_default_tenant_administrator_plan
+            ensure_default_tenant_administrator_plan(commit=True)
+            click.echo('✔  Default portfolio assigned Administrator plan')
+        except Exception as exc:
+            click.echo(f'⚠  Could not normalize Administrator plan (non-fatal): {exc}')
         click.echo('✔  Database initialised.')
         click.echo('   → Portfolio at: /')
         click.echo('   → Admin panel at: /admin/')
@@ -1779,15 +1803,21 @@ def register_cli_commands(app):
         import os as _os
         from app.models import User
         from app.models.portfolio import Tenant
+        from app.services.auth.email_policy import EmailPolicyError, assert_email_allowed_for_user
 
         password = _os.environ.get('SUPERADMIN_PASSWORD', _secrets.token_urlsafe(16))
         existing = User.query.filter_by(username='superadmin').first()
+        try:
+            owner_email = assert_email_allowed_for_user('delacruzedward735@gmail.com', user=existing, role='superadmin')
+        except EmailPolicyError as exc:
+            click.echo(f'Cannot create superadmin: {exc}')
+            return
 
         tenant = Tenant.query.filter_by(slug='default').first()
         if not tenant:
             tenant = Tenant(
                 slug='default', company_name='Default Portfolio',
-                email='superadmin@portfolio.local', status='active', plan='Basic',
+                email='delacruzedward735@gmail.com', status='active', plan='Administrator',
             )
             db.session.add(tenant)
             db.session.flush()
@@ -1796,6 +1826,7 @@ def register_cli_commands(app):
             existing.password      = password
             existing.is_superadmin = True
             existing.is_admin      = True
+            existing.email         = owner_email
             existing.tenant        = tenant
             existing.tenant_slug   = tenant.slug
             db.session.commit()
@@ -1807,7 +1838,7 @@ def register_cli_commands(app):
 
         superadmin = User(
             username='superadmin',
-            email='superadmin@portfolio.local',
+            email=owner_email,
             tenant=tenant,
             tenant_slug=tenant.slug,
             is_admin=True,
@@ -1828,22 +1859,28 @@ def register_cli_commands(app):
         import secrets as _secrets
         from app.models import User
         from app.models.portfolio import Tenant
+        from app.services.auth.email_policy import EmailPolicyError, assert_email_allowed_for_user
 
         if User.query.filter_by(username='admin').first():
             click.echo('Admin user already exists. Use reset-admin-password to change password.')
             return
         temp_password = _secrets.token_urlsafe(12)
+        try:
+            owner_email = assert_email_allowed_for_user('delacruzedward735@gmail.com', role='tenant_admin', slug='default')
+        except EmailPolicyError as exc:
+            click.echo(f'Cannot create default admin: {exc}')
+            return
         tenant = Tenant.query.filter_by(slug='default').first()
         if not tenant:
             tenant = Tenant(
                 slug='default', company_name='Default Portfolio',
-                email='admin@portfolio.local', status='active', plan='Basic',
+                email='delacruzedward735@gmail.com', status='active', plan='Administrator',
             )
             db.session.add(tenant)
             db.session.flush()
         u = User(
             username='admin',
-            email='admin@portfolio.local',
+            email=owner_email,
             tenant=tenant,
             tenant_slug=tenant.slug,
             is_admin=True,
@@ -1851,6 +1888,11 @@ def register_cli_commands(app):
         u.password = temp_password
         db.session.add(u)
         db.session.commit()
+        try:
+            from app.system_plan import ensure_default_tenant_administrator_plan
+            ensure_default_tenant_administrator_plan(commit=True)
+        except Exception as exc:
+            click.echo(f'⚠  Could not normalize Administrator plan (non-fatal): {exc}')
         click.echo('✔  Created admin user:')
         click.echo(f'   Username: admin')
         click.echo(f'   Temporary password: {temp_password}')
@@ -1867,7 +1909,7 @@ def register_cli_commands(app):
         if not tenant:
             tenant = Tenant(
                 slug=TENANT, company_name='Default Portfolio',
-                email='hello@example.com', status='active', plan='Basic',
+                email='delacruzedward735@gmail.com', status='active', plan='Administrator',
             )
             db.session.add(tenant)
             db.session.flush()
@@ -1901,6 +1943,11 @@ def register_cli_commands(app):
                 db.session.add(project)
 
         db.session.commit()
+        try:
+            from app.system_plan import ensure_default_tenant_administrator_plan
+            ensure_default_tenant_administrator_plan(commit=True)
+        except Exception as exc:
+            click.echo(f'⚠  Could not normalize Administrator plan (non-fatal): {exc}')
         click.echo('✔  Sample data seeded for default tenant.')
 
     @app.cli.command('normalize-skill-visibility')

@@ -36,6 +36,7 @@ from typing import Optional
 from app.models.core import PlatformSetting
 from app.utils import (
     BILLING_PLANS,
+    get_public_billing_plans,
     get_plan_price,
     get_plan_price_label,
     get_yearly_savings_label,
@@ -148,7 +149,7 @@ def get_pricing_content(draft_first: bool = False, fallback_to_published: bool =
         )
 
         plans: dict[str, dict] = {}
-        for plan_name, plan_data in BILLING_PLANS.items():
+        for plan_name, plan_data in get_public_billing_plans().items():
             cms = get_plan_config(
                 plan_name, draft_first=draft_first, fallback_to_published=fallback_to_published
             )
@@ -182,6 +183,6 @@ def get_pricing_content(draft_first: bool = False, fallback_to_published: bool =
                        "price_yearly_label": "",
                        "yearly_savings_label": "",
                        "yearly_discount_percent": 0}
-                for name, data in BILLING_PLANS.items()
+                for name, data in get_public_billing_plans().items()
             },
         }

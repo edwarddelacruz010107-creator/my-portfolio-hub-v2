@@ -883,7 +883,7 @@
 .plan-basic       { background: rgba(100,116,139,0.2); color: #94a3b8; }
 .plan-professional{ background: rgba(99,102,241,0.15); color: var(--accent-light); }
 .plan-enterprise  { background: rgba(251,191,36,0.15); color: #fbbf24; }
-.plan-administrator { background: rgba(239,68,68,0.15); color: #f87171; font-weight: 700; letter-spacing: 0.02em; }
+.plan-administrator { background: linear-gradient(135deg, rgba(124,58,237,0.22), rgba(245,158,11,0.18)); color: #fde68a; border: 1px solid rgba(245,158,11,0.35); font-weight: 800; letter-spacing: 0.04em; box-shadow: 0 8px 20px rgba(124,58,237,0.18); }
 
 .slug-code {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -1284,24 +1284,9 @@
 
 .field-required { color: var(--danger); }
 
-.field-input {
-  width: 100%;
-  background: var(--bg-3);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.6rem 0.85rem;
-  color: var(--text);
-  font-size: 0.875rem;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.field-input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
-}
-
-.field-input.field-error { border-color: var(--danger); }
+/* .field-input base/focus/error-border rules consolidated into
+   superadmin-unify.css (Phase 5). The .field-error border rule was
+   migrated there verbatim before this block was removed. */
 .field-textarea { resize: vertical; min-height: 90px; }
 .field-select { appearance: none; cursor: pointer; }
 

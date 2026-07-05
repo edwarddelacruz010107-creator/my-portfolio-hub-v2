@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.security import validate_magic_bytes
+from app.security import FileUploadPolicy
 """
 app/utils/__init__.py — Shared utilities for Portfolio CMS
 
@@ -23,6 +23,14 @@ import logging
 import os
 import uuid
 from typing import Optional
+
+from app.system_plan import (
+    ADMINISTRATOR_PLAN,
+    ADMINISTRATOR_PLAN_NAME,
+    is_administrator_plan,
+    public_billing_plans,
+    system_billing_plans,
+)
 
 from flask import current_app, request
 from werkzeug.utils import secure_filename
@@ -90,20 +98,89 @@ BILLING_PLANS: dict[str, dict] = {
 }
 
 _PLAN_ALIASES: dict[str, str] = {
+    "trial":        "Trial",
+    "free_trial":   "Trial",
     "basic":        "Basic",
+    "starter":      "Basic",
     "pro":          "Pro",
     "professional": "Pro",
+    "business":     "Enterprise",
     "enterprise":   "Enterprise",
     "ent":          "Enterprise",
+    "administrator": "Administrator",
+    "admin":        "Administrator",
+    "system":       "Administrator",
 }
 
 
 def normalize_plan_name(plan: str) -> str:
-    """Return the canonical plan key ('Basic' | 'Pro' | 'Enterprise')."""
+    """Return the canonical billing plan key.
+
+    Administrator is intentionally supported as an internal-only plan, but it
+    is not included in BILLING_PLANS so it cannot appear in tenant checkout.
+    """
     if not plan:
         return "Basic"
     key = plan.strip().lower()
     return _PLAN_ALIASES.get(key, plan.strip().title())
+
+
+
+
+def get_plan_display_name(plan: str) -> str:
+    """Human-facing plan label after alias normalization."""
+    return normalize_plan_name(plan)
+
+
+def is_trial_plan(plan: str) -> bool:
+    return normalize_plan_name(plan) == "Trial"
+
+
+def is_basic_plan(plan: str) -> bool:
+    return normalize_plan_name(plan) == "Basic"
+
+
+def is_pro_plan(plan: str) -> bool:
+    return normalize_plan_name(plan) == "Pro"
+
+
+def is_enterprise_plan(plan: str) -> bool:
+    return normalize_plan_name(plan) == "Enterprise"
+
+
+def is_paid_plan(plan: str) -> bool:
+    return normalize_plan_name(plan) in {"Basic", "Pro", "Enterprise"}
+
+
+def is_public_plan(plan: str) -> bool:
+    return normalize_plan_name(plan) in {"Trial", "Basic", "Pro", "Enterprise"}
+
+
+def is_checkout_plan(plan: str) -> bool:
+    return normalize_plan_name(plan) in {"Basic", "Pro", "Enterprise"}
+
+
+def plan_allows_feature(plan: str, feature: str) -> bool:
+    if is_administrator_plan(plan):
+        return True
+    try:
+        from app.services.billing.plan_capabilities import get_capabilities
+        cap = get_capabilities(normalize_plan_name(plan))
+        value = getattr(cap, feature, None)
+        return bool(value)
+    except Exception:
+        return False
+
+
+def get_plan_limit(plan: str, limit_name: str):
+    if is_administrator_plan(plan):
+        return None
+    try:
+        from app.services.billing.plan_capabilities import get_capabilities
+        cap = get_capabilities(normalize_plan_name(plan))
+        return getattr(cap, limit_name, None)
+    except Exception:
+        return None
 
 
 def get_plan_price(plan: str, billing_cycle: str = "monthly") -> float:
@@ -114,6 +191,8 @@ def get_plan_price(plan: str, billing_cycle: str = "monthly") -> float:
     yearly  → price_yearly   (e.g. 487.32, already discounted)
     """
     norm = normalize_plan_name(plan)
+    if is_administrator_plan(norm):
+        return 0.0
     data = BILLING_PLANS.get(norm, BILLING_PLANS["Basic"])
     if billing_cycle == "yearly":
         return float(data.get("price_yearly", data["price"] * 12 * YEARLY_DISCOUNT))
@@ -129,6 +208,8 @@ def get_plan_price_label(plan: str, billing_cycle: str = "monthly") -> str:
         get_plan_price_label('Pro', 'yearly')  → '₱487.32/yr (Save ~17%)'
     """
     norm = normalize_plan_name(plan)
+    if is_administrator_plan(norm):
+        return ADMINISTRATOR_PLAN["price_label"]
     data = BILLING_PLANS.get(norm, BILLING_PLANS["Basic"])
     symbol = data.get("currency_symbol", "₱")
     price = get_plan_price(plan, billing_cycle)
@@ -255,6 +336,16 @@ def clear_yearly_discount_override(plan: str) -> None:
     refresh_yearly_pricing()
 
 
+def get_public_billing_plans() -> dict[str, dict]:
+    """Tenant-visible/purchasable billing plans only."""
+    return public_billing_plans(BILLING_PLANS)
+
+
+def get_system_billing_plans() -> dict[str, dict]:
+    """Internal system plans shown only in protected superadmin sections."""
+    return system_billing_plans()
+
+
 def refresh_yearly_pricing() -> None:
     """
     Recompute price_yearly for every plan in BILLING_PLANS from its current
@@ -272,6 +363,8 @@ def refresh_yearly_pricing() -> None:
 def get_yearly_savings_label(plan: str) -> str:
     """Return e.g. 'Save ₱100.68/yr' for the savings badge."""
     norm = normalize_plan_name(plan)
+    if is_administrator_plan(norm):
+        return ADMINISTRATOR_PLAN["price_label"]
     data = BILLING_PLANS.get(norm, BILLING_PLANS["Basic"])
     symbol = data.get("currency_symbol", "₱")
     savings = get_plan_price(plan, "monthly") * 12 - get_plan_price(plan, "yearly")
@@ -361,7 +454,7 @@ def log_billing_event(
 # FILE / IMAGE HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 
-_ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}
+_ALLOWED_IMAGE_EXTENSIONS = set(FileUploadPolicy.ALLOWED_IMAGE_EXTENSIONS)
 
 
 def is_upload_file(file_storage) -> bool:
@@ -390,53 +483,73 @@ def save_image(
     quality: int = 85,
 ) -> tuple[str | None, str | None]:
     """
-    Validate and save an uploaded image.
-
-    Args:
-        file_storage:       Werkzeug FileStorage object.
-        subfolder:          Subfolder under UPLOAD_FOLDER ('profiles', 'projects', …).
-        max_size:           Optional (width, height) to resize to with Pillow.
-        allowed_extensions: Override the default allowed set.
+    Validate and save an uploaded image through the central FileUploadPolicy.
 
     Returns:
         (filename, None)  on success
         (None, error_msg) on failure
+
+    Important contract: callers must unpack this tuple. Image fields should
+    only ever receive the returned filename string, never the tuple itself.
     """
     if not is_upload_file(file_storage):
         return None, "No file provided."
 
-    allowed = allowed_extensions or _ALLOWED_IMAGE_EXTENSIONS
-    original_name = secure_filename(file_storage.filename)
+    allowed = {ext.lower().lstrip('.') for ext in (allowed_extensions or _ALLOWED_IMAGE_EXTENSIONS)}
+    original_name = secure_filename(file_storage.filename or "")
     ext = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else ""
 
+    if not original_name or not ext:
+        return None, "Please upload an image file with a valid extension."
     if ext not in allowed:
-        return None, f"File type '.{ext}' is not allowed. Accepted: {', '.join(sorted(allowed))}."""
+        return None, f"File type '.{ext}' is not allowed. Accepted: {', '.join(sorted(allowed))}."
 
-    # HIGH-08: Magic-byte validation before any disk write
-    file_storage.stream.seek(0)
-    file_bytes = file_storage.stream.read(32)
-    file_storage.stream.seek(0)
-    ok, magic_err = validate_magic_bytes(file_bytes, ext)
+    # Centralized validation before any disk write. Read the stream once,
+    # validate extension/MIME/magic bytes/Pillow, then rewind before saving.
+    try:
+        file_storage.stream.seek(0)
+        file_bytes = file_storage.stream.read()
+        file_storage.stream.seek(0)
+    except Exception:
+        logger.exception("save_image: failed to inspect uploaded image stream")
+        return None, "Could not read the uploaded image. Please try again."
+
+    ok, validation_error = FileUploadPolicy.validate_image_upload(
+        filename=original_name,
+        file_size_bytes=len(file_bytes or b""),
+        file_bytes=file_bytes,
+        declared_mime=getattr(file_storage, "mimetype", None),
+    )
     if not ok:
-        return None, f"File content validation failed: {magic_err}"
-
+        try:
+            file_storage.stream.seek(0)
+        except Exception:
+            pass
+        return None, validation_error or "Uploaded image failed validation."
 
     unique_name = f"{uuid.uuid4().hex}.{ext}"
 
     try:
         upload_folder = current_app.config.get("UPLOAD_FOLDER", "static/uploads")
-        dest_dir = os.path.join(upload_folder, subfolder)
+        dest_dir = os.path.abspath(os.path.join(upload_folder, subfolder))
+        root_dir = os.path.abspath(upload_folder)
+        if not (dest_dir == root_dir or dest_dir.startswith(root_dir + os.sep)):
+            logger.warning("save_image blocked unsafe upload subfolder=%s", subfolder)
+            return None, "Invalid upload destination."
         os.makedirs(dest_dir, exist_ok=True)
         dest_path = os.path.join(dest_dir, unique_name)
 
+        file_storage.stream.seek(0)
         if max_size:
             try:
                 from PIL import Image as PILImage
-                img = PILImage.open(file_storage.stream)
-                img.thumbnail(max_size, PILImage.LANCZOS)
-                img.save(dest_path, quality=quality)
+                with PILImage.open(file_storage.stream) as img:
+                    img.thumbnail(max_size, PILImage.LANCZOS)
+                    save_kwargs = {"quality": quality} if ext in {"jpg", "jpeg", "webp"} else {}
+                    img.save(dest_path, **save_kwargs)
             except ImportError:
-                # Pillow not installed — save as-is
+                # Pillow is optional in some dev installs. FileUploadPolicy has
+                # already performed extension/MIME/magic-byte checks.
                 file_storage.stream.seek(0)
                 file_storage.save(dest_path)
         else:
@@ -447,7 +560,11 @@ def save_image(
     except Exception as exc:
         logger.exception("save_image failed: %s", exc)
         return None, "Failed to save image. Please try again."
-
+    finally:
+        try:
+            file_storage.stream.seek(0)
+        except Exception:
+            pass
 
 def delete_image(filename: str | None, subfolder: str) -> None:
     """
@@ -703,7 +820,7 @@ def refresh_current_subscription() -> None:
         from app.models.portfolio import Profile, Subscription
         from app.models.core import Tenant
         from app import db as _db
-        from datetime import datetime, timezone
+        from app.utils.datetime_utils import ensure_utc_aware, utc_now
         from app.services.billing.billing import expire_trial_if_needed
 
         tenant_slug = getattr(_cu, 'tenant_slug', None) or 'default'
@@ -723,10 +840,8 @@ def refresh_current_subscription() -> None:
         if sub is None:
             return
 
-        now = datetime.now(timezone.utc)
-        expires = sub.expires_at
-        if expires and expires.tzinfo is None:
-            expires = expires.replace(tzinfo=timezone.utc)
+        now = utc_now()
+        expires = ensure_utc_aware(sub.expires_at)
 
         if sub.status == 'active' and expires and expires < now:
             sub.status = 'expired'

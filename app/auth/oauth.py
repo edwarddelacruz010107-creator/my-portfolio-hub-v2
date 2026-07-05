@@ -121,10 +121,8 @@ def google_callback():
             return redirect(url_for('auth.login'))
 
         google_sub = userinfo.get('sub')
-        user = User.query.filter_by(google_id=google_sub).first() if google_sub else None
-        if user is None:
-            user = User.query.filter_by(email=email).first()
-        # ... rest of existing logic unchanged ...
+        if not google_sub:
+            raise ValueError('Google did not return a stable subject identifier')
 
     except Exception as exc:
         db.session.rollback()          # ← critical: prevents the aborted-transaction cascade into error-page rendering
@@ -154,11 +152,21 @@ def google_callback():
 
     google_sub = userinfo.get('sub')
 
-    # Look up by google_id first (already linked), fall back to email
-    # (first-time Google sign-in for an existing password-auth user).
+    # Look up by Google subject first. Email fallback uses the central policy so
+    # duplicate owner/shared emails are never selected by chance.
     user = User.query.filter_by(google_id=google_sub).first() if google_sub else None
     if user is None:
-        user = User.query.filter_by(email=email).first()
+        from app.services.auth.email_policy import resolve_email_for_login
+
+        user = resolve_email_for_login(
+            email,
+            tenant_slug=session.get('tenant_slug'),
+            require_superadmin=False,
+        )
+        if user is None:
+            log_security_event('oauth_ambiguous_email', None, f'Google login could not safely resolve email {email} from {ip}', 'warning')
+            flash('That Google email could not be matched to one tenant account safely. Sign in with your username and password from the correct portal first, then link Google there.', 'danger')
+            return redirect(url_for('auth.login'))
 
     if user is None:
         # HARD RULE: never auto-provision. Accounts are created by SuperAdmin only.

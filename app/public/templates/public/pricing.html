@@ -1,0 +1,99 @@
+{#
+  app/public/templates/public/pricing.html
+
+  Backs GET /public/pricing (app/public/routes.py::pricing). Context:
+    section {heading, subtitle, footnote}
+    plans   {plan_name: {..BILLING_PLANS fields.., cms, display_description,
+              display_features, price_monthly_label, price_yearly_label,
+              yearly_savings_label, yearly_discount_percent}}
+    yearly_toggle_enabled, paymongo_enabled
+
+  Money amounts stay sourced from BILLING_PLANS (via pricing_service) --
+  this template never computes or overrides a price, only displays the
+  label strings the service already built.
+#}
+{% extends "public/_base.html" %}
+
+{% block title %}Pricing — Portfolio Hub{% endblock %}
+{% block meta_desc %}{{ section.subtitle }}{% endblock %}
+
+{% block content %}
+<section class="ph-section">
+  <div class="ph-section-head" style="flex-direction:column;align-items:center;text-align:center;">
+    <div>
+      <h2>{{ section.heading }}</h2>
+      <p>{{ section.subtitle }}</p>
+    </div>
+  </div>
+
+  {% if yearly_toggle_enabled %}
+  <div style="display:flex;justify-content:center;margin-bottom:36px;">
+    <div class="ph-billing-toggle" role="group" aria-label="Billing cycle">
+      <button type="button" class="ph-toggle-btn active" data-cycle="monthly">Monthly</button>
+      <button type="button" class="ph-toggle-btn" data-cycle="yearly">Yearly</button>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not paymongo_enabled %}
+  <p class="ph-pricing-note" style="margin-bottom:24px;">Online checkout is currently unavailable — manual payment instructions will be provided after sign-up.</p>
+  {% endif %}
+
+  <div class="ph-pricing-grid ph-grid">
+    {% for key, plan in plans.items() %}
+    {% set featured = plan.cms.highlighted %}
+    <div class="ph-pricing-card{% if featured %} ph-popular{% endif %}">
+      {% if plan.cms.badge_text %}<span class="ph-plan-badge">{{ plan.cms.badge_text }}</span>{% endif %}
+      <h2>{{ plan.label or key }}</h2>
+      <div class="ph-price" data-monthly="{{ plan.price_monthly_label }}" data-yearly="{{ plan.price_yearly_label }}">
+        <span class="ph-price-amount">{{ plan.price_monthly_label }}</span>
+      </div>
+      {% if plan.yearly_savings_label %}
+      <div class="ph-price-savings" data-yearly-only="1" style="display:none;">{{ plan.yearly_savings_label }}</div>
+      {% endif %}
+      {% if plan.display_description %}<p style="color:var(--ph-text-dim);font-size:0.88rem;">{{ plan.display_description }}</p>{% endif %}
+      <ul>
+        {% for feature in plan.display_features %}
+        <li>{{ feature }}</li>
+        {% endfor %}
+      </ul>
+      <a
+        href="{{ plan.cms.cta_url or url_for('auth.portal', tab='signup', plan=key) }}"
+        class="ph-btn {% if featured %}ph-btn-primary{% else %}ph-btn-outline{% endif %} ph-btn-lg"
+      >{{ plan.cms.cta_text or ('Choose ' ~ (plan.label or key)) }}</a>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if section.footnote %}
+  <p class="ph-pricing-note">{{ section.footnote }}</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+{% if yearly_toggle_enabled %}
+<script>
+  (function () {
+    var toggleBtns = document.querySelectorAll('.ph-toggle-btn');
+    var priceEls = document.querySelectorAll('.ph-price');
+    var savingsEls = document.querySelectorAll('[data-yearly-only]');
+
+    toggleBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var cycle = btn.dataset.cycle;
+        toggleBtns.forEach(function (b) { b.classList.toggle('active', b === btn); });
+        priceEls.forEach(function (el) {
+          var amountEl = el.querySelector('.ph-price-amount');
+          var label = cycle === 'yearly' ? el.dataset.yearly : el.dataset.monthly;
+          if (amountEl && label) { amountEl.textContent = label; }
+        });
+        savingsEls.forEach(function (el) {
+          el.style.display = cycle === 'yearly' ? 'block' : 'none';
+        });
+      });
+    });
+  })();
+</script>
+{% endif %}
+{% endblock %}

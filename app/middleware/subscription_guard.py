@@ -41,7 +41,7 @@ INTEGRATION:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from functools import wraps
 from typing import Callable
 
@@ -58,6 +58,9 @@ from flask import (
 from flask_login import current_user
 
 logger = logging.getLogger(__name__)
+
+from app.system_plan import has_administrator_access
+from app.utils.datetime_utils import ensure_utc_aware, utc_now
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -100,6 +103,20 @@ def compute_subscription_state(tenant) -> str:
 
     current_state = getattr(tenant, 'subscription_state', 'active') or 'active'
 
+    if has_administrator_access(tenant):
+        new_state = 'active'
+        tenant.status = 'active'
+        tenant.subscription_state = 'active'
+        tenant.trial_status = 'active'
+        tenant.trial_ends_at = None
+        tenant.grace_period_ends_at = None
+        tenant.subscription_expires_at = None
+        try:
+            db.session.add(tenant)
+        except Exception as exc:
+            logger.warning('[SubscriptionGuard] Could not stage Administrator state: %s', exc)
+        return new_state
+
     # 1. Hard suspension (superadmin override)
     if getattr(tenant, 'status', 'active') == 'suspended':
         new_state = 'suspended'
@@ -111,14 +128,13 @@ def compute_subscription_state(tenant) -> str:
     # 3. Lifecycle state is determined solely by subscription_state and the tenant-owned dates.
     elif (getattr(tenant, 'subscription_state', '') or '').lower() == 'trial':
         trial_ends = getattr(tenant, 'trial_ends_at', None)
-        now = datetime.now(timezone.utc)
+        now = utc_now()
 
         if trial_ends is None:
             new_state = 'readonly'
         else:
-            if trial_ends.tzinfo is None:
-                trial_ends = trial_ends.replace(tzinfo=timezone.utc)
-            if trial_ends > now:
+            trial_ends = ensure_utc_aware(trial_ends)
+            if trial_ends and trial_ends > now:
                 new_state = 'trial'
             else:
                 grace_ends = getattr(tenant, 'grace_period_ends_at', None)
@@ -130,15 +146,14 @@ def compute_subscription_state(tenant) -> str:
                         tenant.id, grace_ends.isoformat(),
                     )
                 if grace_ends is not None:
-                    if grace_ends.tzinfo is None:
-                        grace_ends = grace_ends.replace(tzinfo=timezone.utc)
-                    new_state = 'grace' if grace_ends > now else 'readonly'
+                    grace_ends = ensure_utc_aware(grace_ends)
+                    new_state = 'grace' if grace_ends and grace_ends > now else 'readonly'
                 else:
                     new_state = 'readonly'
 
     else:
         grace_ends = getattr(tenant, 'grace_period_ends_at', None)
-        now = datetime.now(timezone.utc)
+        now = utc_now()
 
         if grace_ends is None:
             # Subscription just lapsed — enter grace period
@@ -149,14 +164,10 @@ def compute_subscription_state(tenant) -> str:
                 '[SubscriptionGuard] tenant_id=%s entering grace period until %s',
                 tenant.id, grace_ends.isoformat(),
             )
-        elif grace_ends.tzinfo is None:
-            grace_ends = grace_ends.replace(tzinfo=timezone.utc)
-            tenant.grace_period_ends_at = grace_ends
-            new_state = 'grace' if grace_ends > now else 'readonly'
-        elif grace_ends > now:
-            new_state = 'grace'
         else:
-            new_state = 'readonly'
+            grace_ends = ensure_utc_aware(grace_ends)
+            tenant.grace_period_ends_at = grace_ends
+            new_state = 'grace' if grace_ends and grace_ends > now else 'readonly'
 
     if new_state != current_state:
         tenant.subscription_state = new_state
@@ -209,6 +220,10 @@ def init_subscription_guard(app: Flask) -> None:
         if tenant is None:
             return
 
+        if has_administrator_access(tenant):
+            g.subscription_state = 'active'
+            return
+
         state = compute_subscription_state(tenant)
         g.subscription_state = state
 
@@ -218,7 +233,7 @@ def init_subscription_guard(app: Flask) -> None:
             grace_ends = getattr(tenant, 'grace_period_ends_at', None)
             days_left = ''
             if grace_ends:
-                remaining = (grace_ends.replace(tzinfo=timezone.utc) - datetime.now(timezone.utc)).days
+                remaining = (ensure_utc_aware(grace_ends) - utc_now()).days
                 days_left = f' ({remaining} day{"s" if remaining != 1 else ""} remaining)'
             flash(
                 f'⚠️ Your subscription has expired. You are in a grace period{days_left}. '
@@ -265,6 +280,12 @@ def require_active_subscription(fn: Callable) -> Callable:
     """
     @wraps(fn)
     def wrapper(*args, **kwargs):
+        try:
+            tenant = getattr(g, '_subscription_tenant', None)
+            if tenant is not None and has_administrator_access(tenant):
+                return fn(*args, **kwargs)
+        except Exception:
+            pass
         state = getattr(g, 'subscription_state', 'active')
         if state not in _WRITE_STATES:
             flash(
@@ -294,6 +315,8 @@ def require_capability(capability_attr: str, plan_gate: str | None = None):
                 from app.models.core import Tenant
                 from app.services.plan_capabilities import get_tenant_capabilities
                 tenant = Tenant.query.get(current_user.tenant_id)
+                if has_administrator_access(tenant):
+                    return fn(*args, **kwargs)
                 caps   = get_tenant_capabilities(tenant)
                 if not getattr(caps, capability_attr, False):
                     gate = plan_gate or 'a higher plan'

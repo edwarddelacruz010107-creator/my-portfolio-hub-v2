@@ -108,13 +108,13 @@ def edit_profile():
                     'warning',
                 )
             else:
-                new_img = save_image(form.profile_image.data, 'profiles', max_size=(800, 800), quality=90)
+                new_img, upload_error = save_image(form.profile_image.data, 'profiles', max_size=(800, 800), quality=90)
                 if new_img:
                     if profile.profile_image:
                         delete_image(profile.profile_image, 'profiles')
                     profile.profile_image = new_img
-                else:
-                    flash('Image upload failed — check format/size.', 'warning')
+                elif upload_error:
+                    flash(upload_error, 'warning')
 
         profile.name                = form.name.data
         profile.title               = form.title.data

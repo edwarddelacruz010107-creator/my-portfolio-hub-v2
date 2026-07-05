@@ -30,9 +30,10 @@ import secrets
 import string
 import time
 from collections import defaultdict
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 
 from app import db
+from app.utils.datetime_utils import utc_expiry, utc_now
 from app.models.core import PasswordResetOTP, GlobalEmailConfig
 
 logger = logging.getLogger(__name__)
@@ -135,7 +136,7 @@ def create_otp_record(
         tenant_id  = tenant_id,
         email      = email,
         otp_hash   = PasswordResetOTP.hash_otp(raw_otp),
-        expires_at = datetime.now(timezone.utc) + timedelta(minutes=ttl),
+        expires_at = utc_expiry(minutes=ttl),
         ip_address = ip_address,
         user_agent = user_agent,
     )
@@ -204,7 +205,7 @@ def verify_otp(
 
 def cleanup_expired_otps() -> int:
     """Delete all expired OTP records. Intended for periodic cleanup job."""
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     deleted = PasswordResetOTP.query.filter(
         PasswordResetOTP.expires_at < now
     ).delete(synchronize_session=False)

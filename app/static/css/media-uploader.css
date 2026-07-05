@@ -1,0 +1,188 @@
+/* ==========================================================================
+   Media Uploader — reusable drag-and-drop image upload component
+   ==========================================================================
+   Built entirely on the existing design-system.css tokens (--space-*,
+   --radius-*, --bg-*, --border*, --accent*, --shadow-*, --transition) so it
+   matches the rest of the superadmin UI automatically in both dark and
+   light theme. Used via the `superadmin/_media_uploader.html` include —
+   do not duplicate this markup by hand per-field.
+
+   States: empty → dragover → uploading (progress) → filled → error
+   ========================================================================== */
+
+.uploader {
+  position: relative;
+}
+
+.uploader-dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 160px;
+  padding: var(--space-6) var(--space-4);
+  border: 1.5px dashed var(--border-medium);
+  border-radius: var(--radius-lg);
+  background: var(--bg-3);
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), transform var(--transition);
+}
+
+.uploader-dropzone:hover {
+  border-color: var(--border-accent);
+  background: var(--accent-bg);
+}
+
+.uploader.is-dragover .uploader-dropzone {
+  border-color: var(--accent);
+  background: var(--accent-bg-md);
+  transform: scale(1.01);
+}
+
+.uploader-file-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.uploader-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--accent-bg);
+  color: var(--accent-light);
+  flex-shrink: 0;
+}
+
+.uploader-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.uploader-hint {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.uploader-hint strong {
+  color: var(--accent-light);
+  font-weight: 600;
+}
+
+/* ── Aspect-ratio preview container ─────────────────────────────────── */
+
+.uploader-preview {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+}
+
+.uploader-preview[data-ratio="hero"]   { aspect-ratio: 16 / 9; }
+.uploader-preview[data-ratio="square"] { aspect-ratio: 1 / 1; max-width: 220px; }
+.uploader-preview[data-ratio="card"]   { aspect-ratio: 4 / 3; }
+
+.uploader-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.uploader-preview-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background: rgba(8, 10, 15, 0.55);
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.uploader-preview:hover .uploader-preview-overlay,
+.uploader-preview:focus-within .uploader-preview-overlay {
+  opacity: 1;
+}
+
+.uploader-preview-overlay .btn {
+  backdrop-filter: blur(4px);
+}
+
+/* ── Progress bar ───────────────────────────────────────────────────── */
+
+.uploader-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.uploader-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  transition: width 0.15s ease-out;
+}
+
+/* ── Status line ────────────────────────────────────────────────────── */
+
+.uploader-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  min-height: 1.1em;
+}
+
+.uploader-status.is-uploading { color: var(--accent-light); }
+.uploader-status.is-success   { color: var(--success); }
+.uploader-status.is-error     { color: var(--danger); }
+
+.uploader-status .spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-glow);
+  border-top-color: var(--accent);
+  animation: uploader-spin 0.7s linear infinite;
+}
+
+@keyframes uploader-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Filled state actions row (below preview) ──────────────────────── */
+
+.uploader-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 640px) {
+  .uploader-dropzone { min-height: 130px; padding: var(--space-4); }
+  .uploader-preview[data-ratio="hero"] { aspect-ratio: 16 / 10; }
+}

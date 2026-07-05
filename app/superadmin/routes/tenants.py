@@ -63,6 +63,12 @@ from app.utils import log_activity, BILLING_PLANS, YEARLY_DISCOUNT
 from app.security import log_security_event
 from app.tenant_security import RESERVED_SLUGS, validate_slug, stamp_session_tenant
 from app.models.portfolio import TenantCommunicationSettings
+from app.system_plan import (
+    ADMINISTRATOR_PLAN_NAME,
+    ensure_default_tenant_administrator_plan,
+    has_administrator_access,
+    is_administrator_plan,
+)
 from app.models.portfolio import _utcnow
 from app.services.billing import (
     compute_billing_metrics,
@@ -70,11 +76,24 @@ from app.services.billing import (
     force_activate_subscription,
     sync_subscription_from_paymongo,
 )
+from app.services.auth.email_policy import EmailPolicyError, assert_email_allowed_for_user, normalize_email
 
 
 from app.superadmin.blueprint import superadmin, superadmin_required, _normalize_timestamp
 
 logger = logging.getLogger(__name__)
+
+_PUBLIC_PLAN_CHOICES = [
+    ('Trial', 'Trial (not subscribed)'),
+    ('Basic', 'Basic'),
+    ('Pro', 'Pro'),
+    ('Enterprise', 'Enterprise'),
+]
+
+def _configure_tenant_form_plan_choices(form: TenantForm, include_administrator: bool = False) -> None:
+    form.plan.choices = list(_PUBLIC_PLAN_CHOICES)
+    if include_administrator:
+        form.plan.choices.append((ADMINISTRATOR_PLAN_NAME, 'Administrator — protected system plan'))
 
 
 @superadmin.route('/tenants')
@@ -161,6 +180,7 @@ def tenants():
 @superadmin_required
 def tenant_new():
     form = TenantForm()
+    _configure_tenant_form_plan_choices(form, include_administrator=False)
 
     if form.validate_on_submit():
         slug = form.tenant_slug.data.strip().lower()
@@ -176,7 +196,7 @@ def tenant_new():
             return render_template('superadmin/tenant_form.html', form=form, page_title='Create Tenant')
 
         username = form.admin_username.data.strip()
-        email    = form.admin_email.data.strip().lower()
+        email    = normalize_email(form.admin_email.data)
         password = request.form.get('admin_password', '').strip()
         password_confirm = request.form.get('admin_password_confirm', '').strip()
 
@@ -195,10 +215,13 @@ def tenant_new():
             flash('Passwords do not match.', 'danger')
             return render_template('superadmin/tenant_form.html', form=form, page_title='Create Tenant')
 
-        if user_repository.query.filter(
-            or_(User.username == username, User.email == email)
-        ).first():
-            flash('Username or email already exists.', 'danger')
+        if user_repository.query.filter(User.username == username).first():
+            flash('Username already exists.', 'danger')
+            return render_template('superadmin/tenant_form.html', form=form, page_title='Create Tenant')
+        try:
+            email = assert_email_allowed_for_user(email, role='tenant_admin', slug=slug)
+        except EmailPolicyError as exc:
+            flash(str(exc), 'danger')
             return render_template('superadmin/tenant_form.html', form=form, page_title='Create Tenant')
 
         monthly_rate_val = 0.0
@@ -219,7 +242,11 @@ def tenant_new():
         )
 
         plan_choice = (form.plan.data or 'Trial').strip()
+        if is_administrator_plan(plan_choice):
+            flash('Administrator is a protected internal system plan and cannot be assigned to normal tenants.', 'danger')
+            return render_template('superadmin/tenant_form.html', form=form, page_title='Create Tenant')
         normalized_plan = normalize_plan_name(plan_choice)
+        is_system_profile = False
         tenant = Tenant(
             slug=slug,
             company_name=form.name.data.strip(),
@@ -279,7 +306,7 @@ def tenant_new():
                 tenant.id,
             )
 
-        if plan_choice in PAID_PLAN_NAMES:
+        if (not is_system_profile) and normalized_plan in PAID_PLAN_NAMES:
             subscription = Subscription(
                 tenant=tenant,
                 plan=normalized_plan,
@@ -340,6 +367,8 @@ def tenant_edit(tenant_id):
         from flask import abort
         abort(404)
     form    = TenantForm(obj=profile)
+    is_system_profile = has_administrator_access(profile)
+    _configure_tenant_form_plan_choices(form, include_administrator=is_system_profile)
 
     owner = user_repository.query.filter_by(
         tenant_slug=profile.tenant_slug, is_admin=True
@@ -348,13 +377,16 @@ def tenant_edit(tenant_id):
     if request.method == 'GET' and owner:
         form.admin_username.data = owner.username
         form.admin_email.data    = owner.email
+        if is_system_profile:
+            form.plan.data = ADMINISTRATOR_PLAN_NAME
+            form.tenant_slug.data = profile.tenant_slug
         # Pre-populate contact_email from Tenant model
         if profile.tenant and profile.tenant.contact_email:
             form.contact_email.data = profile.tenant.contact_email
 
     if form.validate_on_submit():
-        new_slug = form.tenant_slug.data.strip().lower()
         old_slug = profile.tenant_slug
+        new_slug = old_slug if is_system_profile else form.tenant_slug.data.strip().lower()
 
         if new_slug != old_slug:
             # v3.7 VULN-02 FIX: enforce RESERVED_SLUGS on rename too
@@ -379,7 +411,8 @@ def tenant_edit(tenant_id):
             pass
 
         profile.name           = form.name.data.strip()
-        profile.tenant.slug    = new_slug
+        if not is_system_profile:
+            profile.tenant.slug    = new_slug
         profile.monthly_rate   = monthly_rate_val
         profile.internal_notes = form.internal_notes.data or ''
 
@@ -390,18 +423,33 @@ def tenant_edit(tenant_id):
             free_trial_days_val = 0
 
         old_trial_days = profile.free_trial_days or 0
+        if is_system_profile:
+            free_trial_days_val = 0
         profile.free_trial_days = free_trial_days_val
-        if free_trial_days_val != old_trial_days or profile.free_trial_ends is None:
+        if is_system_profile:
+            profile.free_trial_ends = None
+        elif free_trial_days_val != old_trial_days or profile.free_trial_ends is None:
             profile.free_trial_ends = (
                 datetime.now(timezone.utc) + timedelta(days=free_trial_days_val)
                 if free_trial_days_val > 0 else None
             )
 
-        plan_choice = (form.plan.data or 'Trial').strip()
-        normalized_plan = normalize_plan_name(plan_choice)
+        plan_choice = ADMINISTRATOR_PLAN_NAME if is_system_profile else (form.plan.data or 'Trial').strip()
+        if not is_system_profile and is_administrator_plan(plan_choice):
+            flash('Administrator is a protected internal system plan and cannot be assigned to normal tenants.', 'danger')
+            return render_template('superadmin/tenant_form.html', form=form, page_title='Edit Tenant', tenant_id=tenant_id, profile=profile)
+        normalized_plan = ADMINISTRATOR_PLAN_NAME if is_system_profile else normalize_plan_name(plan_choice)
         profile.plan = normalized_plan
         if profile.tenant:
             profile.tenant.plan = normalized_plan
+            if is_system_profile:
+                profile.tenant.plan_name = 'administrator'
+                profile.tenant.status = 'active'
+                profile.tenant.subscription_state = 'active'
+                profile.tenant.trial_status = 'active'
+                profile.tenant.trial_ends_at = None
+                profile.tenant.grace_period_ends_at = None
+                profile.tenant.subscription_expires_at = None
             # Update contact_email if provided
             new_contact_email = request.form.get('contact_email', '').strip().lower()
             if new_contact_email:
@@ -411,7 +459,7 @@ def tenant_edit(tenant_id):
                 else:
                     flash('Invalid contact email format.', 'warning')
 
-        if plan_choice in PAID_PLAN_NAMES:
+        if (not is_system_profile) and normalized_plan in PAID_PLAN_NAMES:
             subscription = profile.current_subscription()
             if not subscription:
                 subscription = Subscription(
@@ -423,7 +471,9 @@ def tenant_edit(tenant_id):
                 db.session.add(subscription)
             else:
                 subscription.plan = normalized_plan
-        elif plan_choice == 'Trial' and profile.current_subscription():
+        elif is_system_profile:
+            ensure_default_tenant_administrator_plan(commit=False)
+        elif normalized_plan == 'trial' and profile.current_subscription():
             # Switching back to trial — remove pending admin-provisioned sub
             sub = profile.current_subscription()
             if sub and sub.status in ('pending', 'expired', 'cancelled'):
@@ -431,10 +481,10 @@ def tenant_edit(tenant_id):
 
         is_active_raw = request.form.get('is_active')
         if hasattr(profile, 'is_available'):
-            profile.is_available = (is_active_raw == 'on')
+            profile.is_available = True if is_system_profile else (is_active_raw == 'on')
 
         new_username = form.admin_username.data.strip()
-        new_email    = form.admin_email.data.strip().lower()
+        new_email    = normalize_email(form.admin_email.data)
 
         if owner:
             if new_username != owner.username:
@@ -447,20 +497,28 @@ def tenant_edit(tenant_id):
                 owner.username = new_username
 
             if new_email != owner.email:
-                if user_repository.query.filter(User.email == new_email, User.id != owner.id).first():
-                    flash('Email already in use.', 'danger')
+                try:
+                    new_email = assert_email_allowed_for_user(
+                        new_email,
+                        user=owner,
+                        tenant=profile.tenant,
+                        role='tenant_admin',
+                        slug=new_slug,
+                    )
+                except EmailPolicyError as exc:
+                    flash(str(exc), 'danger')
                     return render_template(
                         'superadmin/tenant_form.html', form=form,
                         page_title='Edit Tenant', tenant_id=tenant_id, profile=profile,
                     )
                 owner.email = new_email
 
-            if new_slug != old_slug:
+            if new_slug != old_slug and not is_system_profile:
                 owner.tenant_slug = new_slug
 
         # FIX: CASCADE slug rename to ALL tenant-scoped tables.
         # Without this, a slug rename orphans all projects/skills/etc.
-        if new_slug != old_slug:
+        if new_slug != old_slug and not is_system_profile:
             profile.tenant.slug = new_slug
             from app.models.portfolio import Skill, Testimonial, ActivityLog, Inquiry
             for model in (Project, Skill, Testimonial, ActivityLog, Inquiry):
@@ -510,7 +568,7 @@ def tenant_delete(tenant_id):
         from flask import abort
         abort(404)
 
-    if profile.tenant_slug == 'default':
+    if profile.tenant_slug in ('default', 'administrator') or has_administrator_access(profile):
         flash('The default tenant cannot be deleted.', 'danger')
         return redirect(url_for('superadmin.tenants'))
 
@@ -588,6 +646,11 @@ def tenant_toggle_suspend(tenant_id):
     if profile is None:
         from flask import abort
         abort(404)
+
+    if has_administrator_access(profile):
+        ensure_default_tenant_administrator_plan(commit=True)
+        flash('The protected system portfolio cannot be suspended or downgraded.', 'warning')
+        return redirect(url_for('superadmin.tenants'))
 
     if not hasattr(profile, 'is_available'):
         flash('Tenant suspension is not supported by this platform version.', 'warning')

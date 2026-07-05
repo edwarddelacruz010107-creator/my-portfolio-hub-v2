@@ -39,8 +39,9 @@ from app.security import FileUploadPolicy, log_security_event
 from werkzeug.utils import secure_filename
 import uuid
 from pathlib import Path
-from app.utils import BILLING_PLANS, is_paymongo_enabled, log_activity
+from app.utils import BILLING_PLANS, get_public_billing_plans, is_paymongo_enabled, log_activity
 from app.models.portfolio import Subscription
+from app.system_plan import ADMINISTRATOR_PLAN, has_administrator_access, is_administrator_plan
 from app.services.billing import subscription_access_status
 from app.services.billing_handlers import (
     billing_payment_context,
@@ -104,7 +105,8 @@ def billing_index():
     if denied:
         return denied
 
-    subscription = profile.current_subscription()
+    is_admin_plan = has_administrator_access(profile)
+    subscription = None if is_admin_plan else profile.current_subscription()
     return render_template(
         'admin/billing_overview.html',
         profile=profile,
@@ -112,7 +114,9 @@ def billing_index():
         subscription_status=subscription_access_status(profile),
         license_status=profile.license_status(),
         trial_days_left=profile.trial_days_remaining(),
-        plans=BILLING_PLANS,
+        plans=get_public_billing_plans(),
+        is_administrator_plan=is_admin_plan,
+        administrator_plan=ADMINISTRATOR_PLAN,
         tenant_slug=tenant,
         paymongo_enabled=is_paymongo_enabled(),
         billing_routes={
@@ -134,9 +138,10 @@ def billing_plans():
     if denied:
         return denied
 
-    subscription = profile.current_subscription()
+    is_admin_plan = has_administrator_access(profile)
+    subscription = None if is_admin_plan else profile.current_subscription()
     form = PlanSelectionForm(
-        plan=normalize_plan_name(subscription.plan if subscription else profile.plan or 'Basic')
+        plan='Basic' if is_admin_plan else normalize_plan_name(subscription.plan if subscription else profile.plan or 'Basic')
     )
 
     status = request.args.get('status')
@@ -192,6 +197,10 @@ def billing_payment(method_id):
     denied = _billing_access_check(tenant)
     if denied:
         return denied
+
+    if has_administrator_access(profile):
+        flash('Administrator plan has full access and does not require payment.', 'info')
+        return redirect(url_for('admin.billing_index'))
 
     method = get_payment_method_for_tenant(method_id, profile.tenant_id)
     if not method:

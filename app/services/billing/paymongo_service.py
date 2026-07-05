@@ -31,6 +31,8 @@ import requests
 from flask import current_app
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.system_plan import has_administrator_access, is_administrator_plan
+
 logger = logging.getLogger(__name__)
 
 PAYMONGO_BASE_URL = 'https://api.paymongo.com/v1'
@@ -115,6 +117,8 @@ def _plan_amount_centavos(plan_name: str, billing_cycle: str = 'monthly') -> int
     from app.models.portfolio import normalize_plan_name
     
     plan_norm = normalize_plan_name(plan_name)
+    if is_administrator_plan(plan_norm):
+        raise ValueError('Administrator plan is internal-only and cannot be sent to PayMongo checkout')
     plan_data = BILLING_PLANS.get(plan_norm, BILLING_PLANS.get('Basic', {}))
     
     price = float(plan_data.get('price', 0))
@@ -240,6 +244,13 @@ def initiate_checkout(
             error_message='Unable to create checkout: profile not found'
         )
     
+    if has_administrator_access(profile):
+        return CheckoutResult(
+            success=False,
+            error_code='ADMINISTRATOR_INTERNAL_ONLY',
+            error_message='Administrator plan is internal-only and does not require checkout'
+        )
+
     if not plan:
         logger.error('initiate_checkout: plan is None for profile=%s', profile.id)
         return CheckoutResult(
@@ -278,6 +289,12 @@ def initiate_checkout(
     # ─────────────────────────────────────────────────────────────
     
     plan_name = getattr(plan, 'name', str(plan))
+    if is_administrator_plan(plan_name):
+        return CheckoutResult(
+            success=False,
+            error_code='ADMINISTRATOR_INTERNAL_ONLY',
+            error_message='Administrator plan cannot be purchased through PayMongo'
+        )
     if not plan_name:
         logger.error('initiate_checkout: cannot determine plan name')
         return CheckoutResult(

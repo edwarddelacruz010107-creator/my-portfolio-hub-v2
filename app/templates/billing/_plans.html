@@ -7,6 +7,43 @@
   No duplicate plan grids. Plan selection controls the payment section.
 #}
 
+{% if is_administrator_plan|default(false) %}
+<div class="page-hd">
+  <div class="page-hd-left">
+    <h1>Administrator Plan</h1>
+    <p>This protected system portfolio has full platform access and does not require checkout or payment.</p>
+  </div>
+  <div class="page-hd-right">
+    <span class="activation-eta-badge" style="background:rgba(124,58,237,0.12);border-color:rgba(167,139,250,0.35);color:#a78bfa">
+      <iconify-icon icon="lucide:shield-check" width="14"></iconify-icon>
+      Internal only
+    </span>
+  </div>
+</div>
+
+<div class="billing-section">
+  <div class="plan-card-v2 selected" style="max-width:520px">
+    <div class="plan-name">Administrator</div>
+    <div class="plan-price"><span class="amount">Full platform access</span></div>
+    <div class="plan-desc">This is the default protected Portfolio Owner / Administrator tenant. All Pro and Enterprise features, premium themes, custom branding, email services, certificates, badges, analytics, and theme marketplace access are unlocked forever.</div>
+    <ul class="plan-features">
+      <li>No trial expiration</li>
+      <li>No payment required</li>
+      <li>No PayMongo checkout</li>
+      <li>Hidden from public pricing and tenant plan selection</li>
+    </ul>
+    <span class="badge-status badge-active" style="align-self:flex-start;margin-top:auto">Protected System Plan</span>
+  </div>
+</div>
+
+<div style="margin-top:1.5rem">
+  <a href="{{ url_for('admin.billing_index') }}" class="btn btn-ghost">
+    <iconify-icon icon="lucide:arrow-left" width="14"></iconify-icon> Back to Billing
+  </a>
+</div>
+
+{% else %}
+
 <div class="page-hd">
   <div class="page-hd-left">
     <h1>Choose a Plan</h1>
@@ -409,3 +446,5 @@
   }
 })();
 </script>
+
+{% endif %}

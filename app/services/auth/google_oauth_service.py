@@ -23,13 +23,20 @@ from __future__ import annotations
 import logging
 import re
 import secrets
-from datetime import datetime, timezone
 from typing import Optional
 
 from app import db
+from app.utils.datetime_utils import utc_now
 from app.models import User
 from app.models.core import Tenant
 from app.security import log_security_event
+from app.services.auth.email_policy import (
+    EmailPolicyError,
+    assert_public_signup_email_allowed,
+    get_email_matches,
+    is_owner_shared_email,
+    normalize_email,
+)
 from app.utils import log_activity
 
 logger = logging.getLogger(__name__)
@@ -80,7 +87,7 @@ def resolve_or_create_google_user(
     ip: str,
     user_agent: Optional[str] = None,
 ) -> User:
-    email = (email or '').strip().lower()
+    email = normalize_email(email)
     if not email:
         raise GoogleAuthError('Google did not return an email address.')
     if not email_verified:
@@ -99,21 +106,34 @@ def resolve_or_create_google_user(
         _stamp_login(user, ip, user_agent, avatar_url)
         return user
 
-    # 2) Existing local user by email? Link (unless superadmin).
-    user = User.query.filter_by(email=email).first()
-    if user:
-        if user.is_superadmin:
-            log_security_event('google_link_superadmin_blocked', user,
-                               f'Attempted Google link to superadmin from {ip}', 'critical')
-            raise GoogleAuthError('That email is bound to a superadmin account and cannot be linked to Google.')
+    # 2) Existing local user by email? Link only when it maps to exactly one
+    # non-superadmin account. The owner shared email is reserved and cannot be
+    # used through public Google signup. Never create a duplicate Google account.
+    if is_owner_shared_email(email):
+        log_security_event('google_signup_owner_email_blocked', None,
+                           f'Public Google signup attempted for platform-owner email from {ip}', 'warning')
+        raise GoogleAuthError('This email is reserved for the platform owner. Please use a different email.')
+
+    email_matches = get_email_matches(email)
+    superadmin_matches = [u for u in email_matches if u.is_superadmin]
+    if superadmin_matches:
+        log_security_event('google_link_superadmin_blocked', superadmin_matches[0],
+                           f'Attempted Google link to superadmin from {ip}', 'critical')
+        raise GoogleAuthError('That email is bound to a superadmin account and cannot be linked to Google.')
+
+    tenant_users = [u for u in email_matches if not u.is_superadmin]
+    if len(tenant_users) == 1:
+        user = tenant_users[0]
+        if user.google_id and user.google_id != google_sub:
+            raise GoogleAuthError('This account is already linked to a different Google identity.')
         user.google_id      = google_sub
         user.email_verified = True
         if not user.avatar_url and avatar_url:
             user.avatar_url = avatar_url
-        # keep auth_provider='local' — the user still has a password.
-        # If they had no password, mark provider='google'.
         if not user.password_hash:
             user.auth_provider = 'google'
+        else:
+            user.auth_provider = 'both'
         _stamp_login(user, ip, user_agent, avatar_url)
         db.session.commit()
         log_activity('link_google', 'user', user.username,
@@ -121,18 +141,54 @@ def resolve_or_create_google_user(
                      tenant_slug=user.tenant_slug)
         log_security_event('google_linked', user, f'Google linked from {ip}', 'info')
         return user
+    if len(tenant_users) > 1:
+        log_security_event('google_signup_duplicate_email_blocked', None,
+                           f'Google signup rejected for duplicate email {email} from {ip}', 'warning')
+        raise GoogleAuthError('That email is already used by more than one account. Please sign in with your username and password.')
 
-    # 3) New user + new tenant.
+    try:
+        assert_public_signup_email_allowed(email)
+    except EmailPolicyError as exc:
+        raise GoogleAuthError(str(exc))
+
+    # 3) New user + new tenant using the same trial/profile defaults as the
+    # verified manual signup path. Never assign Administrator here.
+    from app.models.tenant_data import Profile
+    from app.services.tenant.onboarding_service import create_default_portfolio_for
+
+    now = utc_now()
+    from datetime import timedelta
+    trial_ends = now + timedelta(days=7)
+
     tenant = Tenant(
         slug=_unique_slug(full_name or email.split('@', 1)[0]),
         company_name=full_name or email.split('@', 1)[0],
         email=email,
         contact_email=email,
         status='active',
-        plan='Basic',
+        plan='starter',
+        subscription_state='trial',
+        subscription_status='trial',
+        plan_name='starter',
+        trial_started_at=now,
+        trial_ends_at=trial_ends,
+        grace_period_ends_at=trial_ends + timedelta(days=3),
     )
     db.session.add(tenant)
     db.session.flush()
+
+    profile = Profile(
+        tenant=tenant,
+        tenant_id=tenant.id,
+        tenant_slug=tenant.slug,
+        name=full_name or email.split('@', 1)[0],
+        email=email,
+        plan='Basic',
+        free_trial_days=7,
+        free_trial_ends=trial_ends,
+        is_available=True,
+    )
+    db.session.add(profile)
 
     user = User(
         username=_unique_username(email),
@@ -149,6 +205,7 @@ def resolve_or_create_google_user(
     )
     _stamp_login(user, ip, user_agent, avatar_url)
     db.session.add(user)
+    create_default_portfolio_for(user, commit=False)
     db.session.commit()
 
     log_activity('register', 'user', user.username,
@@ -159,7 +216,7 @@ def resolve_or_create_google_user(
 
 
 def _stamp_login(user: User, ip: str, user_agent: Optional[str], avatar_url: Optional[str]) -> None:
-    user.last_login            = datetime.now(timezone.utc)
+    user.last_login            = utc_now()
     user.last_login_ip         = ip
     user.last_login_user_agent = user_agent
     if avatar_url and not user.avatar_url:

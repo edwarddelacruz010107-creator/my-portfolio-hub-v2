@@ -33,12 +33,16 @@ from app.services.auth.verification_service import (
 )
 from app.services.auth.complete_signup_service import (
     PendingSignupError,
-    create_pending_signup,
+    create_or_refresh_pending_signup,
+    get_active_pending_signup_by_email,
+    get_latest_pending_signup_by_email,
+    get_pending_signup_resend_cooldown_remaining,
     issue_pending_signup_otp,
     send_pending_signup_otp,
     verify_pending_signup_otp,
     complete_pending_signup,
 )
+from app.services.auth.email_policy import resolve_email_for_login
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +76,29 @@ def _issue_and_send_pending_signup_otp(pending_signup: PendingSignup) -> bool:
     return ok
 
 
+def _render_verify_email_page(
+    *,
+    email: str,
+    form: EmailOTPForm,
+    signup_state: str = 'active',
+    status_code: int = 200,
+):
+    """Render the verification page with backend-authoritative resend state."""
+    pending = get_active_pending_signup_by_email(email) if email else None
+    resend_remaining = get_pending_signup_resend_cooldown_remaining(pending)
+    return (
+        render_template(
+            'auth/verify_email_sent.html',
+            email=email,
+            form=form,
+            signup_state=signup_state,
+            resend_cooldown_remaining=resend_remaining,
+            resend_cooldown_seconds=60,
+        ),
+        status_code,
+    )
+
+
 # ── /auth/register ───────────────────────────────────────────────────────────
 @auth.route('/register', methods=['GET', 'POST'])
 @limiter.limit('10 per minute')
@@ -93,7 +120,7 @@ def register():
     form = RegisterForm()
     if form.validate_on_submit():
         try:
-            pending, raw_otp = create_pending_signup(
+            pending, raw_otp, pending_action = create_or_refresh_pending_signup(
                 username=form.username.data,
                 full_name=form.full_name.data,
                 email=form.email.data,
@@ -115,17 +142,36 @@ def register():
                                     login_form=LoginForm(),
                                     google_enabled=_google_enabled())
 
+        if pending_action == 'cooldown' or raw_otp is None:
+            remaining = get_pending_signup_resend_cooldown_remaining(pending)
+            logger.info(
+                'register: pending signup resend cooldown enforced pending_signup_id=%s email=%s remaining=%s',
+                pending.id,
+                pending.email,
+                remaining,
+            )
+            flash(
+                f'We already started signup for this email. Please wait {remaining} seconds before requesting another code.',
+                'warning',
+            )
+            return redirect(url_for('auth.verify_email_sent', email=pending.email))
+
         try:
             sent = send_pending_signup_otp(pending, raw_otp)
         except Exception:
             logger.exception('register: OTP issuance/dispatch failed for pending_signup_id=%s', pending.id)
-            flash('Signup created but we could not send the verification email. Please try resending the code or contact support.', 'danger')
+            flash('Signup saved, but we could not send the verification code. Please try Resend Code.', 'warning')
             return redirect(url_for('auth.verify_email_sent', email=pending.email))
 
         if sent:
-            flash('Signup created. Enter the 6-digit code we emailed you.', 'success')
+            if pending_action == 'refreshed':
+                flash('We already started signup for this email, so we sent a fresh verification code.', 'success')
+            elif pending_action == 'replaced_expired':
+                flash('Your previous signup session expired, so we started a fresh signup and emailed a new code.', 'success')
+            else:
+                flash('Signup created. Enter the 6-digit code we emailed you.', 'success')
         else:
-            flash('Signup created but the verification email could not be delivered. Please request a new code.', 'warning')
+            flash('Signup saved, but we could not send the verification code. Please try Resend Code.', 'warning')
         return redirect(url_for('auth.verify_email_sent', email=pending.email))
 
     return render_template(
@@ -162,14 +208,14 @@ def verify_email_sent():
     form = EmailOTPForm()
 
     if request.method == 'POST' and form.validate_on_submit():
-        pending = PendingSignup.query.filter_by(email=email).first() if email else None
+        pending = get_active_pending_signup_by_email(email) if email else None
         generic_err = 'Invalid code, or this link has expired.'
 
         if pending and not pending.email_verified:
             ok, err = verify_pending_signup_otp(pending, form.code.data.strip())
             if not ok:
                 flash(err, 'danger')
-                return render_template('auth/verify_email_sent.html', email=email, form=form), 400
+                return _render_verify_email_page(email=email, form=form, status_code=400)
 
             try:
                 user = complete_pending_signup(
@@ -179,11 +225,11 @@ def verify_email_sent():
                 )
             except PendingSignupError as exc:
                 flash(str(exc), 'danger')
-                return render_template('auth/verify_email_sent.html', email=email, form=form), 400
+                return _render_verify_email_page(email=email, form=form, status_code=400)
             except Exception:
                 logger.exception('verify_email_sent: completing pending signup failed for email=%s', email)
                 flash('We verified your code but could not create your account. Please try again or contact support.', 'danger')
-                return render_template('auth/verify_email_sent.html', email=email, form=form), 500
+                return _render_verify_email_page(email=email, form=form, status_code=500)
 
             log_security_event('email_verified', user, f'Email verified via OTP from {_get_ip()}', 'info')
             log_activity('email_verified', 'user', user.username,
@@ -192,16 +238,16 @@ def verify_email_sent():
             return _complete_login(user, remember=False, next_page=None,
                                     default_next=url_for('root'))
 
-        user = User.query.filter_by(email=email).first()
+        user = resolve_email_for_login(email, require_superadmin=False)
         if not user or user.email_verified or user.is_superadmin:
             flash(generic_err, 'danger')
-            return render_template('auth/verify_email_sent.html', email=email, form=form), 400
+            return _render_verify_email_page(email=email, form=form, status_code=400)
 
         try:
             verify_email_verification_otp(user, form.code.data.strip())
         except VerificationError as exc:
             flash(str(exc), 'danger')
-            return render_template('auth/verify_email_sent.html', email=email, form=form), 400
+            return _render_verify_email_page(email=email, form=form, status_code=400)
 
         log_security_event('email_verified', user, f'Email verified via OTP from {_get_ip()}', 'info')
         log_activity('email_verified', 'user', user.username,
@@ -218,7 +264,25 @@ def verify_email_sent():
         return _complete_login(user, remember=False, next_page=None,
                                 default_next=url_for('root'))
 
-    return render_template('auth/verify_email_sent.html', email=email, form=form)
+    signup_state = 'active'
+    if email:
+        latest_before_cleanup = get_latest_pending_signup_by_email(email)
+        pending = get_active_pending_signup_by_email(email)
+        if pending is None:
+            legacy_user = resolve_email_for_login(email, require_superadmin=False)
+            if legacy_user and not legacy_user.email_verified and not legacy_user.is_superadmin:
+                signup_state = 'legacy_user'
+            elif latest_before_cleanup is not None and latest_before_cleanup.is_expired:
+                signup_state = 'expired'
+                flash('This signup session expired. Please create your account again.', 'warning')
+            else:
+                signup_state = 'missing'
+                flash('No active signup session was found for this email.', 'warning')
+    else:
+        signup_state = 'missing'
+        flash('No active signup session was found for this email.', 'warning')
+
+    return _render_verify_email_page(email=email, form=form, signup_state=signup_state)[0]
 
 
 @auth.route('/verify-email/sent', methods=['GET', 'POST'])
@@ -236,59 +300,66 @@ def verify_email_sent_alias():
 @auth.route('/verify-email/resend', methods=['POST'])
 @limiter.limit('5 per hour')  # Global hourly rate limit
 def resend_verification():
+    """Resend the pending-signup email verification OTP.
+
+    The resend flow intentionally uses only PendingSignup state.  It does not
+    silently pretend success when the pending signup is missing/expired because
+    that makes the signup page look broken and prevents the user from knowing
+    they must create the account again.
     """
-    Resend OTP code for email verification.
-    
-    v4.0 FIX: Added per-request cooldown (60 seconds) to prevent OTP spam.
-    """
-    import time
     email = (request.form.get('email') or '').strip().lower()
-    
-    if email:
-        pending = PendingSignup.query.filter_by(email=email).first()
-        if pending and not pending.email_verified:
-            try:
-                raw_otp = issue_pending_signup_otp(
-                    pending,
-                    ip_address=_get_ip(),
-                    user_agent=request.headers.get('User-Agent'),
-                )
-                send_pending_signup_otp(pending, raw_otp)
-            except PendingSignupError:
-                pass
-            except Exception:
-                logger.exception('resend_verification: pending signup OTP send failed for email=%s', email)
-        else:
-            user = User.query.filter_by(email=email).first()
-            # Do not leak whether the account exists.
-            if user and not user.email_verified and not user.is_superadmin:
-                # v4.0: Check per-user cooldown (60-second minimum between resends)
-                try:
-                    import redis
-                    redis_url = request.environ.get('REDIS_URL', '')
-                    if redis_url:
-                        try:
-                            r = redis.from_url(redis_url, socket_connect_timeout=2, socket_timeout=2)
-                            cooldown_key = f'otp_resend_cooldown:{user.id}'
-                            if r.exists(cooldown_key):
-                                remaining = r.ttl(cooldown_key)
-                                flash(f'Please wait {remaining} seconds before requesting another code.', 'warning')
-                                return redirect(url_for('auth.verify_email_sent', email=email))
-                            # Set cooldown for next 60 seconds
-                            r.setex(cooldown_key, 60, '1')
-                        except Exception:
-                            pass  # Redis unavailable, fall through
-                except Exception:
-                    pass
-                
-                try:
-                    _issue_and_send_otp(user)
-                except OTPRateLimitedError:
-                    flash('Too many requests. Please wait a few minutes and try again.', 'warning')
-                except Exception:
-                    logger.exception('resend_verification: OTP send failed')
-    
-    flash('If that email is registered and unverified, a new code has been sent.', 'info')
+    logger.info('Signup OTP resend requested email=%s ip=%s', email or '(missing)', _get_ip())
+
+    if not email:
+        logger.info('Signup OTP resend blocked: missing email')
+        flash('No active signup session was found. Please create your account again.', 'warning')
+        return redirect(url_for('auth.portal', tab='register'))
+
+    latest = get_latest_pending_signup_by_email(email)
+    if latest is not None and latest.is_expired:
+        logger.info('Signup OTP resend blocked: pending signup expired id=%s email=%s', latest.id, email)
+        flash('This signup session expired. Please create your account again.', 'warning')
+        return redirect(url_for('auth.verify_email_sent', email=email))
+
+    pending = get_active_pending_signup_by_email(email)
+    if pending is None or pending.email_verified:
+        logger.info('Signup OTP resend blocked: no active pending signup email=%s found=%s', email, bool(latest))
+        flash('No active signup session was found. Please create your account again.', 'warning')
+        return redirect(url_for('auth.verify_email_sent', email=email))
+
+    remaining = get_pending_signup_resend_cooldown_remaining(pending)
+    logger.info('Signup OTP resend pending signup found id=%s email=%s cooldown_remaining=%s', pending.id, email, remaining)
+    if remaining > 0:
+        flash(f'Please wait {remaining} seconds before requesting another code.', 'warning')
+        return redirect(url_for('auth.verify_email_sent', email=email))
+
+    try:
+        raw_otp = issue_pending_signup_otp(
+            pending,
+            ip_address=_get_ip(),
+            user_agent=request.headers.get('User-Agent'),
+        )
+    except PendingSignupError as exc:
+        logger.info('Signup OTP resend blocked by service pending_signup_id=%s reason=%s', pending.id, str(exc))
+        flash(str(exc), 'warning')
+        return redirect(url_for('auth.verify_email_sent', email=email))
+    except Exception:
+        logger.exception('Signup OTP resend failed while issuing OTP pending_signup_id=%s email=%s', pending.id, email)
+        flash('We could not prepare a new verification code. Please try again later.', 'warning')
+        return redirect(url_for('auth.verify_email_sent', email=email))
+
+    try:
+        sent = send_pending_signup_otp(pending, raw_otp)
+    except Exception:
+        logger.exception('Signup OTP resend delivery crashed pending_signup_id=%s email=%s', pending.id, email)
+        sent = False
+
+    if sent:
+        logger.info('Signup OTP resend sent successfully pending_signup_id=%s email=%s', pending.id, email)
+        flash('A fresh verification code has been emailed to you.', 'success')
+    else:
+        logger.error('Signup OTP resend delivery failed pending_signup_id=%s email=%s', pending.id, email)
+        flash('We could not send the verification code. Please contact support or try again later.', 'warning')
     return redirect(url_for('auth.verify_email_sent', email=email))
 
 

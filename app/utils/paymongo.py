@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import requests
+from app.system_plan import has_administrator_access, is_administrator_plan
 # Expose a module-level `current_app` name that tests can patch without
 # triggering Flask's LocalProxy lookup (which requires an app context).
 # At runtime, `_get_current_app()` will fall back to importing Flask's
@@ -77,6 +78,8 @@ def _plan_amount_centavos(plan_name: str, billing_cycle: str = 'monthly') -> int
     from app.services.billing import plan_duration_days
 
     plan_norm = normalize_plan_name(plan_name)
+    if is_administrator_plan(plan_norm):
+        raise ValueError('Administrator plan is internal-only and cannot be sent to PayMongo checkout')
     plan_data = BILLING_PLANS.get(plan_norm, BILLING_PLANS['Basic'])
     price = float(plan_data.get('price', 0))
     if billing_cycle == 'yearly':
@@ -111,6 +114,10 @@ def create_checkout_session(
         DB by subscription_id, since metadata parsing at webhook time would
         be a second, divergent source of truth for the same fact.
     """
+    if is_administrator_plan(plan_name) or str(tenant_slug or '').strip().lower() in {'default', 'administrator'}:
+        logger.warning('PayMongo checkout blocked for internal Administrator/default portfolio plan')
+        return None
+
     if billing_cycle not in BILLING_CYCLES:
         logger.error('Invalid billing cycle: %s', billing_cycle)
         return None

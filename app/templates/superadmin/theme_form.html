@@ -336,9 +336,6 @@
 .img-drop-txt small{display:block;color:var(--te-muted);font-size:.72rem;font-weight:600;margin-top:.14rem}
 .img-preview-wrap{position:relative;display:block;margin:.55rem 0 .8rem;border-radius:16px;overflow:hidden;border:1px solid var(--te-border);background:var(--te-surface-raised)}
 .img-preview-wrap img{display:block;width:100%;height:158px;object-fit:cover}
-.img-preview-actions{display:flex;gap:.5rem;flex-wrap:wrap;margin:.45rem 0 .85rem}
-.img-clear-btn{border:1px solid var(--danger,#ef4444);background:rgba(239,68,68,.08);color:var(--danger,#ef4444);border-radius:10px;padding:.45rem .65rem;font-size:.74rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:.35rem}
-.img-clear-btn:hover{background:rgba(239,68,68,.14)}
 .img-empty{display:flex;align-items:center;justify-content:center;gap:.45rem;min-height:72px;border:1px dashed var(--te-border);border-radius:14px;color:var(--te-muted);font-size:.78rem;font-weight:700;background:rgba(148,163,184,.055);margin:.55rem 0 .8rem}
 .img-previews-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;margin:.55rem 0 .75rem}
 .img-prev-item{position:relative;border-radius:14px;overflow:hidden;aspect-ratio:16/10;border:1px solid var(--te-border);background:var(--te-surface-raised)}
@@ -584,15 +581,15 @@ html[data-theme="light"] .fm-item{background:#fff}
             </div>
             <div class="te-field">
               <label class="te-label" for="thumbnail_url">Thumbnail URL</label>
-              <input class="te-input" id="thumbnail_url" name="thumbnail_url" type="text"
+              <input class="te-input" id="thumbnail_url" name="thumbnail_url" type="url"
                      value="{{ entry.thumbnail_url or '' }}"
-                     placeholder="https://… or upload to use /static/uploads/themes/…"/>
-              <div class="te-hint">Paste a hosted image URL or upload a replacement below. Uploaded files use a safe /static/uploads/themes/ path.</div>
+                     placeholder="https://… or leave blank to upload"/>
+              <div class="te-hint">Paste a hosted image URL or upload a replacement below.</div>
             </div>
 
             {% if entry.thumbnail_url %}
-            <div class="img-preview-wrap" id="thumbPreviewWrap">
-              <img src="{{ entry.thumbnail_url }}" alt="{{ resolved_name }} thumbnail preview" id="thumbPreviewImg" onerror="this.closest('.img-preview-wrap').style.display='none'"/>
+            <div class="img-preview-wrap">
+              <img src="{{ entry.thumbnail_url }}" alt="{{ resolved_name }} thumbnail preview" id="thumbPreviewImg"/>
             </div>
             {% else %}
             <div class="img-empty" id="thumbEmptyState">
@@ -608,11 +605,6 @@ html[data-theme="light"] .fm-item{background:#fff}
                 <div class="img-drop-icon"><iconify-icon icon="lucide:upload-cloud" width="24"></iconify-icon></div>
                 <div class="img-drop-txt">Drop image here or click to browse<small>PNG, JPG, WEBP, GIF · Max 5 MB</small></div>
               </div>
-            </div>
-            <div class="img-preview-actions" id="thumbActions" {% if not entry.thumbnail_url %}style="display:none"{% endif %}>
-              <button type="button" class="img-clear-btn" onclick="clearThemeMedia('thumbnail')">
-                <iconify-icon icon="lucide:trash-2" width="13"></iconify-icon> Remove thumbnail
-              </button>
             </div>
             <div class="upload-status" id="thumbStatus"></div>
             {% else %}
@@ -633,7 +625,7 @@ html[data-theme="light"] .fm-item{background:#fff}
               <div class="img-prev-item" id="prev_{{ loop.index }}">
                 <img src="{{ url }}" alt="{{ resolved_name }} preview {{ loop.index }}"/>
                 <button type="button" class="img-prev-remove" aria-label="Remove screenshot {{ loop.index }}"
-                        onclick="deletePreview({{ url | tojson }}, this.closest('.img-prev-item'))">
+                        onclick="deletePreview('{{ url }}', this.closest('.img-prev-item'))">
                   <iconify-icon icon="lucide:x" width="12"></iconify-icon>
                 </button>
               </div>
@@ -665,45 +657,15 @@ html[data-theme="light"] .fm-item{background:#fff}
             <div class="asset-head">
               <div>
                 <h3 class="asset-title">Banner image</h3>
-                <p class="asset-copy">Optional wide hero asset for preview or marketing surfaces. Recommended 1600×700.</p>
+                <p class="asset-copy">Optional wide hero asset for preview or marketing surfaces.</p>
               </div>
             </div>
             <div class="te-field">
               <label class="te-label" for="banner_url">Banner URL</label>
-              <input class="te-input" id="banner_url" name="banner_url" type="text"
+              <input class="te-input" id="banner_url" name="banner_url" type="url"
                      value="{{ entry.banner_url or '' }}"
-                     placeholder="https://… or upload to use /static/uploads/themes/…"/>
-              <div class="te-hint">External https:// images and locally uploaded /static/uploads/themes/ images are supported.</div>
+                     placeholder="https://… wide hero banner image"/>
             </div>
-
-            {% if entry.banner_url %}
-            <div class="img-preview-wrap" id="bannerPreviewWrap">
-              <img src="{{ entry.banner_url }}" alt="{{ resolved_name }} banner preview" id="bannerPreviewImg" onerror="this.closest('.img-preview-wrap').style.display='none'"/>
-            </div>
-            {% else %}
-            <div class="img-empty" id="bannerEmptyState">
-              <iconify-icon icon="lucide:panorama" width="16"></iconify-icon>
-              No banner uploaded yet
-            </div>
-            {% endif %}
-
-            {% if entry.id %}
-            <div class="img-drop" id="bannerDrop">
-              <input type="file" accept="image/*" id="bannerFile" aria-label="Upload banner image" onchange="uploadBanner(this)"/>
-              <div>
-                <div class="img-drop-icon"><iconify-icon icon="lucide:image-plus" width="22"></iconify-icon></div>
-                <div class="img-drop-txt">Upload banner<small>Wide PNG, JPG, WEBP, GIF · Max 5 MB</small></div>
-              </div>
-            </div>
-            <div class="img-preview-actions" id="bannerActions" {% if not entry.banner_url %}style="display:none"{% endif %}>
-              <button type="button" class="img-clear-btn" onclick="clearThemeMedia('banner')">
-                <iconify-icon icon="lucide:trash-2" width="13"></iconify-icon> Remove banner
-              </button>
-            </div>
-            <div class="upload-status" id="bannerStatus"></div>
-            {% else %}
-            <p class="te-hint">Save the theme first to enable banner uploads.</p>
-            {% endif %}
           </div>
         </section>
 
@@ -915,7 +877,6 @@ function uploadThumb(input){
         if(!img){
           const wrap = document.createElement('div');
           wrap.className = 'img-preview-wrap';
-          wrap.id = 'thumbPreviewWrap';
           img = document.createElement('img');
           img.id = 'thumbPreviewImg';
           img.alt = 'Theme thumbnail preview';
@@ -925,74 +886,11 @@ function uploadThumb(input){
         img.src = d.url;
         const urlInput = document.querySelector('input[name="thumbnail_url"]');
         if(urlInput) urlInput.value = d.url;
-        const actions = document.getElementById('thumbActions');
-        if(actions) actions.style.display = 'flex';
-        input.value='';
       } else {
         setUploadStatus('thumbStatus', 'err', '✗ '+(d.message || 'Upload failed.'));
       }
     }).catch(()=>{ setUploadStatus('thumbStatus', 'err', 'Upload failed.'); });
 }
-
-
-function uploadBanner(input){
-  if(!input.files.length) return;
-  const fd = new FormData();
-  fd.append('banner', input.files[0]);
-  fd.append('csrf_token', _CSRF);
-  setUploadStatus('bannerStatus', '', 'Uploading…');
-  fetch(`/superadmin/themes/${_ENTRY_ID}/upload-banner`,{method:'POST',body:fd})
-    .then(r=>r.json()).then(d=>{
-      if(d.ok){
-        setUploadStatus('bannerStatus', 'ok', '✓ Banner saved.');
-        let img = document.getElementById('bannerPreviewImg');
-        const empty = document.getElementById('bannerEmptyState');
-        if(empty) empty.remove();
-        if(!img){
-          const wrap = document.createElement('div');
-          wrap.className = 'img-preview-wrap';
-          wrap.id = 'bannerPreviewWrap';
-          img = document.createElement('img');
-          img.id = 'bannerPreviewImg';
-          img.alt = 'Theme banner preview';
-          wrap.appendChild(img);
-          document.getElementById('bannerDrop').parentNode.insertBefore(wrap, document.getElementById('bannerDrop'));
-        }
-        img.src = d.url;
-        const urlInput = document.querySelector('input[name="banner_url"]');
-        if(urlInput) urlInput.value = d.url;
-        const actions = document.getElementById('bannerActions');
-        if(actions) actions.style.display = 'flex';
-        input.value='';
-      } else {
-        setUploadStatus('bannerStatus', 'err', '✗ '+(d.message || 'Upload failed.'));
-      }
-    }).catch(()=>{ setUploadStatus('bannerStatus', 'err', 'Upload failed.'); });
-}
-
-function clearThemeMedia(kind){
-  const label = kind === 'banner' ? 'banner' : 'thumbnail';
-  if(!confirm(`Remove this ${label}? The uploaded file will not be deleted from disk, but the theme will stop using it.`)) return;
-  const fd = new FormData();
-  fd.append('csrf_token', _CSRF);
-  fetch(`/superadmin/themes/${_ENTRY_ID}/clear-${label}`,{method:'POST',body:fd})
-    .then(r=>r.json()).then(d=>{
-      if(!d.ok){
-        setUploadStatus(label === 'banner' ? 'bannerStatus' : 'thumbStatus', 'err', d.message || 'Unable to remove image.');
-        return;
-      }
-      const input = document.querySelector(`input[name="${label === 'banner' ? 'banner_url' : 'thumbnail_url'}"]`);
-      if(input) input.value = '';
-      const wrap = document.getElementById(label === 'banner' ? 'bannerPreviewWrap' : 'thumbPreviewWrap');
-      if(wrap) wrap.remove();
-      const actions = document.getElementById(label === 'banner' ? 'bannerActions' : 'thumbActions');
-      if(actions) actions.style.display = 'none';
-      setUploadStatus(label === 'banner' ? 'bannerStatus' : 'thumbStatus', 'ok', `✓ ${label.charAt(0).toUpperCase()+label.slice(1)} removed.`);
-    }).catch(()=>{
-      setUploadStatus(label === 'banner' ? 'bannerStatus' : 'thumbStatus', 'err', 'Unable to remove image.');
-    });
-}
-
 
 /* ── Preview screenshot upload ───────────────────── */
 function uploadPreview(input){
@@ -1043,7 +941,7 @@ function deletePreview(url, el){
 }
 
 /* ── Drag over highlight for drop zones ─────────── */
-['thumbDrop','prevDrop','bannerDrop'].forEach(id=>{
+['thumbDrop','prevDrop'].forEach(id=>{
   const el = document.getElementById(id);
   if(!el) return;
   el.addEventListener('dragover', e=>{e.preventDefault(); el.classList.add('drag-over');});

@@ -337,13 +337,7 @@
           {% if theme.premium %}<span class="theme-badge">Premium</span>{% endif %}
           <div class="theme-preview">
             {% if theme.preview_image %}
-              <img class="theme-preview-img" src="{{ theme.preview_image }}" alt="{{ theme.name }} theme preview" loading="lazy"
-                   onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
-              <div class="theme-preview-fallback" hidden>
-                <div class="theme-mock-bar"></div>
-                <div class="theme-mock-lines"><span></span><span class="short"></span></div>
-                <div class="theme-swatches"><span style="background:var(--tc1)"></span><span style="background:var(--tc2)"></span><span style="background:var(--tc3)"></span></div>
-              </div>
+              <img class="theme-preview-img" src="{{ theme.preview_image }}" alt="{{ theme.name }} theme preview" loading="lazy">
             {% else %}
               <div class="theme-mock-bar"></div>
               <div class="theme-mock-lines"><span></span><span class="short"></span></div>

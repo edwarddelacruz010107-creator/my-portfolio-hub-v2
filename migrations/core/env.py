@@ -40,11 +40,12 @@ if config.config_file_name is not None:
 
 target_metadata = db.metadata
 
-# Override sqlalchemy.url from environment
-core_db_url = os.environ.get('CORE_DATABASE_URL', '')
-if core_db_url.startswith('postgres://'):
-    core_db_url = core_db_url.replace('postgres://', 'postgresql://', 1)
+# Override sqlalchemy.url from the same database-resolution helper used by the app.
+# This supports both physical dual-DB deployments and Option 1 single-Postgres
+# deployments where only CORE_DATABASE_URL is configured.
+from app.utils.db_config import get_database_url  # noqa: E402
 
+core_db_url = get_database_url()
 if core_db_url:
     config.set_main_option('sqlalchemy.url', core_db_url)
 

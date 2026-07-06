@@ -249,12 +249,13 @@ def project_detail(slug: str):
         .filter_by(slug=slug, status='published')
         .first_or_404()
     )
-    # Redirect to canonical tenant-scoped URL
+    # Redirect to the best canonical public URL. If the tenant has a verified
+    # primary custom domain, prefer /project/<slug> on that domain; otherwise
+    # keep the existing tenant-scoped platform URL.
+    from app.services.custom_domain_service import tenant_project_public_url
     return redirect(
-        url_for('tenant.project_detail',
-                tenant_slug=project.tenant_slug or 'default',
-                slug=slug),
-        code=301
+        tenant_project_public_url(project.tenant_slug or 'default', slug),
+        code=301,
     )
 
 

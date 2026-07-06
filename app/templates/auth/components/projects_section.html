@@ -32,7 +32,7 @@
                                         <iconify-icon icon="lucide:github" width="18"></iconify-icon>
                                     </a>
                                 {% else %}
-                                    <a href="{{ url_for('tenant.project_detail', tenant_slug=tenant_slug or active_tenant_slug or 'default', slug=project.slug) }}" class="project-btn" aria-label="View project details">
+                                    <a href="{{ tenant_project_url(tenant_slug or active_tenant_slug or 'default', project.slug) }}" class="project-btn" aria-label="View project details">
                                         <iconify-icon icon="lucide:arrow-right" width="18"></iconify-icon>
                                     </a>
                                 {% endif %}
@@ -64,7 +64,7 @@
                                     Source Code
                                 </a>
                             {% else %}
-                                <a href="{{ url_for('tenant.project_detail', tenant_slug=tenant_slug or active_tenant_slug or 'default', slug=project.slug) }}" class="project-link">
+                                <a href="{{ tenant_project_url(tenant_slug or active_tenant_slug or 'default', project.slug) }}" class="project-link">
                                     <iconify-icon icon="lucide:arrow-right" width="14"></iconify-icon>
                                     View Details
                                 </a>

@@ -30,7 +30,7 @@ services:
 
     # ── Deployment sequence — ORDER MATTERS ─────────────────────────
     # Step 1: Apply all pending core DB migrations
-    # Step 2: Create tenant-bound tables on TENANT_DATABASE_URL
+    # Step 2: Create tenant-bound tables on the tenant bind; if TENANT_DATABASE_URL is blank, it reuses CORE_DATABASE_URL
     # Step 3: Ensure 'default' Tenant row + Profile exist
     # Step 4: Create superadmin user (CRITICAL — was missing before)
     #
@@ -83,10 +83,10 @@ services:
       - key: FERNET_KEY
         sync: false
 
-      # ── Dual Database ────────────────────────────────────────────
+      # ── Database ─────────────────────────────────────────────────
+      # Option 1: set CORE_DATABASE_URL to your single Render PostgreSQL URL.
+      # TENANT_DATABASE_URL is optional; when omitted, tenant-bound tables use CORE_DATABASE_URL.
       - key: CORE_DATABASE_URL
-        sync: false
-      - key: TENANT_DATABASE_URL
         sync: false
 
       # ── Superadmin bootstrap ─────────────────────────────────────
@@ -122,9 +122,25 @@ services:
       - key: SUPABASE_BUCKET
         sync: false
 
-      # ── App URL ──────────────────────────────────────────────────
+      # ── OAuth — optional social sign-in ───────────────────────
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+
+      # ── App URL / Custom Domains ───────────────────────────────
       - key: APP_BASE_URL
         sync: false
+      - key: CUSTOM_DOMAIN_CNAME_TARGET
+        sync: false
+      - key: CUSTOM_DOMAIN_BLOCKED_HOSTS
+        sync: false
+      - key: CUSTOM_DOMAIN_PUBLIC_SCHEME
+        value: https
 
       # ── Billing ──────────────────────────────────────────────────
       - key: BILLING_GRACE_PERIOD_DAYS

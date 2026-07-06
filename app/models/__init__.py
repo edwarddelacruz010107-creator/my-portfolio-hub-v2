@@ -15,6 +15,7 @@ tenant_data_db (__bind_key__ = "tenant" / TENANT_DATABASE_URL):
 # ── Core DB models ─────────────────────────────────────────────────────────
 from app.models.core import (
     Tenant,
+    TenantCustomDomain,
     User,
     PendingSignup,
     Subscription,
@@ -73,7 +74,7 @@ from app.models.tenant_form_settings import (
 
 __all__ = [
     # core_db
-    'Tenant', 'User', 'PendingSignup', 'Subscription', 'WebhookEvent',
+    'Tenant', 'TenantCustomDomain', 'User', 'PendingSignup', 'Subscription', 'WebhookEvent',
     'PaymentMethod', 'PaymentInstruction', 'PaymentSubmission',
     'PlatformSetting', 'TenantCommunicationSettings',
     'PasswordResetOTP', 'GlobalEmailConfig',

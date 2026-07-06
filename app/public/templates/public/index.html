@@ -56,7 +56,7 @@
       {% if current_user.is_authenticated %}
         <a href="{{ url_for('public.administrator_gateway') }}" class="btn-mph btn-ghost">Dashboard</a>
         {% if not current_user.is_superadmin and current_user.tenant_slug %}
-        <a href="{{ url_for('public.creator_link', tenant_slug=current_user.tenant_slug) }}" class="btn-mph btn-outline">My Portfolio</a>
+        <a href="{{ tenant_portfolio_url(current_user.tenant_slug) }}" class="btn-mph btn-outline">My Portfolio</a>
         {% endif %}
       {% else %}
         <a href="{{ url_for('auth.portal', tab='login') }}" class="btn-mph btn-ghost">Sign In</a>
@@ -81,7 +81,7 @@
     {% if current_user.is_authenticated %}
       <a href="{{ url_for('public.administrator_gateway') }}" class="btn-mph btn-outline btn-block">Dashboard</a>
       {% if not current_user.is_superadmin and current_user.tenant_slug %}
-      <a href="{{ url_for('public.creator_link', tenant_slug=current_user.tenant_slug) }}" class="btn-mph btn-primary btn-block ripple-wrap">My Portfolio</a>
+      <a href="{{ tenant_portfolio_url(current_user.tenant_slug) }}" class="btn-mph btn-primary btn-block ripple-wrap">My Portfolio</a>
       {% endif %}
     {% else %}
       <a href="{{ url_for('auth.portal', tab='login') }}" class="btn-mph btn-outline btn-block">Sign In</a>
@@ -107,7 +107,7 @@
             {% if current_user.is_authenticated %}
               <a href="{{ url_for('public.administrator_gateway') }}" class="btn-mph btn-primary ripple-wrap">Go to Dashboard <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
               {% if not current_user.is_superadmin and current_user.tenant_slug %}
-              <a href="{{ url_for('public.creator_link', tenant_slug=current_user.tenant_slug) }}" class="btn-mph btn-outline ripple-wrap">View My Portfolio</a>
+              <a href="{{ tenant_portfolio_url(current_user.tenant_slug) }}" class="btn-mph btn-outline ripple-wrap">View My Portfolio</a>
               {% endif %}
             {% else %}
               <a href="{{ landing_content.hero_cta_primary_url or url_for('auth.portal', tab='signup') }}" class="btn-mph btn-primary ripple-wrap">{{ landing_content.hero_cta_primary_text or 'Get Started Free' }} <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
@@ -337,7 +337,13 @@
           {% if theme.premium %}<span class="theme-badge">Premium</span>{% endif %}
           <div class="theme-preview">
             {% if theme.preview_image %}
-              <img class="theme-preview-img" src="{{ theme.preview_image }}" alt="{{ theme.name }} theme preview" loading="lazy">
+              <img class="theme-preview-img" src="{{ theme.preview_image }}" alt="{{ theme.name }} theme preview" loading="lazy"
+                   onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+              <div class="theme-preview-fallback" hidden>
+                <div class="theme-mock-bar"></div>
+                <div class="theme-mock-lines"><span></span><span class="short"></span></div>
+                <div class="theme-swatches"><span style="background:var(--tc1)"></span><span style="background:var(--tc2)"></span><span style="background:var(--tc3)"></span></div>
+              </div>
             {% else %}
               <div class="theme-mock-bar"></div>
               <div class="theme-mock-lines"><span></span><span class="short"></span></div>
@@ -411,7 +417,7 @@
             {% if c.bio_short %}<p class="pf-bio">{{ c.bio_short }}</p>{% endif %}
             <div class="pf-footer">
               <span class="pf-projects"><strong>{{ c.project_count }}</strong> projects</span>
-              <a href="{{ url_for('public.creator_link', tenant_slug=c.tenant_slug) }}" class="btn-mph btn-outline btn-sm">View</a>
+              <a href="{{ tenant_portfolio_url(c.tenant_slug) }}" class="btn-mph btn-outline btn-sm">View</a>
             </div>
           </div>
         </article>
@@ -501,7 +507,7 @@
                 {% endif %}
 
                 {% if creator_slug %}
-                <a href="{{ url_for('public.creator_link', tenant_slug=creator_slug) }}" class="project-action-btn project-action-portfolio" aria-label="View {{ creator_name }} portfolio">
+                <a href="{{ (project.portfolio_url if project.portfolio_url is defined and project.portfolio_url else tenant_portfolio_url(creator_slug)) }}" class="project-action-btn project-action-portfolio" aria-label="View {{ creator_name }} portfolio">
                   <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
                   <span>View portfolio</span>
                 </a>
@@ -579,7 +585,7 @@
           <div class="founder-actions">
             <a
               class="btn-mph btn-primary ripple-wrap"
-              href="{{ landing_content.founder_portfolio_url or (url_for('public.creator_link', tenant_slug=administrator.tenant_slug) if administrator else url_for('root')) }}"
+              href="{{ landing_content.founder_portfolio_url or (tenant_portfolio_url(administrator.tenant_slug) if administrator else url_for('root')) }}"
               aria-label="View founder portfolio"
             >
               View Portfolio
@@ -631,7 +637,7 @@
               <span class="community-update-badge">{{ update_category }}</span>
             </div>
             <a
-              href="{{ update_url if update_url else (url_for('public.creator_link', tenant_slug=update_slug) if update_slug else '#projects') }}"
+              href="{{ update_url if update_url else (tenant_portfolio_url(update_slug) if update_slug else '#projects') }}"
               class="community-update-link"
             >{{ update_title }}</a>
             <div class="community-update-stats">
@@ -646,7 +652,7 @@
             <i class="bi bi-arrow-right" aria-hidden="true"></i>
           </a>
           {% elif update_slug %}
-          <a href="{{ url_for('public.creator_link', tenant_slug=update_slug) }}" class="community-view-link" aria-label="View {{ update_creator }} portfolio">
+          <a href="{{ tenant_portfolio_url(update_slug) }}" class="community-view-link" aria-label="View {{ update_creator }} portfolio">
             View portfolio
             <i class="bi bi-arrow-right" aria-hidden="true"></i>
           </a>

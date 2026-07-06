@@ -83,6 +83,12 @@ def render_landing_page():
 @public_bp.route('/contact', methods=['POST'])
 @limiter.limit('5 per hour')
 def contact():
+    from app.services.custom_domain_service import resolve_verified_custom_domain
+    domain_record = resolve_verified_custom_domain(request.host)
+    if domain_record is not None:
+        from app.services.custom_domain_public import handle_custom_domain_contact
+        return handle_custom_domain_contact(domain_record)
+
     form = LandingContactForm()
     if not form.validate_on_submit():
         for field, errors in form.errors.items():
@@ -393,4 +399,5 @@ def creator_link(tenant_slug: str):
         from app import _render_default_portfolio
         return _render_default_portfolio()
 
-    return redirect(url_for('tenant.portfolio', tenant_slug=tenant_slug), 301)
+    from app.services.custom_domain_service import tenant_portfolio_public_url
+    return redirect(tenant_portfolio_public_url(tenant_slug), 301)

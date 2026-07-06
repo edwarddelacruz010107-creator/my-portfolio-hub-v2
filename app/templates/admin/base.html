@@ -195,6 +195,12 @@
         <span class="nav-icon"><iconify-icon icon="lucide:mail-check" width="17"></iconify-icon></span>
         Email Services
       </a>
+      <a href="{{ url_for('admin.custom_domain_settings') }}"
+         class="nav-item {% if request.endpoint == 'admin.custom_domain_settings' %}active{% endif %}"
+         {% if request.endpoint == 'admin.custom_domain_settings' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:globe-2" width="17"></iconify-icon></span>
+        Custom Domain
+      </a>
       <a href="{{ url_for('admin.settings') }}"
          class="nav-item {% if request.endpoint == 'admin.settings' %}active{% endif %}"
          {% if request.endpoint == 'admin.settings' %}aria-current="page"{% endif %}>
@@ -206,7 +212,7 @@
 
   <div class="sidebar-footer">
     {% if active_tenant_slug %}
-      <a href="{{ url_for('tenant.portfolio', tenant_slug=active_tenant_slug) }}"
+      <a href="{{ tenant_portfolio_url(active_tenant_slug) }}"
          target="_blank" rel="noopener" class="preview-btn">
         <iconify-icon icon="lucide:external-link" width="14"></iconify-icon>
         View Portfolio

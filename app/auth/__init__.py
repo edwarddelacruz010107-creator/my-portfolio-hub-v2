@@ -260,6 +260,7 @@ def _render_login_page(form, action_url, title, subtitle, allow_google=True):
         )
 
     show_google = allow_google and bool(current_app.config.get('GOOGLE_OAUTH_ENABLED'))
+    show_github = allow_google and bool(current_app.config.get('GITHUB_OAUTH_ENABLED'))
 
     return render_template(
         'auth/portal.html',
@@ -268,6 +269,7 @@ def _render_login_page(form, action_url, title, subtitle, allow_google=True):
         login_form=form,
         register_form=RegisterForm(),
         google_enabled=show_google,
+        github_enabled=show_github,
         portal_title=title,
         portal_subtitle=subtitle,
         login_action_url=action_url,

@@ -91,7 +91,7 @@ RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
 # Check required environment variables\n\
-required_vars=("SECRET_KEY" "FERNET_KEY" "CORE_DATABASE_URL" "TENANT_DATABASE_URL")\n\
+required_vars=("SECRET_KEY" "FERNET_KEY" "CORE_DATABASE_URL")\n\
 for var in "${required_vars[@]}"; do\n\
   if [ -z "${!var}" ]; then\n\
     echo "ERROR: Required environment variable $var is not set"\n\

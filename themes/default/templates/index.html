@@ -127,7 +127,7 @@
             "@type": "CreativeWork",
             "name": "{{ project.title | e }}",
             "description": "{{ (project.description_short or project.description or '') | striptags | truncate(150) | e }}",
-            "url": "{{ url_for('tenant.project_detail', tenant_slug=tenant_slug, slug=project.slug, _external=True) }}"
+            "url": "{{ tenant_project_url(tenant_slug, project.slug, external=True) }}"
             {% if project.image %},
             "image": "{{ url_for('static', filename='uploads/projects/' ~ project.image, _external=True) }}"
             {% endif %}
@@ -458,7 +458,7 @@
                                             <iconify-icon icon="lucide:github" width="18"></iconify-icon>
                                         </a>
                                         {% endif %}
-                                        <a href="{{ url_for('tenant.project_detail', tenant_slug=_tenant_slug, slug=project.slug) }}" class="project-btn" aria-label="View project details">
+                                        <a href="{{ tenant_project_url(_tenant_slug, project.slug) }}" class="project-btn" aria-label="View project details">
                                             <iconify-icon icon="lucide:arrow-right" width="18"></iconify-icon>
                                         </a>
                                     </div>
@@ -494,7 +494,7 @@
                                         Source Code
                                     </a>
                                     {% endif %}
-                                    <a href="{{ url_for('tenant.project_detail', tenant_slug=_tenant_slug, slug=project.slug) }}" class="project-link">
+                                    <a href="{{ tenant_project_url(_tenant_slug, project.slug) }}" class="project-link">
                                         <iconify-icon icon="lucide:arrow-right" width="14"></iconify-icon>
                                         Details
                                     </a>
@@ -550,7 +550,7 @@
                                         <iconify-icon icon="lucide:github" width="18"></iconify-icon>
                                     </a>
                                     {% endif %}
-                                    <a href="{{ url_for('tenant.project_detail', tenant_slug=_tenant_slug, slug=project.slug) }}" class="project-btn" aria-label="View project details">
+                                    <a href="{{ tenant_project_url(_tenant_slug, project.slug) }}" class="project-btn" aria-label="View project details">
                                         <iconify-icon icon="lucide:arrow-right" width="18"></iconify-icon>
                                     </a>
                                 </div>
@@ -585,7 +585,7 @@
                                     Source Code
                                 </a>
                                 {% endif %}
-                                <a href="{{ url_for('tenant.project_detail', tenant_slug=_tenant_slug, slug=project.slug) }}" class="project-link">
+                                <a href="{{ tenant_project_url(_tenant_slug, project.slug) }}" class="project-link">
                                     <iconify-icon icon="lucide:arrow-right" width="14"></iconify-icon>
                                     Details
                                 </a>

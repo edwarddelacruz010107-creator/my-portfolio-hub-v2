@@ -253,13 +253,15 @@
     .portal-divider { display: flex; align-items: center; gap: 0.75rem; margin: 1.4rem 0; color: var(--text-dim); font-size: 0.75rem; }
     .portal-divider::before, .portal-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
-    .portal-google {
+    .portal-oauth-stack { display: grid; gap: 0.75rem; margin-bottom: 0.25rem; }
+    .portal-google, .portal-github {
       display: flex; align-items: center; justify-content: center; gap: 0.65rem; width: 100%; padding: 0.85rem 1rem;
       border-radius: var(--radius); border: 1px solid var(--border-l); background: var(--bg-2); color: var(--text);
-      text-decoration: none; font-family: var(--font-b); font-weight: 500; font-size: 0.9rem; cursor: pointer;
-      transition: background var(--t) var(--ease), border-color var(--t) var(--ease);
+      text-decoration: none; font-family: var(--font-b); font-weight: 600; font-size: 0.9rem; cursor: pointer;
+      transition: background var(--t) var(--ease), border-color var(--t) var(--ease), transform var(--t) var(--ease);
     }
-    .portal-google:hover { background: var(--bg-3); border-color: var(--accent); }
+    .portal-google:hover, .portal-github:hover { background: var(--bg-3); border-color: var(--accent); transform: translateY(-1px); }
+    .portal-github iconify-icon { color: currentColor; }
 
     .portal-panel { display: none; }
     .portal-panel.is-active { display: block; animation: fadeUp 0.32s var(--ease); }
@@ -352,10 +354,19 @@
       <h2>{{ portal_title or 'Welcome back' }}</h2>
       <p class="sub">{{ portal_subtitle or 'Sign in to manage your portfolio.' }}</p>
 
-      {% if google_enabled %}
-      <a class="portal-google" href="{{ url_for('auth.google_login', next=next_url or none) }}">
-        <iconify-icon icon="flat-color-icons:google" width="18"></iconify-icon> Continue with Google
-      </a>
+      {% if google_enabled or github_enabled %}
+      <div class="portal-oauth-stack" aria-label="Social sign in options">
+        {% if google_enabled %}
+        <a class="portal-google" href="{{ url_for('auth.google_login', next=next_url or none) }}">
+          <iconify-icon icon="flat-color-icons:google" width="18"></iconify-icon> Continue with Google
+        </a>
+        {% endif %}
+        {% if github_enabled %}
+        <a class="portal-github" href="{{ url_for('auth.github_login', next=next_url or none) }}">
+          <iconify-icon icon="mdi:github" width="18"></iconify-icon> Continue with GitHub
+        </a>
+        {% endif %}
+      </div>
       <div class="portal-divider">or</div>
       {% endif %}
 
@@ -402,10 +413,19 @@
       <h2>Create your account</h2>
       <p class="sub">Start managing your portfolio in minutes.</p>
 
-      {% if google_enabled %}
-      <a class="portal-google" href="{{ url_for('auth.google_signup', next=next_url or none) }}">
-        <iconify-icon icon="flat-color-icons:google" width="18"></iconify-icon> Continue with Google
-      </a>
+      {% if google_enabled or github_enabled %}
+      <div class="portal-oauth-stack" aria-label="Social create-account options">
+        {% if google_enabled %}
+        <a class="portal-google" href="{{ url_for('auth.google_signup', next=next_url or none) }}">
+          <iconify-icon icon="flat-color-icons:google" width="18"></iconify-icon> Continue with Google
+        </a>
+        {% endif %}
+        {% if github_enabled %}
+        <a class="portal-github" href="{{ url_for('auth.github_signup', next=next_url or none) }}">
+          <iconify-icon icon="mdi:github" width="18"></iconify-icon> Continue with GitHub
+        </a>
+        {% endif %}
+      </div>
       <div class="portal-divider">or</div>
       {% endif %}
 

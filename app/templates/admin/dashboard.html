@@ -369,7 +369,7 @@
           </span>
           <span>Tenant Billing</span>
         </a>
-        <a href="{{ url_for('tenant.portfolio', tenant_slug=active_tenant_slug) }}" target="_blank" class="action-card action-card--outline">
+        <a href="{{ tenant_portfolio_url(active_tenant_slug) }}" target="_blank" class="action-card action-card--outline">
           <span class="action-icon">
             <iconify-icon icon="lucide:external-link" width="22"></iconify-icon>
           </span>

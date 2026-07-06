@@ -57,6 +57,9 @@ from app.auth import (
 from app.services.auth.google_oauth_service import (
     resolve_or_create_google_user, GoogleAuthError,
 )
+from app.services.auth.github_oauth_service import (
+    resolve_or_create_github_user, GitHubAuthError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +70,67 @@ def _oauth_client():
         return None
     from app.extensions import oauth
     return getattr(oauth, 'google', None)
+
+
+def _github_oauth_client():
+    """Return the registered Authlib GitHub client, or None if disabled."""
+    if not current_app.config.get('GITHUB_OAUTH_ENABLED'):
+        return None
+    from app.extensions import oauth
+    return getattr(oauth, 'github', None)
+
+
+def _github_api_json(access_token: str, path: str, *, label: str):
+    import requests
+
+    response = requests.get(
+        f'https://api.github.com/{path.lstrip("/")}',
+        headers={
+            'Authorization': f'Bearer {access_token}',
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+        },
+        timeout=10,
+    )
+    if response.status_code >= 400:
+        raise ValueError(f'{label} request failed with HTTP {response.status_code}')
+    data = response.json()
+    if data is None:
+        raise ValueError(f'{label} returned an empty response')
+    return data
+
+
+def _fetch_github_identity(client, token: dict) -> dict:
+    """Fetch GitHub profile plus primary verified email. Never returns tokens."""
+    access_token = (token or {}).get('access_token')
+    if not access_token:
+        raise ValueError('GitHub did not return an access token')
+
+    profile = _github_api_json(access_token, 'user', label='GitHub profile')
+    emails = _github_api_json(access_token, 'user/emails', label='GitHub emails')
+    if not isinstance(emails, list):
+        emails = []
+
+    verified_emails = [
+        e for e in emails
+        if isinstance(e, dict) and e.get('email') and e.get('verified')
+    ]
+    primary = next((e for e in verified_emails if e.get('primary')), None)
+    selected = primary or (verified_emails[0] if verified_emails else None)
+    if not selected:
+        raise ValueError('GitHub did not return a verified email address')
+
+    github_id = profile.get('id')
+    if not github_id:
+        raise ValueError('GitHub did not return a stable account identifier')
+
+    return {
+        'github_id': str(github_id),
+        'login': profile.get('login') or '',
+        'email': (selected.get('email') or '').strip().lower(),
+        'name': profile.get('name') or profile.get('login') or '',
+        'avatar_url': profile.get('avatar_url') or '',
+    }
 
 
 @auth.route('/google/login')
@@ -307,3 +371,160 @@ def google_signup_callback():
         default_next=url_for('admin.dashboard'),
         on_denied=lambda: redirect(url_for('auth.portal', tab='signup')),
     )
+
+
+# ── /auth/github/login ──────────────────────────────────────────────────────
+@auth.route('/github/login')
+@limiter.limit('20 per minute')
+@limiter.limit('100 per hour')
+def github_login():
+    """Entry point for 'Continue with GitHub' on the Sign in tab."""
+    if current_user.is_authenticated:
+        return redirect(url_for('admin.dashboard'))
+
+    client = _github_oauth_client()
+    if client is None:
+        flash('GitHub Sign-In is not available right now.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    session['_github_oauth_flow'] = 'login'
+    next_page = request.args.get('next')
+    if next_page and _is_safe_url(next_page):
+        session['_oauth_next'] = next_page
+    else:
+        session.pop('_oauth_next', None)
+
+    redirect_uri = url_for('auth.github_callback', _external=True)
+    return client.authorize_redirect(redirect_uri)
+
+
+@auth.route('/github/callback')
+@limiter.limit('20 per minute')
+@limiter.limit('100 per hour')
+def github_callback():
+    ip = _get_ip()
+    client = _github_oauth_client()
+    if client is None:
+        flash('GitHub Sign-In is not available right now.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    try:
+        token = client.authorize_access_token()
+        github_info = _fetch_github_identity(client, token)
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception('GitHub OAuth callback failed from %s: %s', ip, exc)
+        log_security_event('github_oauth_failed', None, f'GitHub callback error from {ip}: {exc}', 'warning')
+        flash('GitHub Sign-In failed. Please try again, or use your password.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    github_id = github_info['github_id']
+    email = github_info['email']
+    flow = session.pop('_github_oauth_flow', 'login')
+
+    if flow == 'signup':
+        try:
+            user = resolve_or_create_github_user(
+                github_id=github_info['github_id'],
+                login=github_info.get('login'),
+                email=github_info.get('email') or '',
+                full_name=github_info.get('name'),
+                avatar_url=github_info.get('avatar_url'),
+                ip=ip,
+                user_agent=request.headers.get('User-Agent'),
+            )
+        except GitHubAuthError as exc:
+            log_security_event('github_oauth_signup_rejected', None, f'{exc} from {ip}', 'warning')
+            flash(str(exc), 'danger')
+            return redirect(url_for('auth.portal', tab='signup'))
+
+        next_page = session.pop('_oauth_signup_next', None)
+        if not _is_safe_url(next_page):
+            next_page = None
+
+        return _authorize_and_login(
+            user, user.tenant_slug, ip,
+            require_admin=True, require_superadmin=False,
+            remember=True,
+            next_page=next_page,
+            default_next=url_for('admin.dashboard'),
+            on_denied=lambda: redirect(url_for('auth.portal', tab='signup')),
+        )
+
+    user = User.query.filter_by(github_id=github_id).first()
+    if user is None:
+        from app.services.auth.email_policy import resolve_email_for_login
+
+        user = resolve_email_for_login(
+            email,
+            tenant_slug=session.get('tenant_slug'),
+            require_superadmin=False,
+        )
+        if user is None:
+            log_security_event('github_oauth_no_account', None, f'GitHub login could not safely resolve email {email} from {ip}', 'info')
+            flash('No tenant account was found for that verified GitHub email. Use Create account or sign in with your username and password first.', 'danger')
+            return redirect(url_for('auth.login'))
+
+    if user.github_id and user.github_id != github_id:
+        log_security_event('github_oauth_identity_mismatch', user, f'GitHub id mismatch for {email} from {ip}', 'warning')
+        flash('This account is already linked to a different GitHub identity. Please use your password.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    if user.is_superadmin:
+        log_security_event('github_oauth_superadmin_blocked', user, f'GitHub login rejected for superadmin account from {ip}', 'warning')
+        flash('Superadmin accounts must sign in with a password.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    if AccountLockout.is_locked(user, db):
+        remaining = AccountLockout.get_lockout_remaining(user, db)
+        minutes = (remaining + 59) // 60
+        flash(f'Account locked due to too many failed login attempts. Try again in {minutes} minute(s).', 'danger')
+        log_security_event('lockout_attempted', user, f'Locked-out GitHub login attempt from {ip}', 'warning')
+        return redirect(url_for('auth.login'))
+
+    if not user.github_id:
+        user.github_id = github_id
+        user.auth_provider = 'both'
+        user.email_verified = True
+        user.avatar_url = github_info.get('avatar_url') or user.avatar_url
+        db.session.commit()
+        log_security_event('github_oauth_linked', user, f'GitHub account linked from {ip}', 'info')
+
+    tenant_slug = session.get('tenant_slug') or user.tenant_slug or _DEFAULT_TENANT_SLUG
+    next_page = session.pop('_oauth_next', None)
+
+    return _authorize_and_login(
+        user, tenant_slug, ip,
+        require_admin=True, require_superadmin=False,
+        remember=False,
+        next_page=next_page,
+        default_next=url_for('admin.dashboard'),
+        on_denied=lambda: redirect(url_for('auth.login')),
+    )
+
+
+# ── /auth/github/signup ─────────────────────────────────────────────────────
+@auth.route('/github/signup')
+@limiter.limit('20 per minute')
+@limiter.limit('100 per hour')
+def github_signup():
+    """Entry point for the Create Account tab's 'Continue with GitHub'."""
+    if current_user.is_authenticated:
+        return redirect(url_for('admin.dashboard'))
+
+    client = _github_oauth_client()
+    if client is None:
+        flash('GitHub Sign-In is not available right now.', 'danger')
+        return redirect(url_for('auth.portal', tab='signup'))
+
+    session['_github_oauth_flow'] = 'signup'
+    next_page = request.args.get('next')
+    if next_page and _is_safe_url(next_page):
+        session['_oauth_signup_next'] = next_page
+    else:
+        session.pop('_oauth_signup_next', None)
+
+    # GitHub OAuth Apps usually have one callback URL, so sign-in and signup
+    # share /auth/github/callback and the flow is selected from the session.
+    redirect_uri = url_for('auth.github_callback', _external=True)
+    return client.authorize_redirect(redirect_uri)

@@ -629,6 +629,11 @@
                             </div>
                             {% endif %}
                             <div class="project-links">
+                                {% if project.case_study_url or project.url %}
+                                <a href="{{ project.case_study_url or project.url }}" class="project-link">
+                                    <i class="fas fa-book-open"></i> Case Study
+                                </a>
+                                {% endif %}
                                 {% if project.demo_url %}
                                 <a href="{{ project.demo_url }}" class="project-link" target="_blank" rel="noopener">
                                     <i class="fas fa-external-link-alt"></i> Live Demo

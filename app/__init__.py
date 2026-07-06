@@ -25,7 +25,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from flask import Flask, render_template, g, redirect, url_for
+from flask import Flask, render_template, g, redirect, url_for, request
 import flask as _flask_module
 
 # Backwards-compatibility shim: some legacy tests import
@@ -363,9 +363,23 @@ def create_app(config_name: str = 'default') -> Flask:
             server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
             client_kwargs={'scope': 'openid email profile'},
         )
-        logger.info('Google OAuth: registered (login-only, no auto-provisioning).')
+        logger.info('Google OAuth: registered.')
     else:
         logger.info('Google OAuth: disabled (GOOGLE_CLIENT_ID/SECRET not set).')
+
+    if app.config.get('GITHUB_OAUTH_ENABLED'):
+        oauth.register(
+            name='github',
+            client_id=app.config['GITHUB_CLIENT_ID'],
+            client_secret=app.config['GITHUB_CLIENT_SECRET'],
+            access_token_url='https://github.com/login/oauth/access_token',
+            authorize_url='https://github.com/login/oauth/authorize',
+            api_base_url='https://api.github.com/',
+            client_kwargs={'scope': 'read:user user:email'},
+        )
+        logger.info('GitHub OAuth: registered.')
+    else:
+        logger.info('GitHub OAuth: disabled (GITHUB_CLIENT_ID/SECRET not set).')
     if app.config.get("CACHE_TYPE") == "RedisCache":
         redis_url = (app.config.get("CACHE_REDIS_URL") or os.environ.get("REDIS_URL", "")).strip()
         if not redis_url:
@@ -645,11 +659,39 @@ def create_app(config_name: str = 'default') -> Flask:
             return Markup('')
         return Markup(_escape(value).replace('\n', Markup('<br>\n')))
 
+    @app.template_filter('safe_media_value')
+    def safe_media_value_filter(value: str | None) -> bool:
+        """Return True only for media values that are safe to render as URLs.
+
+        This rejects legacy tuple-like strings that may have been saved by the
+        old save_image() return-value bug, for example ``(None, 'error')`` or
+        ``('file.jpg', None)``. It also rejects obvious path traversal and
+        control-character values.
+        """
+        if not isinstance(value, str):
+            return False
+        candidate = value.strip()
+        if not candidate or candidate.lower() in {'none', 'null', 'undefined'}:
+            return False
+        lowered = candidate.lower()
+        if candidate[0] in {'(', '[', '{'}:
+            return False
+        if (',' in candidate and ('none' in lowered or 'error' in lowered)) or '(none,' in lowered:
+            return False
+        if any(ch in candidate for ch in ('\x00', '\r', '\n')):
+            return False
+        if candidate.startswith(('http://', 'https://')):
+            return True
+        if candidate.startswith(('/', '\\')) or '..' in candidate.replace('\\', '/'):
+            return False
+        return True
+
     @app.template_filter('upload_url')
     def upload_url_filter(value: str | None, subfolder: str) -> str:
-        if not value:
+        if not safe_media_value_filter(value):
             return ''
-        if isinstance(value, str) and value.startswith('http'):
+        assert isinstance(value, str)
+        if value.startswith(('http://', 'https://')):
             return value
         return url_for('static', filename=f'uploads/{subfolder}/{value}')
 
@@ -673,9 +715,29 @@ def create_app(config_name: str = 'default') -> Flask:
     # normal /<tenant_slug>/ catch-all like every other tenant.
     @app.route('/')
     def root():
-        """Root domain handler — public SaaS landing page."""
+        """Root domain handler.
+
+        Normal platform hosts render the SaaS landing page. Verified tenant
+        custom domains render that tenant's public portfolio at the apex.
+        """
+        from app.services.custom_domain_service import resolve_verified_custom_domain
+        domain_record = resolve_verified_custom_domain(request.host)
+        if domain_record is not None:
+            from app.services.custom_domain_public import render_custom_domain_portfolio
+            return render_custom_domain_portfolio(domain_record)
+
         from app.public.routes import render_landing_page
         return render_landing_page()
+
+    @app.route('/project/<slug>')
+    def custom_domain_project_detail(slug: str):
+        """Project detail page for verified custom-domain hosts."""
+        from app.services.custom_domain_service import resolve_verified_custom_domain
+        domain_record = resolve_verified_custom_domain(request.host)
+        if domain_record is None:
+            return redirect(url_for('root'))
+        from app.services.custom_domain_public import render_custom_domain_project
+        return render_custom_domain_project(domain_record, slug)
 
     # ── 301 backward-compat redirect: /default → /u/default ────────────────────
     # CHANGED (Phase 1b): target moved from '/' to '/u/default' now that '/'
@@ -1560,6 +1622,85 @@ import click
 
 def register_cli_commands(app):
     """Register all Flask CLI commands on the app instance."""
+
+    @app.cli.group('media')
+    def media_cli():
+        """Audit and clean tenant media reference fields."""
+
+    def _looks_broken_image_value(value):
+        """Detect legacy tuple/error image values without rejecting valid filenames."""
+        if value is None:
+            return False
+        if not isinstance(value, str):
+            return True
+        candidate = value.strip()
+        if not candidate:
+            return False
+        lowered = candidate.lower()
+        return (
+            candidate.startswith(('(', '[', '{'))
+            or '(none,' in lowered
+            or (',' in candidate and ('none' in lowered or 'error' in lowered))
+            or lowered in {'none', 'null', 'undefined'}
+        )
+
+    def _iter_image_field_targets():
+        from app.models.portfolio import Profile, Project, Testimonial, Certificate
+        return (
+            (Profile, 'profile_image'),
+            (Project, 'image'),
+            (Testimonial, 'author_avatar'),
+            (Certificate, 'image_path'),
+            (Certificate, 'badge_path'),
+        )
+
+    def _collect_broken_image_fields():
+        broken = []
+        for model, field_name in _iter_image_field_targets():
+            for row in model.query.all():
+                value = getattr(row, field_name, None)
+                if _looks_broken_image_value(value):
+                    broken.append((model, row, field_name, value))
+        return broken
+
+    @media_cli.command('audit-image-fields')
+    def cli_media_audit_image_fields():
+        """Dry-run audit for legacy tuple-like image field values."""
+        broken = _collect_broken_image_fields()
+        if not broken:
+            click.echo('✓ No broken tuple-like image field values found.')
+            return
+        click.echo(f'⚠ Found {len(broken)} broken image field value(s):')
+        for model, row, field_name, value in broken:
+            click.echo(
+                f'  {model.__tablename__} id={getattr(row, "id", "?")} '
+                f'field={field_name} value={value!r}'
+            )
+        click.echo('Run: flask media clean-broken-image-fields --apply to clear these fields.')
+
+    @media_cli.command('clean-broken-image-fields')
+    @click.option('--apply', 'apply_changes', is_flag=True, help='Apply cleanup. Without this flag, this command is a dry run.')
+    def cli_media_clean_broken_image_fields(apply_changes):
+        """Clear legacy tuple-like image fields. Dry-run by default."""
+        broken = _collect_broken_image_fields()
+        if not broken:
+            click.echo('✓ No broken tuple-like image field values found.')
+            return
+        mode = 'APPLY' if apply_changes else 'DRY RUN'
+        click.echo(f'{mode}: {len(broken)} broken image field value(s) detected.')
+        for model, row, field_name, value in broken:
+            click.echo(
+                f'  {model.__tablename__} id={getattr(row, "id", "?")} '
+                f'field={field_name} value={value!r}'
+            )
+            if apply_changes:
+                setattr(row, field_name, None)
+                db.session.add(row)
+        if apply_changes:
+            db.session.commit()
+            click.echo('✓ Broken image fields cleared. Physical files and rows were not deleted.')
+        else:
+            click.echo('No changes written. Add --apply to clear only the listed fields.')
 
     @app.cli.command('run-renewal-check')
     def cli_run_renewal_check():

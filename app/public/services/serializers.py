@@ -17,6 +17,22 @@ from __future__ import annotations
 from typing import Any
 
 
+def _portfolio_url(tenant_slug: str) -> str:
+    try:
+        from app.services.custom_domain_service import tenant_portfolio_public_url
+        return tenant_portfolio_public_url(tenant_slug)
+    except Exception:
+        return f"/u/{tenant_slug}"
+
+
+def _project_url(tenant_slug: str, project_slug: str) -> str:
+    try:
+        from app.services.custom_domain_service import tenant_project_public_url
+        return tenant_project_public_url(tenant_slug, project_slug)
+    except Exception:
+        return f"/{tenant_slug}/project/{project_slug}"
+
+
 def serialize_creator_card(profile, project_count: int = 0) -> dict[str, Any]:
     """Public creator-card fields only. No email/phone/billing internals."""
     return {
@@ -36,7 +52,7 @@ def serialize_creator_card(profile, project_count: int = 0) -> dict[str, Any]:
         # public card should read "Administrator" instead of an
         # availability badge that implies it's open for hire.
         "is_administrator": profile.tenant_slug == "default",
-        "url": f"/u/{profile.tenant_slug}",
+        "url": _portfolio_url(profile.tenant_slug),
     }
 
 
@@ -57,5 +73,6 @@ def serialize_project_card(project, creator_name: str = "", creator_slug: str = 
         "like_count": int(getattr(project, 'like_count', 0) or 0),
         "liked": bool(getattr(project, 'liked', False)),
         "view_count": int(getattr(project, 'view_count', 0) or 0),
-        "url": f"/{project.tenant_slug}/project/{project.slug}",
+        "url": _project_url(project.tenant_slug, project.slug),
+        "portfolio_url": _portfolio_url(project.tenant_slug),
     }

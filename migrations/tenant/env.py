@@ -37,10 +37,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-tenant_db_url = os.environ.get('TENANT_DATABASE_URL', '')
-if tenant_db_url.startswith('postgres://'):
-    tenant_db_url = tenant_db_url.replace('postgres://', 'postgresql://', 1)
+from app.utils.db_config import get_tenant_database_url  # noqa: E402
 
+tenant_db_url = get_tenant_database_url()
 if tenant_db_url:
     config.set_main_option('sqlalchemy.url', tenant_db_url)
 

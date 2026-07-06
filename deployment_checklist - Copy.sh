@@ -52,10 +52,10 @@ echo ""
 
 # Check if render.yaml exists and has dual databases
 if [ -f "render.yaml" ]; then
-    if grep -q "CORE_DATABASE_URL" render.yaml && grep -q "TENANT_DATABASE_URL" render.yaml; then
-        pass "render.yaml contains CORE_DATABASE_URL and TENANT_DATABASE_URL"
+    if grep -q "CORE_DATABASE_URL" render.yaml; then
+        pass "render.yaml contains CORE_DATABASE_URL"
     else
-        fail "render.yaml missing CORE_DATABASE_URL or TENANT_DATABASE_URL"
+        fail "render.yaml missing CORE_DATABASE_URL"
     fi
 else
     fail "render.yaml not found in project root"
@@ -83,7 +83,7 @@ fi
 
 # Check if config.py exists and validates production variables
 if [ -f "config.py" ]; then
-    if grep -q "CORE_DATABASE_URL" config.py && grep -q "TENANT_DATABASE_URL" config.py; then
+    if grep -q "CORE_DATABASE_URL" config.py && grep -q "SQLALCHEMY_BINDS" config.py; then
         pass "config.py configured for dual-database architecture"
     else
         fail "config.py not configured for dual databases"
@@ -145,9 +145,9 @@ if [ -f ".env" ]; then
     fi
     
     if grep -q "TENANT_DATABASE_URL=" .env; then
-        pass ".env contains TENANT_DATABASE_URL"
+        pass ".env contains optional TENANT_DATABASE_URL"
     else
-        warn ".env missing TENANT_DATABASE_URL"
+        pass ".env omits TENANT_DATABASE_URL; tenant bind will reuse CORE_DATABASE_URL"
     fi
     
     if grep -q "MAILERSEND_API_KEY=" .env; then

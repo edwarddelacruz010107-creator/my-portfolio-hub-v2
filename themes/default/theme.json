@@ -5,7 +5,7 @@
   "description": "A clean, minimal portfolio theme with light and dark mode support. Professional and accessible, works for all industries.",
   "author": "Portfolio CMS",
   "premium": false,
-  "preview_image": "/static/themes/default/preview.png",
+  "preview_image": "/static/themes/default/preview.svg",
   "supports_dark_mode": true,
   "supports_light_mode": true,
   "supports_animation": true,

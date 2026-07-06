@@ -5,7 +5,7 @@
   "description": "A hacker-aesthetic cyberpunk portfolio with glitch effects, matrix animations, interactive terminal easter egg, animated skill bars, and a live boot sequence preloader. Built for developers who want their portfolio to feel like a sci-fi product.",
   "author": "Portfolio CMS",
   "premium": true,
-  "preview_image": "/static/themes/developer_pro/preview.png",
+  "preview_image": "/static/themes/developer_pro/preview.svg",
   "supports_dark_mode": true,
   "supports_light_mode": false,
   "supports_animation": true,

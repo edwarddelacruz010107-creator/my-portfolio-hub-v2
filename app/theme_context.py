@@ -93,7 +93,26 @@ def build_portfolio_view(
     if len(name_parts) == 1:
         name_parts.append('')
 
-    project_views = [serialize_project(p) for p in projects]
+    project_views = []
+    try:
+        from app.services.custom_domain_service import (
+            tenant_project_public_url,
+            tenant_portfolio_public_url,
+        )
+    except Exception:
+        tenant_project_public_url = None
+        tenant_portfolio_public_url = None
+
+    for p in projects:
+        view = serialize_project(p)
+        project_slug = view.get('slug') or getattr(p, 'slug', '')
+        if project_slug and tenant_project_public_url:
+            view['case_study_url'] = tenant_project_public_url(tenant_slug, project_slug)
+            view['url'] = view['case_study_url']
+        else:
+            view['case_study_url'] = ''
+            view['url'] = ''
+        project_views.append(view)
 
     skills_grouped = [
         {
@@ -124,6 +143,7 @@ def build_portfolio_view(
         'bio_extended': bio,
         'avatar_url': getattr(profile, 'profile_image', '') or '' if profile else '',
         'slug': tenant_slug,
+        'public_url': tenant_portfolio_public_url(tenant_slug) if 'tenant_portfolio_public_url' in locals() and tenant_portfolio_public_url else '',
         'email': getattr(profile, 'email', '') or '' if profile else '',
         'location': getattr(profile, 'location', '') or '' if profile else '',
         'response_time': None,

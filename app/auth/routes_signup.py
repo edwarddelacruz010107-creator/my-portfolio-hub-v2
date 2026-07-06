@@ -133,14 +133,16 @@ def register():
             return render_template('auth/portal.html', active_tab='signup',
                                     next_url='', register_form=form,
                                     login_form=LoginForm(),
-                                    google_enabled=_google_enabled())
+                                    google_enabled=_google_enabled(),
+                                    github_enabled=_github_enabled())
         except Exception:
             logger.exception('register: failed to create pending signup for email=%s', form.email.data)
             flash('Unable to start signup. Please try again later.', 'danger')
             return render_template('auth/portal.html', active_tab='signup',
                                     next_url='', register_form=form,
                                     login_form=LoginForm(),
-                                    google_enabled=_google_enabled())
+                                    google_enabled=_google_enabled(),
+                                    github_enabled=_github_enabled())
 
         if pending_action == 'cooldown' or raw_otp is None:
             remaining = get_pending_signup_resend_cooldown_remaining(pending)
@@ -181,6 +183,7 @@ def register():
         register_form=form,
         login_form=LoginForm(),
         google_enabled=_google_enabled(),
+        github_enabled=_github_enabled(),
     )
 
 
@@ -408,6 +411,7 @@ def portal():
         login_form=LoginForm(),
         register_form=RegisterForm(),
         google_enabled=_google_enabled(),
+        github_enabled=_github_enabled(),
     )
 
 
@@ -420,3 +424,10 @@ def _google_enabled() -> bool:
         return False
     from app.extensions import oauth
     return getattr(oauth, 'google', None) is not None
+
+
+def _github_enabled() -> bool:
+    if not current_app.config.get('GITHUB_OAUTH_ENABLED'):
+        return False
+    from app.extensions import oauth
+    return getattr(oauth, 'github', None) is not None

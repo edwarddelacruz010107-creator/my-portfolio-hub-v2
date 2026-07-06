@@ -37,7 +37,6 @@ _REQUIRED_ALWAYS = [
 
 _REQUIRED_PRODUCTION = [
     "CORE_DATABASE_URL",
-    "TENANT_DATABASE_URL",
 ]
 
 _REQUIRED_IF_PAYMONGO = [
@@ -120,6 +119,17 @@ def validate_startup_env(app) -> None:
                 errors.append(f"Missing required production variable: {key}")
             elif _has_placeholder(str(val)):
                 errors.append(f"{key} contains placeholder text.")
+
+        tenant_db_url = os.environ.get("TENANT_DATABASE_URL", "").strip()
+        if tenant_db_url:
+            if _has_placeholder(tenant_db_url):
+                errors.append("TENANT_DATABASE_URL contains placeholder text.")
+        else:
+            warnings.append(
+                "TENANT_DATABASE_URL not set; tenant-bound tables will use "
+                "CORE_DATABASE_URL. This is the supported single-Postgres "
+                "Option 1 deployment mode."
+            )
 
         # MailerSend
         for key in _REQUIRED_IF_MAILERSEND:

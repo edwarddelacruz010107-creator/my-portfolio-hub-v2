@@ -75,7 +75,7 @@
         {% if current_user.is_authenticated %}
           <a class="ph-btn ph-btn-ghost" href="{{ url_for('public.administrator_gateway') }}">Dashboard</a>
           {% if current_user.tenant_slug %}
-          <a class="ph-btn ph-btn-ghost" href="{{ url_for('public.creator_link', tenant_slug=current_user.tenant_slug) }}">My Portfolio</a>
+          <a class="ph-btn ph-btn-ghost" href="{{ tenant_portfolio_url(current_user.tenant_slug) }}">My Portfolio</a>
           {% endif %}
         {% else %}
           <a class="ph-btn ph-btn-ghost" href="{{ url_for('auth.portal', tab='signin') }}">Sign In</a>

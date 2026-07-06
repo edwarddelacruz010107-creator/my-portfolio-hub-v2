@@ -189,7 +189,7 @@
         <!-- Actions -->
         <td class="td-actions">
           <div class="action-group">
-            <a href="{{ url_for('tenant.portfolio', tenant_slug=t.tenant_slug) }}"
+            <a href="{{ tenant_portfolio_url(t.tenant_slug) }}"
                target="_blank"
                class="action-btn action-btn-ghost"
                title="View Portfolio">

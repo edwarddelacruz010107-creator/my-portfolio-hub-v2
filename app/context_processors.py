@@ -189,6 +189,17 @@ def _load_globals(app):
 
 
 def register_context_processors(app) -> None:
+    # Template helpers for custom-domain-aware public links. They are globals
+    # instead of always-injected values so normal admin/public pages do not pay
+    # a DB query unless a template actually asks for a custom-domain link.
+    from app.services.custom_domain_service import (
+        tenant_portfolio_public_url,
+        tenant_project_public_url,
+    )
+
+    app.add_template_global(tenant_portfolio_public_url, 'tenant_portfolio_url')
+    app.add_template_global(tenant_project_public_url, 'tenant_project_url')
+
     @app.context_processor
     def inject_globals() -> dict:
         if not hasattr(g, '_globals_cache'):

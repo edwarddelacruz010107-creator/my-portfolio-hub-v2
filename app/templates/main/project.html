@@ -1,23 +1,25 @@
 {% extends "base.html" %}
 
 {# ── SEO overrides ── #}
-{% block title %}{{ project.title }} — {{ profile.name if profile else 'Portfolio' }}{% endblock %}
-{% block meta_desc %}{{ project.description_short or project.description|striptags|truncate(160) }}{% endblock %}
+{% block title %}{{ project.title or 'Untitled Project' }} — {{ profile.name if profile else 'Portfolio' }}{% endblock %}
+{% block meta_desc %}{{ (project.description_short or project.description or 'View this project case study.')|striptags|truncate(160) }}{% endblock %}
 {% block meta_robots %}index, follow, max-snippet:-1, max-image-preview:large{% endblock %}
 {% block canonical %}{{ request.host_url.rstrip('/') }}{{ request.path }}{% endblock %}
 
 {% block og_type %}article{% endblock %}
 {% block og_image %}
-{% if project.image %}
-<meta property="og:image" content="{{ url_for('static', filename='uploads/projects/' + project.image, _external=True) }}">
+{% set _og_project_image = project.image if project.image is defined else '' %}
+{% set _og_profile_image = profile.profile_image if profile and profile.profile_image is defined else '' %}
+{% if _og_project_image | safe_media_value %}
+<meta property="og:image" content="{{ url_for('static', filename='uploads/projects/' ~ _og_project_image, _external=True) }}">
 <meta property="og:image:width"  content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt"    content="{{ project.title }}">
-{% elif profile and profile.profile_image %}
-{% if profile.profile_image.startswith('http') %}
-<meta property="og:image" content="{{ profile.profile_image }}">
+<meta property="og:image:alt"    content="{{ project.title or 'Untitled Project' }}">
+{% elif _og_profile_image | safe_media_value %}
+{% if _og_profile_image.startswith('http') %}
+<meta property="og:image" content="{{ _og_profile_image }}">
 {% else %}
-<meta property="og:image" content="{{ url_for('static', filename='uploads/profiles/' + profile.profile_image, _external=True) }}">
+<meta property="og:image" content="{{ url_for('static', filename='uploads/profiles/' ~ _og_profile_image, _external=True) }}">
 {% endif %}
 {% endif %}
 {% if project.date_completed %}
@@ -29,31 +31,51 @@
 {% endblock %}
 
 {% block structured_data %}
+{% set project_title = project.title or 'Untitled Project' %}
+{% set project_description = (project.description_short or project.description or '') | striptags | truncate(300) %}
+{% set project_category = project.category or 'Project' %}
+{% set project_keywords = project.tags if project.tags else [] %}
+{% set project_image_value = project.image if project.image is defined else '' %}
+{% set project_image_external = '' %}
+{% if project.image_url is defined and (project.image_url | safe_media_value) %}
+  {% if project.image_url.startswith('http') %}
+    {% set project_image_external = project.image_url %}
+  {% elif project.image_url.startswith('/') %}
+    {% set project_image_external = request.host_url.rstrip('/') ~ project.image_url %}
+  {% endif %}
+{% elif project_image_value | safe_media_value %}
+  {% set project_image_external = url_for('static', filename='uploads/projects/' ~ project_image_value, _external=True) %}
+{% endif %}
 {# ── JSON-LD: CreativeWork ── #}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "CreativeWork",
-  "name": "{{ project.title | e }}",
-  "description": "{{ (project.description_short or project.description or '') | striptags | truncate(300) | e }}",
-  "url": "{{ request.host_url.rstrip('/') }}{{ request.path }}",
-  {% if project.image %}
-  "image": "{{ url_for('static', filename='uploads/projects/' + project.image, _external=True) }}",
+  "name": {{ project_title | tojson }},
+  "description": {{ project_description | tojson }},
+  "url": {{ request.url | tojson }},
+  {% if project_image_external %}
+  "image": {{ project_image_external | tojson }},
   {% endif %}
   {% if project.date_completed %}
-  "dateCreated": "{{ project.date_completed.strftime('%Y-%m-%d') }}",
+  "dateCreated": {{ project.date_completed.strftime('%Y-%m-%d') | tojson }},
   {% endif %}
-  {% if project.tags %}
-  "keywords": "{{ project.tags | e }}",
+  {% if project.created_at %}
+  "datePublished": {{ project.created_at.isoformat() | tojson }},
   {% endif %}
+  {% if project.updated_at %}
+  "dateModified": {{ project.updated_at.isoformat() | tojson }},
+  {% endif %}
+  "genre": {{ project_category | tojson }},
+  "keywords": {{ project_keywords | tojson }},
   "author": {
     "@type": "Person",
-    "name": "{{ (profile.name if profile else '') | e }}",
-    "url": "{{ url_for('tenant.portfolio', tenant_slug=tenant_slug, _external=True) if tenant_slug else request.host_url }}"
+    "name": {{ (profile.name if profile and profile.name else 'Creator') | tojson }},
+    "url": {{ (tenant_portfolio_url(tenant_slug or (project.tenant_slug if project.tenant_slug is defined else 'default'), external=True) if tenant_slug or project.tenant_slug is defined else request.host_url) | tojson }}
   },
   "creator": {
     "@type": "Person",
-    "name": "{{ (profile.name if profile else '') | e }}"
+    "name": {{ (profile.name if profile and profile.name else 'Creator') | tojson }}
   }
 }
 </script>
@@ -67,20 +89,20 @@
     {
       "@type": "ListItem",
       "position": 1,
-      "name": "{{ (profile.name if profile else 'Portfolio') | e }}",
-      "item": "{{ url_for('tenant.portfolio', tenant_slug=tenant_slug, _external=True) if tenant_slug else request.host_url }}"
+      "name": {{ (profile.name if profile and profile.name else 'Portfolio') | tojson }},
+      "item": {{ (tenant_portfolio_url(tenant_slug or (project.tenant_slug if project.tenant_slug is defined else 'default'), external=True) if tenant_slug or project.tenant_slug is defined else request.host_url) | tojson }}
     },
     {
       "@type": "ListItem",
       "position": 2,
       "name": "Projects",
-      "item": "{{ url_for('tenant.portfolio', tenant_slug=tenant_slug, _external=True) if tenant_slug else request.host_url }}#projects"
+      "item": {{ ((tenant_portfolio_url(tenant_slug or (project.tenant_slug if project.tenant_slug is defined else 'default'), external=True) if tenant_slug or project.tenant_slug is defined else request.host_url) ~ '#projects') | tojson }}
     },
     {
       "@type": "ListItem",
       "position": 3,
-      "name": "{{ project.title | e }}",
-      "item": "{{ request.host_url.rstrip('/') }}{{ request.path }}"
+      "name": {{ project_title | tojson }},
+      "item": {{ request.url | tojson }}
     }
   ]
 }
@@ -89,18 +111,21 @@
 
 {% block body %}
 {% set _tenant_slug = tenant_slug or active_tenant_slug or project.tenant_slug or 'default' %}
-{% set portfolio_href = url_for('root') if _tenant_slug == 'default' else url_for('tenant.portfolio', tenant_slug=_tenant_slug) %}
+{% set portfolio_href = tenant_portfolio_url(_tenant_slug) %}
 {% set projects_href = portfolio_href ~ '#projects' %}
 {% set project_title = project.title or 'Untitled Project' %}
 {% set project_category = project.category or 'Project' %}
-{% set project_status = project.status or 'published' %}
+{% set project_status_normalized = (project.status or 'published') | lower %}
+{% set project_status = project_status_normalized %}
 {% set project_summary = project.description_short or project.description or 'No short summary has been added yet.' %}
 {% set project_overview = project.description or project.description_short or 'No detailed project overview has been added yet.' %}
 {% set project_views = project.view_count or 0 %}
 {% set project_likes = project.like_count or 0 %}
-{% set project_image_url = project.image_url if project.image_url is defined and project.image_url else '' %}
-{% if not project_image_url and project.image %}
-  {% set project_image_url = url_for('static', filename='uploads/projects/' + project.image) %}
+{% set project_image_url = '' %}
+{% if project.image_url is defined and (project.image_url | safe_media_value) %}
+  {% set project_image_url = project.image_url %}
+{% elif project.image is defined and (project.image | safe_media_value) %}
+  {% set project_image_url = url_for('static', filename='uploads/projects/' ~ project.image) %}
 {% endif %}
 
 <nav class="project-detail-nav" aria-label="Project navigation">
@@ -131,7 +156,7 @@
             {{ project_category }}
           </span>
           <span class="project-meta-badge project-meta-badge--status">
-            <iconify-icon icon="{{ 'lucide:check-circle-2' if project_status == 'published' else 'lucide:circle-dashed' }}" width="14" aria-hidden="true"></iconify-icon>
+            <iconify-icon icon="{{ 'lucide:check-circle-2' if project_status_normalized == 'published' else 'lucide:circle-dashed' }}" width="14" aria-hidden="true"></iconify-icon>
             {{ project_status | title }}
           </span>
           {% if project.is_featured %}
@@ -182,8 +207,12 @@
       <div class="project-hero-media" aria-label="Project preview">
         <div class="project-cover {{ 'has-image' if project_image_url else 'is-placeholder' }}">
           {% if project_image_url %}
-          <img src="{{ project_image_url }}" alt="Project preview for {{ project_title }}" class="project-cover-image" loading="eager">
-          {% else %}
+          <img src="{{ project_image_url }}"
+               alt="Project preview for {{ project_title }}"
+               class="project-cover-image"
+               loading="eager"
+               onerror="this.closest('.project-cover').classList.add('image-failed','is-placeholder'); this.remove();">
+          {% endif %}
           <div class="project-cover-placeholder" aria-hidden="true">
             <div class="project-cover-grid"></div>
             <div class="project-cover-icon">
@@ -194,7 +223,6 @@
               <strong>Case Study Preview</strong>
             </div>
           </div>
-          {% endif %}
         </div>
       </div>
     </header>
@@ -273,7 +301,7 @@
             </div>
             <div class="project-detail-row">
               <dt><iconify-icon icon="lucide:badge-check" width="15" aria-hidden="true"></iconify-icon> Status</dt>
-              <dd><span class="project-status-pill {{ 'is-published' if project_status == 'published' else 'is-draft' }}">{{ project_status | title }}</span></dd>
+              <dd><span class="project-status-pill {{ 'is-published' if project_status_normalized == 'published' else 'is-draft' }}">{{ project_status | title }}</span></dd>
             </div>
             <div class="project-detail-row">
               <dt><iconify-icon icon="lucide:eye" width="15" aria-hidden="true"></iconify-icon> Views</dt>
@@ -346,15 +374,17 @@
       <div class="project-related-grid">
         {% for p in related %}
         {% set related_title = p.title or 'Untitled Project' %}
-        <a href="{{ url_for('tenant.project_detail', tenant_slug=_tenant_slug, slug=p.slug) }}" class="project-related-card">
-          <div class="project-related-media">
-            {% if p.image %}
-            <img src="{{ url_for('static', filename='uploads/projects/' + p.image) }}" alt="Project preview for {{ related_title }}" loading="lazy">
-            {% else %}
+        <a href="{{ tenant_project_url(_tenant_slug, p.slug) }}" class="project-related-card">
+          <div class="project-related-media {{ 'has-image' if p.image is defined and (p.image | safe_media_value) else 'is-placeholder' }}">
+            {% if p.image is defined and (p.image | safe_media_value) %}
+            <img src="{{ url_for('static', filename='uploads/projects/' ~ p.image) }}"
+                 alt="Project preview for {{ related_title }}"
+                 loading="lazy"
+                 onerror="this.closest('.project-related-media').classList.add('image-failed','is-placeholder'); this.remove();">
+            {% endif %}
             <div class="project-related-placeholder" aria-hidden="true">
               <iconify-icon icon="lucide:image" width="26"></iconify-icon>
             </div>
-            {% endif %}
           </div>
           <div class="project-related-body">
             <span>{{ p.category or 'Project' }}</span>
@@ -381,7 +411,7 @@
       const label = button.querySelector('[data-copy-label]');
       const original = label ? label.textContent : 'Copy Link';
       try {
-        await navigator.clipboard.writeText(window.location.href);
+        await navigator.clipboard.writeText(projectShareUrl || window.location.href);
         if (label) label.textContent = 'Copied!';
         button.classList.add('is-copied');
         window.setTimeout(() => {
@@ -395,13 +425,15 @@
     });
   });
 
+  const projectShareTitle = {{ project_title | tojson }};
+  const projectShareUrl = {{ request.url | tojson }};
   const shareButtons = document.querySelectorAll('[data-project-share]');
   shareButtons.forEach((button) => {
     button.addEventListener('click', async () => {
       const shareData = {
         title: document.title,
-        text: '{{ project_title | replace("'", "\\'") }}',
-        url: window.location.href
+        text: projectShareTitle,
+        url: projectShareUrl || window.location.href
       };
       if (navigator.share) {
         try { await navigator.share(shareData); } catch (error) { /* user cancelled */ }
@@ -674,6 +706,10 @@
   transition: transform 0.65s ease;
 }
 .project-cover:hover .project-cover-image { transform: scale(1.035); }
+.project-cover.has-image:not(.image-failed) .project-cover-placeholder { display: none; }
+.project-cover.image-failed .project-cover-placeholder,
+.project-cover.is-placeholder .project-cover-placeholder { display: flex; }
+
 .project-cover-placeholder {
   position: absolute;
   inset: 0;
@@ -890,6 +926,7 @@
 }
 .project-related-card:hover { transform: translateY(-4px); border-color: rgba(129,140,248,0.24); box-shadow: 0 18px 46px rgba(0,0,0,0.25); }
 .project-related-media { height: 168px; overflow: hidden; background: rgba(255,255,255,0.04); }
+.project-related-media.has-image:not(.image-failed) .project-related-placeholder { display: none; }
 .project-related-media img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.5s ease; }
 .project-related-card:hover .project-related-media img { transform: scale(1.06); }
 .project-related-placeholder { height: 100%; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.22); background: linear-gradient(135deg, rgba(99,102,241,0.16), rgba(34,211,238,0.08)); }

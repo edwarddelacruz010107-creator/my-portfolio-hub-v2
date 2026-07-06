@@ -51,6 +51,7 @@ from app.models.core import (
 
     # ORM models
     Tenant,
+    TenantCustomDomain,
     User,
     Subscription,
     WebhookEvent,
@@ -118,6 +119,7 @@ __all__ = [
 
     # core_db ORM models
     'Tenant',
+    'TenantCustomDomain',
     'User',
     'Subscription',
     'SubscriptionStatus',

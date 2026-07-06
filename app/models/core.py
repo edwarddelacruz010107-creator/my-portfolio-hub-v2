@@ -255,6 +255,7 @@ class Tenant(db.Model):
     payment_instructions  = db.relationship('PaymentInstruction', back_populates='tenant', cascade='all, delete-orphan', lazy='dynamic')
     payment_methods       = db.relationship('PaymentMethod', back_populates='tenant', cascade='all, delete-orphan', lazy='dynamic')
     payments              = db.relationship('PaymentSubmission', back_populates='tenant', cascade='all, delete-orphan', lazy='dynamic')
+    custom_domains        = db.relationship('TenantCustomDomain', back_populates='tenant', cascade='all, delete-orphan', lazy='dynamic')
 
     @property
     def normalized_plan(self) -> str:
@@ -319,6 +320,48 @@ class Tenant(db.Model):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# CORE MODEL: TenantCustomDomain
+# ═════════════════════════════════════════════════════════════════════════════
+
+class TenantCustomDomain(db.Model):
+    """Verified custom domain mapping for tenant public portfolios.
+
+    Lives in core_db because domain ownership/routing is platform-level
+    metadata. Tenant content remains in tenant_data_db and is looked up by
+    tenant_slug after this host mapping resolves.
+    """
+    __tablename__ = 'tenant_custom_domains'
+    __table_args__ = (
+        db.UniqueConstraint('normalized_domain', name='uq_tenant_custom_domains_normalized_domain'),
+        db.Index('ix_tenant_custom_domains_tenant_status', 'tenant_id', 'status'),
+        db.Index('ix_tenant_custom_domains_status_domain', 'status', 'normalized_domain'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, index=True)
+    tenant_slug = db.Column(db.String(120), nullable=False, index=True)
+    domain = db.Column(db.String(255), nullable=False)
+    normalized_domain = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    verification_token = db.Column(db.String(120), nullable=False, index=True)
+    status = db.Column(db.String(24), nullable=False, default='pending', index=True)
+    is_primary = db.Column(db.Boolean, nullable=False, default=False)
+    verified_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    last_checked_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    failure_reason = db.Column(db.String(300), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
+    updated_at = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    tenant = db.relationship('Tenant', back_populates='custom_domains', lazy='joined')
+
+    @property
+    def is_verified(self) -> bool:
+        return (self.status or '').lower() == 'verified'
+
+    def __repr__(self):
+        return f'<TenantCustomDomain {self.normalized_domain} tenant={self.tenant_slug} status={self.status}>'
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # CORE MODEL: User (tenant admin)
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -360,11 +403,12 @@ class User(UserMixin, db.Model):
     password_reset_token   = db.Column(db.String(100), unique=True, nullable=True, index=True)
     password_reset_expires = db.Column(db.DateTime(timezone=True), nullable=True)
 
-    # Google OAuth (v1.0) — SECOND LOGIN METHOD for existing users only.
-    # See app/auth/oauth.py. NEVER used to auto-create a User; a row here
-    # only gets populated when an existing User first signs in via Google.
+    # OAuth identities. Google and GitHub are optional second login methods.
+    # Superadmin accounts are blocked from OAuth route code; public signup via
+    # OAuth still creates tenant-admin trial accounts only.
     google_id     = db.Column(db.String(255), unique=True, nullable=True, index=True)
-    auth_provider = db.Column(db.String(20), nullable=False, default='local')  # 'local' | 'both'
+    github_id     = db.Column(db.String(255), unique=True, nullable=True, index=True)
+    auth_provider = db.Column(db.String(20), nullable=False, default='local')  # local | google | github | both
     avatar_url    = db.Column(db.String(500), nullable=True)
 
     email_verified             = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())

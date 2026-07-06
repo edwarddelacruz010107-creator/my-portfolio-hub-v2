@@ -20,7 +20,12 @@ Environment Variables Required:
     - SECRET_KEY
     - FERNET_KEY
     - CORE_DATABASE_URL
+
+  Production (optional):
     - TENANT_DATABASE_URL
+      If omitted or blank, the tenant bind reuses CORE_DATABASE_URL.
+      This supports a single-Postgres deployment while preserving the
+      existing SQLAlchemy bind architecture for future physical separation.
 
   Production (only when PAYMONGO_ENABLED=true):
     - PAYMONGO_SECRET_KEY
@@ -138,6 +143,15 @@ class BaseConfig:
     GOOGLE_OAUTH_ENABLED = bool(
         os.environ.get('GOOGLE_CLIENT_ID') and os.environ.get('GOOGLE_CLIENT_SECRET')
     )
+
+    # GitHub OAuth (Sign in + Create account). Uses minimal scopes only:
+    # read:user for profile identity and user:email for the primary verified email.
+    # Leave both values blank to keep GitHub auth disabled.
+    GITHUB_CLIENT_ID     = os.environ.get('GITHUB_CLIENT_ID', '')
+    GITHUB_CLIENT_SECRET = os.environ.get('GITHUB_CLIENT_SECRET', '')
+    GITHUB_OAUTH_ENABLED = bool(
+        os.environ.get('GITHUB_CLIENT_ID') and os.environ.get('GITHUB_CLIENT_SECRET')
+    )
     # SUPERADMIN_PASSWORD is intentionally NOT in config — it is read directly
     # from os.environ inside cli_create_superadmin() and _auto_bootstrap_superadmin()
     # so it never lands in app.config (and therefore never in debug dumps).
@@ -198,6 +212,11 @@ class BaseConfig:
     HEARTBEAT_SECRET         = os.environ.get('HEARTBEAT_SECRET', '')
 
     APP_BASE_URL             = os.environ.get('APP_BASE_URL', '').rstrip('/')
+    # Custom-domain routing. CUSTOM_DOMAIN_CNAME_TARGET is the host tenants
+    # should point their CNAME record to. If blank, APP_BASE_URL host is used.
+    CUSTOM_DOMAIN_CNAME_TARGET = os.environ.get('CUSTOM_DOMAIN_CNAME_TARGET', '').strip()
+    CUSTOM_DOMAIN_BLOCKED_HOSTS = os.environ.get('CUSTOM_DOMAIN_BLOCKED_HOSTS', '').strip()
+    CUSTOM_DOMAIN_PUBLIC_SCHEME = os.environ.get('CUSTOM_DOMAIN_PUBLIC_SCHEME', 'https').strip().lower()
     BILLING_GRACE_PERIOD_DAYS = int(os.environ.get('BILLING_GRACE_PERIOD_DAYS', '3'))
     PAYMENT_TIMEOUT_SECONDS  = int(os.environ.get('PAYMENT_TIMEOUT_SECONDS', '600'))
 
@@ -326,7 +345,6 @@ class ProductionConfig(BaseConfig):
             'SECRET_KEY',
             'FERNET_KEY',
             'CORE_DATABASE_URL',
-            'TENANT_DATABASE_URL',
         ]
         missing = [v for v in always_required if not os.environ.get(v)]
 
@@ -351,11 +369,19 @@ class ProductionConfig(BaseConfig):
         # ─────────────────────────────────────────────────────────────
         # CONFIGURE DATABASES
         # ─────────────────────────────────────────────────────────────
-        core_url   = _normalize_postgres_url(os.environ['CORE_DATABASE_URL'].strip())
-        tenant_url = _normalize_postgres_url(os.environ['TENANT_DATABASE_URL'].strip())
+        core_url = _normalize_postgres_url(os.environ['CORE_DATABASE_URL'].strip())
+        tenant_url = _normalize_postgres_url(
+            (os.environ.get('TENANT_DATABASE_URL') or core_url).strip()
+        )
 
         app.config['SQLALCHEMY_DATABASE_URI'] = core_url
         app.config['SQLALCHEMY_BINDS']        = {'tenant': tenant_url}
+
+        if tenant_url == core_url:
+            app.logger.warning(
+                'TENANT_DATABASE_URL is not set or matches CORE_DATABASE_URL; '
+                'running Core and Tenant binds in one physical PostgreSQL database.'
+            )
 
         # ─────────────────────────────────────────────────────────────
         # CONFIGURE SENTRY

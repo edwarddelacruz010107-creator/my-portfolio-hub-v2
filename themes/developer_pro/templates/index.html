@@ -1541,7 +1541,8 @@
                 tech: {{ (p.tech_stack or []) | tojson }},
                 category: {{ (p.category or 'fullstack') | tojson }},
                 github: {{ (p.github_url or '#') | tojson }},
-                demo: {{ (p.demo_url or '#') | tojson }}
+                demo: {{ (p.demo_url or '#') | tojson }},
+                caseStudy: {{ (p.case_study_url or p.url or '#') | tojson }}
             }{% if not loop.last %},{% endif %}
             {% else %}
             {
@@ -1550,7 +1551,7 @@
                 image: 'https://picsum.photos/seed/placeholder/600/400.jpg',
                 tech: ['Portfolio CMS'],
                 category: 'fullstack',
-                github: '#', demo: '#'
+                github: '#', demo: '#', caseStudy: '#'
             }
             {% endfor %}
         ];
@@ -2060,6 +2061,7 @@
                             ${proj.tech.map(t => `<span>${t}</span>`).join('')}
                         </div>
                         <div class="project-links">
+                            <a href="${proj.caseStudy}" class="project-link"><i class="fas fa-book-open"></i> Case Study</a>
                             <a href="${proj.demo}" class="project-link"><i class="fas fa-external-link-alt"></i> Live Demo</a>
                             <a href="${proj.github}" class="project-link"><i class="fab fa-github"></i> Source</a>
                         </div>

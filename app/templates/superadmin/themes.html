@@ -200,7 +200,7 @@
 <div class="tc-grid">
   {% for theme in themes %}
   {% set entry_id = theme.get('catalog_entry_id') %}
-  {% set thumb    = theme.get('thumbnail_url') %}
+  {% set thumb    = theme.get('thumbnail_url') or theme.get('preview_image') %}
   {% set previews = theme.get('preview_images', []) %}
   {% set matrix   = theme.get('feature_matrix', {}) %}
   {% set is_active   = theme.get('catalog_active', True) %}
@@ -221,7 +221,12 @@
     <!-- Thumbnail -->
     <div class="tc-thumb-wrap">
       {% if thumb %}
-        <img src="{{ thumb }}" alt="{{ theme.get('name') }} preview" loading="lazy"/>
+        <img src="{{ thumb }}" alt="{{ theme.get('name') }} preview" loading="lazy"
+             onerror="this.hidden=true; this.nextElementSibling.hidden=false;"/>
+        <div class="tc-thumb-placeholder" hidden>
+          <iconify-icon icon="lucide:image" width="40"></iconify-icon>
+          <span>No thumbnail</span>
+        </div>
       {% else %}
         <div class="tc-thumb-placeholder">
           <iconify-icon icon="lucide:image" width="40"></iconify-icon>

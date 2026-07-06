@@ -164,6 +164,7 @@ def serialize_skill(s: Any) -> dict:
 
 def serialize_project(p: Any) -> dict:
     return {
+        'slug': _str(p, 'slug'),
         'title': _str(p, 'title'),
         'description': _str(p, 'description'),
         'description_short': _str(p, 'description_short', 'short_description'),

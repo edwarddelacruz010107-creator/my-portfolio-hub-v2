@@ -317,7 +317,7 @@
         {% endif %}
         <div class="info-row">
           <span class="info-row-label">Portfolio</span>
-          <a href="{{ url_for('tenant.portfolio', tenant_slug=profile.tenant_slug) }}"
+          <a href="{{ tenant_portfolio_url(profile.tenant_slug) }}"
              target="_blank"
              class="info-row-link">
             View Live <iconify-icon icon="lucide:external-link" width="12"></iconify-icon>

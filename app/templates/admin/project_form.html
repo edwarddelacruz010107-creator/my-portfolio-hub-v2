@@ -121,7 +121,7 @@
         {{ form.submit(class="btn btn-primary btn-lg") }}
         <a href="{{ url_for('admin.projects') }}" class="btn btn-ghost">Cancel</a>
         {% if project %}
-          <a href="{{ url_for('tenant.project_detail', tenant_slug=tenant_slug or active_tenant_slug or 'default', slug=project.slug) }}" target="_blank"
+          <a href="{{ tenant_project_url(tenant_slug or active_tenant_slug or 'default', project.slug) }}" target="_blank"
              class="btn btn-ghost btn-sm">↗ Preview</a>
         {% endif %}
       </div>

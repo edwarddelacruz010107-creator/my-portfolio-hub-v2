@@ -5,7 +5,7 @@
   "description": "An immersive cyberpunk-themed portfolio with hacker aesthetics, matrix rain, particle systems, glitch effects, and a live terminal easter egg.",
   "author": "Portfolio CMS",
   "premium": true,
-  "preview_image": "/static/themes/futuristic_cyber/preview.png",
+  "preview_image": "/static/themes/futuristic_cyber/preview.svg",
   "supports_dark_mode": true,
   "supports_light_mode": false,
   "supports_animation": true,

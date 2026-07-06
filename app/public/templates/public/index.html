@@ -43,7 +43,7 @@
       <ul class="nav-links">
         <li><a href="#home">Home</a></li>
         <li><a href="#explore">Explore</a></li>
-        <li><a href="#projects">Projects</a></li>
+        <li><a href="{{ url_for('public.projects') }}">Projects</a></li>
         <li><a href="#themes">Themes</a></li>
         <li><a href="#features">Features</a></li>
         <li><a href="#pricing">Pricing</a></li>
@@ -71,7 +71,7 @@
   <div class="mobile-menu" id="mobileMenu">
     <a href="#home">Home</a>
     <a href="#explore">Explore</a>
-    <a href="#projects">Projects</a>
+    <a href="{{ url_for('public.projects') }}">Projects</a>
     <a href="#themes">Themes</a>
     <a href="#features">Features</a>
     <a href="#community">Community</a>
@@ -337,7 +337,13 @@
           {% if theme.premium %}<span class="theme-badge">Premium</span>{% endif %}
           <div class="theme-preview">
             {% if theme.preview_image %}
-              <img class="theme-preview-img" src="{{ theme.preview_image }}" alt="{{ theme.name }} theme preview" loading="lazy">
+              <img class="theme-preview-img" src="{{ theme.preview_image }}" alt="{{ theme.name }} theme preview" loading="lazy"
+                   onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+              <div class="theme-preview-fallback" hidden>
+                <div class="theme-mock-bar"></div>
+                <div class="theme-mock-lines"><span></span><span class="short"></span></div>
+                <div class="theme-swatches"><span style="background:var(--tc1)"></span><span style="background:var(--tc2)"></span><span style="background:var(--tc3)"></span></div>
+              </div>
             {% else %}
               <div class="theme-mock-bar"></div>
               <div class="theme-mock-lines"><span></span><span class="short"></span></div>
@@ -532,7 +538,7 @@
       </div>
 
       <div class="text-center mt-5" data-reveal>
-        <a href="{{ url_for('public.feed') }}" class="btn-mph btn-outline ripple-wrap">Browse all projects <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+        <a href="{{ url_for('public.projects') }}" class="btn-mph btn-outline ripple-wrap">Browse all projects <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
       </div>
     </div>
   </section>
@@ -983,7 +989,7 @@
           <li><a href="#features">Features</a></li>
           <li><a href="#themes">Themes</a></li>
           <li><a href="#explore">Explore</a></li>
-          <li><a href="#projects">Projects</a></li>
+          <li><a href="{{ url_for('public.projects') }}">Projects</a></li>
           <li><a href="#pricing">Pricing</a></li>
         </ul>
       </div>

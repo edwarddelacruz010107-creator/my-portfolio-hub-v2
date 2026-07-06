@@ -1,0 +1,162 @@
+{#
+  app/public/templates/public/projects.html
+  Public project browser for /projects. /feed remains a legacy alias.
+#}
+{% extends "public/_base.html" %}
+
+{% block title %}Browse Projects — MyPortfolioHub{% endblock %}
+{% block meta_desc %}Browse real portfolio projects published by creators on MyPortfolioHub.{% endblock %}
+{% block canonical %}{{ url_for('public.projects', _external=True) }}{% endblock %}
+
+{% block content %}
+<section class="ph-projects-hero" aria-labelledby="projects-title">
+  <div class="ph-projects-hero-inner">
+    <span class="ph-eyebrow">● Project Gallery</span>
+    <h1 id="projects-title">Browse published projects</h1>
+    <p>
+      Discover case studies, apps, design work, APIs, and creative builds from creators using MyPortfolioHub.
+    </p>
+    <div class="ph-projects-stats" aria-label="Project browser summary">
+      <span><strong>{{ total }}</strong> project{{ 's' if total != 1 else '' }}</span>
+      {% if category %}<span>Filtered by <strong>{{ category }}</strong></span>{% endif %}
+      {% if query %}<span>Search: <strong>{{ query }}</strong></span>{% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="ph-section ph-projects-browser" aria-label="All projects">
+  <form class="ph-projects-toolbar" method="get" action="{{ url_for('public.projects') }}" role="search">
+    <label class="ph-field ph-field-search">
+      <span>Search projects</span>
+      <input
+        class="ph-input"
+        type="search"
+        name="q"
+        value="{{ query }}"
+        placeholder="Search by title, category, framework…"
+        aria-label="Search projects"
+      >
+    </label>
+
+    <label class="ph-field">
+      <span>Category</span>
+      <select class="ph-select" name="category" aria-label="Filter by category">
+        <option value="">All categories</option>
+        {% for cat in categories %}
+        <option value="{{ cat }}" {% if cat == category %}selected{% endif %}>{{ cat }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="ph-field">
+      <span>Sort</span>
+      <select class="ph-select" name="sort" aria-label="Sort projects">
+        <option value="latest" {% if sort == 'latest' %}selected{% endif %}>Latest</option>
+        <option value="featured" {% if sort == 'featured' %}selected{% endif %}>Featured</option>
+        <option value="popular" {% if sort == 'popular' %}selected{% endif %}>Most viewed</option>
+        <option value="liked" {% if sort == 'liked' %}selected{% endif %}>Most liked</option>
+      </select>
+    </label>
+
+    <div class="ph-toolbar-actions">
+      <button type="submit" class="ph-btn ph-btn-primary">Browse</button>
+      {% if query or category or sort != 'latest' %}
+      <a href="{{ url_for('public.projects') }}" class="ph-btn ph-btn-ghost">Reset</a>
+      {% endif %}
+    </div>
+  </form>
+
+  {% if projects %}
+  <div class="ph-projects-grid" aria-live="polite">
+    {% for project in projects %}
+    {% set project_title = project.title or 'Untitled Project' %}
+    {% set project_desc = project.description_short or 'No description added yet.' %}
+    {% set project_category = project.category or 'Project' %}
+    {% set project_url = project.url or '#' %}
+    {% set portfolio_url = project.portfolio_url or (tenant_portfolio_url(project.tenant_slug) if project.tenant_slug else '#') %}
+    <article class="ph-browse-card">
+      <a class="ph-browse-cover" href="{{ project_url }}" aria-label="View case study for {{ project_title }}">
+        {% if project.image %}
+          <img src="{{ project.image|upload_url('projects') }}" alt="Preview of {{ project_title }}" loading="lazy"
+               onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+          <div class="ph-browse-placeholder" hidden aria-hidden="true">
+            <span>{{ project_title[:1]|upper }}</span>
+          </div>
+        {% else %}
+          <div class="ph-browse-placeholder" aria-hidden="true">
+            <span>{{ project_title[:1]|upper }}</span>
+          </div>
+        {% endif %}
+        <span class="ph-browse-badge">{{ project_category }}</span>
+        {% if project.is_featured %}<span class="ph-browse-featured">Featured</span>{% endif %}
+      </a>
+
+      <div class="ph-browse-body">
+        <div class="ph-browse-kicker">
+          <a href="{{ portfolio_url }}">by {{ project.creator_name or 'Creator' }}</a>
+        </div>
+        <h2><a href="{{ project_url }}">{{ project_title }}</a></h2>
+        <p>{{ project_desc }}</p>
+
+        <div class="ph-tag-row" aria-label="Project tags">
+          {% if project_category %}<span class="ph-tag">{{ project_category }}</span>{% endif %}
+          {% for tag in project.tags %}<span class="ph-tag">{{ tag }}</span>{% endfor %}
+        </div>
+      </div>
+
+      <div class="ph-browse-footer">
+        <button
+          type="button"
+          class="ph-like-btn"
+          data-project-id="{{ project.id }}"
+          data-liked="{{ '1' if project.liked else '0' }}"
+          data-auth-required="{{ '0' if current_user.is_authenticated else '1' }}"
+          aria-pressed="{{ 'true' if project.liked else 'false' }}"
+          aria-label="{{ 'Liked' if project.liked else 'Like' }} {{ project_title }}"
+        >♥ <span class="ph-like-count">{{ project.like_count }}</span></button>
+        <span class="ph-view-count">{{ project.view_count }} views</span>
+      </div>
+
+      <div class="ph-browse-actions">
+        <a class="ph-btn ph-btn-outline" href="{{ project_url }}">View case study</a>
+        <a class="ph-btn ph-btn-primary" href="{{ portfolio_url }}">View portfolio</a>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="ph-empty-state ph-projects-empty">
+    <div class="ph-empty-icon" aria-hidden="true">▦</div>
+    {% if query or category %}
+      <h2>No projects found</h2>
+      <p>Try a different search term, category, or reset the filters.</p>
+      <a href="{{ url_for('public.projects') }}" class="ph-btn ph-btn-primary">View all projects</a>
+    {% else %}
+      <h2>No published projects yet</h2>
+      <p>Published projects from creators will appear here.</p>
+      <a href="{{ url_for('auth.portal', tab='signup') }}" class="ph-btn ph-btn-primary">Create your portfolio</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if has_prev or has_next %}
+  <nav class="ph-pagination" aria-label="Projects pagination">
+    {% if has_prev %}
+      <a class="ph-btn ph-btn-outline" href="{{ url_for('public.projects', q=query, category=category, sort=sort, page=page-1) }}">← Previous</a>
+    {% else %}
+      <span class="ph-btn ph-btn-outline" aria-disabled="true">← Previous</span>
+    {% endif %}
+    <span class="ph-pagination-status">Page {{ page }}</span>
+    {% if has_next %}
+      <a class="ph-btn ph-btn-outline" href="{{ url_for('public.projects', q=query, category=category, sort=sort, page=page+1) }}">Next →</a>
+    {% else %}
+      <span class="ph-btn ph-btn-outline" aria-disabled="true">Next →</span>
+    {% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/public-reactions.js') }}"></script>
+{% endblock %}

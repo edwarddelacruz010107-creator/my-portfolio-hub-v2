@@ -159,10 +159,13 @@ def explore():
     return render_template('public/explore.html', **ctx)
 
 
-@public_bp.route('/feed')
-def feed():
-    """Latest published work across all active tenants."""
+def _render_projects_browse_page():
+    """Shared renderer for /projects and legacy /feed."""
+    query = (request.args.get('q') or '').strip()
     category = (request.args.get('category') or '').strip() or None
+    sort = (request.args.get('sort') or 'latest').strip().lower()
+    if sort not in {'latest', 'popular', 'liked', 'featured'}:
+        sort = 'latest'
     try:
         page = max(1, int(request.args.get('page', 1)))
     except ValueError:
@@ -175,19 +178,35 @@ def feed():
         offset=offset,
         category=category,
         current_user_id=current_user.id if current_user.is_authenticated else None,
+        query=query,
+        sort=sort,
     )
     categories = feed_service.get_categories()
 
     return render_template(
-        'public/feed.html',
+        'public/projects.html',
         projects=projects,
         total=total,
         categories=categories,
         category=category,
+        query=query,
+        sort=sort,
         page=page,
         has_next=offset + page_size < total,
         has_prev=page > 1,
     )
+
+
+@public_bp.route('/projects')
+def projects():
+    """Browse all published projects across active tenants."""
+    return _render_projects_browse_page()
+
+
+@public_bp.route('/feed')
+def feed():
+    """Legacy alias for the public projects browser."""
+    return _render_projects_browse_page()
 
 
 @public_bp.route('/pricing')

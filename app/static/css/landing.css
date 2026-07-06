@@ -2032,3 +2032,14 @@ html[data-theme="light"] .community-view-link {
   background: rgba(15,23,42,0.04);
   border-color: rgba(15,23,42,0.1);
 }
+
+/* Theme preview fallback when an uploaded/static thumbnail is missing */
+.theme-preview-fallback {
+  position: absolute;
+  inset: 0;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.theme-preview-fallback[hidden] { display: none !important; }

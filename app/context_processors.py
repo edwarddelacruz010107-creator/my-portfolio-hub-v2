@@ -59,7 +59,7 @@ def _load_globals(app):
         # reference `profile`, `project_count`, or the unread-message
         # counters, so this is a pure perf/hygiene fix, not a behavior
         # dependency public templates rely on.
-        '/explore', '/feed', '/pricing', '/u/', '/administrator',
+        '/explore', '/projects', '/feed', '/pricing', '/u/', '/administrator',
     )
     _is_root = _req.path == '/'
     try:

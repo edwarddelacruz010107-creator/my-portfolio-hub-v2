@@ -108,7 +108,7 @@
       <tr class="sa-table-row" data-tenant-id="{{ t.id }}">
 
         <!-- Tenant Name + Avatar -->
-        <td class="td-tenant-name">
+        <td class="td-tenant-name" data-label="Tenant">
           <div class="tenant-name-cell">
             <div class="tenant-avatar">
               {{ (t.name or 'T')[0].upper() }}
@@ -126,12 +126,12 @@
         </td>
 
         <!-- Slug -->
-        <td class="td-slug">
+        <td class="td-slug" data-label="Slug">
           <code class="slug-code">{{ t.tenant_slug }}</code>
         </td>
 
         <!-- Email -->
-        <td class="td-email">
+        <td class="td-email" data-label="Owner Email">
           {% set owner = tenant_owners.get(t.tenant_slug) if tenant_owners is defined else None %}
           {% if owner %}
             <span class="td-email-text">{{ owner.email }}</span>
@@ -143,7 +143,7 @@
         </td>
 
         <!-- Plan -->
-        <td>
+        <td data-label="Plan">
           {% set plan_label = 'Administrator' if (t.tenant_slug in ['default', 'administrator'] or (t.plan or '')|lower == 'administrator') else (t.plan or 'Basic') %}
           <span class="plan-tag plan-{{ plan_label|lower|replace(' ','_') }}">
             {{ 'ADMINISTRATOR' if plan_label == 'Administrator' else plan_label }}
@@ -151,7 +151,7 @@
         </td>
 
         <!-- Status -->
-        <td>
+        <td data-label="Status">
           {% set is_active = t.is_available if t.is_available is defined else True %}
           <span class="status-pill {% if is_active %}status-active{% else %}status-inactive{% endif %}">
             <span class="status-dot"></span>
@@ -160,13 +160,13 @@
         </td>
 
         <!-- Projects Count -->
-        <td class="td-count">
+        <td class="td-count" data-label="Projects">
           {% set pcount = project_counts.get(t.tenant_slug, 0) if project_counts is defined else 0 %}
           <span class="count-badge">{{ pcount }}</span>
         </td>
 
         <!-- Last Updated -->
-        <td class="td-date">
+        <td class="td-date" data-label="Last Updated">
           {% if t.updated_at %}
             <span title="{{ t.updated_at.strftime('%Y-%m-%d %H:%M UTC') }}">
               {{ t.updated_at.strftime('%b %d, %Y') }}
@@ -177,7 +177,7 @@
         </td>
 
         <!-- Days Active -->
-        <td class="td-count">
+        <td class="td-count" data-label="Days Active">
           {% set da = days_active_map.get(t.tenant_slug) if days_active_map is defined else None %}
           {% if da is not none %}
             <span class="count-badge" title="Days since last update">{{ da }}d</span>
@@ -187,7 +187,7 @@
         </td>
 
         <!-- Actions -->
-        <td class="td-actions">
+        <td class="td-actions" data-label="Actions">
           <div class="action-group">
             <a href="{{ tenant_portfolio_url(t.tenant_slug) }}"
                target="_blank"

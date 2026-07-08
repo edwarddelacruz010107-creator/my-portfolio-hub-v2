@@ -228,8 +228,42 @@ class LandingPageSettingsForm(FlaskForm):
     features_subtitle = TextAreaField('Features Subtitle', validators=[Optional(), Length(max=300)], render_kw={'maxlength': 300})
     contact_heading = StringField('Contact Section Heading', validators=[Optional(), Length(max=120)], render_kw={'maxlength': 120})
     contact_subtitle = TextAreaField('Contact Section Subtitle', validators=[Optional(), Length(max=300)], render_kw={'maxlength': 300})
+    contact_receiver_email = EmailField('Contact Receiver Email', validators=[Optional(), Email(), Length(max=120)], render_kw={'maxlength': 120})
+    contact_email = EmailField('Displayed Email', validators=[Optional(), Email(), Length(max=120)], render_kw={'maxlength': 120})
+    contact_phone = StringField('Displayed Phone', validators=[Optional(), Length(max=50)], render_kw={'maxlength': 50})
+    contact_location = StringField('Displayed Location', validators=[Optional(), Length(max=160)], render_kw={'maxlength': 160})
+    contact_map_title = StringField('Map Card Title', validators=[Optional(), Length(max=120)], render_kw={'maxlength': 120})
+    contact_map_note = StringField('Map Card Note', validators=[Optional(), Length(max=120)], render_kw={'maxlength': 120})
+    contact_x_url = StringField('X / Twitter URL', validators=[Optional(), Length(max=255)], render_kw={'maxlength': 255})
+    contact_linkedin_url = StringField('LinkedIn URL', validators=[Optional(), Length(max=255)], render_kw={'maxlength': 255})
+    contact_instagram_url = StringField('Instagram URL', validators=[Optional(), Length(max=255)], render_kw={'maxlength': 255})
+    contact_github_url = StringField('GitHub URL', validators=[Optional(), Length(max=255)], render_kw={'maxlength': 255})
     founder_photo_url = StringField('Founder Photo URL', validators=[Optional(), Length(max=500)], render_kw={'maxlength': 500})
     founder_preview_image = StringField('Founder Preview Image URL', validators=[Optional(), Length(max=500)], render_kw={'maxlength': 500})
+    founder_photo_fit = SelectField(
+        'Founder Photo Fit',
+        choices=[('cover', 'Crop to fill frame'), ('contain', 'Fit full image')],
+        default='cover',
+        validators=[Optional()],
+    )
+    founder_photo_position_x = IntegerField(
+        'Horizontal Focus',
+        validators=[Optional(), NumberRange(min=0, max=100)],
+        default=50,
+        description='0 = left, 50 = center, 100 = right',
+    )
+    founder_photo_position_y = IntegerField(
+        'Vertical Focus',
+        validators=[Optional(), NumberRange(min=0, max=100)],
+        default=50,
+        description='0 = top, 50 = center, 100 = bottom',
+    )
+    founder_photo_zoom = IntegerField(
+        'Founder Photo Zoom',
+        validators=[Optional(), NumberRange(min=100, max=180)],
+        default=100,
+        description='100 = normal, 180 = closer crop',
+    )
     founder_role = StringField('Founder Role', validators=[Optional(), Length(max=100)], render_kw={'maxlength': 100})
     founder_title = StringField('Founder Title', validators=[Optional(), Length(max=100)], render_kw={'maxlength': 100})
     founder_name = StringField('Founder Name', validators=[Optional(), Length(max=100)], render_kw={'maxlength': 100})

@@ -54,14 +54,13 @@ SECTION_KEYS = {
 YEARLY_TOGGLE_KEY = "pricing_yearly_toggle_enabled"
 
 _DEFAULT_SECTION = {
-    "heading": "Simple, transparent pricing",
+    "heading": "Choose the plan that fits your portfolio",
     "subtitle": (
-        "Every plan includes PayMongo checkout billing and automated "
-        "renewals. Upgrade or downgrade anytime."
+        "Start simple, then unlock premium themes, custom domains, "
+        "advanced analytics, and more room to grow."
     ),
     "footnote": (
-        "Online checkout is currently unavailable — manual payment "
-        "instructions will be provided after sign-up."
+        "All plans can be upgraded or downgraded as your portfolio grows."
     ),
 }
 

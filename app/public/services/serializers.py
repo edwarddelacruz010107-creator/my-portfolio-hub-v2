@@ -56,7 +56,12 @@ def serialize_creator_card(profile, project_count: int = 0) -> dict[str, Any]:
     }
 
 
-def serialize_project_card(project, creator_name: str = "", creator_slug: str = "") -> dict[str, Any]:
+def serialize_project_card(
+    project,
+    creator_name: str = "",
+    creator_slug: str = "",
+    creator_profile_image: str = "",
+) -> dict[str, Any]:
     """Public project-card fields only."""
     return {
         "id": project.id,
@@ -69,6 +74,7 @@ def serialize_project_card(project, creator_name: str = "", creator_slug: str = 
         "tenant_slug": project.tenant_slug,
         "creator_name": creator_name or project.tenant_slug,
         "creator_slug": creator_slug or project.tenant_slug,
+        "creator_profile_image": creator_profile_image or "",
         "is_featured": bool(project.is_featured),
         "like_count": int(getattr(project, 'like_count', 0) or 0),
         "liked": bool(getattr(project, 'liked', False)),

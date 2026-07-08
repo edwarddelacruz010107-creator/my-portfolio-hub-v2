@@ -446,6 +446,7 @@
           {% set project_desc = project.description_short|default(project.description|default('No description added yet.', true), true) %}
           {% set project_category = project.category|default('Project', true) %}
           {% set creator_name = project.creator_name|default('Creator', true) %}
+          {% set creator_profile_image = project.creator_profile_image|default('', true) %}
           {% set creator_slug = project.creator_slug|default(project.tenant_slug|default('', true), true) %}
           {% set case_url = project.url|default('', true) %}
           <article class="proj-card case-study-card" data-reveal{% if loop.index0 %} style="--d:{{ loop.index0 * 60 }}ms"{% endif %}>
@@ -477,6 +478,11 @@
               <p class="proj-desc">{{ project_desc }}</p>
 
               <div class="proj-author">
+                {% if creator_profile_image %}
+                  <img class="proj-author-avatar" src="{{ creator_profile_image|upload_url('profiles') }}" alt="Photo of {{ creator_name }}" loading="lazy">
+                {% else %}
+                  <span class="proj-author-fallback" aria-hidden="true">{{ creator_name[:1]|upper }}</span>
+                {% endif %}
                 <span>by {{ creator_name }}</span>
               </div>
 
@@ -551,11 +557,19 @@
       <div class="founder-showcase" data-reveal>
         <article class="founder-portrait-card">
           {% if landing_content.founder_photo_url %}
+            {% set founder_fit = landing_content.founder_photo_fit if landing_content.founder_photo_fit in ['cover', 'contain'] else 'cover' %}
+            {% set founder_x = landing_content.founder_photo_position_x|default('50')|int %}
+            {% set founder_y = landing_content.founder_photo_position_y|default('50')|int %}
+            {% set founder_zoom = landing_content.founder_photo_zoom|default('100')|int %}
+            {% if founder_x < 0 %}{% set founder_x = 0 %}{% elif founder_x > 100 %}{% set founder_x = 100 %}{% endif %}
+            {% if founder_y < 0 %}{% set founder_y = 0 %}{% elif founder_y > 100 %}{% set founder_y = 100 %}{% endif %}
+            {% if founder_zoom < 100 %}{% set founder_zoom = 100 %}{% elif founder_zoom > 180 %}{% set founder_zoom = 180 %}{% endif %}
             <img
               class="founder-portrait-img"
               src="{{ landing_content.founder_photo_url }}"
               alt="Portrait of {{ landing_content.founder_name or 'the founder' }}"
               loading="lazy"
+              style="object-fit: {{ founder_fit }}; object-position: {{ founder_x }}% {{ founder_y }}%; transform: scale({{ '%.2f'|format(founder_zoom / 100) }}); transform-origin: {{ founder_x }}% {{ founder_y }}%;"
             />
           {% else %}
             <div class="founder-portrait-fallback" aria-hidden="true"></div>
@@ -618,15 +632,18 @@
         {% for p in trending_projects %}
         {% set update_title = p.title|default('Untitled Project', true) %}
         {% set update_creator = p.creator_name|default('Creator', true) %}
+        {% set update_creator_image = p.creator_profile_image|default('', true) %}
         {% set update_category = p.category|default('Project', true) %}
         {% set update_slug = p.creator_slug|default(p.tenant_slug|default('', true), true) %}
         {% set update_url = p.url|default('', true) %}
         <article class="community-update-card activity-item" data-reveal{% if loop.index0 %} style="--d:{{ loop.index0 * 60 }}ms"{% endif %}>
-          {% if p.image %}
+          {% if update_creator_image %}
+            <img class="community-avatar activity-avatar" src="{{ update_creator_image|upload_url('profiles') }}" alt="Photo of {{ update_creator }}" loading="lazy">
+          {% elif p.image %}
             <img class="community-avatar activity-avatar" src="{{ p.image|upload_url('projects') }}" alt="Preview of {{ update_title }}" loading="lazy">
           {% else %}
             <div class="community-avatar activity-avatar" aria-hidden="true">
-              <i class="bi bi-stars"></i>
+              {{ update_creator[:1]|upper }}
             </div>
           {% endif %}
 
@@ -873,33 +890,46 @@
 
       <div class="contact-grid">
         <div class="contact-info-card" data-reveal>
+          {% set contact_email = landing_content.contact_email or landing_content.contact_receiver_email or 'hello@myportfoliohub.online' %}
+          {% set contact_phone = landing_content.contact_phone or '+1 (415) 555-0182' %}
+          {% set contact_location = landing_content.contact_location or 'San Francisco, CA · Remote-first' %}
           <div class="contact-row">
             <span class="icon-badge violet"><i class="bi bi-envelope" aria-hidden="true"></i></span>
-            <div><strong>Email</strong><span>hello@myportfoliohub.online</span></div>
+            <div><strong>Email</strong><span><a href="mailto:{{ contact_email }}">{{ contact_email }}</a></span></div>
           </div>
           <div class="contact-row">
             <span class="icon-badge cyan"><i class="bi bi-telephone" aria-hidden="true"></i></span>
-            <div><strong>Phone</strong><span>+1 (415) 555-0182</span></div>
+            <div><strong>Phone</strong><span>{% if contact_phone %}<a href="tel:{{ contact_phone|replace(' ', '')|replace('(', '')|replace(')', '')|replace('-', '') }}">{{ contact_phone }}</a>{% else %}Available by email{% endif %}</span></div>
           </div>
           <div class="contact-row">
             <span class="icon-badge green"><i class="bi bi-geo-alt" aria-hidden="true"></i></span>
-            <div><strong>Location</strong><span>San Francisco, CA · Remote-first</span></div>
+            <div><strong>Location</strong><span>{{ contact_location }}</span></div>
           </div>
 
-          <div class="social-row">
-            <a href="#" class="social-btn" aria-label="MyPortfolioHub on X"><i class="bi bi-twitter-x" aria-hidden="true"></i></a>
-            <a href="#" class="social-btn" aria-label="MyPortfolioHub on LinkedIn"><i class="bi bi-linkedin" aria-hidden="true"></i></a>
-            <a href="#" class="social-btn" aria-label="MyPortfolioHub on Instagram"><i class="bi bi-instagram" aria-hidden="true"></i></a>
-            <a href="#" class="social-btn" aria-label="MyPortfolioHub on GitHub"><i class="bi bi-github" aria-hidden="true"></i></a>
+          {% set social_links = [
+            ('x', 'MyPortfolioHub on X', 'bi-twitter-x', landing_content.contact_x_url),
+            ('linkedin', 'MyPortfolioHub on LinkedIn', 'bi-linkedin', landing_content.contact_linkedin_url),
+            ('instagram', 'MyPortfolioHub on Instagram', 'bi-instagram', landing_content.contact_instagram_url),
+            ('github', 'MyPortfolioHub on GitHub', 'bi-github', landing_content.contact_github_url)
+          ] %}
+          <div class="social-row" aria-label="Social links">
+            {% for _, label, icon, href in social_links %}
+              {% if href %}
+              <a href="{{ href }}" class="social-btn" target="_blank" rel="noopener noreferrer" aria-label="{{ label }}"><i class="bi {{ icon }}" aria-hidden="true"></i></a>
+              {% endif %}
+            {% endfor %}
+            {% if not (landing_content.contact_x_url or landing_content.contact_linkedin_url or landing_content.contact_instagram_url or landing_content.contact_github_url) %}
+              <span class="contact-muted">Add social links in SuperAdmin → Landing Page Settings.</span>
+            {% endif %}
           </div>
 
           <div class="map-card">
-            <div class="map-card-canvas" role="img" aria-label="Map showing San Francisco office location">
-              <i class="bi bi-pin-map" aria-hidden="true"></i> San Francisco, CA
+            <div class="map-card-canvas" role="img" aria-label="Contact location: {{ contact_location }}">
+              <i class="bi bi-pin-map" aria-hidden="true"></i> {{ landing_content.contact_map_title or contact_location }}
             </div>
             <div class="map-card-footer">
-              <span>37.7749° N, 122.4194° W</span>
-              <span>Remote-first</span>
+              <span>{{ landing_content.contact_map_note or 'Remote-first' }}</span>
+              <span>Platform support</span>
             </div>
           </div>
         </div>
@@ -1007,9 +1037,9 @@
       <div class="footer-col">
         <h5>Legal</h5>
         <ul>
-          <li><a href="#">Privacy Policy</a></li>
-          <li><a href="#">Terms of Service</a></li>
-          <li><a href="#">Cookie Policy</a></li>
+          <li><a href="{{ url_for('public.privacy') }}">Privacy Policy</a></li>
+          <li><a href="{{ url_for('public.terms') }}">Terms of Service</a></li>
+          <li><a href="{{ url_for('public.privacy') }}#cookies">Cookie Policy</a></li>
         </ul>
       </div>
     </div>

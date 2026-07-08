@@ -62,7 +62,10 @@ logger = logging.getLogger(__name__)
 admin  = Blueprint('admin', __name__)
 
 
-from app.admin.blueprint import admin, admin_required, _active_tenant_slug, _tenant_slug_filter, _require_tenant_object
+from app.admin.blueprint import (
+    admin, admin_required, _active_tenant_slug, _tenant_slug_filter, _require_tenant_object,
+    _active_tenant_plan_features, _active_tenant_plan_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +83,18 @@ def services():
 @admin.route('/services/new', methods=['GET', 'POST'])
 @admin_required
 def new_service():
+    plan_features = _active_tenant_plan_features()
+    if not plan_features.get('services', True):
+        flash('Services are not available on your current plan. Upgrade to unlock this section.', 'warning')
+        return redirect(url_for('admin.services'))
+    max_items = plan_features.get('max_services')
+    current_items = _tenant_slug_filter(service_repository.query).count()
+    if max_items is not None and current_items >= max_items:
+        flash(
+            f'Your current plan ({_active_tenant_plan_name()}) allows up to {max_items} services. Upgrade to add more.',
+            'warning',
+        )
+        return redirect(url_for('admin.services'))
     form = ServiceForm()
     if form.validate_on_submit():
         svc = Service(

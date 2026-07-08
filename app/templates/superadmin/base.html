@@ -317,23 +317,42 @@
   function open() {
     sidebar.classList.add('open');
     overlay.classList.add('show');
+    document.body.classList.add('sidebar-menu-open');
     document.body.style.overflow = 'hidden';
+    sidebar.removeAttribute('aria-hidden');
+    overlay.removeAttribute('aria-hidden');
     if (menuBtn) menuBtn.setAttribute('aria-expanded', 'true');
   }
   function close() {
     sidebar.classList.remove('open');
     overlay.classList.remove('show');
+    document.body.classList.remove('sidebar-menu-open');
     document.body.style.overflow = '';
+    if (window.innerWidth <= 900) sidebar.setAttribute('aria-hidden', 'true');
+    overlay.setAttribute('aria-hidden', 'true');
     if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
   }
 
+  close();
   menuBtn  && menuBtn.addEventListener('click', () => sidebar.classList.contains('open') ? close() : open());
   closeBtn && closeBtn.addEventListener('click', close);
   overlay.addEventListener('click', close);
+  document.querySelectorAll('#sidebar a').forEach(link => {
+    link.addEventListener('click', () => {
+      if (window.innerWidth <= 900) close();
+    });
+  });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && sidebar.classList.contains('open')) close();
   });
-  window.addEventListener('resize', () => window.innerWidth > 900 && close());
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 900) {
+      close();
+      sidebar.removeAttribute('aria-hidden');
+    } else if (!sidebar.classList.contains('open')) {
+      sidebar.setAttribute('aria-hidden', 'true');
+    }
+  });
 })();
 
 /* ── Toasts ──────────────────────────────────────────────────── */

@@ -22,6 +22,7 @@ from app.services.auth.email_policy import (
 )
 from app.utils import log_activity
 from app.utils.datetime_utils import ensure_utc_aware, utc_expiry, utc_now
+from app.services.billing.trial_limits import get_trial_duration_days
 
 logger = logging.getLogger(__name__)
 
@@ -432,7 +433,8 @@ def complete_pending_signup(
     from app.services.auth.registration_service import _slugify, _unique_tenant_slug
 
     tenant_slug = _unique_tenant_slug(full_name)
-    trial_ends = now + timedelta(days=7)
+    trial_days = get_trial_duration_days()
+    trial_ends = now + timedelta(days=trial_days)
 
     try:
         tenant = Tenant(

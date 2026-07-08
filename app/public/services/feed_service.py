@@ -1,7 +1,7 @@
 """
 app/public/services/feed_service.py — Cross-tenant project feed.
 
-Read-only. Powers the landing page ("Trending Projects") and /projects (/feed legacy alias).
+Read-only. Powers the landing page ("Trending Projects") and /feed.
 Same cross-DB-bind constraint as creator_service.py: Tenant lives in
 core_db, Project lives in tenant_db — two queries, stitched in Python.
 """
@@ -21,18 +21,29 @@ def _active_tenant_slugs() -> set[str]:
     return {t.slug for t in Tenant.query.filter(Tenant.status == "active").with_entities(Tenant.slug).all()}
 
 
-def _creator_names(tenant_slugs: list[str]) -> dict[str, str]:
-    """tenant_slug -> display name, for stamping creator_name on project cards."""
+def _creator_profiles(tenant_slugs: list[str]) -> dict[str, dict[str, str]]:
+    """tenant_slug -> public creator display fields for project cards."""
     from app.models.tenant_data import Profile
 
     if not tenant_slugs:
         return {}
     rows = (
-        Profile.query.with_entities(Profile.tenant_slug, Profile.name)
+        Profile.query.with_entities(Profile.tenant_slug, Profile.name, Profile.profile_image)
         .filter(Profile.tenant_slug.in_(tenant_slugs))
         .all()
     )
-    return {slug: (name or slug) for slug, name in rows}
+    return {
+        slug: {
+            "name": name or slug,
+            "profile_image": profile_image or "",
+        }
+        for slug, name, profile_image in rows
+    }
+
+
+def _creator_names(tenant_slugs: list[str]) -> dict[str, str]:
+    """Backward-compatible helper for older call sites."""
+    return {slug: data.get("name", slug) for slug, data in _creator_profiles(tenant_slugs).items()}
 
 
 def get_trending_projects(limit: int = 8, current_user_id: int | None = None) -> list[dict]:
@@ -71,24 +82,23 @@ def get_trending_projects(limit: int = 8, current_user_id: int | None = None) ->
             .all()
         }
 
-    names = _creator_names([p.tenant_slug for p in projects])
+    creators = _creator_profiles([p.tenant_slug for p in projects])
     results = []
     for p in projects:
         p.liked = p.id in liked_ids
-        results.append(serialize_project_card(p, creator_name=names.get(p.tenant_slug, p.tenant_slug)))
+        creator = creators.get(p.tenant_slug, {})
+        results.append(
+            serialize_project_card(
+                p,
+                creator_name=creator.get("name", p.tenant_slug),
+                creator_profile_image=creator.get("profile_image", ""),
+            )
+        )
     return results
 
 
-def get_latest_projects(
-    limit: int = 12,
-    offset: int = 0,
-    category: str | None = None,
-    current_user_id: int | None = None,
-    query: str | None = None,
-    sort: str = "latest",
-) -> tuple[list[dict], int]:
-    """Browse/search newest published projects across all active tenants."""
-    from sqlalchemy import or_
+def get_latest_projects(limit: int = 12, offset: int = 0, category: str | None = None, current_user_id: int | None = None) -> tuple[list[dict], int]:
+    """Newest published projects across all active tenants, for /feed."""
     from app.models.tenant_data import Project, ProjectReaction
 
     active_slugs = _active_tenant_slugs()
@@ -99,30 +109,8 @@ def get_latest_projects(
     if category:
         base = base.filter(Project.category == category)
 
-    cleaned_query = (query or "").strip()
-    if cleaned_query:
-        like = f"%{cleaned_query}%"
-        base = base.filter(or_(
-            Project.title.ilike(like),
-            Project.description_short.ilike(like),
-            Project.description.ilike(like),
-            Project.category.ilike(like),
-            Project.framework.ilike(like),
-            Project.language.ilike(like),
-        ))
-
     total = base.count()
-    sort_key = (sort or "latest").lower()
-    if sort_key == "popular":
-        order_by = (Project.view_count.desc(), Project.like_count.desc(), Project.created_at.desc())
-    elif sort_key == "liked":
-        order_by = (Project.like_count.desc(), Project.view_count.desc(), Project.created_at.desc())
-    elif sort_key == "featured":
-        order_by = (Project.is_featured.desc(), Project.order.asc(), Project.created_at.desc())
-    else:
-        order_by = (Project.created_at.desc(),)
-
-    projects = base.order_by(*order_by).offset(offset).limit(limit).all()
+    projects = base.order_by(Project.created_at.desc()).offset(offset).limit(limit).all()
 
     liked_ids = set()
     if current_user_id and projects:
@@ -136,11 +124,102 @@ def get_latest_projects(
             .all()
         }
 
-    names = _creator_names([p.tenant_slug for p in projects])
+    creators = _creator_profiles([p.tenant_slug for p in projects])
     results = []
     for p in projects:
         p.liked = p.id in liked_ids
-        results.append(serialize_project_card(p, creator_name=names.get(p.tenant_slug, p.tenant_slug)))
+        creator = creators.get(p.tenant_slug, {})
+        results.append(
+            serialize_project_card(
+                p,
+                creator_name=creator.get("name", p.tenant_slug),
+                creator_profile_image=creator.get("profile_image", ""),
+            )
+        )
+    return results, total
+
+
+
+def browse_projects(
+    *,
+    limit: int = 12,
+    offset: int = 0,
+    query: str | None = None,
+    category: str | None = None,
+    sort: str = 'latest',
+    current_user_id: int | None = None,
+) -> tuple[list[dict], int]:
+    """Searchable/sortable public project browser for /projects.
+
+    Keeps queries public-safe: only active tenants and published projects are
+    returned, then model instances are converted through serialize_project_card.
+    """
+    from sqlalchemy import or_
+    from app.models.tenant_data import Project, ProjectReaction
+
+    active_slugs = _active_tenant_slugs()
+    if not active_slugs:
+        return [], 0
+
+    base = Project.query.filter(
+        Project.tenant_slug.in_(active_slugs),
+        Project.status == 'published',
+    )
+
+    q = (query or '').strip()
+    if q:
+        needle = f"%{q}%"
+        base = base.filter(or_(
+            Project.title.ilike(needle),
+            Project.description_short.ilike(needle),
+            Project.description.ilike(needle),
+            Project.category.ilike(needle),
+            Project.framework.ilike(needle),
+            Project.language.ilike(needle),
+        ))
+
+    cat = (category or '').strip()
+    if cat:
+        base = base.filter(Project.category == cat)
+
+    sort_key = (sort or 'latest').strip().lower()
+    if sort_key == 'featured':
+        ordered = base.order_by(Project.is_featured.desc(), Project.created_at.desc(), Project.id.desc())
+    elif sort_key == 'popular':
+        ordered = base.order_by(Project.view_count.desc(), Project.created_at.desc(), Project.id.desc())
+    elif sort_key == 'liked':
+        ordered = base.order_by(Project.like_count.desc(), Project.created_at.desc(), Project.id.desc())
+    else:
+        sort_key = 'latest'
+        ordered = base.order_by(Project.created_at.desc(), Project.id.desc())
+
+    total = ordered.count()
+    projects = ordered.offset(offset).limit(limit).all()
+
+    liked_ids = set()
+    if current_user_id and projects:
+        liked_ids = {
+            row[0]
+            for row in ProjectReaction.query.with_entities(ProjectReaction.project_id)
+            .filter(
+                ProjectReaction.user_id == current_user_id,
+                ProjectReaction.project_id.in_([p.id for p in projects]),
+            )
+            .all()
+        }
+
+    creators = _creator_profiles([p.tenant_slug for p in projects])
+    results = []
+    for p in projects:
+        p.liked = p.id in liked_ids
+        creator = creators.get(p.tenant_slug, {})
+        results.append(
+            serialize_project_card(
+                p,
+                creator_name=creator.get("name", p.tenant_slug),
+                creator_profile_image=creator.get("profile_image", ""),
+            )
+        )
     return results, total
 
 

@@ -37,7 +37,7 @@ Usage:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Literal
 
 logger = logging.getLogger(__name__)
@@ -268,6 +268,44 @@ _ALIASES: dict[str, str] = {
 }
 
 
+def _mb_value(value):
+    if value is None:
+        return UNLIMITED
+    return int(value or 0) * _MB
+
+
+def _with_plan_overrides(cap: PlanCapability) -> PlanCapability:
+    """Overlay SuperAdmin-edited limits onto Trial/Basic/Pro/Enterprise."""
+    if cap.plan_name not in {'Trial', 'Basic', 'Pro', 'Enterprise'}:
+        return cap
+    try:
+        from app.services.billing.trial_limits import get_plan_limits
+        limits = get_plan_limits(cap.plan_name)
+        ai_enabled = bool(limits.get('ai_features'))
+        if cap.plan_name == 'Trial':
+            ai_level = 'limited' if ai_enabled else 'none'
+        else:
+            ai_level = cap.can_use_ai_features if ai_enabled else 'none'
+        return replace(
+            cap,
+            max_projects=limits.get('max_projects') if limits.get('projects') else 0,
+            storage_limit_bytes=_mb_value(limits.get('storage_limit_mb')) if limits.get('uploads') else 0,
+            max_upload_size_bytes=_mb_value(limits.get('max_upload_size_mb')),
+            can_use_custom_smtp=bool(limits.get('email_services') and limits.get('custom_smtp')),
+            can_use_resend=bool(limits.get('email_services') and limits.get('resend')),
+            can_use_mailersend=bool(limits.get('email_services') and limits.get('mailersend')),
+            daily_email_limit=limits.get('daily_email_limit'),
+            can_use_custom_domain=bool(limits.get('custom_domain')),
+            can_remove_branding=bool(limits.get('branding_removal') or limits.get('white_label')),
+            can_use_ai_features=ai_level,
+            max_team_members=limits.get('max_team_members'),
+            analytics_level=cap.analytics_level if limits.get('analytics') else 'none',
+        )
+    except Exception as exc:
+        logger.warning('get_capabilities: failed loading editable %s plan limits: %s', cap.plan_name, exc)
+        return cap
+
+
 def get_capabilities(plan: str) -> PlanCapability:
     """
     Return PlanCapability for the given plan string.
@@ -279,6 +317,7 @@ def get_capabilities(plan: str) -> PlanCapability:
     if cap is None:
         logger.warning('get_capabilities: unknown plan %r — defaulting to Trial', plan)
         cap = _CAPABILITIES['Trial']
+    cap = _with_plan_overrides(cap)
     return cap
 
 
@@ -365,4 +404,4 @@ def all_plans_summary(include_system: bool = False) -> list[dict]:
     items = _CAPABILITIES.values() if include_system else (
         _CAPABILITIES[name] for name in ('Trial', 'Basic', 'Pro', 'Enterprise')
     )
-    return [cap.as_dict() for cap in items]
+    return [get_capabilities(cap.plan_name).as_dict() for cap in items]

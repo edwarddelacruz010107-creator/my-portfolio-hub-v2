@@ -88,29 +88,29 @@
         #}
         {% set prof = row.profile if row.profile is defined and row.profile else none %}
         <tr>
-          <td>
+          <td data-label="Tenant">
             <strong>{{ prof.tenant_slug if prof else '—' }}</strong>
             <br>
             <small>{{ prof.name if prof else '—' }}</small>
           </td>
-          <td>
+          <td data-label="Plan">
             {{ row.plan | default('—') }}
             <small class="text-muted">{{ row.plan_price_label | default('') }}</small>
           </td>
-          <td>
+          <td data-label="Status">
             <span class="badge badge-{{ row.status | default('inactive') }}">
               {{ row.status | default('inactive') }}
             </span>
           </td>
-          <td>
+          <td data-label="Next Billing">
             {{ row.next_billing.strftime('%b %d, %Y') if row.next_billing else '—' }}
           </td>
-          <td style="font-size:0.75rem">
+          <td data-label="PayMongo" style="font-size:0.75rem">
             {% if row.subscription and row.subscription.paymongo_dashboard_url() %}
             <a href="{{ row.subscription.paymongo_dashboard_url() }}" target="_blank" rel="noopener">Dashboard ↗</a>
             {% else %}—{% endif %}
           </td>
-          <td style="white-space:nowrap">
+          <td data-label="Actions" style="white-space:nowrap">
             {% if prof %}
             <form method="post"
                   action="{{ url_for('superadmin.billing_sync_tenant', profile_id=prof.id) }}"
@@ -152,15 +152,15 @@
       <tbody>
         {% for w in recent_webhooks %}
         <tr>
-          <td style="font-family:monospace;font-size:0.78rem">{{ w.event_id[:20] }}…</td>
-          <td>{{ w.event_type }}</td>
-          <td>{{ w.tenant_id or '—' }}</td>
-          <td>
+          <td data-label="Event" style="font-family:monospace;font-size:0.78rem">{{ w.event_id[:20] }}…</td>
+          <td data-label="Type">{{ w.event_type }}</td>
+          <td data-label="Tenant">{{ w.tenant_id or '—' }}</td>
+          <td data-label="Time">
             {% if w.received_at %}
               {{ w.received_at.strftime('%b %d, %H:%M') }}
             {% else %}—{% endif %}
           </td>
-          <td>
+          <td data-label="Status">
             <span class="badge {% if w.processed %}badge-success{% else %}badge-muted{% endif %}">
               {{ 'ok' if w.processed else 'pending' }}
             </span>

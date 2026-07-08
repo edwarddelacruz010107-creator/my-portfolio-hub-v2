@@ -277,7 +277,7 @@ def tenant_new():
 
         # Trial tenants rely on free_trial_ends — no subscription until they pay
         if plan_choice == 'Trial' and free_trial_days_val <= 0:
-            free_trial_days_val = 14
+            free_trial_days_val = get_trial_duration_days()
             free_trial_ends = datetime.now(timezone.utc) + timedelta(days=free_trial_days_val)
 
         # ── Profile construction ─────────────────────────────────────────────────

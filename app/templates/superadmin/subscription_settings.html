@@ -77,6 +77,109 @@
     {% endif %}
   </div>
 
+  <!-- ── PLAN LIMITS EDITOR ────────────────────────── -->
+  <div class="subscription-section-intro trial-limits-intro plan-limits-intro">
+    <h2><iconify-icon icon="lucide:sliders-horizontal" width="16"></iconify-icon> Plan Limits Editor</h2>
+    <p class="page-subtext">
+      Control what Trial, Basic, Pro, and Enterprise tenants can use inside the Admin Dashboard. These settings are enforced by the same feature gates used by projects, uploads, custom domains, email services, certificates, testimonials, skills, services, and premium themes.
+    </p>
+  </div>
+
+  <div class="plan-limits-editor-stack">
+    {% for plan_name in plan_limit_meta.plans %}
+      {% set plan_slug = plan_limit_meta.slugs.get(plan_name, plan_name|lower) %}
+      {% set limits = plan_limits.get(plan_name, {}) %}
+      <details class="trial-limits-card plan-limits-card" {% if plan_name == 'Trial' %}open{% endif %}>
+        <summary class="plan-limits-summary">
+          <div class="plan-limits-title-block">
+            <span class="badge badge-{{ plan_slug }}">
+              <iconify-icon icon="{{ 'lucide:clock' if plan_name == 'Trial' else 'lucide:badge-check' }}" width="12"></iconify-icon>
+              {{ plan_name }}
+            </span>
+            <div>
+              <h3>{{ plan_name }} Dashboard Limits</h3>
+              <p>
+                {% if plan_name == 'Trial' %}
+                  Trial duration applies to new signups. Feature and quota changes apply immediately to Trial tenants.
+                {% else %}
+                  Feature and quota changes apply immediately to tenants on the {{ plan_name }} plan.
+                {% endif %}
+              </p>
+            </div>
+          </div>
+          <iconify-icon class="form-card-chevron" icon="lucide:chevron-down" width="18"></iconify-icon>
+        </summary>
+
+        <form method="post" class="plan-limits-form" id="{{ plan_slug }}LimitsForm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <input type="hidden" name="action" value="update_plan_limits" />
+          <input type="hidden" name="plan_name" value="{{ plan_name }}" />
+
+          <div class="trial-limits-grid plan-limits-grid">
+            {% for section_label, fields in plan_limit_meta.sections %}
+            <section class="trial-limit-section" aria-labelledby="{{ plan_slug }}-limit-{{ loop.index }}">
+              <h4 id="{{ plan_slug }}-limit-{{ loop.index }}">{{ section_label }}</h4>
+              <div class="trial-limit-fields">
+                {% for field in fields %}
+                  {% if plan_name != 'Trial' and field == 'trial_duration_days' %}
+                    {# Paid plans keep billing duration in the Billing Plans editor, not this trial-only field. #}
+                  {% elif field in plan_limit_meta.numeric_fields %}
+                  <label class="trial-limit-field">
+                    <span>{{ plan_limit_meta.labels.get(field, field|replace('_',' ')|title) }}</span>
+                    <input
+                      class="field-input"
+                      type="number"
+                      min="0"
+                      name="{{ plan_slug }}_{{ field }}"
+                      value="{{ '' if limits.get(field) is none else limits.get(field) }}"
+                      placeholder="{{ 'Unlimited' if field in plan_limit_meta.unlimited_fields and plan_name != 'Trial' else '' }}"
+                    />
+                    {% if plan_name != 'Trial' and field in plan_limit_meta.unlimited_fields %}
+                      <small>Leave blank for unlimited.</small>
+                    {% elif plan_limit_meta.help.get(field) %}
+                      <small>{{ plan_limit_meta.help.get(field) }}</small>
+                    {% endif %}
+                  </label>
+                  {% else %}
+                  <label class="trial-feature-toggle">
+                    <input type="checkbox" name="{{ plan_slug }}_{{ field }}" value="1" {% if limits.get(field) %}checked{% endif %} />
+                    <span class="trial-toggle-ui" aria-hidden="true"></span>
+                    <span class="trial-toggle-text">
+                      <strong>{{ plan_limit_meta.labels.get(field, field|replace('_',' ')|title) }}</strong>
+                      {% if plan_limit_meta.help.get(field) %}<small>{{ plan_limit_meta.help.get(field) }}</small>{% endif %}
+                    </span>
+                  </label>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </section>
+            {% endfor %}
+          </div>
+
+          <div class="plan-limits-actions">
+            <button class="btn btn-primary" type="submit">
+              <iconify-icon icon="lucide:save" width="15"></iconify-icon>
+              Save {{ plan_name }} Limits
+            </button>
+          </div>
+        </form>
+
+        <form method="post" class="trial-reset-form plan-reset-form" onsubmit="return confirm('Reset {{ plan_name }} limits to defaults?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <input type="hidden" name="action" value="reset_plan_limits" />
+          <input type="hidden" name="plan_name" value="{{ plan_name }}" />
+          <button class="btn btn-ghost btn-sm" type="submit">
+            <iconify-icon icon="lucide:rotate-ccw" width="14"></iconify-icon>
+            Reset {{ plan_name }} defaults
+          </button>
+          <span>
+            {% if plan_name == 'Trial' %}Defaults: 7 days, 5 projects, 10 uploads, 10 MB storage, premium features off.{% else %}Restore the safe {{ plan_name }} dashboard quota and feature defaults.{% endif %}
+          </span>
+        </form>
+      </details>
+    {% endfor %}
+  </div>
+
   <!-- ── PLAN CONFIGURATION SECTION ──────────────────────────── -->
   <div class="subscription-section-intro">
     <h2><iconify-icon icon="lucide:credit-card" width="16"></iconify-icon> Billing Plans</h2>
@@ -292,46 +395,46 @@
         <tbody>
           {% for tenant in tenants %}
           <tr>
-            <td>
+            <td data-label="Tenant">
               <div class="tenant-info">
                 <strong>{{ tenant.tenant_slug }}</strong>
                 {% if tenant.name %}<div class="muted small">{{ tenant.name }}</div>{% endif %}
               </div>
             </td>
-            <td>
+            <td data-label="Plan">
               <span class="badge badge-{{ 'administrator' if tenant.is_system_plan else tenant.plan.lower() }}">
                 {{ tenant.plan }}
               </span>
             </td>
-            <td class="small">
+            <td class="small" data-label="Plan Price">
               {{ tenant.plan_price_label or '—' }}
             </td>
-            <td>
+            <td data-label="Status">
               <span class="status-pill status-{{ tenant.status }}">
                 {{ tenant.status.replace('_', ' ').title() }}
               </span>
             </td>
-            <td class="small">
+            <td class="small" data-label="Started">
               {% if tenant.started_at %}
                 {{ tenant.started_at.strftime('%Y-%m-%d') }}
               {% else %}
                 —
               {% endif %}
             </td>
-            <td class="small">
+            <td class="small" data-label="Expires">
               {% if tenant.expires_at %}
                 {{ tenant.expires_at.strftime('%Y-%m-%d') }}
               {% else %}
                 —
               {% endif %}
             </td>
-            <td class="small">
+            <td class="small" data-label="Payment Method">
               {{ tenant.payment_method or '—' }}
             </td>
-            <td class="small">
+            <td class="small" data-label="Amount Paid">
               {{ '₱' if tenant.amount_paid else '' }}{{ "%.2f"|format(tenant.amount_paid) if tenant.amount_paid else '0.00' }}
             </td>
-            <td>
+            <td data-label="Action">
               {% if tenant.is_system_plan %}
               <span class="badge badge-administrator" title="Protected system plan">
                 <iconify-icon icon="lucide:lock" width="12"></iconify-icon>

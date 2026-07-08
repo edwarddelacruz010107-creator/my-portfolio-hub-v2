@@ -76,6 +76,18 @@ def testimonials():
 @admin.route('/testimonials/new', methods=['GET', 'POST'])
 @admin_required
 def new_testimonial():
+    plan_features = _active_tenant_plan_features()
+    if not plan_features.get('testimonials', True):
+        flash('Testimonials are not available on your current plan. Upgrade to unlock this section.', 'warning')
+        return redirect(url_for('admin.testimonials'))
+    max_items = plan_features.get('max_testimonials')
+    current_items = _tenant_slug_filter(testimonial_repository.query).count()
+    if max_items is not None and current_items >= max_items:
+        flash(
+            f'Your current plan ({_active_tenant_plan_name()}) allows up to {max_items} testimonials. Upgrade to add more.',
+            'warning',
+        )
+        return redirect(url_for('admin.testimonials'))
     form = TestimonialForm()
     if form.validate_on_submit():
         t = Testimonial(

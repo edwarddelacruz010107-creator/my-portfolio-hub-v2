@@ -157,26 +157,28 @@ def validate_startup_env(app) -> None:
             "in-memory fallback (not shared across workers)."
         )
 
-    # ── Email provider validation (v4.0 CRITICAL FIX) ──────────────────────────
-    # Ensure at least one email provider is configured for OTP/password reset
+    # ── Email provider validation ───────────────────────────────────────────────
+    # Signup/password-reset email can be configured in two places:
+    #   1) environment variables, or
+    #   2) SuperAdmin → Email & Forms database settings.
+    #
+    # Do NOT fail production startup only because env mail keys are missing;
+    # that caused healthy deployments with DB-configured providers to boot into
+    # 500/failed state before the SuperAdmin settings could be used. Keep this
+    # as a warning and let the centralized provider chain decide at send time.
     has_mailersend = os.environ.get("MAILERSEND_API_KEY", "").strip()
+    has_resend = os.environ.get("RESEND_API_KEY", "").strip()
     has_smtp = (
         os.environ.get("SMTP_HOST", "").strip() and
         os.environ.get("SMTP_USERNAME", "").strip() and
         os.environ.get("SMTP_PASSWORD", "").strip()
     ) or os.environ.get("SMTP_ENABLED", "").lower() not in ("", "false", "0")
 
-    if is_production and not (has_mailersend or has_smtp):
-        errors.append(
-            "No email providers configured. "
-            "Set either MAILERSEND_API_KEY (recommended) or SMTP_HOST + SMTP_USERNAME + SMTP_PASSWORD. "
-            "OTP delivery and password reset will fail without a configured provider."
-        )
-    elif not is_production and not (has_mailersend or has_smtp):
+    if not (has_mailersend or has_resend or has_smtp):
         warnings.append(
-            "No email providers configured (development). "
-            "OTP delivery and password reset will fail. "
-            "Set MAILERSEND_API_KEY or SMTP credentials to test email flows."
+            "No environment email provider configured. This is allowed if "
+            "SuperAdmin → Email & Forms has an active provider in the database. "
+            "OTP/password-reset email will fail until at least one provider is configured."
         )
 
     # ── Report ────────────────────────────────────────────────────────────────

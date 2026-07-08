@@ -62,9 +62,24 @@ logger = logging.getLogger(__name__)
 admin  = Blueprint('admin', __name__)
 
 
-from app.admin.blueprint import admin, admin_required, _active_tenant_slug
+from app.admin.blueprint import admin, admin_required, _active_tenant_slug, _active_tenant_plan_features, _active_tenant_plan_name
 
 logger = logging.getLogger(__name__)
+
+
+def _email_provider_allowed(provider_name: str | None = None) -> tuple[bool, str]:
+    features = _active_tenant_plan_features()
+    plan_name = _active_tenant_plan_name()
+    if not features.get('email_services', False):
+        return False, f'Email Services are not available on your current plan ({plan_name}). Upgrade to unlock tenant email providers.'
+    provider = (provider_name or '').strip().lower()
+    if provider == 'smtp' and not features.get('custom_smtp', features.get('email_services', False)):
+        return False, f'Custom SMTP is not available on your current plan ({plan_name}).'
+    if provider == 'resend' and not features.get('resend', False):
+        return False, f'Resend is not available on your current plan ({plan_name}).'
+    if provider == 'mailersend' and not features.get('mailersend', False):
+        return False, f'MailerSend is not available on your current plan ({plan_name}).'
+    return True, 'ok'
 
 
 @admin.route('/notifications')
@@ -212,6 +227,11 @@ def email_services():
     )
     from app.services.tenant_email_service import get_provider_status, bootstrap_tenant_providers
 
+    allowed, lock_message = _email_provider_allowed()
+    if not allowed:
+        flash(lock_message, 'warning')
+        return redirect(url_for('admin.dashboard'))
+
     tenant_id = current_user.tenant_id
 
     # Ensure provider records exist
@@ -300,6 +320,11 @@ def email_services_save(provider_name: str):
     if provider_name not in VALID_PROVIDERS:
         flash('Invalid provider.', 'danger')
         return redirect(url_for('admin.email_services'))
+
+    allowed, lock_message = _email_provider_allowed(provider_name)
+    if not allowed:
+        flash(lock_message, 'warning')
+        return redirect(url_for('admin.dashboard'))
 
     tenant_id = current_user.tenant_id
 
@@ -421,6 +446,10 @@ def email_services_toggle(provider_name: str):
     if provider_name not in VALID_PROVIDERS:
         return jsonify({'success': False, 'error': 'Invalid provider'}), 400
 
+    allowed, lock_message = _email_provider_allowed(provider_name)
+    if not allowed:
+        return jsonify({'success': False, 'error': lock_message}), 403
+
     tenant_id = current_user.tenant_id
     action    = request.form.get('action', 'toggle')   # activate | deactivate | toggle
 
@@ -497,6 +526,10 @@ def email_services_priority():
     from app.models.core import TenantEmailProvider
     from app import db
 
+    allowed, lock_message = _email_provider_allowed()
+    if not allowed:
+        return jsonify({'success': False, 'error': lock_message}), 403
+
     tenant_id = current_user.tenant_id
 
     try:
@@ -538,6 +571,10 @@ def email_services_test():
     VALID_PROVIDERS = ('smtp', 'resend', 'mailersend')
     if provider_name not in VALID_PROVIDERS:
         return jsonify({'success': False, 'message': 'Invalid provider'}), 400
+
+    allowed, lock_message = _email_provider_allowed(provider_name)
+    if not allowed:
+        return jsonify({'success': False, 'message': lock_message}), 403
 
     if not to_email or '@' not in to_email:
         to_email = current_user.email

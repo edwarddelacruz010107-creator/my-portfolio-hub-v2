@@ -286,3 +286,69 @@
 @media (max-width: 480px) {
   .pricing-status-banner { flex-direction: column; }
 }
+
+/* ═══════════════════════════════════════════════════════
+   PRICING CMS MOBILE POLISH
+   Fixes clipped page header buttons and cramped plan tabs on phones.
+════════════════════════════════════════════════════════ */
+@media (max-width: 700px) {
+  .pricing-cms-shell,
+  .pricing-editor-grid,
+  .pricing-editor-main,
+  .pricing-cms-header,
+  .pricing-status-banner {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .pricing-cms-header {
+    gap: 1rem;
+    margin-bottom: 1.1rem;
+  }
+
+  .pricing-cms-title-row {
+    align-items: flex-start;
+  }
+
+  .pricing-cms-header-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    gap: 0.65rem;
+  }
+
+  .pricing-cms-header-actions .btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding-inline: 0.65rem;
+    white-space: normal;
+    line-height: 1.15;
+  }
+
+  .pricing-cms-shell .settings-nav {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.55rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .pricing-cms-shell .settings-nav a {
+    min-width: 0 !important;
+    width: 100% !important;
+    justify-content: center !important;
+    text-align: center !important;
+    white-space: normal !important;
+    line-height: 1.05 !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .pricing-cms-header-actions {
+    grid-template-columns: 1fr;
+  }
+}

@@ -159,54 +159,62 @@ def explore():
     return render_template('public/explore.html', **ctx)
 
 
-def _render_projects_browse_page():
-    """Shared renderer for /projects and legacy /feed."""
+@public_bp.route('/projects')
+def projects():
+    """Premium public project browser. /feed remains a legacy alias."""
     query = (request.args.get('q') or '').strip()
-    category = (request.args.get('category') or '').strip() or None
+    category = (request.args.get('category') or '').strip()
     sort = (request.args.get('sort') or 'latest').strip().lower()
-    if sort not in {'latest', 'popular', 'liked', 'featured'}:
+    if sort not in {'latest', 'featured', 'popular', 'liked'}:
         sort = 'latest'
     try:
         page = max(1, int(request.args.get('page', 1)))
-    except ValueError:
+    except (TypeError, ValueError):
         page = 1
 
-    page_size = discovery_service.PAGE_SIZE
+    page_size = 12
     offset = (page - 1) * page_size
-    projects, total = feed_service.get_latest_projects(
+    project_rows, total = feed_service.browse_projects(
         limit=page_size,
         offset=offset,
-        category=category,
-        current_user_id=current_user.id if current_user.is_authenticated else None,
         query=query,
+        category=category or None,
         sort=sort,
+        current_user_id=current_user.id if current_user.is_authenticated else None,
     )
     categories = feed_service.get_categories()
 
     return render_template(
         'public/projects.html',
-        projects=projects,
+        projects=project_rows,
         total=total,
         categories=categories,
-        category=category,
         query=query,
+        category=category,
         sort=sort,
         page=page,
+        page_size=page_size,
         has_next=offset + page_size < total,
         has_prev=page > 1,
     )
 
 
-@public_bp.route('/projects')
-def projects():
-    """Browse all published projects across active tenants."""
-    return _render_projects_browse_page()
-
-
 @public_bp.route('/feed')
 def feed():
-    """Legacy alias for the public projects browser."""
-    return _render_projects_browse_page()
+    """Legacy alias for the premium project browser."""
+    return redirect(url_for('public.projects', **request.args.to_dict(flat=True)))
+
+
+@public_bp.route('/privacy')
+def privacy():
+    """Public privacy policy page."""
+    return render_template('public/legal.html', page='privacy')
+
+
+@public_bp.route('/terms')
+def terms():
+    """Public terms of service page."""
+    return render_template('public/legal.html', page='terms')
 
 
 @public_bp.route('/pricing')

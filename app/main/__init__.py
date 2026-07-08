@@ -100,7 +100,7 @@ def sitemap_xml():
     # doesn't touch the per-tenant loop below.
     today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
     urls.append({'loc': request.host_url.rstrip('/') + '/', 'lastmod': today, 'changefreq': 'daily', 'priority': '1.0'})
-    for endpoint, prio in (('public.explore', '0.9'), ('public.projects', '0.9'), ('public.pricing', '0.8')):
+    for endpoint, prio in (('public.explore', '0.9'), ('public.feed', '0.9'), ('public.pricing', '0.8')):
         try:
             urls.append({'loc': url_for(endpoint, _external=True), 'lastmod': today, 'changefreq': 'daily', 'priority': prio})
         except Exception:

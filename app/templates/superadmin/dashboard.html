@@ -232,8 +232,8 @@
             <tbody>
               {% for tenant in recent_tenants %}
               <tr>
-                <td>
-                  <div style="display:flex;align-items:center;gap:0.6rem">
+                <td data-label="Tenant">
+                  <div class="sa-tenant-cell" style="display:flex;align-items:center;gap:0.6rem">
                     <div class="tenant-avatar" style="width:28px;height:28px;font-size:0.7rem">
                       {{ (tenant.name or 'T')[0].upper() }}
                     </div>
@@ -243,11 +243,11 @@
                     </div>
                   </div>
                 </td>
-                <td class="muted">{{ tenant.email or '—' }}</td>
-                <td>
+                <td data-label="Email" class="muted sa-table-email">{{ tenant.email or '—' }}</td>
+                <td data-label="Plan">
                   <span class="badge-status badge-active" style="font-size:0.68rem">{{ tenant.plan or 'Basic' }}</span>
                 </td>
-                <td class="muted">{{ tenant.updated_at.strftime('%b %d') if tenant.updated_at else '—' }}</td>
+                <td data-label="Updated" class="muted">{{ tenant.updated_at.strftime('%b %d') if tenant.updated_at else '—' }}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -283,14 +283,14 @@
             <tbody>
               {% for payment in recent_payments %}
               <tr>
-                <td style="font-weight:500;font-size:0.85rem">
+                <td data-label="Tenant" style="font-weight:500;font-size:0.85rem">
                   {{ payment.tenant.slug if payment.tenant else 'Unknown' }}
                 </td>
-                <td class="muted">{{ payment.payment_method or 'Manual' }}</td>
-                <td style="font-family:var(--font-display);font-weight:600">
+                <td data-label="Method" class="muted">{{ payment.payment_method or 'Manual' }}</td>
+                <td data-label="Amount" style="font-family:var(--font-display);font-weight:600">
                   {{ stats.currency_symbol }}{{ '%.2f'|format(payment.amount_paid or 0) }}
                 </td>
-                <td>
+                <td data-label="Status">
                   <span class="badge-status badge-{{ payment.status | lower if payment.status else 'pending' }}">
                     {{ payment.status | title if payment.status else 'Pending' }}
                   </span>

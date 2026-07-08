@@ -156,28 +156,28 @@
           <tbody>
             {% for sub in expiring_7 %}
             <tr>
-              <td>
+              <td data-label="Tenant">
                 <div class="tenant-cell">
                   <span class="tenant-name">{{ sub.tenant.company_name or sub.tenant.slug }}</span>
                   <span class="tenant-slug">{{ sub.tenant.slug }}</span>
                 </div>
               </td>
-              <td>
+              <td data-label="Plan">
                 <span class="plan-pill">
                   <iconify-icon icon="lucide:badge-dollar-sign" width="12"></iconify-icon>
                   {{ sub.plan }}
                 </span>
               </td>
-              <td class="text-muted" style="font-size:.85rem;">
+              <td data-label="Expires" class="text-muted" style="font-size:.85rem;">
                 {{ sub.expires_at.strftime('%b %d, %Y') if sub.expires_at else '—' }}
               </td>
-              <td>
+              <td data-label="Days Left">
                 <span class="days-pill days-pill--critical">
                   <iconify-icon icon="lucide:clock" width="11"></iconify-icon>
                   {{ sub.days_left }}d
                 </span>
               </td>
-              <td>
+              <td data-label="Reminder">
                 {% if sub.reminder_sent_7d %}
                   <span class="status-badge status-badge--success">
                     <iconify-icon icon="lucide:check" width="11"></iconify-icon>
@@ -187,7 +187,7 @@
                   <span class="status-badge status-badge--muted">Pending</span>
                 {% endif %}
               </td>
-              <td>
+              <td data-label="Action">
                 <a href="{{ url_for('superadmin.send_message', tenant_slug=sub.tenant.slug) }}"
                    class="btn btn-xs btn-outline-primary">
                   <iconify-icon icon="lucide:send" width="11"></iconify-icon>
@@ -241,29 +241,29 @@
           <tbody>
             {% for sub in expiring_30 %}
             <tr>
-              <td>
+              <td data-label="Tenant">
                 <div class="tenant-cell">
                   <span class="tenant-name">{{ sub.tenant.company_name or sub.tenant.slug }}</span>
                   <span class="tenant-slug">{{ sub.tenant.slug }}</span>
                 </div>
               </td>
-              <td>
+              <td data-label="Plan">
                 <span class="plan-pill">
                   <iconify-icon icon="lucide:badge-dollar-sign" width="12"></iconify-icon>
                   {{ sub.plan }}
                 </span>
               </td>
-              <td class="text-muted" style="font-size:.85rem;">{{ sub.billing_cycle or '—' }}</td>
-              <td class="text-muted" style="font-size:.85rem;">
+              <td data-label="Billing Cycle" class="text-muted" style="font-size:.85rem;">{{ sub.billing_cycle or '—' }}</td>
+              <td data-label="Expires" class="text-muted" style="font-size:.85rem;">
                 {{ sub.expires_at.strftime('%b %d, %Y') if sub.expires_at else '—' }}
               </td>
-              <td>
+              <td data-label="Days Left">
                 <span class="days-pill days-pill--warning">
                   <iconify-icon icon="lucide:clock" width="11"></iconify-icon>
                   {{ sub.days_left }}d
                 </span>
               </td>
-              <td>
+              <td data-label="Reminder">
                 {% if sub.reminder_sent_30d %}
                   <span class="status-badge status-badge--success">
                     <iconify-icon icon="lucide:check" width="11"></iconify-icon>
@@ -318,22 +318,22 @@
           <tbody>
             {% for sub in expired %}
             <tr>
-              <td>
+              <td data-label="Tenant">
                 <div class="tenant-cell">
                   <span class="tenant-name">{{ sub.tenant.company_name or sub.tenant.slug }}</span>
                   <span class="tenant-slug">{{ sub.tenant.slug }}</span>
                 </div>
               </td>
-              <td>
+              <td data-label="Plan">
                 <span class="plan-pill plan-pill--expired">
                   <iconify-icon icon="lucide:badge-dollar-sign" width="12"></iconify-icon>
                   {{ sub.plan }}
                 </span>
               </td>
-              <td class="text-muted" style="font-size:.85rem;">
+              <td data-label="Expired" class="text-muted" style="font-size:.85rem;">
                 {{ sub.expires_at.strftime('%b %d, %Y') if sub.expires_at else '—' }}
               </td>
-              <td>
+              <td data-label="Action">
                 <a href="{{ url_for('superadmin.send_message', tenant_slug=sub.tenant.slug) }}"
                    class="btn btn-xs btn-outline-danger">
                   <iconify-icon icon="lucide:bell" width="11"></iconify-icon>
@@ -384,16 +384,16 @@
           <tbody>
             {% for n in recent_notifications %}
             <tr>
-              <td class="text-muted" style="font-size:.85rem;">
+              <td data-label="Tenant" class="text-muted" style="font-size:.85rem;">
                 {{ n.tenant.company_name or n.tenant.slug if n.tenant else '—' }}
               </td>
-              <td>
+              <td data-label="Type">
                 <span class="notif-pill notif-pill--{{ n.notification_type }}">
                   {{ n.notification_type | replace('_', ' ') | title }}
                 </span>
               </td>
-              <td style="font-size:.85rem;">{{ n.title }}</td>
-              <td>
+              <td data-label="Title" style="font-size:.85rem;">{{ n.title }}</td>
+              <td data-label="Email">
                 {% if n.sent_via_email %}
                   <span class="status-badge status-badge--success">
                     <iconify-icon icon="lucide:mail-check" width="11"></iconify-icon>
@@ -403,7 +403,7 @@
                   <span class="text-muted" style="font-size:.8rem;">—</span>
                 {% endif %}
               </td>
-              <td class="text-muted" style="font-size:.82rem;">
+              <td data-label="Created" class="text-muted" style="font-size:.82rem;">
                 {{ n.created_at.strftime('%b %d, %H:%M') if n.created_at else '—' }}
               </td>
             </tr>

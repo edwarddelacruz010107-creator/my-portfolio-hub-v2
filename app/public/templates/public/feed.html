@@ -19,7 +19,7 @@
     </div>
   </div>
 
-  <form class="ph-toolbar" method="get" action="{{ url_for('public.projects') }}">
+  <form class="ph-toolbar" method="get" action="{{ url_for('public.feed') }}">
     <select class="ph-select" name="category" aria-label="Filter by category" onchange="this.form.submit()">
       <option value="">All categories</option>
       {% for cat in categories %}
@@ -27,7 +27,7 @@
       {% endfor %}
     </select>
     {% if category %}
-    <a href="{{ url_for('public.projects') }}" class="ph-btn ph-btn-ghost">Clear filter</a>
+    <a href="{{ url_for('public.feed') }}" class="ph-btn ph-btn-ghost">Clear filter</a>
     {% endif %}
     <span class="ph-pagination-status" style="margin-left:auto;">{{ total }} project{{ 's' if total != 1 else '' }}</span>
   </form>
@@ -75,13 +75,13 @@
   {% if has_prev or has_next %}
   <nav class="ph-pagination" aria-label="Pagination">
     {% if has_prev %}
-      <a class="ph-btn ph-btn-outline" href="{{ url_for('public.projects', category=category, page=page-1) }}">← Previous</a>
+      <a class="ph-btn ph-btn-outline" href="{{ url_for('public.feed', category=category, page=page-1) }}">← Previous</a>
     {% else %}
       <span class="ph-btn ph-btn-outline" aria-disabled="true">← Previous</span>
     {% endif %}
     <span class="ph-pagination-status">Page {{ page }}</span>
     {% if has_next %}
-      <a class="ph-btn ph-btn-outline" href="{{ url_for('public.projects', category=category, page=page+1) }}">Next →</a>
+      <a class="ph-btn ph-btn-outline" href="{{ url_for('public.feed', category=category, page=page+1) }}">Next →</a>
     {% else %}
       <span class="ph-btn ph-btn-outline" aria-disabled="true">Next →</span>
     {% endif %}

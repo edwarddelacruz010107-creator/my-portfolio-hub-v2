@@ -27,6 +27,7 @@ from typing import Optional
 
 from app import db
 from app.utils.datetime_utils import utc_now
+from app.services.billing.trial_limits import get_trial_duration_days
 from app.models import User
 from app.models.core import Tenant
 from app.security import log_security_event
@@ -158,7 +159,8 @@ def resolve_or_create_google_user(
 
     now = utc_now()
     from datetime import timedelta
-    trial_ends = now + timedelta(days=7)
+    trial_days = get_trial_duration_days()
+    trial_ends = now + timedelta(days=trial_days)
 
     tenant = Tenant(
         slug=_unique_slug(full_name or email.split('@', 1)[0]),
@@ -184,7 +186,7 @@ def resolve_or_create_google_user(
         name=full_name or email.split('@', 1)[0],
         email=email,
         plan='Basic',
-        free_trial_days=7,
+        free_trial_days=trial_days,
         free_trial_ends=trial_ends,
         is_available=True,
     )

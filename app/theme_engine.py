@@ -347,6 +347,23 @@ class ThemeEngine:
             plan = tenant_profile.effective_plan()
         else:
             plan = (getattr(tenant_profile, 'plan', None) or 'free')
+
+        features = {}
+        if callable(getattr(tenant_profile, 'plan_features', None)):
+            try:
+                features = tenant_profile.plan_features() or {}
+            except Exception:
+                features = {}
+
+        # Trial-limit editor can make the whole theme switcher default-only.
+        if theme_id != DEFAULT_THEME and features and not features.get('theme_customization', False):
+            return False
+
+        # Premium themes require premium_themes unless a higher plan requirement
+        # grants access through the legacy requirement check below.
+        if meta.get('premium', False) and features and not features.get('premium_themes', False):
+            return False
+
         required_plan = meta.get('required_plan')
         if required_plan:
             return self._plan_meets_requirement(plan, required_plan)

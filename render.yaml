@@ -70,6 +70,15 @@ services:
       - key: TOTP_VALID_WINDOW
         value: "1"
 
+      # ── Docker entrypoint controls ─────────────────────────────────
+      # These are used when deploying with the Dockerfile.
+      - key: RUN_MIGRATIONS
+        value: "true"
+      - key: CREATE_SUPERADMIN_ON_STARTUP
+        value: "false"
+      - key: AUTO_ENSURE_TENANT_SCHEMA
+        value: "false"
+
       # ── Redis ────────────────────────────────────────────────────
       - key: REDIS_URL
         fromService:

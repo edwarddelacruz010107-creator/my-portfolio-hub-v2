@@ -23,6 +23,7 @@ Key fixes from v3.0:
 
 import logging
 import os
+import sys
 import time
 from pathlib import Path
 from flask import Flask, render_template, g, redirect, url_for, request
@@ -323,15 +324,29 @@ def create_app(config_name: str = 'default') -> Flask:
     migrate.init_app(app, db, compare_type=True)
     oauth.init_app(app)
 
-    # Auto-heal tenant schema at startup so missing project counters do not
-    # crash the landing page and feed during local / dev runs.
-    try:
-        with app.app_context():
-            from app.startup_validation import ensure_tenant_schema
-            tenant_engine = db.get_engine(bind_key='tenant')
-            ensure_tenant_schema(app, tenant_engine)
-    except Exception as exc:
-        app.logger.warning('Tenant schema validation failed: %s', exc)
+    # Optional tenant schema guard.
+    #
+    # Important production hardening: do not auto-create tenant tables while
+    # Alembic is running (`flask db upgrade`). Creating tables during app
+    # bootstrap can race/conflict with migrations and produce production 500s
+    # or `table already exists` errors. The Docker/Render startup flow now runs
+    # `flask db upgrade` first, then the explicit idempotent
+    # `flask ensure-tenant-schema` command.
+    cli_args = " ".join(sys.argv).lower()
+    is_migration_command = " db " in f" {cli_args} " or "flask db" in cli_args
+    auto_ensure_tenant_schema = (
+        os.environ.get('AUTO_ENSURE_TENANT_SCHEMA', '').lower() in ('1', 'true', 'yes')
+        or (app.debug and not is_migration_command)
+    )
+
+    if auto_ensure_tenant_schema and not is_migration_command:
+        try:
+            with app.app_context():
+                from app.startup_validation import ensure_tenant_schema
+                tenant_engine = db.get_engine(bind_key='tenant')
+                ensure_tenant_schema(app, tenant_engine)
+        except Exception as exc:
+            app.logger.warning('Tenant schema validation failed: %s', exc)
 
     # In testing, auto-create the in-memory schema so import-time code that
     # expects tables to exist does not fail. This keeps test bootstrap simple
@@ -2158,7 +2173,8 @@ def register_cli_commands(app):
             Project,
             ProjectReaction,
             Testimonial,
-            Service
+            Service,
+            Certificate
         )
 
         # Get the tenant database engine using Flask-SQLAlchemy 3.x compatible API
@@ -2190,6 +2206,11 @@ def register_cli_commands(app):
         )
 
         Service.__table__.create(
+            bind=tenant_engine,
+            checkfirst=True
+        )
+
+        Certificate.__table__.create(
             bind=tenant_engine,
             checkfirst=True
         )

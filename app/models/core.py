@@ -53,6 +53,8 @@ def _utcnow():
 SUBSCRIPTION_PLAN_ORDER = {'starter': 1, 'pro': 2, 'business': 3, 'enterprise': 4, 'administrator': 99}
 
 _PLAN_ALIASES = {
+    'trial': 'trial',
+    'free_trial': 'trial',
     'basic': 'starter',
     'starter': 'starter',
     'pro': 'pro',
@@ -68,6 +70,38 @@ _PLAN_ALIASES = {
 PAID_PLAN_NAMES = frozenset({'starter', 'pro', 'business', 'enterprise'})
 
 PLAN_FEATURES = {
+    'trial': {
+        'max_projects': 5,
+        'max_skills': 20,
+        'max_media_uploads': 10,
+        'max_testimonials': 3,
+        'max_certificates': 3,
+        'max_services': 3,
+        'storage_limit_mb': 10,
+        'max_upload_size_mb': 2,
+        'daily_email_limit': 50,
+        'max_team_members': 1,
+        'projects': True,
+        'skills': True,
+        'uploads': True,
+        'testimonials': True,
+        'certificates': True,
+        'badges': True,
+        'services': True,
+        'custom_domain': False,
+        'analytics': False,
+        'white_label': False,
+        'team_members': False,
+        'api_access': False,
+        'theme_customization': False,
+        'premium_themes': False,
+        'email_services': False,
+        'custom_smtp': False,
+        'resend': False,
+        'mailersend': False,
+        'ai_features': False,
+        'branding_removal': False,
+    },
     'starter': {
         'max_projects': 5,
         'max_skills': 20,
@@ -89,6 +123,7 @@ PLAN_FEATURES = {
         'team_members': False,
         'api_access': False,
         'theme_customization': True,
+        'premium_themes': True,
     },
     'business': {
         'max_projects': None,
@@ -100,6 +135,7 @@ PLAN_FEATURES = {
         'team_members': True,
         'api_access': True,
         'theme_customization': True,
+        'premium_themes': True,
     },
     'enterprise': {
         'max_projects': None,
@@ -150,7 +186,13 @@ def get_plan_features(plan: str) -> dict:
     normalized = normalize_plan_name(plan)
     if is_administrator_plan(normalized):
         return PLAN_FEATURES['administrator'].copy()
-    return PLAN_FEATURES.get(normalized, PLAN_FEATURES['starter']).copy()
+    features = PLAN_FEATURES.get(normalized, PLAN_FEATURES['starter']).copy()
+    try:
+        from app.services.billing.trial_limits import apply_plan_feature_overrides
+        features = apply_plan_feature_overrides(normalized, features)
+    except Exception as exc:
+        _comm_logger.warning('Unable to load editable plan limits for %s; using defaults: %s', normalized, exc)
+    return features
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -262,14 +304,18 @@ class Tenant(db.Model):
         return normalize_plan_name(self.plan)
 
     def effective_plan(self) -> str:
-        """Current plan from active subscription, else tenant.plan."""
+        """Current plan from active subscription, else Trial/tenant.plan."""
         if has_administrator_access(self):
             return ADMINISTRATOR_PLAN_SLUG
         active = next(
             (s for s in self.subscriptions if s.is_active()),
             None,
         )
-        return normalize_plan_name(active.plan) if active else self.normalized_plan
+        if active:
+            return normalize_plan_name(active.plan)
+        if (self.subscription_state or '').strip().lower() == 'trial':
+            return 'trial'
+        return self.normalized_plan
 
     @property
     def subscription_status(self) -> str:

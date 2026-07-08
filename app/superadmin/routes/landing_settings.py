@@ -42,7 +42,21 @@ _PUBLISHED_LANDING_KEYS = {
     'features_subtitle': 'landing_features_subtitle',
     'contact_heading': 'landing_contact_heading',
     'contact_subtitle': 'landing_contact_subtitle',
+    'contact_receiver_email': 'landing_contact_receiver_email',
+    'contact_email': 'landing_contact_email',
+    'contact_phone': 'landing_contact_phone',
+    'contact_location': 'landing_contact_location',
+    'contact_map_title': 'landing_contact_map_title',
+    'contact_map_note': 'landing_contact_map_note',
+    'contact_x_url': 'landing_contact_x_url',
+    'contact_linkedin_url': 'landing_contact_linkedin_url',
+    'contact_instagram_url': 'landing_contact_instagram_url',
+    'contact_github_url': 'landing_contact_github_url',
     'founder_photo_url': 'landing_founder_photo_url',
+    'founder_photo_fit': 'landing_founder_photo_fit',
+    'founder_photo_position_x': 'landing_founder_photo_position_x',
+    'founder_photo_position_y': 'landing_founder_photo_position_y',
+    'founder_photo_zoom': 'landing_founder_photo_zoom',
     'founder_role': 'landing_founder_role',
     'founder_title': 'landing_founder_title',
     'founder_name': 'landing_founder_name',
@@ -103,6 +117,16 @@ def _load_landing_settings_internal(draft_first: bool = False, fallback_to_publi
                 values[field] = True
         else:
             values[field] = PlatformSetting.get_bool(published_key, default=True)
+
+    founder_crop_defaults = {
+        'founder_photo_fit': 'cover',
+        'founder_photo_position_x': '50',
+        'founder_photo_position_y': '50',
+        'founder_photo_zoom': '100',
+    }
+    for field, default_value in founder_crop_defaults.items():
+        if values.get(field) in (None, ''):
+            values[field] = default_value
     return values
 
 

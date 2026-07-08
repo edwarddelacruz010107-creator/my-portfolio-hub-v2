@@ -7,7 +7,7 @@
 <div class="page-header">
   <div>
     <h1 class="page-heading">Landing Page Content</h1>
-    <p class="page-subtext">Edit the hero and founder copy shown on the public landing page.</p>
+    <p class="page-subtext">Edit the hero, features, contact details, social links, and founder copy shown on the public landing page.</p>
   </div>
 </div>
 
@@ -227,6 +227,85 @@
             <div class="field-err">{{ form.contact_subtitle.errors[0] }}</div>
           {% endif %}
         </div>
+
+        <div class="form-subgroup">
+          <div class="form-subgroup-label">
+            <iconify-icon icon="lucide:send" width="13"></iconify-icon> Inbox &amp; email delivery
+          </div>
+          <div class="form-field">
+            {{ form.contact_receiver_email.label(class='field-label') }}
+            {{ form.contact_receiver_email(class='field-input' + (' field-error' if form.contact_receiver_email.errors else ''), placeholder='hello@myportfoliohub.online') }}
+            {% if form.contact_receiver_email.errors %}
+              <div class="field-err">{{ form.contact_receiver_email.errors[0] }}</div>
+            {% endif %}
+            <div class="field-hint">Landing form submissions are saved to the SuperAdmin Messages inbox and emailed here through SuperAdmin Email &amp; Forms. If blank, the app falls back to ADMIN_EMAIL and SuperAdmin users.</div>
+          </div>
+        </div>
+
+        <div class="form-subgroup">
+          <div class="form-subgroup-label">
+            <iconify-icon icon="lucide:contact" width="13"></iconify-icon> Displayed contact details
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              {{ form.contact_email.label(class='field-label') }}
+              {{ form.contact_email(class='field-input' + (' field-error' if form.contact_email.errors else ''), placeholder='hello@myportfoliohub.online') }}
+              {% if form.contact_email.errors %}<div class="field-err">{{ form.contact_email.errors[0] }}</div>{% endif %}
+            </div>
+            <div class="form-field">
+              {{ form.contact_phone.label(class='field-label') }}
+              {{ form.contact_phone(class='field-input' + (' field-error' if form.contact_phone.errors else ''), placeholder='+1 (415) 555-0182') }}
+              {% if form.contact_phone.errors %}<div class="field-err">{{ form.contact_phone.errors[0] }}</div>{% endif %}
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              {{ form.contact_location.label(class='field-label') }}
+              {{ form.contact_location(class='field-input' + (' field-error' if form.contact_location.errors else ''), placeholder='San Francisco, CA · Remote-first') }}
+              {% if form.contact_location.errors %}<div class="field-err">{{ form.contact_location.errors[0] }}</div>{% endif %}
+            </div>
+            <div class="form-field">
+              {{ form.contact_map_title.label(class='field-label') }}
+              {{ form.contact_map_title(class='field-input' + (' field-error' if form.contact_map_title.errors else ''), placeholder='San Francisco, CA') }}
+              {% if form.contact_map_title.errors %}<div class="field-err">{{ form.contact_map_title.errors[0] }}</div>{% endif %}
+            </div>
+          </div>
+          <div class="form-field">
+            {{ form.contact_map_note.label(class='field-label') }}
+            {{ form.contact_map_note(class='field-input' + (' field-error' if form.contact_map_note.errors else ''), placeholder='Remote-first') }}
+            {% if form.contact_map_note.errors %}<div class="field-err">{{ form.contact_map_note.errors[0] }}</div>{% endif %}
+          </div>
+        </div>
+
+        <div class="form-subgroup">
+          <div class="form-subgroup-label">
+            <iconify-icon icon="lucide:share-2" width="13"></iconify-icon> Social links
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              {{ form.contact_x_url.label(class='field-label') }}
+              {{ form.contact_x_url(class='field-input' + (' field-error' if form.contact_x_url.errors else ''), placeholder='https://x.com/myportfoliohub') }}
+              {% if form.contact_x_url.errors %}<div class="field-err">{{ form.contact_x_url.errors[0] }}</div>{% endif %}
+            </div>
+            <div class="form-field">
+              {{ form.contact_linkedin_url.label(class='field-label') }}
+              {{ form.contact_linkedin_url(class='field-input' + (' field-error' if form.contact_linkedin_url.errors else ''), placeholder='https://linkedin.com/company/myportfoliohub') }}
+              {% if form.contact_linkedin_url.errors %}<div class="field-err">{{ form.contact_linkedin_url.errors[0] }}</div>{% endif %}
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              {{ form.contact_instagram_url.label(class='field-label') }}
+              {{ form.contact_instagram_url(class='field-input' + (' field-error' if form.contact_instagram_url.errors else ''), placeholder='https://instagram.com/myportfoliohub') }}
+              {% if form.contact_instagram_url.errors %}<div class="field-err">{{ form.contact_instagram_url.errors[0] }}</div>{% endif %}
+            </div>
+            <div class="form-field">
+              {{ form.contact_github_url.label(class='field-label') }}
+              {{ form.contact_github_url(class='field-input' + (' field-error' if form.contact_github_url.errors else ''), placeholder='https://github.com/your-org') }}
+              {% if form.contact_github_url.errors %}<div class="field-err">{{ form.contact_github_url.errors[0] }}</div>{% endif %}
+            </div>
+          </div>
+        </div>
       </div>
     </details>
 
@@ -286,6 +365,48 @@
               {% set uploader_ratio      = 'card' %}
               {% set uploader_accept     = 'image/png,image/jpeg,image/webp' %}
               {% include 'superadmin/_media_uploader.html' with context %}
+            </div>
+          </div>
+
+          <div class="founder-photo-editor" data-founder-photo-editor>
+            <div class="founder-photo-editor-preview" aria-label="Founder portrait crop preview">
+              {% if form.founder_photo_url.data %}
+                <img
+                  src="{{ form.founder_photo_url.data }}"
+                  alt="Founder portrait crop preview"
+                  data-founder-preview-img
+                />
+              {% else %}
+                <div class="founder-photo-editor-empty" data-founder-preview-empty>
+                  <iconify-icon icon="lucide:image" width="22"></iconify-icon>
+                  <span>Upload or paste a founder photo to preview the crop.</span>
+                </div>
+              {% endif %}
+            </div>
+            <div class="founder-photo-editor-controls">
+              <div class="form-field">
+                {{ form.founder_photo_fit.label(class='field-label') }}
+                {{ form.founder_photo_fit(class='field-input', data_founder_control='fit') }}
+                <div class="field-hint">Use crop mode for a full card portrait, or fit mode to show the whole image.</div>
+              </div>
+              <div class="form-grid-3 founder-crop-grid">
+                <div class="form-field">
+                  {{ form.founder_photo_position_x.label(class='field-label') }}
+                  {{ form.founder_photo_position_x(class='field-input', type='range', min='0', max='100', step='1', data_founder_control='x') }}
+                  <div class="field-hint"><span data-founder-output="x">{{ form.founder_photo_position_x.data or 50 }}</span>% · left ↔ right</div>
+                </div>
+                <div class="form-field">
+                  {{ form.founder_photo_position_y.label(class='field-label') }}
+                  {{ form.founder_photo_position_y(class='field-input', type='range', min='0', max='100', step='1', data_founder_control='y') }}
+                  <div class="field-hint"><span data-founder-output="y">{{ form.founder_photo_position_y.data or 50 }}</span>% · top ↔ bottom</div>
+                </div>
+                <div class="form-field">
+                  {{ form.founder_photo_zoom.label(class='field-label') }}
+                  {{ form.founder_photo_zoom(class='field-input', type='range', min='100', max='180', step='1', data_founder_control='zoom') }}
+                  <div class="field-hint"><span data-founder-output="zoom">{{ form.founder_photo_zoom.data or 100 }}</span>% zoom</div>
+                </div>
+              </div>
+              <button type="button" class="btn btn-ghost btn-sm" data-founder-reset-crop>Reset crop to center</button>
             </div>
           </div>
         </div>

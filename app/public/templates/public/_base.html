@@ -20,12 +20,12 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="csrf-token" content="{{ csrf_token() }}"/>
-  <title>{% block title %}Portfolio Hub — Build Your Creator Portfolio{% endblock %}</title>
-  <meta name="description" content="{% block meta_desc %}Launch a modern portfolio, showcase your projects, and grow your creator identity with Portfolio Hub.{% endblock %}"/>
+  <title>{% block title %}MyPortfolioHub — Build Your Professional Portfolio{% endblock %}</title>
+  <meta name="description" content="{% block meta_desc %}Launch a modern portfolio, showcase your projects, and grow your creator identity with MyPortfolioHub.{% endblock %}"/>
   <meta name="robots" content="index, follow"/>
 
   <!-- OpenGraph / SEO (Phase 10) -->
-  <meta property="og:site_name" content="Portfolio Hub"/>
+  <meta property="og:site_name" content="MyPortfolioHub"/>
   <meta property="og:type" content="{% block og_type %}website{% endblock %}"/>
   <meta property="og:title" content="{% block og_title %}{{ self.title() }}{% endblock %}"/>
   <meta property="og:description" content="{% block og_desc %}{{ self.meta_desc() }}{% endblock %}"/>
@@ -53,7 +53,7 @@
     <div class="ph-nav-inner">
       <a class="ph-nav-brand" href="{{ url_for('root') }}">
         <img class="ph-nav-logo" src="{{ url_for('static', filename='img/brand/logo-mark.svg') }}" alt="" width="36" height="24" aria-hidden="true"/>
-        <span>Portfolio Hub</span>
+        <span>MyPortfolioHub</span>
       </a>
 
       <button class="ph-nav-toggle" id="ph-nav-toggle" aria-expanded="false" aria-controls="ph-nav-links" aria-label="Toggle navigation">
@@ -61,11 +61,14 @@
       </button>
 
       <div class="ph-nav-links" id="ph-nav-links">
+        <a href="{{ url_for('root') }}">Home</a>
         <a href="{{ url_for('public.explore') }}">Explore</a>
         <a href="{{ url_for('public.projects') }}">Projects</a>
-        <a href="{{ url_for('public.pricing') }}">Pricing</a>
-        <a href="{{ url_for('root') }}#templates">Templates</a>
+        <a href="{{ url_for('root') }}#themes">Themes</a>
         <a href="{{ url_for('root') }}#features">Features</a>
+        <a href="{{ url_for('public.pricing') }}">Pricing</a>
+        <a href="{{ url_for('root') }}#faq">FAQ</a>
+        <a href="{{ url_for('root') }}#contact">Contact</a>
       </div>
 
       <div class="ph-nav-actions">
@@ -79,7 +82,7 @@
           {% endif %}
         {% else %}
           <a class="ph-btn ph-btn-ghost" href="{{ url_for('auth.portal', tab='signin') }}">Sign In</a>
-          <a class="ph-btn ph-btn-primary" href="{{ url_for('auth.portal', tab='signup', next='/billing/plans') }}">Get Started</a>
+          <a class="ph-btn ph-btn-primary" href="{{ url_for('auth.portal', tab='signup') }}">Get Started</a>
         {% endif %}
       </div>
     </div>
@@ -92,7 +95,7 @@
   <footer class="ph-footer">
     <div class="ph-footer-inner">
       <div class="ph-footer-brand">
-        <img class="ph-nav-logo" src="{{ url_for('static', filename='img/brand/logo-mark.svg') }}" alt="" width="36" height="24" aria-hidden="true"/> Portfolio Hub
+        <img class="ph-nav-logo" src="{{ url_for('static', filename='img/brand/logo-mark.svg') }}" alt="" width="36" height="24" aria-hidden="true"/> MyPortfolioHub
         <p>The creator ecosystem for modern professional portfolios.</p>
       </div>
       <div class="ph-footer-col">
@@ -106,9 +109,14 @@
         <a href="{{ url_for('auth.portal', tab='signin') }}">Sign In</a>
         <a href="{{ url_for('auth.portal', tab='signup', next='/billing/plans') }}">Start Free</a>
       </div>
+      <div class="ph-footer-col">
+        <h4>Legal</h4>
+        <a href="{{ url_for('public.privacy') }}">Privacy Policy</a>
+        <a href="{{ url_for('public.terms') }}">Terms of Service</a>
+      </div>
     </div>
     <div class="ph-footer-bottom">
-      &copy; {{ now.year if now is defined else '' }} Portfolio Hub. All rights reserved.
+      &copy; {{ now.year if now is defined else '' }} MyPortfolioHub. All rights reserved.
     </div>
   </footer>
 

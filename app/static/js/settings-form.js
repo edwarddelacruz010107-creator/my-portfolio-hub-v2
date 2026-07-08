@@ -203,6 +203,78 @@
     render();
   }
 
+  function initSectionNav() {
+    const nav = document.querySelector('.settings-nav');
+    if (!nav) return;
+
+    const links = Array.from(nav.querySelectorAll('a[href^="#"]'));
+    if (!links.length) return;
+
+    const maybeScrollActiveTab = (link) => {
+      // Only horizontally scroll the section nav when it is truly scrollable.
+      // On narrow phones the nav is a 2-column grid; calling scrollIntoView
+      // there can shift the whole document sideways in DevTools/mobile view.
+      if (!link || typeof link.scrollIntoView !== 'function') return;
+      const navEl = link.closest('.settings-nav');
+      if (!navEl) return;
+      if (navEl.scrollWidth > navEl.clientWidth + 8) {
+        link.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    };
+
+    const getTarget = (link) => {
+      const href = link.getAttribute('href') || '';
+      if (!href.startsWith('#') || href.length <= 1) return null;
+      try {
+        return document.querySelector(href);
+      } catch (_) {
+        return null;
+      }
+    };
+
+    const openTarget = (target) => {
+      if (!target) return;
+      // Landing/Pricing CMS sections are <details>. A side-nav click used to
+      // only jump to the collapsed card, which made Contact look broken.
+      // Open the section before scrolling so its editable fields are visible.
+      if (target.tagName === 'DETAILS') target.open = true;
+    };
+
+    const activate = (targetId) => {
+      links.forEach((a) => {
+        const active = a.getAttribute('href') === '#' + targetId;
+        a.classList.toggle('is-active', active);
+        if (active) maybeScrollActiveTab(a);
+      });
+    };
+
+    links.forEach((link) => {
+      link.addEventListener('click', (event) => {
+        const target = getTarget(link);
+        if (!target) return;
+        event.preventDefault();
+        openTarget(target);
+        activate(target.id);
+        if (history && history.pushState) history.pushState(null, '', '#' + target.id);
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        const firstFocusable = target.querySelector('summary, input, textarea, select, button, a[href]');
+        if (firstFocusable && typeof firstFocusable.focus === 'function') {
+          setTimeout(() => firstFocusable.focus({ preventScroll: true }), 250);
+        }
+      });
+    });
+
+    if (window.location.hash) {
+      const initial = document.querySelector(window.location.hash);
+      if (initial) {
+        openTarget(initial);
+        activate(initial.id);
+        setTimeout(() => initial.scrollIntoView({ behavior: 'auto', block: 'start' }), 0);
+      }
+    }
+  }
+
   function initScrollSpy() {
     const nav = document.querySelector('.settings-nav');
     if (!nav) return;
@@ -213,7 +285,11 @@
     if (!sections.length) return;
 
     const setActive = (id) => {
-      links.forEach((a) => a.classList.toggle('is-active', a.getAttribute('href') === '#' + id));
+      links.forEach((a) => {
+        const active = a.getAttribute('href') === '#' + id;
+        a.classList.toggle('is-active', active);
+        if (active && window.matchMedia('(max-width: 900px)').matches) maybeScrollActiveTab(a);
+      });
     };
 
     const observer = new IntersectionObserver(
@@ -225,11 +301,94 @@
       { rootMargin: '-15% 0px -70% 0px', threshold: 0 }
     );
     sections.forEach((sec) => observer.observe(sec));
-    setActive(sections[0].id);
+    setActive((window.location.hash || '#' + sections[0].id).replace('#', ''));
+  }
+
+
+
+  function initFounderPhotoEditor() {
+    const editor = document.querySelector('[data-founder-photo-editor]');
+    if (!editor) return;
+
+    const photoInput = document.getElementById('founder_photo_url');
+    const fitInput = editor.querySelector('[data-founder-control="fit"]');
+    const xInput = editor.querySelector('[data-founder-control="x"]');
+    const yInput = editor.querySelector('[data-founder-control="y"]');
+    const zoomInput = editor.querySelector('[data-founder-control="zoom"]');
+    const resetBtn = editor.querySelector('[data-founder-reset-crop]');
+    const previewBox = editor.querySelector('.founder-photo-editor-preview');
+
+    function clamp(value, min, max, fallback) {
+      const n = parseInt(value, 10);
+      if (Number.isNaN(n)) return fallback;
+      return Math.max(min, Math.min(max, n));
+    }
+
+    function ensurePreviewImage() {
+      let img = editor.querySelector('[data-founder-preview-img]');
+      const url = photoInput ? photoInput.value.trim() : '';
+      if (!url) return img;
+      if (!img && previewBox) {
+        const empty = editor.querySelector('[data-founder-preview-empty]');
+        if (empty) empty.remove();
+        img = document.createElement('img');
+        img.alt = 'Founder portrait crop preview';
+        img.dataset.founderPreviewImg = 'true';
+        previewBox.appendChild(img);
+      }
+      if (img && img.getAttribute('src') !== url) img.setAttribute('src', url);
+      return img;
+    }
+
+    function updateOutputs(x, y, zoom) {
+      const outX = editor.querySelector('[data-founder-output="x"]');
+      const outY = editor.querySelector('[data-founder-output="y"]');
+      const outZoom = editor.querySelector('[data-founder-output="zoom"]');
+      if (outX) outX.textContent = x;
+      if (outY) outY.textContent = y;
+      if (outZoom) outZoom.textContent = zoom;
+    }
+
+    function applyPreview() {
+      const img = ensurePreviewImage();
+      if (!img) return;
+      const fit = fitInput && fitInput.value === 'contain' ? 'contain' : 'cover';
+      const x = clamp(xInput && xInput.value, 0, 100, 50);
+      const y = clamp(yInput && yInput.value, 0, 100, 50);
+      const zoom = clamp(zoomInput && zoomInput.value, 100, 180, 100);
+      img.style.objectFit = fit;
+      img.style.objectPosition = x + '% ' + y + '%';
+      img.style.transformOrigin = x + '% ' + y + '%';
+      img.style.transform = 'scale(' + (zoom / 100).toFixed(2) + ')';
+      updateOutputs(x, y, zoom);
+    }
+
+    [photoInput, fitInput, xInput, yInput, zoomInput].filter(Boolean).forEach((input) => {
+      input.addEventListener('input', applyPreview);
+      input.addEventListener('change', applyPreview);
+    });
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (fitInput) fitInput.value = 'cover';
+        if (xInput) xInput.value = 50;
+        if (yInput) yInput.value = 50;
+        if (zoomInput) zoomInput.value = 100;
+        [fitInput, xInput, yInput, zoomInput].filter(Boolean).forEach((input) => {
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        applyPreview();
+      });
+    }
+
+    applyPreview();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     initSettingsForm();
+    initSectionNav();
     initScrollSpy();
+    initFounderPhotoEditor();
   });
 })();

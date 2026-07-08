@@ -1,11 +1,11 @@
 """
 app/public/__init__.py — Public SaaS foundation blueprint.
 
-Phase 1a (shipped): GET /explore, /projects, /pricing, /administrator — stub
+Phase 1a (shipped): GET /explore, /feed, /pricing, /administrator — stub
 templates, /pricing wired to BILLING_PLANS.
 
 Phase 1b (this delivery — see AUDIT_REPORT.md):
-    GET /explore, /projects    → now backed by real cross-tenant queries via
+    GET /explore, /feed    → now backed by real cross-tenant queries via
                               app/public/services/*.
     GET /u/<tenant_slug>   → NEW. Canonical public creator link (additive
                               alias — see routes.py::creator_link for why

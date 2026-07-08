@@ -336,6 +336,25 @@ def _dispatch(
         tenant_slug, inquiry.id, provider,
     )
 
+    # ── Public landing page → SuperAdmin inbox + SuperAdmin Email & Forms ────
+    # Landing page submissions are platform leads, not tenant-owned portfolio
+    # messages. They are already persisted as Inquiry rows above so they appear
+    # in the SuperAdmin Messages inbox; this branch guarantees an email is also
+    # sent through the SuperAdmin provider chain when a receiver is configured.
+    if source == 'landing_page':
+        return _dispatch_landing_platform(
+            tenant_slug=tenant_slug,
+            tenant=tenant,
+            inquiry=inquiry,
+            name=name,
+            email=email,
+            subject=subject,
+            message=message,
+            phone=phone,
+            company=company,
+            source=source,
+        )
+
     # ── Basin ──────────────────────────────────────────────────────────────────
     if provider == 'basin':
         return _dispatch_basin(
@@ -485,6 +504,124 @@ def _dispatch_web3forms(*, tenant_slug, form_settings, inquiry, name, email, sub
     return _inbox_fallback(tenant_slug, inquiry.id, 'web3forms', err)
 
 
+
+def _dispatch_landing_platform(
+    *,
+    tenant_slug,
+    tenant,
+    inquiry,
+    name,
+    email,
+    subject,
+    message,
+    phone,
+    company,
+    source,
+) -> ContactResult:
+    """Notify platform/SuperAdmin recipients for public landing inquiries."""
+    recipients = _resolve_landing_recipients(tenant_slug, tenant)
+    if not recipients:
+        logger.error(
+            'contact[landing]: tenant=%s inquiry_id=%s NO platform receiver configured → inbox only',
+            tenant_slug,
+            inquiry.id,
+        )
+        return ContactResult(
+            success=True,
+            provider_used='superadmin_chain',
+            delivery_status='fallback',
+            delivery_error='No landing receiver email configured — saved to SuperAdmin inbox',
+            fallback_activated=True,
+            user_message="Thanks — your message has been received.",
+        )
+
+    admin_subject, admin_text, admin_html = build_landing_admin_email(
+        name=name,
+        email_address=email,
+        subject=subject,
+        message=message,
+        company=company,
+        phone=phone,
+        source=source,
+    )
+
+    try:
+        from app.services.email.superadmin_email_service import send_email as send_superadmin_email
+    except Exception as exc:  # pragma: no cover
+        logger.exception('contact[landing]: could not import SuperAdmin email service: %s', exc)
+        return _inbox_fallback(tenant_slug, inquiry.id, 'superadmin_chain', 'SuperAdmin email service unavailable')
+
+    delivered = []
+    failures = []
+    for recipient in recipients:
+        ok, err = send_superadmin_email(
+            to=recipient,
+            subject=admin_subject,
+            html=admin_html,
+            text=admin_text,
+        )
+        if ok:
+            delivered.append(recipient)
+        else:
+            failures.append((recipient, err or 'send failed'))
+            logger.warning(
+                'contact[landing]: inquiry_id=%s notify failed recipient=%s err=%s',
+                inquiry.id,
+                _mask_email(recipient),
+                str(err or 'send failed')[:160],
+            )
+
+    if delivered:
+        inquiry.admin_notified = True
+        logger.info(
+            'contact[landing]: inquiry_id=%s delivered to %s platform recipient(s)',
+            inquiry.id,
+            len(delivered),
+        )
+
+        # Visitor confirmation. Failure should not make the lead submission fail.
+        try:
+            reply_subject, reply_text, reply_html = build_landing_auto_reply_email(
+                name=name,
+                subject=subject,
+            )
+            reply_ok, reply_err = send_superadmin_email(
+                to=email,
+                subject=reply_subject,
+                html=reply_html,
+                text=reply_text,
+            )
+            inquiry.auto_reply_sent = bool(reply_ok)
+            if not reply_ok:
+                logger.warning(
+                    'contact[landing]: inquiry_id=%s auto-reply failed %s',
+                    inquiry.id,
+                    str(reply_err or 'send failed')[:160],
+                )
+        except Exception:  # noqa: BLE001
+            logger.exception('contact[landing]: inquiry_id=%s auto-reply unexpected error', inquiry.id)
+            inquiry.auto_reply_sent = False
+
+        status = 'delivered' if not failures else 'partial'
+        return ContactResult(
+            success=True,
+            provider_used='superadmin_chain',
+            delivery_status=status,
+            delivery_error='; '.join(f'{_mask_email(r)}: {e}' for r, e in failures)[:500] if failures else '',
+            user_message='Thanks — your message has been received. We will reply within one business day.',
+        )
+
+    # No email delivered, but the Inquiry row is in SuperAdmin inbox.
+    return ContactResult(
+        success=True,
+        provider_used='superadmin_chain',
+        delivery_status='fallback',
+        delivery_error='All landing email notifications failed — saved to SuperAdmin inbox',
+        fallback_activated=True,
+        user_message='Thanks — your message has been received. We will reply within one business day.',
+    )
+
+
 def _dispatch_email_only(
     *,
     tenant_slug,
@@ -623,6 +760,65 @@ def _dispatch_email_only(
         tenant_slug, inquiry.id, 'email_only',
         err or 'Email delivery failed — message saved to inbox',
     )
+
+
+
+def _valid_email(value: str) -> bool:
+    return bool(_EMAIL_RE.match((value or '').strip()))
+
+
+def _append_recipient(recipients: list[str], value: str | None) -> None:
+    email = (value or '').strip().lower()
+    if email and _valid_email(email) and email not in recipients:
+        recipients.append(email)
+
+
+def _resolve_landing_recipients(tenant_slug: str, tenant) -> list[str]:
+    """Resolve recipients for public landing page contact submissions."""
+    import os
+
+    recipients: list[str] = []
+
+    try:
+        from app.models.core import PlatformSetting, User
+        _append_recipient(recipients, PlatformSetting.get_string('landing_contact_receiver_email', default=''))
+
+        if tenant is not None:
+            _append_recipient(recipients, getattr(tenant, 'contact_email', '') or '')
+            tenant_admins = (
+                User.query
+                .filter_by(tenant_id=getattr(tenant, 'id', None), is_admin=True)
+                .order_by(User.id.asc())
+                .limit(3)
+                .all()
+            )
+            for admin in tenant_admins:
+                _append_recipient(recipients, getattr(admin, 'email', '') or '')
+
+        # Platform-level fallbacks.
+        for key in ('ADMIN_EMAIL', 'SUPERADMIN_EMAIL', 'SUPPORT_EMAIL'):
+            _append_recipient(recipients, os.environ.get(key, ''))
+
+        superadmins = (
+            User.query
+            .filter_by(is_superadmin=True)
+            .order_by(User.id.asc())
+            .limit(5)
+            .all()
+        )
+        for user in superadmins:
+            _append_recipient(recipients, getattr(user, 'email', '') or '')
+    except Exception as exc:
+        logger.warning('contact[landing]: recipient resolution failed for tenant=%s: %s', tenant_slug, exc)
+        for key in ('ADMIN_EMAIL', 'SUPERADMIN_EMAIL', 'SUPPORT_EMAIL'):
+            _append_recipient(recipients, os.environ.get(key, ''))
+
+    logger.info(
+        'contact[landing]: resolved %d platform recipient(s) for tenant=%s',
+        len(recipients),
+        tenant_slug,
+    )
+    return recipients
 
 
 # ─────────────────────────────────────────────────────────────────────────────

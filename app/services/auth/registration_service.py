@@ -23,6 +23,7 @@ from typing import Optional
 
 from app import db
 from app.utils.datetime_utils import utc_now
+from app.services.billing.trial_limits import get_trial_duration_days
 from app.models import Profile, Tenant, User
 from app.security import log_security_event
 from app.services.auth.email_policy import (
@@ -113,7 +114,8 @@ def register_local_user(
         raise RegistrationError(str(exc))
 
     now = utc_now()
-    trial_ends = now + timedelta(days=7)
+    trial_days = get_trial_duration_days()
+    trial_ends = now + timedelta(days=trial_days)
 
     tenant = Tenant(
         slug=_unique_tenant_slug(full_name),

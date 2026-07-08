@@ -133,13 +133,18 @@ class Profile(db.Model):
         return self._get_subscription()
 
     def effective_plan(self) -> str:
-        """Current plan from active subscription, else profile/tenant default."""
+        """Current plan from active subscription, else Trial/profile default."""
         from app.models.core import normalize_plan_name
         if has_administrator_access(self):
             return ADMINISTRATOR_PLAN_SLUG
         sub = self._get_subscription()
         if sub and sub.plan and sub.status in ('active', 'pending'):
             return normalize_plan_name(sub.plan)
+        tenant = getattr(self, 'tenant', None)
+        if tenant is not None and (getattr(tenant, 'subscription_state', '') or '').strip().lower() == 'trial':
+            return 'trial'
+        if (getattr(self, 'subscription_status', '') or '').strip().lower() == 'trial':
+            return 'trial'
         return normalize_plan_name(self.plan or 'Basic')
 
     @property

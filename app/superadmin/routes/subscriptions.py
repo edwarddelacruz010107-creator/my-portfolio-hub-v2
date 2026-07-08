@@ -77,6 +77,11 @@ from app.services.billing import (
     force_activate_subscription,
     sync_subscription_from_paymongo,
 )
+from app.services.billing.trial_limits import (
+    get_trial_limits, save_trial_limits, reset_trial_limits, trial_field_metadata,
+    get_all_plan_limits, save_plan_limits, reset_plan_limits, plan_field_metadata,
+    normalize_editable_plan, plan_slug,
+)
 
 
 from app.superadmin.blueprint import superadmin, superadmin_required, _normalize_timestamp
@@ -91,7 +96,43 @@ def subscription_settings():
     from app.models.portfolio import Profile
 
     if request.method == 'POST':
-        if request.form.get('action') == 'update_plans':
+        action = request.form.get('action')
+
+        if action in {'update_plan_limits', 'update_trial_limits'}:
+            try:
+                plan_name = normalize_editable_plan(request.form.get('plan_name') or 'Trial')
+                if action == 'update_trial_limits':
+                    plan_name = 'Trial'
+                    save_trial_limits(request.form)
+                else:
+                    save_plan_limits(plan_name, request.form)
+                db.session.commit()
+                log_activity('update', 'config', f'{plan_slug(plan_name)}_plan_limits', f'Updated {plan_name} plan limits')
+                flash(f'{plan_name} plan limits updated successfully. Admin dashboard feature gates now use these settings.', 'success')
+            except Exception as exc:
+                db.session.rollback()
+                logger.exception('Failed to update plan limits: %s', exc)
+                flash('Unable to save plan limits. Please check the values and try again.', 'danger')
+            return redirect(url_for('superadmin.subscription_settings'))
+
+        if action in {'reset_plan_limits', 'reset_trial_limits'}:
+            try:
+                plan_name = normalize_editable_plan(request.form.get('plan_name') or 'Trial')
+                if action == 'reset_trial_limits':
+                    plan_name = 'Trial'
+                    reset_trial_limits()
+                else:
+                    reset_plan_limits(plan_name)
+                db.session.commit()
+                log_activity('update', 'config', f'{plan_slug(plan_name)}_plan_limits', f'Reset {plan_name} plan limits to defaults')
+                flash(f'{plan_name} plan limits were reset to defaults.', 'success')
+            except Exception as exc:
+                db.session.rollback()
+                logger.exception('Failed to reset plan limits: %s', exc)
+                flash('Unable to reset plan limits.', 'danger')
+            return redirect(url_for('superadmin.subscription_settings'))
+
+        if action == 'update_plans':
             # Update subscription plans
             for plan_key, plan_data in get_public_billing_plans().items():
                 label = request.form.get(f'plan_label_{plan_key}', plan_data['label']).strip() or plan_data['label']
@@ -238,6 +279,10 @@ def subscription_settings():
         tenants=tenants_data,
         billing_plans=public_plans,
         system_billing_plans=get_system_billing_plans(),
+        trial_limits=get_trial_limits(),
+        trial_meta=trial_field_metadata(),
+        plan_limits=get_all_plan_limits(),
+        plan_limit_meta=plan_field_metadata(),
         page_title='Subscription Settings',
     )
 

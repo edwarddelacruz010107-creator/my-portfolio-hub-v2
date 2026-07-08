@@ -72,6 +72,18 @@ def certificates():
 @admin.route('/certificates/new', methods=['GET', 'POST'])
 @admin_required
 def new_certificate():
+    plan_features = _active_tenant_plan_features()
+    if not plan_features.get('certificates', True):
+        flash('Certificates and badges are not available on your current plan. Upgrade to unlock this section.', 'warning')
+        return redirect(url_for('admin.certificates'))
+    max_items = plan_features.get('max_certificates')
+    current_items = certificate_repository.list_for_tenant(_active_tenant_slug()).count()
+    if max_items is not None and current_items >= max_items:
+        flash(
+            f'Your current plan ({_active_tenant_plan_name()}) allows up to {max_items} certificates/badges. Upgrade to add more.',
+            'warning',
+        )
+        return redirect(url_for('admin.certificates'))
     form = CertificateForm()
     if form.validate_on_submit():
         quota_warning = _check_upload_quota(

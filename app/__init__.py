@@ -716,17 +716,39 @@ def create_app(config_name: str = 'default') -> Flask:
             return False
         return True
 
+    def _static_upload_exists(relative_upload_path: str) -> bool:
+        """Return True when a normalized /static/uploads file exists locally.
+
+        During deployment it is common for the database to contain an old
+        uploaded filename while the file itself was not committed, mounted, or
+        copied into the new release image. Rendering that stale filename gives
+        the public portfolio a broken image icon and exposes the alt text inside
+        the circular hero photo. Returning an empty URL lets templates fall back
+        to their safe default image instead.
+
+        Set SKIP_UPLOAD_EXISTENCE_CHECK=True only if uploads are served by an
+        external web server that is not visible from Flask's static folder.
+        """
+        if app.config.get('SKIP_UPLOAD_EXISTENCE_CHECK'):
+            return True
+        try:
+            normalized = (relative_upload_path or '').replace('\\', '/').lstrip('/')
+            if not normalized.startswith('uploads/') or '..' in normalized:
+                return False
+            static_folder = app.static_folder or os.path.join(app.root_path, 'static')
+            return os.path.isfile(os.path.join(static_folder, *normalized.split('/')))
+        except Exception:
+            # Fail open so external/object-storage deployments can still render.
+            return True
+
     @app.template_filter('upload_url')
     def upload_url_filter(value: str | None, subfolder: str) -> str:
         """Normalize uploaded media values into safe public URLs.
 
-        Production data has existed in several shapes across the project:
-        plain filenames (``photo.jpg``), relative upload paths
-        (``uploads/profiles/photo.jpg``), and already-normalized static paths
-        (``/static/uploads/profiles/photo.jpg``).  Earlier landing cards
-        handled only one shape, which produced broken image icons after the
-        profile-photo binding patch.  This filter accepts those safe shapes
-        and returns one stable URL.
+        Accepts plain filenames, subfolder-prefixed filenames, /uploads paths,
+        /static/uploads paths, and remote HTTP(S) URLs. For local static uploads
+        it also checks whether the file exists so stale database filenames from
+        local/dev deployments do not render as broken images in production.
         """
         if not isinstance(value, str):
             return ''
@@ -739,26 +761,28 @@ def create_app(config_name: str = 'default') -> Flask:
             return raw
 
         normalized = raw.replace('\\', '/')
-        lowered = normalized.lower()
         if normalized.startswith('/static/uploads/'):
-            return normalized
-        if normalized.startswith('static/uploads/'):
-            return '/' + normalized
-        if normalized.startswith('/uploads/'):
-            return '/static' + normalized
-        if normalized.startswith('uploads/'):
-            return '/static/' + normalized
+            upload_path = normalized[len('/static/'):]
+        elif normalized.startswith('static/uploads/'):
+            upload_path = normalized[len('static/'):]
+        elif normalized.startswith('/uploads/'):
+            upload_path = normalized.lstrip('/')
+        elif normalized.startswith('uploads/'):
+            upload_path = normalized
+        else:
+            # Reject absolute/path-traversal values that are not safe uploaded-media paths.
+            if normalized.startswith('/') or '..' in normalized:
+                return ''
+            # Some old rows stored subfolder-prefixed filenames such as
+            # profiles/photo.jpg. Avoid double-prefixing in that case.
+            prefix = f'{subfolder}/'
+            if normalized.startswith(prefix):
+                normalized = normalized[len(prefix):]
+            upload_path = f'uploads/{subfolder}/{normalized}'
 
-        # Reject absolute/path-traversal values that are not safe uploaded-media paths.
-        if normalized.startswith('/') or '..' in normalized:
+        if '..' in upload_path or not _static_upload_exists(upload_path):
             return ''
-
-        # Some old rows stored subfolder-prefixed filenames such as
-        # profiles/photo.jpg. Avoid double-prefixing in that case.
-        prefix = f'{subfolder}/'
-        if normalized.startswith(prefix):
-            normalized = normalized[len(prefix):]
-        return url_for('static', filename=f'uploads/{subfolder}/{normalized}')
+        return url_for('static', filename=upload_path)
 
     from app.heartbeat import init_heartbeat
     init_heartbeat(app)

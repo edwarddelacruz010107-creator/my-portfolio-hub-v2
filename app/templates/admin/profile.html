@@ -19,9 +19,9 @@
     <div class="form-sidebar">
       <div class="avatar-upload-card">
         <div class="avatar-preview" id="avatarPreview">
-          {% if profile and profile.profile_image %}
-            <img src="{{ url_for('static', filename='uploads/profiles/' + profile.profile_image) }}"
-                 alt="Profile" id="avatarImg"/>
+          {% set admin_profile_image_url = profile.profile_image|upload_url('profiles') if profile and profile.profile_image else '' %}
+          {% if admin_profile_image_url %}
+            <img src="{{ admin_profile_image_url }}" alt="Profile" id="avatarImg"/>
           {% else %}
             <div class="avatar-placeholder" id="avatarPlaceholder">
               <span>◎</span>

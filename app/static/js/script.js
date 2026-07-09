@@ -32,6 +32,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const skillBars     = document.querySelectorAll('.skill-progress');
     const typingText    = document.getElementById('typingText');
 
+    // ===================== IMAGE FALLBACKS =====================
+    // If a deployment has a stale DB filename for an uploaded profile/project
+    // image, browsers display the img alt text inside the hero circle. Attach
+    // fallbacks from an external script so the fix remains compatible with CSP.
+    document.querySelectorAll('img[data-fallback-src]').forEach((img) => {
+        img.addEventListener('error', () => {
+            const fallbackSrc = img.getAttribute('data-fallback-src');
+            if (!fallbackSrc || img.dataset.fallbackApplied === '1' || img.src.endsWith(fallbackSrc)) return;
+            img.dataset.fallbackApplied = '1';
+            img.classList.add('image-fallback-applied');
+            img.src = fallbackSrc;
+        });
+    });
+
     window.addEventListener('error', (e) => {
         const t = e.target;
         if (t && t.tagName === 'SCRIPT' && t.src) {

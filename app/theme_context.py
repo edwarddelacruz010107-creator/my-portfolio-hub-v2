@@ -36,7 +36,9 @@ falls back from getattr to getitem, and all 3 installed themes
 -- verified before making this change.
 """
 
-from flask import url_for
+import os
+
+from flask import current_app, url_for
 
 from app.services.theme_serializers import (
     serialize_project,
@@ -65,20 +67,45 @@ def _upload_url(value: str, subfolder: str) -> str:
     swappable dynamic themes receive normalized plain dicts through
     `portfolio`. Centralizing URL resolution here keeps Developer Pro and all
     new themes from accidentally rendering raw filenames as broken image srcs.
+    If a local static-upload filename is stale/missing after deployment, return
+    an empty value so themes render their initials/default-image fallback.
     """
     value = (value or '').strip() if isinstance(value, str) else ''
     if not value or value.lower() in {'none', 'null', 'undefined'}:
         return ''
+    if any(ch in value for ch in ('\x00', '\r', '\n')):
+        return ''
     if value.startswith(('http://', 'https://', 'data:')):
         return value
-    if value.startswith('/static/') or value.startswith('/uploads/'):
-        return value
-    if value.startswith(('/', '\\')) or '..' in value.replace('\\', '/') or any(ch in value for ch in ('\x00', '\r', '\n')):
+
+    normalized = value.replace('\\', '/')
+    if normalized.startswith('/static/uploads/'):
+        upload_path = normalized[len('/static/'):]
+    elif normalized.startswith('static/uploads/'):
+        upload_path = normalized[len('static/'):]
+    elif normalized.startswith('/uploads/'):
+        upload_path = normalized.lstrip('/')
+    elif normalized.startswith('uploads/'):
+        upload_path = normalized
+    else:
+        if normalized.startswith('/') or '..' in normalized:
+            return ''
+        prefix = f'{subfolder}/'
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix):]
+        upload_path = f'uploads/{subfolder}/{normalized}'
+
+    if '..' in upload_path:
         return ''
     try:
-        return url_for('static', filename=f'uploads/{subfolder}/{value}')
+        if not current_app.config.get('SKIP_UPLOAD_EXISTENCE_CHECK'):
+            static_folder = current_app.static_folder or ''
+            local_path = os.path.join(static_folder, *upload_path.split('/'))
+            if static_folder and not os.path.isfile(local_path):
+                return ''
+        return url_for('static', filename=upload_path)
     except Exception:
-        return f'/static/uploads/{subfolder}/{value}'
+        return f'/static/{upload_path}'
 
 
 def build_portfolio_view(

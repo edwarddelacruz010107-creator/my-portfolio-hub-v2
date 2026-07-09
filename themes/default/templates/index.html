@@ -310,9 +310,12 @@
                     <div class="hero-avatar-wrapper">
                         <div class="hero-avatar-ring"></div>
                         <div class="hero-avatar-ring ring-2"></div>
-                        <img 
-                            src="{% if profile and profile.profile_image %}{{ profile.profile_image|upload_url('profiles') }}{% else %}{{ url_for('static', filename='image/profile_img.jpg') }}{% endif %}" 
-                            alt="{% if profile %}{{ profile.name }}{% else %}Portfolio{% endif %}" 
+                        {% set hero_avatar_url = profile.profile_image|upload_url('profiles') if profile and profile.profile_image else '' %}
+                        {% set hero_avatar_fallback_url = url_for('static', filename='image/profile_img.jpg') %}
+                        <img
+                            src="{{ hero_avatar_url or hero_avatar_fallback_url }}"
+                            data-fallback-src="{{ hero_avatar_fallback_url }}"
+                            alt="{% if profile %}{{ profile.name }}{% else %}Portfolio{% endif %}"
                             class="hero-avatar"
                         >
                         {% if profile and is_owner %}

@@ -39,7 +39,7 @@ services:
     # If absent, a secure password is auto-generated and printed to
     # the Render deploy log — capture it before the log scrolls away.
     preDeployCommand: >
-      flask db upgrade &&
+      (if [ "$USE_ORM_BOOTSTRAP_ON_STARTUP" = "true" ]; then flask bootstrap-production-db; else flask db upgrade || flask bootstrap-production-db; fi) &&
       flask ensure-tenant-schema &&
       flask ensure-default-tenant &&
       flask create-superadmin
@@ -74,10 +74,14 @@ services:
       # These are used when deploying with the Dockerfile.
       - key: RUN_MIGRATIONS
         value: "true"
+      - key: USE_ORM_BOOTSTRAP_ON_STARTUP
+        value: "true"
       - key: CREATE_SUPERADMIN_ON_STARTUP
         value: "false"
       - key: AUTO_ENSURE_TENANT_SCHEMA
         value: "false"
+      - key: ALLOW_CREATE_ALL_BOOTSTRAP_ON_MIGRATION_FAILURE
+        value: "true"
 
       # ── Redis ────────────────────────────────────────────────────
       - key: REDIS_URL

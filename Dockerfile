@@ -77,8 +77,21 @@ fi
 # Optional: run migrations before the web server starts.
 # In Render, set RUN_MIGRATIONS=true for simple deployments.
 if [ "$RUN_MIGRATIONS" = "true" ]; then
-  echo "Running Alembic migrations..."
-  flask db upgrade
+  if [ "${USE_ORM_BOOTSTRAP_ON_STARTUP:-false}" = "true" ]; then
+    echo "Running first-deploy ORM schema bootstrap..."
+    flask bootstrap-production-db
+  else
+    echo "Running Alembic migrations..."
+    if ! flask db upgrade; then
+      echo "WARNING: Alembic migration failed. Attempting safe first-deploy ORM bootstrap fallback..."
+      if [ "${ALLOW_CREATE_ALL_BOOTSTRAP_ON_MIGRATION_FAILURE:-true}" = "true" ]; then
+        flask bootstrap-production-db
+      else
+        echo "ERROR: Migration failed and bootstrap fallback is disabled."
+        exit 1
+      fi
+    fi
+  fi
 
   echo "Ensuring tenant-bound schema..."
   flask ensure-tenant-schema

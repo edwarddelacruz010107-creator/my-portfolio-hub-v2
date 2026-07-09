@@ -334,9 +334,16 @@ def create_app(config_name: str = 'default') -> Flask:
     # `flask ensure-tenant-schema` command.
     cli_args = " ".join(sys.argv).lower()
     is_migration_command = " db " in f" {cli_args} " or "flask db" in cli_args
+    is_database_setup_command = (
+        is_migration_command
+        or "bootstrap-production-db" in cli_args
+        or "ensure-tenant-schema" in cli_args
+        or "ensure-default-tenant" in cli_args
+        or "create-superadmin" in cli_args
+    )
     auto_ensure_tenant_schema = (
         os.environ.get('AUTO_ENSURE_TENANT_SCHEMA', '').lower() in ('1', 'true', 'yes')
-        or (app.debug and not is_migration_command)
+        or (app.debug and not is_database_setup_command)
     )
 
     if auto_ensure_tenant_schema and not is_migration_command:
@@ -520,90 +527,95 @@ def create_app(config_name: str = 'default') -> Flask:
     instance_dir = Path(app.instance_path)
     instance_dir.mkdir(parents=True, exist_ok=True)
 
-    with app.app_context():
-        _is_production = not app.config.get('TESTING') and not app.config.get('DEBUG')
-        try:
-            db.session.execute(db.text("SELECT 1"))
-            db.session.remove()
-
-            # Run unconditionally — prevents OperationalError on any env when
-            # migration 0032 has not yet been applied to the live database.
-            _ensure_global_email_config_columns()
-
-            # Run unconditionally — prevents OperationalError on
-            # /superadmin/themes/sync when migration 0035 has not yet been
-            # applied to the live database (see _ensure_theme_catalog_columns
-            # docstring for full root-cause audit).
-            _ensure_theme_catalog_columns()
-
-            # Run unconditionally for SQLite dev/test DBs when the users
-            # table schema is behind the current ORM model.
-            _ensure_user_columns()
-            _ensure_tenant_columns()
-
-            if app.debug or app.testing:
-                _ensure_profile_columns()
-                _ensure_default_tenant()
-
+    if is_database_setup_command:
+        logger.info('Skipping runtime DB startup checks during database setup command: %s', cli_args)
+    else:
+        with app.app_context():
+            _is_production = not app.config.get('TESTING') and not app.config.get('DEBUG')
             try:
-                from app.system_plan import ensure_default_tenant_administrator_plan
-                ensure_default_tenant_administrator_plan(commit=True)
-            except Exception as exc:
-                logger.warning("Could not repair default tenant Administrator plan at startup: %s", exc)
+                db.session.execute(db.text("SELECT 1"))
+                db.session.remove()
 
-            logger.info("Database connection verified at startup")
+                # Run unconditionally — prevents OperationalError on any env when
+                # migration 0032 has not yet been applied to the live database.
+                _ensure_global_email_config_columns()
 
-            try:
-                from app.models.core import Tenant as _Tenant
-                tenant = _Tenant.query.filter_by(slug="default").first()
-                if tenant:
-                    app.config["TENANT_LOOKUP_MODE"] = "slug_to_id"
-                    app.config["DEFAULT_TENANT_ID"] = tenant.id
-                    logger.info(
-                        "TENANT STARTUP: lookup_mode=%s tenant_slug=%s tenant_id=%s tenant_status=%s",
-                        app.config.get("TENANT_LOOKUP_MODE"),
-                        tenant.slug,
-                        tenant.id,
-                        tenant.status,
-                    )
-                else:
+                # Run unconditionally — prevents OperationalError on
+                # /superadmin/themes/sync when migration 0035 has not yet been
+                # applied to the live database (see _ensure_theme_catalog_columns
+                # docstring for full root-cause audit).
+                _ensure_theme_catalog_columns()
+
+                # Run unconditionally for SQLite dev/test DBs when the users
+                # table schema is behind the current ORM model.
+                _ensure_user_columns()
+                _ensure_tenant_columns()
+
+                if app.debug or app.testing:
+                    _ensure_profile_columns()
+                    _ensure_default_tenant()
+
+                try:
+                    from app.system_plan import ensure_default_tenant_administrator_plan
+                    ensure_default_tenant_administrator_plan(commit=True)
+                except Exception as exc:
+                    db.session.rollback()
+                    logger.warning("Could not repair default tenant Administrator plan at startup: %s", exc)
+
+                logger.info("Database connection verified at startup")
+
+                try:
+                    from app.models.core import Tenant as _Tenant
+                    tenant = _Tenant.query.filter_by(slug="default").first()
+                    if tenant:
+                        app.config["TENANT_LOOKUP_MODE"] = "slug_to_id"
+                        app.config["DEFAULT_TENANT_ID"] = tenant.id
+                        logger.info(
+                            "TENANT STARTUP: lookup_mode=%s tenant_slug=%s tenant_id=%s tenant_status=%s",
+                            app.config.get("TENANT_LOOKUP_MODE"),
+                            tenant.slug,
+                            tenant.id,
+                            tenant.status,
+                        )
+                    else:
+                        app.config["TENANT_LOOKUP_MODE"] = "slug_to_id"
+                        logger.warning(
+                            "TENANT STARTUP: lookup_mode=%s tenant_slug=%s resolution=not_found",
+                            app.config.get("TENANT_LOOKUP_MODE"),
+                            "default",
+                        )
+                except Exception as exc:
+                    db.session.rollback()
                     app.config["TENANT_LOOKUP_MODE"] = "slug_to_id"
                     logger.warning(
-                        "TENANT STARTUP: lookup_mode=%s tenant_slug=%s resolution=not_found",
+                        "TENANT STARTUP: lookup_mode=%s tenant_slug=%s resolution=error (%s)",
                         app.config.get("TENANT_LOOKUP_MODE"),
                         "default",
+                        exc,
                     )
-            except Exception as exc:
-                app.config["TENANT_LOOKUP_MODE"] = "slug_to_id"
-                logger.warning(
-                    "TENANT STARTUP: lookup_mode=%s tenant_slug=%s resolution=error (%s)",
-                    app.config.get("TENANT_LOOKUP_MODE"),
-                    "default",
-                    exc,
-                )
 
-        except Exception as exc:
-            db.session.remove()
-            if _is_production:
-                # In production: crash fast — no point serving requests without a DB
-                logger.critical(
-                    "Cannot reach database at startup: %s",
-                    exc,
-                    exc_info=True,
-                )
-                raise
-            else:
-                # In development: warn and continue — lets you run the server
-                # while the remote DB is down or you haven't set DEV_DATABASE_URL yet.
-                # Set DEV_DATABASE_URL=sqlite:///instance/portfolio_dev.db in .env
-                # OR set FLASK_ENV=development so the SQLite fallback is used.
-                logger.warning(
-                    "Cannot reach database at startup (ignored in dev/test): %s\n"
-                    "  → Ensure FLASK_ENV=development in your .env file.\n"
-                    "  → Add DEV_DATABASE_URL=sqlite:///instance/portfolio_dev.db "
-                    "to use a local SQLite database for development.",
-                    exc,
-                )
+            except Exception as exc:
+                db.session.remove()
+                if _is_production:
+                    # In production: crash fast — no point serving requests without a DB
+                    logger.critical(
+                        "Cannot reach database at startup: %s",
+                        exc,
+                        exc_info=True,
+                    )
+                    raise
+                else:
+                    # In development: warn and continue — lets you run the server
+                    # while the remote DB is down or you haven't set DEV_DATABASE_URL yet.
+                    # Set DEV_DATABASE_URL=sqlite:///instance/portfolio_dev.db in .env
+                    # OR set FLASK_ENV=development so the SQLite fallback is used.
+                    logger.warning(
+                        "Cannot reach database at startup (ignored in dev/test): %s\n"
+                        "  → Ensure FLASK_ENV=development in your .env file.\n"
+                        "  → Add DEV_DATABASE_URL=sqlite:///instance/portfolio_dev.db "
+                        "to use a local SQLite database for development.",
+                        exc,
+                    )
 
     # ── Blueprints ────────────────────────────────────────────────────────────
     # CRITICAL ORDER: register system blueprints BEFORE tenant_bp.
@@ -2130,6 +2142,79 @@ def register_cli_commands(app):
         except Exception as exc:
             click.echo(f'✖  Database migration failed: {exc}')
             raise
+
+    @app.cli.command('bootstrap-production-db')
+    def cli_bootstrap_production_db():
+        """
+        Create the current ORM schema for a brand-new production database.
+
+        This is intentionally conservative: it only performs create_all() when
+        the Alembic version table is missing or empty. It is used by the Docker
+        entrypoint as a free-tier Render fallback when the legacy migration chain
+        cannot bootstrap a totally fresh database because older migrations contain
+        duplicate create_index/create_column operations.
+        """
+        from sqlalchemy import inspect as sa_inspect
+
+        inspector = sa_inspect(db.engine)
+        has_alembic = inspector.has_table('alembic_version')
+        if has_alembic:
+            try:
+                existing_versions = [
+                    row[0]
+                    for row in db.session.execute(db.text('SELECT version_num FROM alembic_version')).all()
+                ]
+            except Exception:
+                existing_versions = []
+            if existing_versions:
+                click.echo('✔  alembic_version already exists; skipping create_all bootstrap.')
+                return
+
+        click.echo('Bootstrapping current ORM schema with SQLAlchemy create_all()...')
+        db.create_all()
+
+        try:
+            db.create_all(bind_key='tenant')
+        except TypeError:
+            # Compatibility with older Flask-SQLAlchemy call shape.
+            db.create_all(bind='tenant')
+        except Exception as exc:
+            # Single-database Option 1 may already have created the shared tables;
+            # surface the error but do not hide it if it is real.
+            click.echo(f'⚠  Tenant bind create_all warning: {exc}')
+
+        # Mark the current migration chain as applied only for this first-deploy
+        # create_all bootstrap path. This prevents the inconsistent legacy
+        # Alembic history from re-running against a schema that now already
+        # matches the current ORM models.
+        try:
+            from alembic.config import Config as AlembicConfig
+            from alembic.script import ScriptDirectory
+
+            project_root = Path(app.root_path).parent
+            alembic_cfg = AlembicConfig(str(project_root / 'migrations' / 'alembic.ini'))
+            alembic_cfg.set_main_option('script_location', str(project_root / 'migrations'))
+            heads = ScriptDirectory.from_config(alembic_cfg).get_heads()
+            if len(heads) != 1:
+                raise RuntimeError(f'Expected exactly one Alembic head, found {heads!r}')
+            head = heads[0]
+            db.session.execute(db.text(
+                'CREATE TABLE IF NOT EXISTS alembic_version '
+                '(version_num VARCHAR(128) NOT NULL PRIMARY KEY)'
+            ))
+            db.session.execute(db.text('DELETE FROM alembic_version'))
+            db.session.execute(
+                db.text('INSERT INTO alembic_version (version_num) VALUES (:version_num)'),
+                {'version_num': head},
+            )
+            click.echo(f'✔  Alembic stamped at head: {head}')
+        except Exception as exc:
+            db.session.rollback()
+            click.echo(f'✖  Could not stamp Alembic head after bootstrap: {exc}')
+            raise
+
+        db.session.commit()
+        click.echo('✔  Production database schema bootstrap complete.')
 
     @app.cli.command('ensure-tenant-schema')
     def cli_ensure_tenant_schema():

@@ -67,7 +67,9 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('NOW()')),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('NOW()')),
     )
-    op.create_index('ix_tenants_slug', 'tenants', ['slug'], unique=True)
+    # slug already has index=True + unique=True in op.create_table(), which
+    # creates ix_tenants_slug on PostgreSQL. Creating it again breaks fresh
+    # Render PostgreSQL bootstraps with DuplicateTable/DuplicateObject.
     op.create_index('ix_tenants_status', 'tenants', ['status'])
     op.create_index('ix_tenants_contact_email', 'tenants', ['contact_email'])
 
@@ -263,7 +265,7 @@ def upgrade():
         sa.Column('is_read', sa.Boolean, nullable=False, server_default=sa.text('false')),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('NOW()')),
     )
-    op.create_index('ix_inquiries_tenant_slug', 'inquiries', ['tenant_slug'])
+    # tenant_slug already has index=True in op.create_table(); avoid duplicate ix_inquiries_tenant_slug.
     op.create_index('ix_inquiries_provider_delivery', 'inquiries', ['provider_used', 'delivery_status'])
     op.create_index('ix_inquiries_tenant_submission_id', 'inquiries', ['tenant_slug', 'submission_id'])
 
@@ -280,7 +282,7 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(timezone=True), default=datetime.now(timezone.utc)),
     )
     op.create_index('ix_reply_inquiry_id', 'inquiry_replies', ['inquiry_id'])
-    op.create_index('ix_reply_tenant_slug', 'inquiry_replies', ['tenant_slug'])
+    # tenant_slug already has index=True in op.create_table(); avoid duplicate ix_reply_tenant_slug.
     op.create_index('ix_reply_direction_read', 'inquiry_replies', ['direction', 'is_read'])
 
     # Create subscription_notifications table

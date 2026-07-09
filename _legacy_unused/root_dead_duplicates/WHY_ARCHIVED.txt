@@ -1,1 +1,0 @@
-Archived 2026-06-30T13:21:59Z — confirmed zero live imports anywhere in app/, run.py, wsgi.py, config.py. Superseded by app/models, app/forms, app/services equivalents (which include the newer 'email_only' provider these lack).

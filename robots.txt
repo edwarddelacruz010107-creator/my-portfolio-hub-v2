@@ -1,6 +1,0 @@
-User-agent: *
-Disallow: /admin
-Disallow: /auth
-Disallow: /static/uploads/
-
-# Admin panel is hidden from crawlers

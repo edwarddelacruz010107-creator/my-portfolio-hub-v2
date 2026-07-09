@@ -2170,18 +2170,43 @@ def register_cli_commands(app):
                 click.echo('✔  alembic_version already exists; skipping create_all bootstrap.')
                 return
 
-        click.echo('Bootstrapping current ORM schema with SQLAlchemy create_all()...')
-        db.create_all()
+        def _is_duplicate_schema_error(exc: Exception) -> bool:
+            message = str(exc).lower()
+            return (
+                'already exists' in message
+                or 'duplicatetable' in message
+                or 'duplicateobject' in message
+                or 'duplicate_table' in message
+                or 'duplicate_object' in message
+            )
 
-        try:
-            db.create_all(bind_key='tenant')
-        except TypeError:
-            # Compatibility with older Flask-SQLAlchemy call shape.
-            db.create_all(bind='tenant')
-        except Exception as exc:
-            # Single-database Option 1 may already have created the shared tables;
-            # surface the error but do not hide it if it is real.
-            click.echo(f'⚠  Tenant bind create_all warning: {exc}')
+        def _create_all_safely(label: str, **kwargs) -> None:
+            try:
+                db.create_all(**kwargs)
+                click.echo(f'✔  {label} schema create_all completed.')
+            except TypeError:
+                # Compatibility with older Flask-SQLAlchemy call shape.
+                if 'bind_key' in kwargs:
+                    db.create_all(bind=kwargs['bind_key'])
+                    click.echo(f'✔  {label} schema create_all completed.')
+                else:
+                    raise
+            except Exception as exc:
+                db.session.rollback()
+                if _is_duplicate_schema_error(exc):
+                    # Render free-tier first deploys can leave the database half-created
+                    # when a previous container crashes mid-bootstrap. Treat duplicate
+                    # table/index errors as recoverable and continue to Alembic stamp;
+                    # the following ensure-tenant-schema/default-tenant commands will
+                    # create any remaining tenant records/tables idempotently.
+                    click.echo(f'⚠  {label} schema already partially exists; continuing bootstrap: {exc}')
+                    return
+                raise
+
+        click.echo('Bootstrapping current ORM schema with SQLAlchemy create_all()...')
+        _create_all_safely('Primary/core')
+
+        _create_all_safely('Tenant bind', bind_key='tenant')
 
         # Mark the current migration chain as applied only for this first-deploy
         # create_all bootstrap path. This prevents the inconsistent legacy
@@ -2207,6 +2232,7 @@ def register_cli_commands(app):
                 db.text('INSERT INTO alembic_version (version_num) VALUES (:version_num)'),
                 {'version_num': head},
             )
+            db.session.commit()
             click.echo(f'✔  Alembic stamped at head: {head}')
         except Exception as exc:
             db.session.rollback()

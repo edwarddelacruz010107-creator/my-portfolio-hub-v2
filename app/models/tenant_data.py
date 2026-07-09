@@ -468,9 +468,9 @@ class ProjectReaction(db.Model):
     )
 
     id = db.Column(db.Integer, primary_key=True)
-    tenant_id = db.Column(db.Integer, nullable=False, index=True)
+    tenant_id = db.Column(db.Integer, nullable=False)
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False, index=True)
-    user_id = db.Column(db.Integer, nullable=False, index=True)
+    user_id = db.Column(db.Integer, nullable=False)
     ip_address = db.Column(db.String(45), nullable=True)
     reaction_type = db.Column(db.String(50), nullable=False, default='like')
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)

@@ -61,7 +61,7 @@ def render_landing_page():
     administrator = get_administrator_card()
     landing_content = get_landing_content()
     form = LandingContactForm()
-    theme_showcase = get_showcase_themes(limit=6)
+    theme_showcase = get_showcase_themes(limit=8)
     return render_template(
         'public/index.html',
         featured_creators=featured_creators,

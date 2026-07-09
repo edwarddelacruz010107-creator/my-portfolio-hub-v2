@@ -391,26 +391,23 @@
       <div class="showcase-grid">
         {% for c in featured_creators %}
         <article class="pf-card" data-reveal{% if loop.index0 %} style="--d:{{ loop.index0 * 60 }}ms"{% endif %}>
+          {% set creator_photo_url = c.profile_image|default('', true)|upload_url('profiles') %}
           <div class="pf-cover">
-            {% if c.profile_image %}
-              {% if c.profile_image.startswith('http') %}
-                <img src="{{ c.profile_image }}" alt="" loading="lazy">
-              {% else %}
-                <img src="{{ url_for('static', filename='uploads/profiles/' ~ c.profile_image) }}" alt="" loading="lazy">
-              {% endif %}
+            {% if creator_photo_url %}
+              <img src="{{ creator_photo_url }}" alt="" loading="lazy"
+                   onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+              <div class="pf-cover-placeholder" hidden>{{ c.name[:1]|upper }}</div>
             {% else %}
-              <div style="height:100%;background:linear-gradient(135deg,#7c3aed,#22d3ee);"></div>
+              <div class="pf-cover-placeholder">{{ c.name[:1]|upper }}</div>
             {% endif %}
           </div>
           <div class="pf-body">
-            {% if c.profile_image %}
-              {% if c.profile_image.startswith('http') %}
-                <img class="pf-avatar" src="{{ c.profile_image }}" alt="Photo of {{ c.name }}" loading="lazy">
-              {% else %}
-                <img class="pf-avatar" src="{{ url_for('static', filename='uploads/profiles/' ~ c.profile_image) }}" alt="Photo of {{ c.name }}" loading="lazy">
-              {% endif %}
+            {% if creator_photo_url %}
+              <img class="pf-avatar" src="{{ creator_photo_url }}" alt="Photo of {{ c.name }}" loading="lazy"
+                   onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+              <div class="pf-avatar pf-avatar-fallback" hidden>{{ c.name[:1]|upper }}</div>
             {% else %}
-              <div class="pf-avatar" style="background:linear-gradient(135deg,#7c3aed,#22d3ee);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;">{{ c.name[:1]|upper }}</div>
+              <div class="pf-avatar pf-avatar-fallback">{{ c.name[:1]|upper }}</div>
             {% endif %}
             <div class="pf-name-row">
               <span class="pf-name">{{ c.name }}</span>
@@ -454,8 +451,13 @@
           {% set case_url = project.url|default('', true) %}
           <article class="proj-card case-study-card" data-reveal{% if loop.index0 %} style="--d:{{ loop.index0 * 60 }}ms"{% endif %}>
             <div class="proj-cover">
-              {% if project.image %}
-                <img src="{{ project.image|upload_url('projects') }}" alt="Preview of {{ project_title }}" loading="lazy">
+              {% set project_image_url = project.image|default('', true)|upload_url('projects') %}
+              {% if project_image_url %}
+                <img src="{{ project_image_url }}" alt="Preview of {{ project_title }}" loading="lazy"
+                     onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+                <div class="proj-cover-placeholder" aria-hidden="true" hidden>
+                  <i class="bi bi-window-stack"></i>
+                </div>
               {% else %}
                 <div class="proj-cover-placeholder" aria-hidden="true">
                   <i class="bi bi-window-stack"></i>
@@ -481,8 +483,11 @@
               <p class="proj-desc">{{ project_desc }}</p>
 
               <div class="proj-author">
-                {% if creator_profile_image %}
-                  <img class="proj-author-avatar" src="{{ creator_profile_image|upload_url('profiles') }}" alt="Photo of {{ creator_name }}" loading="lazy">
+                {% set creator_profile_url = creator_profile_image|default('', true)|upload_url('profiles') %}
+                {% if creator_profile_url %}
+                  <img class="proj-author-avatar" src="{{ creator_profile_url }}" alt="Photo of {{ creator_name }}" loading="lazy"
+                       onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+                  <span class="proj-author-fallback" aria-hidden="true" hidden>{{ creator_name[:1]|upper }}</span>
                 {% else %}
                   <span class="proj-author-fallback" aria-hidden="true">{{ creator_name[:1]|upper }}</span>
                 {% endif %}
@@ -640,10 +645,16 @@
         {% set update_slug = p.creator_slug|default(p.tenant_slug|default('', true), true) %}
         {% set update_url = p.url|default('', true) %}
         <article class="community-update-card activity-item" data-reveal{% if loop.index0 %} style="--d:{{ loop.index0 * 60 }}ms"{% endif %}>
-          {% if update_creator_image %}
-            <img class="community-avatar activity-avatar" src="{{ update_creator_image|upload_url('profiles') }}" alt="Photo of {{ update_creator }}" loading="lazy">
-          {% elif p.image %}
-            <img class="community-avatar activity-avatar" src="{{ p.image|upload_url('projects') }}" alt="Preview of {{ update_title }}" loading="lazy">
+          {% set update_creator_url = update_creator_image|default('', true)|upload_url('profiles') %}
+          {% set update_project_url = p.image|default('', true)|upload_url('projects') %}
+          {% if update_creator_url %}
+            <img class="community-avatar activity-avatar" src="{{ update_creator_url }}" alt="Photo of {{ update_creator }}" loading="lazy"
+                 onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+            <div class="community-avatar activity-avatar" aria-hidden="true" hidden>{{ update_creator[:1]|upper }}</div>
+          {% elif update_project_url %}
+            <img class="community-avatar activity-avatar" src="{{ update_project_url }}" alt="Preview of {{ update_title }}" loading="lazy"
+                 onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+            <div class="community-avatar activity-avatar" aria-hidden="true" hidden>{{ update_creator[:1]|upper }}</div>
           {% else %}
             <div class="community-avatar activity-avatar" aria-hidden="true">
               {{ update_creator[:1]|upper }}

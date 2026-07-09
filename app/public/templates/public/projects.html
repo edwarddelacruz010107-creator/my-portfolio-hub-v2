@@ -155,8 +155,11 @@
 
           <div class="proj-body">
             <div class="proj-author">
-              {% if creator_profile_image %}
-                <img class="proj-author-avatar" src="{{ creator_profile_image|upload_url('profiles') }}" alt="Photo of {{ creator_name }}" loading="lazy">
+              {% set creator_profile_url = creator_profile_image|default('', true)|upload_url('profiles') %}
+              {% if creator_profile_url %}
+                <img class="proj-author-avatar" src="{{ creator_profile_url }}" alt="Photo of {{ creator_name }}" loading="lazy"
+                     onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+                <span class="proj-author-fallback" aria-hidden="true" hidden>{{ creator_name[:1]|upper }}</span>
               {% else %}
                 <span class="proj-author-fallback" aria-hidden="true">{{ creator_name[:1]|upper }}</span>
               {% endif %}

@@ -709,18 +709,56 @@ def create_app(config_name: str = 'default') -> Flask:
             return False
         if candidate.startswith(('http://', 'https://')):
             return True
-        if candidate.startswith(('/', '\\')) or '..' in candidate.replace('\\', '/'):
+        normalized = candidate.replace('\\', '/')
+        if normalized.startswith(('/static/uploads/', 'static/uploads/', '/uploads/', 'uploads/')):
+            return '..' not in normalized
+        if candidate.startswith(('/', '\\')) or '..' in normalized:
             return False
         return True
 
     @app.template_filter('upload_url')
     def upload_url_filter(value: str | None, subfolder: str) -> str:
-        if not safe_media_value_filter(value):
+        """Normalize uploaded media values into safe public URLs.
+
+        Production data has existed in several shapes across the project:
+        plain filenames (``photo.jpg``), relative upload paths
+        (``uploads/profiles/photo.jpg``), and already-normalized static paths
+        (``/static/uploads/profiles/photo.jpg``).  Earlier landing cards
+        handled only one shape, which produced broken image icons after the
+        profile-photo binding patch.  This filter accepts those safe shapes
+        and returns one stable URL.
+        """
+        if not isinstance(value, str):
             return ''
-        assert isinstance(value, str)
-        if value.startswith(('http://', 'https://')):
-            return value
-        return url_for('static', filename=f'uploads/{subfolder}/{value}')
+        raw = value.strip()
+        if not raw or raw.lower() in {'none', 'null', 'undefined'}:
+            return ''
+        if any(ch in raw for ch in ('\x00', '\r', '\n')):
+            return ''
+        if raw.startswith(('http://', 'https://')):
+            return raw
+
+        normalized = raw.replace('\\', '/')
+        lowered = normalized.lower()
+        if normalized.startswith('/static/uploads/'):
+            return normalized
+        if normalized.startswith('static/uploads/'):
+            return '/' + normalized
+        if normalized.startswith('/uploads/'):
+            return '/static' + normalized
+        if normalized.startswith('uploads/'):
+            return '/static/' + normalized
+
+        # Reject absolute/path-traversal values that are not safe uploaded-media paths.
+        if normalized.startswith('/') or '..' in normalized:
+            return ''
+
+        # Some old rows stored subfolder-prefixed filenames such as
+        # profiles/photo.jpg. Avoid double-prefixing in that case.
+        prefix = f'{subfolder}/'
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix):]
+        return url_for('static', filename=f'uploads/{subfolder}/{normalized}')
 
     from app.heartbeat import init_heartbeat
     init_heartbeat(app)

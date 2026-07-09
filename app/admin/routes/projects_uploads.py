@@ -80,13 +80,29 @@ logger = logging.getLogger(__name__)
 
 
 def _get_asset_size(filename: str, folder: str) -> int | None:
-    if not filename:
+    if not filename or str(filename).startswith(('http://', 'https://')):
         return None
-    path = os.path.join(current_app.static_folder, 'uploads', folder, filename)
+    upload_folder = current_app.config.get('UPLOAD_FOLDER') or os.path.join(current_app.static_folder, 'uploads')
+    path = os.path.join(upload_folder, folder, filename)
     try:
         return os.path.getsize(path)
     except OSError:
         return None
+
+
+def _asset_public_url(filename: str, folder: str) -> str:
+    """Return the same resilient upload URL used by public themes."""
+    if not filename:
+        return ''
+    if isinstance(filename, str) and filename.startswith(('http://', 'https://')):
+        return filename
+    try:
+        upload_filter = current_app.jinja_env.filters.get('upload_url')
+        if upload_filter:
+            return upload_filter(filename, folder)
+    except Exception:
+        logger.exception('Could not build upload URL for folder=%s filename=%s', folder, filename)
+    return ''
 
 def _format_filesize(size: int | None) -> str:
     if size is None:
@@ -305,7 +321,7 @@ def uploads():
             'id': profile.id, 'type': 'profile', 'label': 'Profile Image',
             'filename': profile.profile_image, 'folder': 'profiles',
             'description': profile.name or profile.tenant_slug,
-            'url': url_for('static', filename=f'uploads/profiles/{profile.profile_image}'),
+            'url': _asset_public_url(profile.profile_image, 'profiles'),
         })
 
     for project in project_images:
@@ -313,7 +329,7 @@ def uploads():
             'id': project.id, 'type': 'project', 'label': 'Project Image',
             'filename': project.image, 'folder': 'projects',
             'description': project.title,
-            'url': url_for('static', filename=f'uploads/projects/{project.image}'),
+            'url': _asset_public_url(project.image, 'projects'),
         })
 
     for testimonial in testimonial_images:
@@ -321,7 +337,7 @@ def uploads():
             'id': testimonial.id, 'type': 'testimonial', 'label': 'Testimonial Avatar',
             'filename': testimonial.author_avatar, 'folder': 'profiles',
             'description': testimonial.author_name,
-            'url': url_for('static', filename=f'uploads/profiles/{testimonial.author_avatar}'),
+            'url': _asset_public_url(testimonial.author_avatar, 'profiles'),
         })
 
     for cert in certificate_images:
@@ -329,7 +345,7 @@ def uploads():
             'id': cert.id, 'type': 'certificate', 'label': 'Certificate Image',
             'filename': cert.image_path, 'folder': 'certificates',
             'description': f'{cert.title} — {cert.issuer}' if cert.issuer else cert.title,
-            'url': url_for('static', filename=f'uploads/certificates/{cert.image_path}'),
+            'url': _asset_public_url(cert.image_path, 'certificates'),
         })
 
     for cert in badge_images:
@@ -337,7 +353,7 @@ def uploads():
             'id': cert.id, 'type': 'badge', 'label': 'Certificate Badge',
             'filename': cert.badge_path, 'folder': 'certificates',
             'description': f'{cert.title} — {cert.issuer}' if cert.issuer else cert.title,
-            'url': url_for('static', filename=f'uploads/certificates/{cert.badge_path}'),
+            'url': _asset_public_url(cert.badge_path, 'certificates'),
         })
 
     for asset in assets:

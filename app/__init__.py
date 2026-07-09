@@ -26,7 +26,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from flask import Flask, render_template, g, redirect, url_for, request
+from flask import Flask, render_template, g, redirect, url_for, request, send_from_directory, abort
 import flask as _flask_module
 
 # Backwards-compatibility shim: some legacy tests import
@@ -676,6 +676,33 @@ def create_app(config_name: str = 'default') -> Flask:
     app.register_blueprint(heartbeat_bp)
     app.register_blueprint(health_email_bp)
 
+    # ── Persistent upload serving ─────────────────────────────────────────────
+    @app.route('/uploads/<subfolder>/<path:filename>')
+    def uploaded_media(subfolder: str, filename: str):
+        """Serve uploaded media from the configured upload storage root.
+
+        This route is intentionally separate from Flask's /static route so
+        production deployments can set UPLOAD_FOLDER to a mounted persistent
+        disk path (for example /var/data/uploads). Files written to app/static
+        are often lost after redeploys on PaaS hosts.
+        """
+        allowed_folders = {'profiles', 'projects', 'avatars', 'billing', 'certificates'}
+        safe_folder = (subfolder or '').strip().replace('\\', '/')
+        safe_name = (filename or '').strip().replace('\\', '/')
+        if safe_folder not in allowed_folders or not safe_name or '..' in safe_name or safe_name.startswith('/'):
+            abort(404)
+
+        upload_root = Path(app.config.get('UPLOAD_FOLDER') or (Path(app.static_folder) / 'uploads')).resolve()
+        directory = (upload_root / safe_folder).resolve()
+        target = (directory / safe_name).resolve()
+        try:
+            target.relative_to(directory)
+        except ValueError:
+            abort(404)
+        if not target.is_file():
+            abort(404)
+        return send_from_directory(str(directory), safe_name, conditional=True)
+
     # ── Custom Jinja2 filters (v3.8) ─────────────────────────────────────────
     from markupsafe import Markup, escape as _escape
 
@@ -716,27 +743,57 @@ def create_app(config_name: str = 'default') -> Flask:
             return False
         return True
 
-    def _static_upload_exists(relative_upload_path: str) -> bool:
-        """Return True when a normalized /static/uploads file exists locally.
+    def _normalize_upload_reference(value: str | None, subfolder: str) -> tuple[str, str] | None:
+        """Return (folder, filename) for safe local-upload references."""
+        if not isinstance(value, str):
+            return None
+        raw = value.strip()
+        if not raw or raw.lower() in {'none', 'null', 'undefined'}:
+            return None
+        if any(ch in raw for ch in ('\x00', '\r', '\n')):
+            return None
+        normalized = raw.replace('\\', '/')
+        if normalized.startswith('/static/uploads/'):
+            normalized = normalized[len('/static/uploads/'):]
+        elif normalized.startswith('static/uploads/'):
+            normalized = normalized[len('static/uploads/'):]
+        elif normalized.startswith('/uploads/'):
+            normalized = normalized[len('/uploads/'):]
+        elif normalized.startswith('uploads/'):
+            normalized = normalized[len('uploads/'):]
+        else:
+            if normalized.startswith('/') or '..' in normalized:
+                return None
+            prefix = f'{subfolder}/'
+            if normalized.startswith(prefix):
+                normalized = normalized[len(prefix):]
+            normalized = f'{subfolder}/{normalized}'
 
-        During deployment it is common for the database to contain an old
-        uploaded filename while the file itself was not committed, mounted, or
-        copied into the new release image. Rendering that stale filename gives
-        the public portfolio a broken image icon and exposes the alt text inside
-        the circular hero photo. Returning an empty URL lets templates fall back
-        to their safe default image instead.
+        parts = normalized.split('/', 1)
+        if len(parts) != 2:
+            return None
+        folder, filename = parts[0], parts[1]
+        allowed_folders = {'profiles', 'projects', 'avatars', 'billing', 'certificates'}
+        if folder not in allowed_folders or not filename or '..' in filename or filename.startswith('/'):
+            return None
+        return folder, filename
 
-        Set SKIP_UPLOAD_EXISTENCE_CHECK=True only if uploads are served by an
-        external web server that is not visible from Flask's static folder.
+    def _upload_exists(folder: str, filename: str) -> bool:
+        """Return True when an upload exists in the configured storage root.
+
+        Checks UPLOAD_FOLDER, not only app/static/uploads, so mounted persistent
+        disk deployments work correctly.
         """
         if app.config.get('SKIP_UPLOAD_EXISTENCE_CHECK'):
             return True
         try:
-            normalized = (relative_upload_path or '').replace('\\', '/').lstrip('/')
-            if not normalized.startswith('uploads/') or '..' in normalized:
+            upload_root = Path(app.config.get('UPLOAD_FOLDER') or (Path(app.static_folder) / 'uploads')).resolve()
+            target = (upload_root / folder / filename).resolve()
+            try:
+                target.relative_to((upload_root / folder).resolve())
+            except ValueError:
                 return False
-            static_folder = app.static_folder or os.path.join(app.root_path, 'static')
-            return os.path.isfile(os.path.join(static_folder, *normalized.split('/')))
+            return target.is_file()
         except Exception:
             # Fail open so external/object-storage deployments can still render.
             return True
@@ -746,9 +803,8 @@ def create_app(config_name: str = 'default') -> Flask:
         """Normalize uploaded media values into safe public URLs.
 
         Accepts plain filenames, subfolder-prefixed filenames, /uploads paths,
-        /static/uploads paths, and remote HTTP(S) URLs. For local static uploads
-        it also checks whether the file exists so stale database filenames from
-        local/dev deployments do not render as broken images in production.
+        /static/uploads paths, and remote HTTP(S) URLs. Local filenames are
+        served through /uploads/... so a production persistent disk can be used.
         """
         if not isinstance(value, str):
             return ''
@@ -760,29 +816,18 @@ def create_app(config_name: str = 'default') -> Flask:
         if raw.startswith(('http://', 'https://')):
             return raw
 
-        normalized = raw.replace('\\', '/')
-        if normalized.startswith('/static/uploads/'):
-            upload_path = normalized[len('/static/'):]
-        elif normalized.startswith('static/uploads/'):
-            upload_path = normalized[len('static/'):]
-        elif normalized.startswith('/uploads/'):
-            upload_path = normalized.lstrip('/')
-        elif normalized.startswith('uploads/'):
-            upload_path = normalized
-        else:
-            # Reject absolute/path-traversal values that are not safe uploaded-media paths.
-            if normalized.startswith('/') or '..' in normalized:
-                return ''
-            # Some old rows stored subfolder-prefixed filenames such as
-            # profiles/photo.jpg. Avoid double-prefixing in that case.
-            prefix = f'{subfolder}/'
-            if normalized.startswith(prefix):
-                normalized = normalized[len(prefix):]
-            upload_path = f'uploads/{subfolder}/{normalized}'
-
-        if '..' in upload_path or not _static_upload_exists(upload_path):
+        normalized = _normalize_upload_reference(raw, subfolder)
+        if not normalized:
             return ''
-        return url_for('static', filename=upload_path)
+        folder, filename = normalized
+
+        public_base = (app.config.get('UPLOAD_PUBLIC_BASE_URL') or '').rstrip('/')
+        if public_base:
+            return f'{public_base}/{folder}/{filename}'
+
+        if not _upload_exists(folder, filename):
+            return ''
+        return url_for('uploaded_media', subfolder=folder, filename=filename)
 
     from app.heartbeat import init_heartbeat
     init_heartbeat(app)

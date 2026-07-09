@@ -306,13 +306,36 @@ Important environment variables include:
 | `PAYMONGO_WEBHOOK_SECRET` | PayMongo webhook secret. Required when PayMongo is enabled. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Enables Google OAuth when both are present. |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Enables GitHub OAuth when both are present. |
-| `USE_SUPABASE_STORAGE` | Enables Supabase-backed media storage when set to `true`. |
+| `USE_SUPABASE_STORAGE` | Enables Supabase-backed media storage when set to `true`. Best option for uploads that must survive redeploys. |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` / `SUPABASE_BUCKET` | Supabase storage configuration. |
+| `UPLOAD_FOLDER` | Optional persistent local upload directory, for example `/var/data/uploads` on a mounted disk. Use this if not using Supabase. |
+| `UPLOAD_PUBLIC_BASE_URL` | Optional public CDN/base URL for files stored under `UPLOAD_FOLDER`. Usually leave blank when Flask serves `/uploads/...`. |
 | `CONVERT_UPLOADS_TO_WEBP` | Converts new profile, project, testimonial, certificate, badge, and other photo uploads to WebP. Defaults to `true`. |
 | `UPLOAD_WEBP_QUALITY` | WebP quality for new uploads. Recommended: `82` for general images, higher only if needed. |
 | `UPLOAD_IMAGE_MAX_DIMENSION` | Maximum width/height for large uploads before saving. Defaults to `2048`. |
 
 Never commit `.env`, production secrets, API keys, database URLs, or webhook secrets.
+
+### Important: uploaded photos after redeploy
+
+Profile, project, testimonial, certificate, and badge photos must use persistent storage in production. Most PaaS hosts delete files written inside the application folder during redeploy, which leaves the database record visible in Admin → Uploads but makes the public profile fall back to the default photo.
+
+Use one of these production options:
+
+```env
+# Recommended: object storage
+USE_SUPABASE_STORAGE=true
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your-service-role-key
+SUPABASE_BUCKET=portfolio-media
+
+# Alternative: mounted persistent disk
+UPLOAD_FOLDER=/var/data/uploads
+# Optional, only if served through a CDN/proxy
+UPLOAD_PUBLIC_BASE_URL=
+```
+
+After changing storage settings, upload the profile photo again once. Old local files that were already deleted by a redeploy cannot be restored from the database filename alone.
 
 ---
 

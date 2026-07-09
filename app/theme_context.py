@@ -60,15 +60,64 @@ def _initials(name: str) -> str:
     return (parts[0][0] + parts[-1][0]).upper()
 
 
+def _normalize_upload_reference(value: str, subfolder: str) -> tuple[str, str] | None:
+    value = (value or '').strip() if isinstance(value, str) else ''
+    if not value or value.lower() in {'none', 'null', 'undefined'}:
+        return None
+    if any(ch in value for ch in ('\x00', '\r', '\n')):
+        return None
+
+    normalized = value.replace('\\', '/')
+    if normalized.startswith('/static/uploads/'):
+        normalized = normalized[len('/static/uploads/'):]
+    elif normalized.startswith('static/uploads/'):
+        normalized = normalized[len('static/uploads/'):]
+    elif normalized.startswith('/uploads/'):
+        normalized = normalized[len('/uploads/'):]
+    elif normalized.startswith('uploads/'):
+        normalized = normalized[len('uploads/'):]
+    else:
+        if normalized.startswith('/') or '..' in normalized:
+            return None
+        prefix = f'{subfolder}/'
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix):]
+        normalized = f'{subfolder}/{normalized}'
+
+    parts = normalized.split('/', 1)
+    if len(parts) != 2:
+        return None
+    folder, filename = parts[0], parts[1]
+    allowed_folders = {'profiles', 'projects', 'avatars', 'billing', 'certificates'}
+    if folder not in allowed_folders or not filename or '..' in filename or filename.startswith('/'):
+        return None
+    return folder, filename
+
+
+def _local_upload_exists(folder: str, filename: str) -> bool:
+    if current_app.config.get('SKIP_UPLOAD_EXISTENCE_CHECK'):
+        return True
+    try:
+        upload_root = current_app.config.get('UPLOAD_FOLDER')
+        if not upload_root:
+            static_folder = current_app.static_folder or ''
+            upload_root = os.path.join(static_folder, 'uploads')
+        root = os.path.abspath(upload_root)
+        folder_path = os.path.abspath(os.path.join(root, folder))
+        target = os.path.abspath(os.path.join(folder_path, filename))
+        if not (target == folder_path or target.startswith(folder_path + os.sep)):
+            return False
+        return os.path.isfile(target)
+    except Exception:
+        return True
+
+
 def _upload_url(value: str, subfolder: str) -> str:
     """Return a safe public URL for uploaded media passed to theme templates.
 
-    Existing default templates can use the `upload_url` Jinja filter, but
-    swappable dynamic themes receive normalized plain dicts through
-    `portfolio`. Centralizing URL resolution here keeps Developer Pro and all
-    new themes from accidentally rendering raw filenames as broken image srcs.
-    If a local static-upload filename is stale/missing after deployment, return
-    an empty value so themes render their initials/default-image fallback.
+    Supports remote object-storage URLs and local filenames served through the
+    app-level /uploads route. The route reads from UPLOAD_FOLDER, so mounted
+    persistent disks keep profile/project/certificate photos after redeploy.
     """
     value = (value or '').strip() if isinstance(value, str) else ''
     if not value or value.lower() in {'none', 'null', 'undefined'}:
@@ -78,34 +127,21 @@ def _upload_url(value: str, subfolder: str) -> str:
     if value.startswith(('http://', 'https://', 'data:')):
         return value
 
-    normalized = value.replace('\\', '/')
-    if normalized.startswith('/static/uploads/'):
-        upload_path = normalized[len('/static/'):]
-    elif normalized.startswith('static/uploads/'):
-        upload_path = normalized[len('static/'):]
-    elif normalized.startswith('/uploads/'):
-        upload_path = normalized.lstrip('/')
-    elif normalized.startswith('uploads/'):
-        upload_path = normalized
-    else:
-        if normalized.startswith('/') or '..' in normalized:
-            return ''
-        prefix = f'{subfolder}/'
-        if normalized.startswith(prefix):
-            normalized = normalized[len(prefix):]
-        upload_path = f'uploads/{subfolder}/{normalized}'
+    normalized = _normalize_upload_reference(value, subfolder)
+    if not normalized:
+        return ''
+    folder, filename = normalized
 
-    if '..' in upload_path:
+    public_base = (current_app.config.get('UPLOAD_PUBLIC_BASE_URL') or '').rstrip('/')
+    if public_base:
+        return f'{public_base}/{folder}/{filename}'
+
+    if not _local_upload_exists(folder, filename):
         return ''
     try:
-        if not current_app.config.get('SKIP_UPLOAD_EXISTENCE_CHECK'):
-            static_folder = current_app.static_folder or ''
-            local_path = os.path.join(static_folder, *upload_path.split('/'))
-            if static_folder and not os.path.isfile(local_path):
-                return ''
-        return url_for('static', filename=upload_path)
+        return url_for('uploaded_media', subfolder=folder, filename=filename)
     except Exception:
-        return f'/static/{upload_path}'
+        return f'/uploads/{folder}/{filename}'
 
 
 def build_portfolio_view(

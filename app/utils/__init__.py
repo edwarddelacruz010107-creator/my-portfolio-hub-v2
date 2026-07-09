@@ -512,6 +512,22 @@ def save_image(
     if not is_upload_file(file_storage):
         return None, "No file provided."
 
+    # Production-safe object storage path. When enabled, store the public URL in
+    # the model instead of a local filename so uploaded photos survive redeploys
+    # on ephemeral filesystems. Supabase helper performs the same validation and
+    # WebP optimization before upload.
+    try:
+        if bool(current_app.config.get("USE_SUPABASE_STORAGE", False)):
+            from app.utils.supabase_storage import save_image as _save_supabase_image
+
+            remote_url = _save_supabase_image(file_storage, subfolder)
+            if remote_url:
+                return remote_url, None
+            return None, "Failed to upload image to Supabase Storage. Please check storage credentials and bucket permissions."
+    except Exception:
+        logger.exception("save_image: Supabase storage upload failed")
+        return None, "Failed to upload image to persistent storage. Please check storage settings."
+
     allowed = {ext.lower().lstrip('.') for ext in (allowed_extensions or _ALLOWED_IMAGE_EXTENSIONS)}
     original_name = secure_filename(file_storage.filename or "")
     ext = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else ""
@@ -621,11 +637,21 @@ def save_image(
 
 def delete_image(filename: str | None, subfolder: str) -> None:
     """
-    Delete an image file from disk. Silently ignores missing files.
+    Delete an image from the active storage backend. Silently ignores missing
+    local files. Remote Supabase URLs are deleted when Supabase storage is active.
     """
     if not filename:
         return
     try:
+        if isinstance(filename, str) and filename.startswith(('http://', 'https://')):
+            if bool(current_app.config.get("USE_SUPABASE_STORAGE", False)):
+                try:
+                    from app.utils.supabase_storage import delete_image as _delete_supabase_image
+                    _delete_supabase_image(filename)
+                except Exception:
+                    logger.exception("delete_image failed for Supabase URL")
+            return
+
         upload_folder = current_app.config.get("UPLOAD_FOLDER", "static/uploads")
         path = os.path.join(upload_folder, subfolder, filename)
         if os.path.isfile(path):

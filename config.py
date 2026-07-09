@@ -195,6 +195,13 @@ class BaseConfig:
     UPLOAD_WEBP_QUALITY = int(os.environ.get('UPLOAD_WEBP_QUALITY', '82'))
     UPLOAD_IMAGE_MAX_DIMENSION = int(os.environ.get('UPLOAD_IMAGE_MAX_DIMENSION', '2048'))
 
+    # Production upload persistence. On hosts such as Render, files written into
+    # the app/static tree disappear on every redeploy. Set UPLOAD_FOLDER to a
+    # mounted persistent disk path, for example /var/data/uploads. If media is
+    # served by a CDN/object-storage proxy, set UPLOAD_PUBLIC_BASE_URL too.
+    UPLOAD_FOLDER_ENV = os.environ.get('UPLOAD_FOLDER') or os.environ.get('UPLOAD_BASE_DIR') or os.environ.get('UPLOAD_ROOT')
+    UPLOAD_PUBLIC_BASE_URL = os.environ.get('UPLOAD_PUBLIC_BASE_URL', '').rstrip('/')
+
     # ─────────────────────────────────────────────────────────────────
     # INTEGRATIONS
     # ─────────────────────────────────────────────────────────────────
@@ -245,12 +252,23 @@ class BaseConfig:
         current_app.static_folder pointed elsewhere post-migration,
         which would write uploads to a tree nothing serves from.
         """
-        upload_base = os.path.join(app.static_folder, 'uploads')
+        # Default local dev path remains app/static/uploads. Production can
+        # override this with UPLOAD_FOLDER=/var/data/uploads or another mounted
+        # persistent disk path so profile/project photos survive redeploys.
+        env_upload_base = (app.config.get('UPLOAD_FOLDER_ENV') or '').strip()
+        if env_upload_base:
+            upload_base = env_upload_base
+            if not os.path.isabs(upload_base):
+                upload_base = os.path.abspath(os.path.join(basedir, upload_base))
+        else:
+            upload_base = os.path.join(app.static_folder, 'uploads')
+
         for sub in ('profiles', 'projects', 'avatars', 'billing', 'certificates'):
             os.makedirs(os.path.join(upload_base, sub), exist_ok=True)
         os.makedirs(BaseConfig.LOG_DIR, exist_ok=True)
 
         app.config['UPLOAD_FOLDER']         = upload_base
+        app.config['UPLOAD_BASE_PATH']      = upload_base
         app.config['PROFILE_UPLOAD_FOLDER'] = os.path.join(upload_base, 'profiles')
         app.config['PROJECT_UPLOAD_FOLDER'] = os.path.join(upload_base, 'projects')
         app.config['AVATAR_UPLOAD_FOLDER']  = os.path.join(upload_base, 'avatars')

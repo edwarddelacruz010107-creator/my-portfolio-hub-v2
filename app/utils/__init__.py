@@ -475,6 +475,14 @@ def _allowed_image(filename: str) -> bool:
     return ext in _ALLOWED_IMAGE_EXTENSIONS
 
 
+def _convert_uploads_to_webp_enabled() -> bool:
+    """Feature flag for lightweight WebP storage of uploaded portfolio images."""
+    try:
+        return bool(current_app.config.get("CONVERT_UPLOADS_TO_WEBP", True))
+    except RuntimeError:
+        return True
+
+
 def save_image(
     file_storage,
     subfolder: str,
@@ -483,7 +491,16 @@ def save_image(
     quality: int = 85,
 ) -> tuple[str | None, str | None]:
     """
-    Validate and save an uploaded image through the central FileUploadPolicy.
+    Validate, optimise and save an uploaded portfolio image.
+
+    New uploads are converted to WebP by default so profile photos, project
+    screenshots, testimonial avatars, certificates and badges load much faster.
+    Animated GIF/WebP uploads are preserved to avoid losing animation.
+
+    Config knobs:
+        CONVERT_UPLOADS_TO_WEBP=True       # default enabled
+        UPLOAD_WEBP_QUALITY=82             # default WebP quality
+        UPLOAD_IMAGE_MAX_DIMENSION=2048    # cap huge photos when max_size absent
 
     Returns:
         (filename, None)  on success
@@ -505,7 +522,7 @@ def save_image(
         return None, f"File type '.{ext}' is not allowed. Accepted: {', '.join(sorted(allowed))}."
 
     # Centralized validation before any disk write. Read the stream once,
-    # validate extension/MIME/magic bytes/Pillow, then rewind before saving.
+    # validate extension/MIME/magic bytes/Pillow, then process in memory.
     try:
         file_storage.stream.seek(0)
         file_bytes = file_storage.stream.read()
@@ -527,8 +544,6 @@ def save_image(
             pass
         return None, validation_error or "Uploaded image failed validation."
 
-    unique_name = f"{uuid.uuid4().hex}.{ext}"
-
     try:
         upload_folder = current_app.config.get("UPLOAD_FOLDER", "static/uploads")
         dest_dir = os.path.abspath(os.path.join(upload_folder, subfolder))
@@ -537,23 +552,61 @@ def save_image(
             logger.warning("save_image blocked unsafe upload subfolder=%s", subfolder)
             return None, "Invalid upload destination."
         os.makedirs(dest_dir, exist_ok=True)
-        dest_path = os.path.join(dest_dir, unique_name)
 
-        file_storage.stream.seek(0)
-        if max_size:
+        convert_to_webp = _convert_uploads_to_webp_enabled()
+        final_bytes = file_bytes
+        final_ext = ext
+        converted = False
+
+        if convert_to_webp:
+            try:
+                from app.services.media.image_optimizer import optimize_image_bytes_to_webp
+
+                webp_quality = int(current_app.config.get("UPLOAD_WEBP_QUALITY", quality or 82))
+                max_dimension = int(current_app.config.get("UPLOAD_IMAGE_MAX_DIMENSION", 2048))
+                optimized = optimize_image_bytes_to_webp(
+                    file_bytes,
+                    ext,
+                    source_mime=getattr(file_storage, "mimetype", None),
+                    max_size=max_size,
+                    quality=webp_quality,
+                    max_dimension=max_dimension,
+                    preserve_animation=True,
+                    force=True,
+                )
+                final_bytes = optimized.data
+                final_ext = optimized.extension
+                converted = optimized.converted
+                if converted:
+                    logger.info(
+                        "save_image converted upload to WebP folder=%s original=%d final=%d saved=%.1f%%",
+                        subfolder,
+                        optimized.original_size,
+                        optimized.final_size,
+                        optimized.percent_saved,
+                    )
+            except Exception as exc:
+                logger.exception("save_image: WebP optimization failed")
+                return None, "Uploaded image could not be converted to WebP. Please try another image."
+
+        elif max_size:
+            # Legacy fallback if CONVERT_UPLOADS_TO_WEBP is disabled.
             try:
                 from PIL import Image as PILImage
-                with PILImage.open(file_storage.stream) as img:
+                import io
+                with PILImage.open(io.BytesIO(file_bytes)) as img:
                     img.thumbnail(max_size, PILImage.LANCZOS)
+                    out = io.BytesIO()
                     save_kwargs = {"quality": quality} if ext in {"jpg", "jpeg", "webp"} else {}
-                    img.save(dest_path, **save_kwargs)
+                    img.save(out, format=img.format, **save_kwargs)
+                    final_bytes = out.getvalue()
             except ImportError:
-                # Pillow is optional in some dev installs. FileUploadPolicy has
-                # already performed extension/MIME/magic-byte checks.
-                file_storage.stream.seek(0)
-                file_storage.save(dest_path)
-        else:
-            file_storage.save(dest_path)
+                logger.warning("Pillow unavailable; saving original image bytes")
+
+        unique_name = f"{uuid.uuid4().hex}.{final_ext}"
+        dest_path = os.path.join(dest_dir, unique_name)
+        with open(dest_path, "wb") as fh:
+            fh.write(final_bytes)
 
         return unique_name, None
 

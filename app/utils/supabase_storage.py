@@ -70,55 +70,104 @@ def _validate_image(file: FileStorage) -> bool:
     return True
 
 
+def _read_file_bytes(file: FileStorage) -> bytes:
+    if hasattr(file, 'stream'):
+        file.stream.seek(0)
+        data = file.stream.read()
+        file.stream.seek(0)
+        return data
+    data = file.read()
+    try:
+        file.seek(0)
+    except Exception:
+        pass
+    return data
+
+
 def save_image(file: FileStorage, folder: str = 'uploads') -> Optional[str]:
     """
-    Save an uploaded image to Supabase Storage.
+    Save an uploaded image to Supabase Storage as lightweight WebP.
 
-    Validates extension + MIME before upload.
-
-    Args:
-        file:   Werkzeug FileStorage object from request.files
-        folder: Sub-path inside the bucket (e.g. 'profiles', 'projects')
-
-    Returns:
-        Public URL string on success, None on failure.
+    The legacy contract returns the public URL string on success and None on
+    failure.  Animated GIF/WebP uploads are preserved so animation is not lost.
     """
     if not file or not file.filename:
+        return None
+
+    try:
+        raw_data = _read_file_bytes(file)
+    except Exception as exc:
+        logger.warning('Rejected upload: could not read file — %s', exc)
         return None
 
     if not _validate_image(file):
         return None
 
-    ext      = file.filename.rsplit('.', 1)[-1].lower()
-    filename = f"{folder}/{uuid.uuid4().hex}.{ext}"
+    source_ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+    final_data = raw_data
+    final_ext = source_ext
+    content_type = _CONTENT_TYPES.get(source_ext, 'application/octet-stream')
 
-    return _save_to_supabase(file, filename)
+    try:
+        convert_enabled = bool(current_app.config.get('CONVERT_UPLOADS_TO_WEBP', True))
+        if convert_enabled:
+            from app.services.media.image_optimizer import optimize_image_bytes_to_webp
+
+            optimized = optimize_image_bytes_to_webp(
+                raw_data,
+                source_ext,
+                source_mime=getattr(file, 'mimetype', None),
+                quality=int(current_app.config.get('UPLOAD_WEBP_QUALITY', 82)),
+                max_dimension=int(current_app.config.get('UPLOAD_IMAGE_MAX_DIMENSION', 2048)),
+                preserve_animation=True,
+                force=True,
+            )
+            final_data = optimized.data
+            final_ext = optimized.extension
+            content_type = optimized.mime_type
+            if optimized.converted:
+                logger.info(
+                    'Supabase upload converted to WebP folder=%s original=%d final=%d saved=%.1f%%',
+                    folder,
+                    optimized.original_size,
+                    optimized.final_size,
+                    optimized.percent_saved,
+                )
+    except Exception as exc:
+        logger.error('Supabase image WebP optimisation failed: %s', exc)
+        return None
+
+    filename = f"{folder}/{uuid.uuid4().hex}.{final_ext}"
+    return _save_bytes_to_supabase(final_data, filename, content_type)
 
 
-def _save_to_supabase(file: FileStorage, path: str) -> Optional[str]:
+def _save_bytes_to_supabase(data: bytes, path: str, content_type: str) -> Optional[str]:
     try:
         client = _get_supabase_client()
         bucket = current_app.config.get('SUPABASE_BUCKET', 'portfolio-media')
 
-        if hasattr(file, 'stream'):
-            file.stream.seek(0)
-            data = file.stream.read()
-        else:
-            data = file.read()
-
-        ext          = path.rsplit('.', 1)[-1] if '.' in path else ''
-        content_type = _CONTENT_TYPES.get(ext, 'application/octet-stream')
-
         client.storage.from_(bucket).upload(
             path,
             data,
-            file_options={'content-type': content_type, 'cache-control': '3600'},
+            file_options={'content-type': content_type, 'cache-control': '31536000'},
         )
 
         public_url = client.storage.from_(bucket).get_public_url(path)
         logger.info('Uploaded to Supabase Storage: %s', public_url)
         return public_url
 
+    except Exception as exc:
+        logger.error('Supabase Storage upload failed: %s', exc)
+        return None
+
+
+def _save_to_supabase(file: FileStorage, path: str) -> Optional[str]:
+    """Backward-compatible wrapper for older call sites."""
+    try:
+        data = _read_file_bytes(file)
+        ext = path.rsplit('.', 1)[-1] if '.' in path else ''
+        content_type = _CONTENT_TYPES.get(ext, 'application/octet-stream')
+        return _save_bytes_to_supabase(data, path, content_type)
     except Exception as exc:
         logger.error('Supabase Storage upload failed: %s', exc)
         return None

@@ -308,6 +308,9 @@ Important environment variables include:
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Enables GitHub OAuth when both are present. |
 | `USE_SUPABASE_STORAGE` | Enables Supabase-backed media storage when set to `true`. |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` / `SUPABASE_BUCKET` | Supabase storage configuration. |
+| `CONVERT_UPLOADS_TO_WEBP` | Converts new profile, project, testimonial, certificate, badge, and other photo uploads to WebP. Defaults to `true`. |
+| `UPLOAD_WEBP_QUALITY` | WebP quality for new uploads. Recommended: `82` for general images, higher only if needed. |
+| `UPLOAD_IMAGE_MAX_DIMENSION` | Maximum width/height for large uploads before saving. Defaults to `2048`. |
 
 Never commit `.env`, production secrets, API keys, database URLs, or webhook secrets.
 

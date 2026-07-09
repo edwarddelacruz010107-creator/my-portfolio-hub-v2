@@ -64,8 +64,8 @@ ALLOWED_EXTENSIONS: frozenset[str] = frozenset({
     '.jpg', '.jpeg', '.png', '.webp', '.gif', '.pdf',
 })
 
-# WebP conversion applies to these types (GIF animation preserved, skip)
-_CONVERTIBLE_TO_WEBP: frozenset[str] = frozenset({'image/jpeg', 'image/png'})
+# WebP conversion applies to photo uploads. Animated GIF/WebP is preserved.
+_CONVERTIBLE_TO_WEBP: frozenset[str] = frozenset({'image/jpeg', 'image/png', 'image/webp'})
 
 # ─── Optimisation settings ────────────────────────────────────────────────────
 
@@ -167,34 +167,25 @@ def _optimise_image(
     mime_type: str,
 ) -> tuple[bytes, str]:
     """
-    Convert PNG/JPEG → WebP and resize oversized images.
+    Convert portfolio image uploads to lightweight WebP and resize oversized images.
 
-    Returns (optimised_bytes, output_mime_type).
-    Image bytes are validated before this function is called. If optimisation
-    fails, raise InvalidFileError so unverified original bytes are not saved.
+    Animated images are preserved by the shared optimizer so they do not turn
+    into static first-frame images.
     """
     try:
-        from PIL import Image as _Image
+        from app.services.media.image_optimizer import optimize_image_bytes_to_webp
 
-        img = _Image.open(io.BytesIO(data))
-
-        # Resize if any dimension is too large
-        max_d = _MAX_DIMENSION
-        if img.width > max_d or img.height > max_d:
-            img.thumbnail((max_d, max_d), _Image.LANCZOS)
-
-        # Convert to WebP for supported types
-        if mime_type in _CONVERTIBLE_TO_WEBP:
-            buf = io.BytesIO()
-            img.convert('RGB').save(buf, format='WEBP', quality=_WEBP_QUALITY, method=4)
-            return buf.getvalue(), 'image/webp'
-
-        # JPEG — re-encode for size reduction
-        if mime_type == 'image/jpeg':
-            buf = io.BytesIO()
-            img.convert('RGB').save(buf, format='JPEG', quality=_JPEG_QUALITY, optimize=True)
-            return buf.getvalue(), 'image/jpeg'
-
+        if mime_type.startswith('image/'):
+            optimized = optimize_image_bytes_to_webp(
+                data,
+                source_extension=None,
+                source_mime=mime_type,
+                quality=int(current_app.config.get('UPLOAD_WEBP_QUALITY', _WEBP_QUALITY)),
+                max_dimension=int(current_app.config.get('UPLOAD_IMAGE_MAX_DIMENSION', _MAX_DIMENSION)),
+                preserve_animation=True,
+                force=True,
+            )
+            return optimized.data, optimized.mime_type
         return data, mime_type
 
     except ImportError:
@@ -203,7 +194,6 @@ def _optimise_image(
     except Exception as exc:
         logger.warning('[StorageService] Image optimisation failed (%s) — rejecting upload', exc)
         raise InvalidFileError('Uploaded image could not be processed safely.') from exc
-
 
 def _generate_thumbnail(data: bytes, mime_type: str, dest_path: Path) -> bool:
     """Write a thumbnail WebP. Returns True on success."""

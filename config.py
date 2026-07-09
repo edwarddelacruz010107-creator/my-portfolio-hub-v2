@@ -190,6 +190,11 @@ class BaseConfig:
     SUPABASE_BUCKET     = os.environ.get('SUPABASE_BUCKET', 'portfolio-media')
     USE_SUPABASE_STORAGE = os.environ.get('USE_SUPABASE_STORAGE', 'false').lower() == 'true'
 
+    # New portfolio photo uploads are converted to WebP for faster public pages.
+    CONVERT_UPLOADS_TO_WEBP = os.environ.get('CONVERT_UPLOADS_TO_WEBP', 'true').lower() == 'true'
+    UPLOAD_WEBP_QUALITY = int(os.environ.get('UPLOAD_WEBP_QUALITY', '82'))
+    UPLOAD_IMAGE_MAX_DIMENSION = int(os.environ.get('UPLOAD_IMAGE_MAX_DIMENSION', '2048'))
+
     # ─────────────────────────────────────────────────────────────────
     # INTEGRATIONS
     # ─────────────────────────────────────────────────────────────────
@@ -241,7 +246,7 @@ class BaseConfig:
         which would write uploads to a tree nothing serves from.
         """
         upload_base = os.path.join(app.static_folder, 'uploads')
-        for sub in ('profiles', 'projects', 'avatars', 'billing'):
+        for sub in ('profiles', 'projects', 'avatars', 'billing', 'certificates'):
             os.makedirs(os.path.join(upload_base, sub), exist_ok=True)
         os.makedirs(BaseConfig.LOG_DIR, exist_ok=True)
 

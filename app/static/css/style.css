@@ -2688,3 +2688,12 @@ a.admin-badge:hover {
     .experience-timeline-item { grid-template-columns: 1fr; gap: 12px; }
     .experience-timeline-marker { margin-left: 4px; }
 }
+
+
+/* Portfolio CMS no-JS/CSP reveal fallback */
+html:not(.js-reveal-ready) .reveal-up,
+html:not(.js-reveal-ready) .reveal-left,
+html:not(.js-reveal-ready) .reveal-right {
+  opacity: 1 !important;
+  transform: none !important;
+}

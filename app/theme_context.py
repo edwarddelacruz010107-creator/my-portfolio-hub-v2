@@ -223,7 +223,17 @@ def build_portfolio_view(
         'contact_subtitle': None,
         'contact_form_action': contact_url,
         'initials': _initials(name),
+        'meta_title': getattr(profile, 'meta_title', '') or '' if profile else '',
         'meta_description': getattr(profile, 'meta_description', '') or '' if profile else '',
+        'og_image': _upload_url(getattr(profile, 'og_image', '') or '', 'profiles') if profile else '',
+        'tenant_slug': tenant_slug,
+        'skills_flat': [skill for group in skills_grouped for skill in group.get('skills', [])],
+        'education': [],
+        'achievements': [],
+        'website_url': social.get('website') or '',
+        'color_cycle': ['#22c55e', '#38bdf8', '#a855f7', '#f59e0b'],
+        'icon_cycle': ['lucide:code-2', 'lucide:layers', 'lucide:terminal', 'lucide:server'],
+        'node_colors': ['green', 'blue', 'purple', 'amber'],
     }
 
     categories = sorted({p['category'] for p in project_views if p['category']})

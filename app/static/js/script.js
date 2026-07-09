@@ -1,3 +1,4 @@
+document.documentElement.classList.add('js-reveal-ready');
 /**
  * ================================================================
  * PORTFOLIO CMS v3.0 — PUBLIC PORTFOLIO JAVASCRIPT

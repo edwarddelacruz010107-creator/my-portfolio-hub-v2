@@ -64,6 +64,9 @@ def _sample_profile() -> SimpleNamespace:
         hero_tagline="Building interfaces people enjoy using.",
         subtitle="Product Designer & Frontend Engineer",
         meta_description="Sample portfolio preview",
+        meta_title="Jordan Reyes — Portfolio Preview",
+        og_image="",
+        tenant_slug="preview",
         clients_count=18,
     )
 

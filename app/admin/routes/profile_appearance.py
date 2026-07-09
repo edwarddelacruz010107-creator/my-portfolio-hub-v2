@@ -289,11 +289,8 @@ def preview_theme(theme_id):
         is_administrator=True,  # preview always bypasses the plan gate visually...
         plan=getattr(profile, 'plan', 'free') if profile else 'free',
     )
-    # ...but still block rendering a theme the tenant truly can't use, to
-    # avoid the preview link itself becoming a paywall bypass.
-    if not engine.can_use_theme(profile, theme_id):
-        flash('Upgrade your plan to preview this theme.', 'warning')
-        return redirect(url_for('admin.themes_index'))
+    # Preview is read-only: allow tenants to inspect locked themes.
+    # The apply_theme() route remains the permanent plan gate.
 
     rendered_preview = engine.render(
         preview_profile,

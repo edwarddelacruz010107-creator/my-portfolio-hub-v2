@@ -36,6 +36,7 @@ from app.repositories import (
     user_repository,
     project_repository,
     testimonial_repository,
+    certificate_repository,
     inquiry_repository,
     activity_log_repository,
     subscription_repository,
@@ -92,11 +93,11 @@ def _sa_format_filesize(size) -> str:
 def media():
     """Cross-tenant image & upload manager — list, filter, delete, compress."""
     import os
-    from app.models.portfolio import Testimonial
+    from app.models.portfolio import Testimonial, Certificate
 
     asset_type    = request.args.get('asset_type', 'all')
     tenant_filter = request.args.get('tenant', 'all')
-    allowed_types = {'all', 'profile', 'project', 'testimonial', 'billing', 'proof'}
+    allowed_types = {'all', 'profile', 'project', 'testimonial', 'certificate', 'badge', 'billing', 'proof'}
     if asset_type not in allowed_types:
         asset_type = 'all'
 
@@ -109,6 +110,13 @@ def media():
                         .filter(Testimonial.author_avatar != None,
                                 Testimonial.author_avatar != '')
                         .order_by(Testimonial.tenant_slug, Testimonial.created_at.desc())
+                        .all())
+    all_certificates = (certificate_repository.query
+                        .filter(
+                            ((Certificate.image_path != None) & (Certificate.image_path != '')) |
+                            ((Certificate.badge_path != None) & (Certificate.badge_path != ''))
+                        )
+                        .order_by(Certificate.tenant_slug, Certificate.created_at.desc())
                         .all())
     all_billing = (payment_method_repository.query
                    .filter(PaymentMethod.qr_image != None,
@@ -145,6 +153,24 @@ def media():
             'description': t.author_name,
             'url': url_for('static', filename=f'uploads/profiles/{t.author_avatar}'),
         })
+
+    for cert in all_certificates:
+        if cert.image_path:
+            assets.append({
+                'id': cert.id, 'type': 'certificate', 'label': 'Certificate Image',
+                'tenant': cert.tenant_slug,
+                'filename': cert.image_path, 'folder': 'certificates',
+                'description': f'{cert.title} — {cert.issuer}' if cert.issuer else cert.title,
+                'url': url_for('static', filename=f'uploads/certificates/{cert.image_path}'),
+            })
+        if cert.badge_path:
+            assets.append({
+                'id': cert.id, 'type': 'badge', 'label': 'Certificate Badge',
+                'tenant': cert.tenant_slug,
+                'filename': cert.badge_path, 'folder': 'certificates',
+                'description': f'{cert.title} — {cert.issuer}' if cert.issuer else cert.title,
+                'url': url_for('static', filename=f'uploads/certificates/{cert.badge_path}'),
+            })
 
     for pm in all_billing:
         assets.append({
@@ -193,6 +219,8 @@ def media():
         'profile':     sum(1 for a in assets if a['type'] == 'profile'),
         'project':     sum(1 for a in assets if a['type'] == 'project'),
         'testimonial': sum(1 for a in assets if a['type'] == 'testimonial'),
+        'certificate': sum(1 for a in assets if a['type'] == 'certificate'),
+        'badge':       sum(1 for a in assets if a['type'] == 'badge'),
         'billing':     sum(1 for a in assets if a['type'] == 'billing'),
         'proof':       sum(1 for a in assets if a['type'] == 'proof'),
     }
@@ -217,7 +245,7 @@ def media():
 def media_delete():
     """Delete a single uploaded file and clear the DB reference."""
     import os
-    from app.models.portfolio import Testimonial
+    from app.models.portfolio import Testimonial, Certificate
 
     asset_type   = request.form.get('asset_type')
     try:
@@ -261,6 +289,24 @@ def media_delete():
             flash(f'Testimonial avatar deleted: "{t.author_name}".', 'success')
         else:
             flash('Testimonial avatar not found.', 'warning')
+    elif asset_type == 'certificate':
+        cert = db.session.get(Certificate, asset_id)
+        if cert and cert.image_path:
+            _rm('certificates', cert.image_path)
+            cert.image_path = ''
+            db.session.commit()
+            flash(f'Certificate image deleted: "{cert.title}".', 'success')
+        else:
+            flash('Certificate image not found.', 'warning')
+    elif asset_type == 'badge':
+        cert = db.session.get(Certificate, asset_id)
+        if cert and cert.badge_path:
+            _rm('certificates', cert.badge_path)
+            cert.badge_path = ''
+            db.session.commit()
+            flash(f'Certificate badge deleted: "{cert.title}".', 'success')
+        else:
+            flash('Certificate badge not found.', 'warning')
     elif asset_type == 'billing':
         pm = db.session.get(PaymentMethod, asset_id)
         if pm and pm.qr_image:
@@ -298,7 +344,7 @@ def media_compress():
     filename = request.form.get('filename', '')
 
     # ── Security: folder allowlist + filename traversal guard ─────────────────
-    ALLOWED_COMPRESS_FOLDERS = {'profiles', 'projects', 'billing'}
+    ALLOWED_COMPRESS_FOLDERS = {'profiles', 'projects', 'certificates', 'billing'}
 
     if (
         not filename
@@ -354,10 +400,10 @@ def media_compress():
 def media_delete_orphans():
     """Delete files in upload folders that have no matching DB record."""
     import os
-    from app.models.portfolio import Testimonial
+    from app.models.portfolio import Testimonial, Certificate
 
     upload_root = os.path.join(current_app.static_folder, 'uploads')
-    known = {'profiles': set(), 'projects': set(), 'billing': set()}
+    known = {'profiles': set(), 'projects': set(), 'certificates': set(), 'billing': set()}
 
     for p in profile_repository.query.all():
         if p.profile_image:
@@ -368,9 +414,17 @@ def media_delete_orphans():
     for proj in project_repository.query.all():
         if proj.image:
             known['projects'].add(proj.image)
+    for cert in certificate_repository.query.all():
+        if cert.image_path:
+            known['certificates'].add(cert.image_path)
+        if cert.badge_path:
+            known['certificates'].add(cert.badge_path)
     for pm in payment_method_repository.query.all():
         if pm.qr_image:
             known['billing'].add(pm.qr_image)
+    for sub in payment_submission_repository.query.all():
+        if sub.payment_proof:
+            known['billing'].add(sub.payment_proof)
 
     deleted = errors = 0
     for folder, known_files in known.items():

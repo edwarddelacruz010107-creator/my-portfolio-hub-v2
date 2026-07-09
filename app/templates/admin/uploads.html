@@ -12,6 +12,10 @@
   {% set current_filter_label = 'Project Images' %}
 {% elif asset_type == 'testimonial' %}
   {% set current_filter_label = 'Testimonial Avatars' %}
+{% elif asset_type == 'certificate' %}
+  {% set current_filter_label = 'Certificate Images' %}
+{% elif asset_type == 'badge' %}
+  {% set current_filter_label = 'Certificate Badges' %}
 {% else %}
   {% set current_filter_label = 'All uploads' %}
 {% endif %}
@@ -31,7 +35,7 @@
         <span class="section-tag">Media Library</span>
         <h1 id="uploadsPageTitle">Uploaded Photos</h1>
         <p>Manage photos uploaded to your portfolio.</p>
-        <p class="uploads-helper">Review profile, project, and testimonial images uploaded to your portfolio.</p>
+        <p class="uploads-helper">Review profile, project, testimonial, certificate, and badge images uploaded to your portfolio.</p>
       </div>
       <div class="uploads-header-chip" aria-label="Current upload filter">
         <iconify-icon icon="lucide:filter" width="16" aria-hidden="true"></iconify-icon>
@@ -85,6 +89,8 @@
           <option value="profile" {% if asset_type == 'profile' %}selected{% endif %}>Profile Image ({{ counts.profile }})</option>
           <option value="project" {% if asset_type == 'project' %}selected{% endif %}>Project Images ({{ counts.project }})</option>
           <option value="testimonial" {% if asset_type == 'testimonial' %}selected{% endif %}>Testimonial Avatars ({{ counts.testimonial }})</option>
+          <option value="certificate" {% if asset_type == 'certificate' %}selected{% endif %}>Certificate Images ({{ counts.certificate }})</option>
+          <option value="badge" {% if asset_type == 'badge' %}selected{% endif %}>Certificate Badges ({{ counts.badge }})</option>
         </select>
         <button type="submit" class="btn btn-secondary uploads-filter-button">
           <iconify-icon icon="lucide:filter" width="15" aria-hidden="true"></iconify-icon>
@@ -167,7 +173,7 @@
       <div class="uploads-empty-state">
         <span class="uploads-empty-icon" aria-hidden="true"><iconify-icon icon="lucide:images" width="34"></iconify-icon></span>
         <h2>No uploaded photos yet</h2>
-        <p>Images you add to your profile, projects, or testimonials will appear here.</p>
+        <p>Images you add to your profile, projects, testimonials, certificates, or badges will appear here.</p>
       </div>
     {% endif %}
   </section>

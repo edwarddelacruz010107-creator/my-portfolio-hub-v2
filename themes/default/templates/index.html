@@ -72,7 +72,7 @@
 
     {# ── JSON-LD: Person ── #}
     {% if profile %}
-    <script type="application/ld+json">
+    <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "Person",
@@ -94,7 +94,7 @@
     </script>
 
     {# ── JSON-LD: ProfilePage ── #}
-    <script type="application/ld+json">
+    <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "ProfilePage",
@@ -112,7 +112,7 @@
     {# ── JSON-LD: ItemList (projects) for Google rich results ── #}
     {% set pub_projects = (featured_projects or []) + (other_projects or []) %}
     {% if pub_projects %}
-    <script type="application/ld+json">
+    <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "ItemList",
@@ -141,7 +141,7 @@
     {% endif %}
 
     {# ── Theme: apply saved preference BEFORE paint to avoid flash ── #}
-    <script>
+    <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
     (function(){
       var k = 'portfolio-theme';
       var saved = localStorage.getItem(k);
@@ -158,8 +158,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Oswald:wght@300;400;500;600&display=swap" rel="stylesheet">
 
     <!-- Iconify Icons -->
-    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
-    <script src="https://unpkg.com/iconify-icon@1.0.7/dist/iconify-icon.min.js" defer></script>
+    <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+    <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="https://unpkg.com/iconify-icon@1.0.7/dist/iconify-icon.min.js" defer></script>
 
     <!-- Custom Stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
@@ -1170,6 +1170,6 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <!-- JavaScript -->
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>

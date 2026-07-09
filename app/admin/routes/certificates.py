@@ -30,17 +30,13 @@ logger = logging.getLogger(__name__)
 
 
 def _certificate_upload_slots_used() -> int:
-    """Extends the existing plan-quota counter (_tenant_media_upload_count)
-    with certificate image/badge uploads, so the per-plan media cap can't be
-    bypassed through this new upload path. Counts each certificate's image
-    and badge as separate slots, matching how Testimonial.author_avatar and
-    Project.image are counted today."""
-    base = _tenant_media_upload_count()
-    q = _tenant_slug_filter(certificate_repository.query)
-    image_count = q.filter(Certificate.image_path != None).filter(Certificate.image_path != '').count()
-    badge_count = _tenant_slug_filter(certificate_repository.query) \
-        .filter(Certificate.badge_path != None).filter(Certificate.badge_path != '').count()
-    return base + image_count + badge_count
+    """Return the same all-media count used by the Admin Uploads page.
+
+    `_tenant_media_upload_count()` now includes certificate image and badge
+    uploads, so this helper intentionally delegates to it instead of adding
+    certificate counts a second time.
+    """
+    return _tenant_media_upload_count()
 
 
 def _check_upload_quota(*, replacing_image: bool, replacing_badge: bool) -> str | None:

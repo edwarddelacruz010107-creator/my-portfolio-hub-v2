@@ -729,3 +729,12 @@ html[data-theme="light"] .hero-badge {
     -webkit-text-fill-color: transparent;
     animation: gradientShift 6s ease-in-out infinite;
 }
+
+
+/* Portfolio CMS no-JS/CSP reveal fallback */
+html:not(.js-reveal-ready) .reveal-up,
+html:not(.js-reveal-ready) .reveal-left,
+html:not(.js-reveal-ready) .reveal-right {
+  opacity: 1 !important;
+  transform: none !important;
+}

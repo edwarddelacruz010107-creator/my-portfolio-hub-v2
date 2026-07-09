@@ -134,7 +134,7 @@
     <div class="panel-header" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.75rem;">
       <div>
         <h2>Media &amp; Uploads</h2>
-        <p class="field-hint">All images across every tenant — profile photos, project images, testimonial avatars, and billing QR codes. Delete unused files or compress oversized ones to keep storage lean.</p>
+        <p class="field-hint">All images across every tenant — profile photos, project images, testimonial avatars, certificates, badges, payment proofs, and billing QR codes. Delete unused files or compress oversized ones to keep storage lean.</p>
       </div>
     </div>
 
@@ -155,6 +155,14 @@
       <div class="media-stat accent">
         <div class="stat-val">{{ counts.testimonial }}</div>
         <div class="stat-lbl">Testimonial Avatars</div>
+      </div>
+      <div class="media-stat accent">
+        <div class="stat-val">{{ counts.certificate }}</div>
+        <div class="stat-lbl">Certificate Images</div>
+      </div>
+      <div class="media-stat accent">
+        <div class="stat-val">{{ counts.badge }}</div>
+        <div class="stat-lbl">Certificate Badges</div>
       </div>
       <div class="media-stat accent">
         <div class="stat-val">{{ counts.billing }}</div>
@@ -183,6 +191,8 @@
         <option value="profile"    {% if asset_type == 'profile' %}selected{% endif %}>Profile Images ({{ counts.profile }})</option>
         <option value="project"    {% if asset_type == 'project' %}selected{% endif %}>Project Images ({{ counts.project }})</option>
         <option value="testimonial"{% if asset_type == 'testimonial' %}selected{% endif %}>Testimonial Avatars ({{ counts.testimonial }})</option>
+        <option value="certificate"{% if asset_type == 'certificate' %}selected{% endif %}>Certificate Images ({{ counts.certificate }})</option>
+        <option value="badge"      {% if asset_type == 'badge' %}selected{% endif %}>Certificate Badges ({{ counts.badge }})</option>
         <option value="billing"    {% if asset_type == 'billing' %}selected{% endif %}>Billing QR Codes ({{ counts.billing }})</option>
         <option value="proof"      {% if asset_type == 'proof' %}selected{% endif %}>Payment Proofs ({{ counts.proof }})</option>
       </select>
@@ -329,7 +339,7 @@
     <div class="danger-zone">
       <h3><iconify-icon icon="lucide:alert-triangle" width="14"></iconify-icon> Danger Zone</h3>
       <p>
-        Scan all upload folders (<code>profiles/</code>, <code>projects/</code>, <code>billing/</code>) for files that have
+        Scan all upload folders (<code>profiles/</code>, <code>projects/</code>, <code>certificates/</code>, <code>billing/</code>) for files that have
         no matching database record — leftovers from deleted tenants, failed uploads, or manual file moves.
         This is irreversible.
       </p>
@@ -343,7 +353,7 @@
           </button>
         </form>
         <span class="field-hint" style="margin:0">
-          Only files with <em>no</em> Profile, Project, Testimonial, or PaymentMethod record pointing to them will be removed.
+          Only files with <em>no</em> Profile, Project, Testimonial, Certificate, PaymentMethod, or PaymentSubmission record pointing to them will be removed.
         </span>
       </div>
     </div>

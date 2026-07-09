@@ -23,13 +23,14 @@ from app.repositories import (
     tenant_repository,
     user_repository,
     testimonial_repository,
+    certificate_repository,
     skill_repository,
     service_repository,
     inquiry_repository,
     activity_log_repository,
     subscription_repository,
 )
-from app.models.portfolio import (Tenant, Profile, Skill, Project, Testimonial, Service,
+from app.models.portfolio import (Tenant, Profile, Skill, Project, Testimonial, Certificate, Service,
                                    ActivityLog, Inquiry, InquiryReply, normalize_plan_name,
                                    get_plan_features)
 from app.forms import (ProfileForm, SkillForm, ProjectForm,
@@ -266,7 +267,7 @@ def delete_project(id: int):
 def uploads():
     profile    = _load_tenant_profile()
     asset_type = request.args.get('asset_type', 'all')
-    allowed_types = {'all', 'profile', 'project', 'testimonial'}
+    allowed_types = {'all', 'profile', 'project', 'testimonial', 'certificate', 'badge'}
     if asset_type not in allowed_types:
         asset_type = 'all'
 
@@ -279,7 +280,22 @@ def uploads():
     testimonial_images = (
         _tenant_slug_filter(testimonial_repository.query)
         .filter(Testimonial.author_avatar != None)
+        .filter(Testimonial.author_avatar != '')
         .order_by(Testimonial.created_at.desc())
+        .all()
+    )
+    certificate_images = (
+        _tenant_slug_filter(certificate_repository.query)
+        .filter(Certificate.image_path != None)
+        .filter(Certificate.image_path != '')
+        .order_by(Certificate.created_at.desc())
+        .all()
+    )
+    badge_images = (
+        _tenant_slug_filter(certificate_repository.query)
+        .filter(Certificate.badge_path != None)
+        .filter(Certificate.badge_path != '')
+        .order_by(Certificate.created_at.desc())
         .all()
     )
 
@@ -308,6 +324,22 @@ def uploads():
             'url': url_for('static', filename=f'uploads/profiles/{testimonial.author_avatar}'),
         })
 
+    for cert in certificate_images:
+        assets.append({
+            'id': cert.id, 'type': 'certificate', 'label': 'Certificate Image',
+            'filename': cert.image_path, 'folder': 'certificates',
+            'description': f'{cert.title} — {cert.issuer}' if cert.issuer else cert.title,
+            'url': url_for('static', filename=f'uploads/certificates/{cert.image_path}'),
+        })
+
+    for cert in badge_images:
+        assets.append({
+            'id': cert.id, 'type': 'badge', 'label': 'Certificate Badge',
+            'filename': cert.badge_path, 'folder': 'certificates',
+            'description': f'{cert.title} — {cert.issuer}' if cert.issuer else cert.title,
+            'url': url_for('static', filename=f'uploads/certificates/{cert.badge_path}'),
+        })
+
     for asset in assets:
         size = _get_asset_size(asset['filename'], asset['folder'])
         asset['size_bytes'] = size
@@ -318,6 +350,8 @@ def uploads():
         'profile':     sum(1 for a in assets if a['type'] == 'profile'),
         'project':     sum(1 for a in assets if a['type'] == 'project'),
         'testimonial': sum(1 for a in assets if a['type'] == 'testimonial'),
+        'certificate': sum(1 for a in assets if a['type'] == 'certificate'),
+        'badge':       sum(1 for a in assets if a['type'] == 'badge'),
         'all':         len(assets),
     }
     total_size = sum(a['size_bytes'] for a in assets if a['size_bytes'] is not None)
@@ -376,6 +410,30 @@ def delete_upload():
             flash(f'Avatar removed for testimonial "{testimonial.author_name}".', 'success')
         else:
             flash('Testimonial avatar not found.', 'warning')
+        return redirect(url_for('admin.uploads'))
+
+    if asset_type == 'certificate':
+        cert = _require_tenant_object(db.session.get(Certificate, asset_id))
+        if cert and cert.image_path:
+            delete_image(cert.image_path, 'certificates')
+            cert.image_path = ''
+            db.session.commit()
+            log_activity('delete', 'certificate', cert.title, 'Deleted certificate image')
+            flash(f'Certificate image removed for "{cert.title}".', 'success')
+        else:
+            flash('Certificate image not found.', 'warning')
+        return redirect(url_for('admin.uploads'))
+
+    if asset_type == 'badge':
+        cert = _require_tenant_object(db.session.get(Certificate, asset_id))
+        if cert and cert.badge_path:
+            delete_image(cert.badge_path, 'certificates')
+            cert.badge_path = ''
+            db.session.commit()
+            log_activity('delete', 'certificate', cert.title, 'Deleted certificate badge')
+            flash(f'Certificate badge removed for "{cert.title}".', 'success')
+        else:
+            flash('Certificate badge not found.', 'warning')
         return redirect(url_for('admin.uploads'))
 
     flash('Unsupported upload type.', 'danger')

@@ -22,4 +22,11 @@
   <rect x="680" y="276" width="322" height="304" rx="36" fill="#030712" stroke="#00f0ff" stroke-opacity=".35"/>
   <path d="M762 500L820 350L878 438L920 322L970 500Z" fill="url(#cyber)" opacity=".88"/>
   <circle cx="872" cy="390" r="96" fill="none" stroke="#ff00c8" stroke-opacity=".42" stroke-width="10"/>
+
+  <g id="theme-preview-icon-badge" transform="translate(1018 28)">
+    <rect x="0" y="0" width="132" height="60" rx="20" fill="#0f172a" opacity="0.88"/>
+    <rect x="1.5" y="1.5" width="129" height="57" rx="18.5" fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="3"/>
+    <text x="28" y="40" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#ffffff">⚡</text>
+    <text x="64" y="35" font-family="Arial, sans-serif" font-size="15" font-weight="700" letter-spacing="1.5" fill="#ffffff">THEME</text>
+  </g>
 </svg>

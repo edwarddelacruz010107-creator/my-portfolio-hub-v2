@@ -16,4 +16,11 @@
   <rect x="488" y="110" width="174" height="174" rx="28" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.14)"/>
   <path d="M535 250l52-98 62 98H535z" fill="url(#g)" opacity=".95"/>
   <text x="82" y="356" fill="rgba(255,255,255,.78)" font-family="monospace" font-size="22" font-weight="700">Executive Pro</text>
+
+  <g id="theme-preview-icon-badge" transform="translate(1018 28)">
+    <rect x="0" y="0" width="132" height="60" rx="20" fill="#0f172a" opacity="0.88"/>
+    <rect x="1.5" y="1.5" width="129" height="57" rx="18.5" fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="3"/>
+    <text x="28" y="40" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#ffffff">🏛️</text>
+    <text x="64" y="35" font-family="Arial, sans-serif" font-size="15" font-weight="700" letter-spacing="1.5" fill="#ffffff">THEME</text>
+  </g>
 </svg>

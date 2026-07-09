@@ -54,9 +54,29 @@ _PUBLIC_FIELDS = (
     "category",
     "preview_image",
     "thumbnail_url",
+    "icon",
+    "icon_label",
     "supports_dark_mode",
     "supports_light_mode",
 )
+
+
+def _default_icon(meta: dict) -> str:
+    """Return a stable visual icon for older themes that do not define one."""
+    theme_id = str(meta.get("id") or "").lower()
+    tags = " ".join(meta.get("theme_tags") or meta.get("tags") or []).lower()
+    text = f"{theme_id} {tags}"
+    if "cyber" in text or "terminal" in text or "hacker" in text:
+        return "💻"
+    if "executive" in text or "formal" in text:
+        return "🏛️"
+    if "blueprint" in text or "schematic" in text or "drafting" in text:
+        return "📐"
+    if "brutalist" in text or "block" in text:
+        return "🧱"
+    if "aurora" in text or "gradient" in text:
+        return "🌈"
+    return "✨"
 
 
 def _project(meta: dict) -> dict:
@@ -67,10 +87,13 @@ def _project(meta: dict) -> dict:
     # wants a short tagline -- derive one from the first 1-2 tags if the
     # SuperAdmin catalog hasn't set an explicit tagline-style description.
     tagline = " · ".join(t.strip().title() for t in tags[:2]) if tags else ""
+    icon = meta.get("icon") or _default_icon(meta)
 
     return {
         "id": meta.get("id"),
         "name": meta.get("name") or meta.get("id", "").title(),
+        "icon": icon,
+        "icon_label": meta.get("icon_label") or f"{meta.get('name') or meta.get('id', 'Theme')} icon",
         "description": meta.get("description") or "",
         "tagline": tagline,
         "tags": tags,

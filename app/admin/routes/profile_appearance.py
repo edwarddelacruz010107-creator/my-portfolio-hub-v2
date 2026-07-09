@@ -36,6 +36,7 @@ from app.forms import (ProfileForm, SkillForm, ProjectForm,
                         TestimonialForm, ServiceForm, ChangePasswordForm,
                         PlanSelectionForm)
 from app.security import FileUploadPolicy, log_security_event
+from app.theme_preview_badge import inject_theme_preview_badge
 from werkzeug.utils import secure_filename
 import uuid
 from pathlib import Path
@@ -324,4 +325,4 @@ def preview_theme(theme_id):
             '<p><a href="' + url_for('admin.themes_index') + '">Back to Themes</a></p></div></body></html>',
             mimetype='text/html',
         )
-    return rendered_preview
+    return inject_theme_preview_badge(rendered_preview, meta, label='Admin preview')

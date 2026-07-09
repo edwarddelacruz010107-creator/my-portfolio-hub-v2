@@ -1,6 +1,8 @@
 {
   "id": "schematic_pro",
   "name": "Schematic Pro",
+  "icon": "📐",
+  "icon_label": "Schematic Pro icon",
   "version": "1.0.0",
   "description": "A clean engineering-board portfolio theme based on the uploaded schematic developer portfolio design. Supports every editable default-theme section: profile, projects, skills, services, testimonials, certificates, social links, resume, contact form, and uploaded profile/project media, and editable work experience timeline.",
   "author": "Portfolio CMS + Uploaded Theme",

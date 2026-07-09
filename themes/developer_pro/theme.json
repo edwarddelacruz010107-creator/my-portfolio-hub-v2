@@ -1,6 +1,8 @@
 {
   "id": "developer_pro",
   "name": "Developer Pro",
+  "icon": "💻",
+  "icon_label": "Developer Pro icon",
   "version": "1.0.0",
   "description": "A hacker-aesthetic cyberpunk portfolio with matrix animations, terminal interactions, and full Portfolio CMS feature support: profile, projects, skills, services, testimonials, certificates/badges, social links, resume, uploaded media, and contact form, and editable work experience timeline.",
   "author": "Portfolio CMS",

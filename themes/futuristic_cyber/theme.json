@@ -1,6 +1,8 @@
 {
   "id": "futuristic_cyber",
   "name": "Futuristic Cyber",
+  "icon": "⚡",
+  "icon_label": "Futuristic Cyber icon",
   "version": "1.0.0",
   "description": "An immersive cyberpunk-themed portfolio with hacker aesthetics, matrix rain, particle systems, glitch effects, and a live terminal easter egg, and editable work experience timeline.",
   "author": "Portfolio CMS",

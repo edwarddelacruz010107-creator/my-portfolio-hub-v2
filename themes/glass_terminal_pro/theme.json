@@ -1,6 +1,8 @@
 {
   "id": "glass_terminal_pro",
   "name": "Glass Terminal Pro",
+  "icon": "🖥️",
+  "icon_label": "Glass Terminal Pro icon",
   "version": "1.0.0",
   "description": "A glassmorphism terminal-inspired portfolio theme with floating cards and full CMS sections. Imported from the uploaded Theme portdolio.zip pack and wired to the shared Portfolio CMS data adapter.",
   "author": "Portfolio CMS + Uploaded Theme Pack",

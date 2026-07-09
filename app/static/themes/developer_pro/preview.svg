@@ -22,4 +22,11 @@
   <path d="M746 448L832 286L906 392L954 330L1018 448Z" fill="url(#neon)" opacity=".72" filter="url(#glow)"/>
   <rect x="118" y="584" width="238" height="48" rx="12" fill="url(#neon)" opacity=".95"/>
   <rect x="382" y="584" width="238" height="48" rx="12" fill="#07111d" stroke="#00f0ff" stroke-opacity=".5"/>
+
+  <g id="theme-preview-icon-badge" transform="translate(1018 28)">
+    <rect x="0" y="0" width="132" height="60" rx="20" fill="#0f172a" opacity="0.88"/>
+    <rect x="1.5" y="1.5" width="129" height="57" rx="18.5" fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="3"/>
+    <text x="28" y="40" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#ffffff">💻</text>
+    <text x="64" y="35" font-family="Arial, sans-serif" font-size="15" font-weight="700" letter-spacing="1.5" fill="#ffffff">THEME</text>
+  </g>
 </svg>

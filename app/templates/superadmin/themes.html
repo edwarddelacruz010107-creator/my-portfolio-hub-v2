@@ -48,6 +48,15 @@
 .tc-thumb-placeholder span{font-size:.8rem;opacity:.5}
 
 /* Preview ribbon at bottom of thumb */
+.tc-theme-icon{position:absolute;top:10px;left:10px;z-index:3;width:42px;height:42px;border-radius:14px;
+  display:inline-flex;align-items:center;justify-content:center;background:rgba(15,23,42,.74);
+  border:1px solid rgba(255,255,255,.18);box-shadow:0 16px 34px rgba(0,0,0,.32);
+  backdrop-filter:blur(10px);font-size:1.25rem;line-height:1}
+.tc-title-row{display:flex;align-items:center;gap:.6rem;min-width:0}
+.tc-title-icon{width:34px;height:34px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(99,102,241,.14);border:1px solid rgba(99,102,241,.24);font-size:1rem;line-height:1;flex:0 0 auto}
+
+/* Preview ribbon at bottom of thumb */
 .tc-preview-count{position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);
   color:#e5e7eb;font-size:.7rem;font-weight:600;padding:.2rem .55rem;border-radius:6px;
   display:flex;align-items:center;gap:.3rem}
@@ -203,6 +212,8 @@
   {% set thumb    = theme.get('thumbnail_url') or theme.get('preview_image') %}
   {% set previews = theme.get('preview_images', []) %}
   {% set matrix   = theme.get('feature_matrix', {}) %}
+  {% set theme_icon = theme.get('icon') or '✨' %}
+  {% set theme_icon_label = theme.get('icon_label') or ((theme.get('name') or theme.get('id')) ~ ' icon') %}
   {% set is_active   = theme.get('catalog_active', True) %}
   {% set is_featured = theme.get('is_featured', False) %}
 
@@ -220,6 +231,7 @@
 
     <!-- Thumbnail -->
     <div class="tc-thumb-wrap">
+      <span class="tc-theme-icon" aria-label="{{ theme_icon_label }}">{{ theme_icon }}</span>
       {% if thumb %}
         <img src="{{ thumb }}" alt="{{ theme.get('name') }} preview" loading="lazy"
              onerror="this.hidden=true; this.nextElementSibling.hidden=false;"/>
@@ -258,9 +270,12 @@
     <!-- Body -->
     <div class="tc-body">
       <div class="tc-header">
-        <div>
-          <div class="tc-title">{{ theme.get('name') or theme.get('id') }}</div>
-          <div class="tc-slug">{{ theme.get('id') }}</div>
+        <div class="tc-title-row">
+          <span class="tc-title-icon" aria-hidden="true">{{ theme_icon }}</span>
+          <div>
+            <div class="tc-title">{{ theme.get('name') or theme.get('id') }}</div>
+            <div class="tc-slug">{{ theme.get('id') }}</div>
+          </div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.25rem;flex-shrink:0">
           <span class="tc-badge {% if is_active %}active{% else %}inactive{% endif %}">

@@ -136,6 +136,7 @@
                  style="--d:{{ loop.index0 * 60 }}ms;--tc1:{{ theme.primary_color|default('#7C5CFF', true) }};--tc2:{{ theme.secondary_color|default('#22D3EE', true) }};--tc3:{{ theme.background_color|default('#0D0F16', true) }};--tc4:{{ theme.text_color|default('#F6F7FA', true) }};">
           {% if theme.premium %}<span class="theme-badge">Premium</span>{% else %}<span class="theme-badge theme-badge-free">Free</span>{% endif %}
           <div class="theme-preview">
+            <span class="theme-icon-chip" aria-label="{{ theme.icon_label|default(theme.name ~ ' icon', true) }}">{{ theme.icon|default('✨', true) }}</span>
             {% if theme.preview_image %}
               <img class="theme-preview-img" src="{{ theme.preview_image }}" alt="{{ theme.name }} theme preview" loading="lazy"
                    onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
@@ -151,7 +152,7 @@
             {% endif %}
           </div>
           <div class="theme-meta browse-theme-meta">
-            <span class="theme-name">{{ theme.name }}</span>
+            <span class="theme-name"><span class="theme-inline-icon" aria-hidden="true">{{ theme.icon|default('✨', true) }}</span>{{ theme.name }}</span>
             <span class="theme-tag">{{ theme.category|default('Theme', true)|title }}</span>
           </div>
           <p class="theme-card-description">{{ theme.description or theme.tagline or 'A polished portfolio design ready for your projects, skills, and services.' }}</p>

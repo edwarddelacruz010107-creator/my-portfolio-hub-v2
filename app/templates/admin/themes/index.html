@@ -318,6 +318,39 @@
   font-weight: 600;
 }
 
+.tc-theme-icon {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.24);
+  background: rgba(12,16,28,0.72);
+  box-shadow: 0 14px 30px rgba(0,0,0,0.25);
+  backdrop-filter: blur(10px);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.tc-name-icon {
+  width: 28px;
+  height: 28px;
+  margin-right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--accent-bg);
+  border: 1px solid var(--border);
+  font-size: .9rem;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
 /* Badges */
 .tc-badge-active {
   position: absolute; top: 10px; left: 10px;
@@ -390,6 +423,9 @@
   color: var(--text);
   letter-spacing: -0.01em;
   margin-bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
 }
 .tc-desc {
   font-size: 0.775rem;
@@ -733,6 +769,7 @@
 
       {# Preview #}
       <div class="tc-preview">
+        <span class="tc-theme-icon" aria-label="{{ theme.icon_label|default(theme.name ~ ' icon', true) }}">{{ theme.icon|default('✨', true) }}</span>
         {% if theme.preview_image %}
           <img src="{{ theme.preview_image }}" alt="{{ theme.name }} preview" loading="lazy"
                onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
@@ -771,7 +808,7 @@
 
       {# Body #}
       <div class="tc-body">
-        <div class="tc-name">{{ theme.name }}</div>
+        <div class="tc-name"><span class="tc-name-icon" aria-hidden="true">{{ theme.icon|default('✨', true) }}</span>{{ theme.name }}</div>
         <div class="tc-desc">{{ theme.description }}</div>
 
         {% if theme.tags %}

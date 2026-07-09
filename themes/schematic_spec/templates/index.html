@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% set page_title = portfolio.meta_title or (portfolio.name ~ ' — ' ~ (portfolio.title or 'Portfolio')) %}
+{% set meta_desc = portfolio.meta_description or portfolio.bio_plain or portfolio.hero_tagline or 'Professional portfolio built with MyPortfolioHub.' %}
+<title>{{ page_title }}</title>
+<meta name="description" content="{{ meta_desc | striptags | truncate(160, True, '...') }}">
+<meta name="author" content="{{ portfolio.name }}">
+<meta property="og:type" content="profile">
+<meta property="og:title" content="{{ page_title }}">
+<meta property="og:description" content="{{ meta_desc | striptags | truncate(180, True, '...') }}">
+{% if portfolio.og_image or portfolio.avatar_url %}<meta property="og:image" content="{{ portfolio.og_image or portfolio.avatar_url }}">{% endif %}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ page_title }}">
+<meta name="twitter:description" content="{{ meta_desc | striptags | truncate(180, True, '...') }}">
+{% if portfolio.og_image or portfolio.avatar_url %}<meta name="twitter:image" content="{{ portfolio.og_image or portfolio.avatar_url }}">{% endif %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   SCHEMATIC — a blueprint/spec-sheet developer portfolio theme
+   Design language: flat panels, hairline rules, corner brackets,
+   monospace-first typography, single signal-orange accent.
+   ============================================================ */
+:root{
+  --paper:#eef2f3;
+  --paper-alt:#e6ebec;
+  --panel:#ffffff;
+  --ink:#0f171e;
+  --ink-dim:#4c5a62;
+  --ink-faint:#8a9aa2;
+  --line:#ccd4d6;
+  --line-strong:#aab5b8;
+  --accent:#ff5a1f;
+  --accent-ink:#0f171e;
+  --success:#157a4a;
+  --star:#c98a1c;
+
+  --radius:2px;
+  --font-display:'JetBrains Mono', monospace;
+  --font-body:'IBM Plex Sans', sans-serif;
+  --font-mono:'IBM Plex Mono', monospace;
+  --nav-h:72px;
+  --transition:0.25s ease;
+  --grid-line: rgba(15,23,30,0.05);
+}
+[data-theme="dark"]{
+  --paper:#0c1116;
+  --paper-alt:#090d11;
+  --panel:#12181f;
+  --ink:#e7edf0;
+  --ink-dim:#93a1a9;
+  --ink-faint:#59666d;
+  --line:#22292f;
+  --line-strong:#333c43;
+  --grid-line: rgba(255,255,255,0.035);
+}
+
+*,*::before,*::after{ box-sizing:border-box; margin:0; padding:0; }
+html{ scroll-behavior:smooth; }
+body{
+  background:
+    linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0/44px 44px,
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0/44px 44px,
+    var(--paper);
+  color:var(--ink);
+  font-family:var(--font-body);
+  line-height:1.6;
+  transition:background var(--transition), color var(--transition);
+}
+img{ max-width:100%; display:block; }
+a{ color:inherit; text-decoration:none; }
+ul{ list-style:none; }
+button{ font-family:inherit; cursor:pointer; border:none; background:none; color:inherit; }
+input,textarea{ font-family:inherit; }
+.container{ max-width:1180px; margin:0 auto; padding:0 24px; }
+section{ padding:100px 0; }
+h1,h2,h3,h4{ font-family:var(--font-display); letter-spacing:-0.01em; }
+::selection{ background:var(--accent); color:#fff; }
+:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+/* ---------- Shared bits ---------- */
+.eyebrow{
+  display:flex; align-items:center; gap:10px; font-family:var(--font-mono);
+  font-size:0.78rem; letter-spacing:0.08em; color:var(--accent); margin-bottom:14px; text-transform:uppercase;
+}
+.eyebrow .idx{ color:var(--ink-faint); }
+.section-title{ font-size:clamp(1.7rem,3vw,2.35rem); font-weight:700; margin-bottom:12px; }
+.section-sub{ color:var(--ink-dim); max-width:540px; font-size:0.98rem; }
+.section-head{ margin-bottom:52px; display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:20px; border-bottom:1px solid var(--line); padding-bottom:28px; }
+.section-tag{ font-family:var(--font-mono); font-size:0.72rem; color:var(--ink-faint); border:1px solid var(--line); padding:6px 12px; }
+
+.reveal{ opacity:1; transform:none; }
+.js-ready .reveal{ opacity:0; transform:translateY(20px); transition:opacity .6s ease, transform .6s ease; }
+.js-ready .reveal.is-visible{ opacity:1; transform:translateY(0); }
+
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:13px 24px; font-family:var(--font-mono); font-weight:600; font-size:0.82rem;
+  letter-spacing:0.05em; text-transform:uppercase; border-radius:var(--radius);
+  transition:transform var(--transition), background var(--transition), color var(--transition), border-color var(--transition);
+}
+.btn-primary{ background:var(--accent); color:#fff; border:1px solid var(--accent); }
+.btn-primary:hover{ transform:translate(-2px,-2px); box-shadow:4px 4px 0 var(--ink); }
+.btn-outline{ border:1px solid var(--line-strong); color:var(--ink); }
+.btn-outline:hover{ border-color:var(--accent); color:var(--accent); transform:translate(-2px,-2px); box-shadow:4px 4px 0 var(--line-strong); }
+.btn-sm{ padding:9px 16px; font-size:0.72rem; }
+
+/* Panel = flat card with corner brackets */
+.panel{
+  position:relative; background:var(--panel); border:1px solid var(--line);
+  border-radius:var(--radius); transition:border-color var(--transition), transform var(--transition);
+}
+.panel::before, .panel::after{
+  content:''; position:absolute; width:14px; height:14px; border-color:var(--accent);
+  opacity:0; transition:opacity var(--transition);
+}
+.panel::before{ top:-1px; left:-1px; border-top:2px solid; border-left:2px solid; }
+.panel::after{ bottom:-1px; right:-1px; border-bottom:2px solid; border-right:2px solid; }
+.panel:hover{ border-color:var(--line-strong); }
+.panel:hover::before, .panel:hover::after{ opacity:1; }
+
+/* ============================== NAVBAR ============================== */
+.navbar{
+  position:fixed; top:0; left:0; right:0; z-index:1000; height:var(--nav-h);
+  display:flex; align-items:center; background:var(--paper);
+  border-bottom:1px solid var(--line); transition:background var(--transition);
+}
+.nav-inner{ display:flex; align-items:center; justify-content:space-between; width:100%; }
+.nav-logo{ font-family:var(--font-display); font-weight:700; font-size:1.1rem; display:flex; align-items:center; gap:2px; }
+.nav-logo .blk{ display:inline-block; width:9px; height:1.1em; background:var(--accent); margin-left:6px; animation:blink 1.1s step-end infinite; }
+@keyframes blink{ 50%{ opacity:0; } }
+
+.nav-links{ display:flex; align-items:center; gap:2px; }
+.nav-links a{
+  padding:10px 14px; font-family:var(--font-mono); font-size:0.82rem; color:var(--ink-dim);
+  border-bottom:2px solid transparent; transition:color var(--transition), border-color var(--transition);
+}
+.nav-links a::before{ content:'// '; color:var(--ink-faint); }
+.nav-links a:hover, .nav-links a.active{ color:var(--ink); }
+.nav-links a.active{ border-color:var(--accent); color:var(--ink); }
+
+.nav-actions{ display:flex; align-items:center; gap:12px; }
+.theme-toggle{
+  width:40px; height:40px; border:1px solid var(--line); border-radius:var(--radius);
+  display:flex; align-items:center; justify-content:center; font-size:1rem;
+  transition:border-color var(--transition);
+}
+.theme-toggle:hover{ border-color:var(--accent); }
+.burger{ display:none; flex-direction:column; gap:5px; width:24px; z-index:1100; }
+.burger span{ height:2px; width:100%; background:var(--ink); transition:transform .3s ease, opacity .3s ease; }
+.burger.open span:nth-child(1){ transform:translateY(7px) rotate(45deg); }
+.burger.open span:nth-child(2){ opacity:0; }
+.burger.open span:nth-child(3){ transform:translateY(-7px) rotate(-45deg); }
+
+/* ============================== HERO ============================== */
+.hero{ min-height:100vh; display:flex; align-items:center; padding-top:var(--nav-h); }
+.hero-grid{ display:grid; grid-template-columns:1.05fr 0.95fr; gap:50px; align-items:stretch; }
+.hero-content{ display:flex; flex-direction:column; justify-content:center; }
+.hero-tag{
+  font-family:var(--font-mono); font-size:0.78rem; color:var(--success); display:flex; align-items:center; gap:8px;
+  margin-bottom:22px; border:1px solid var(--line); align-self:flex-start; padding:6px 12px;
+}
+.hero-tag .dot{ width:7px; height:7px; border-radius:50%; background:var(--success); box-shadow:0 0 0 3px rgba(21,122,74,0.18); }
+
+.hero h1{ font-size:clamp(2.1rem,4.4vw,3.1rem); font-weight:700; line-height:1.15; margin-bottom:18px; }
+.hero h1 .accent{ color:var(--accent); }
+.hero-role{ font-family:var(--font-mono); color:var(--ink-dim); font-size:1rem; margin-bottom:20px; }
+.hero-bio{ color:var(--ink-dim); max-width:520px; margin-bottom:32px; }
+.hero-ctas{ display:flex; gap:14px; margin-bottom:36px; flex-wrap:wrap; }
+.hero-socials{ display:flex; gap:10px; }
+.social-icon{
+  width:40px; height:40px; border:1px solid var(--line); border-radius:var(--radius);
+  display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-size:0.85rem;
+  transition:border-color var(--transition), color var(--transition), transform var(--transition);
+}
+.social-icon:hover{ border-color:var(--accent); color:var(--accent); transform:translateY(-2px); }
+
+/* Terminal panel */
+.terminal{
+  background:var(--ink); color:#c9d4d8; border-radius:var(--radius); overflow:hidden;
+  display:flex; flex-direction:column; box-shadow:6px 6px 0 var(--line-strong);
+  min-height:340px;
+}
+.terminal-bar{
+  display:flex; align-items:center; gap:8px; padding:12px 16px; background:rgba(255,255,255,0.05);
+  border-bottom:1px solid rgba(255,255,255,0.08);
+}
+.terminal-bar .tdot{ width:10px; height:10px; border-radius:50%; }
+.terminal-bar .tdot:nth-child(1){ background:#ff5f57; }
+.terminal-bar .tdot:nth-child(2){ background:#febc2e; }
+.terminal-bar .tdot:nth-child(3){ background:#28c840; }
+.terminal-bar span.path{ margin-left:10px; font-family:var(--font-mono); font-size:0.72rem; color:#8a97a0; }
+.terminal-body{ padding:22px 20px; font-family:var(--font-mono); font-size:0.85rem; line-height:1.9; flex:1; }
+.terminal-body .prompt{ color:var(--accent); }
+.terminal-line{ opacity:0; }
+.terminal-cursor{ display:inline-block; width:8px; height:1em; background:#c9d4d8; vertical-align:middle; animation:blink 1s step-end infinite; }
+
+/* ============================== ABOUT ============================== */
+.about-grid{ display:grid; grid-template-columns:0.8fr 1.2fr; gap:40px; align-items:start; }
+.about-card{ padding:30px; }
+.about-stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); margin-top:24px; border:1px solid var(--line); }
+.about-stat{ text-align:center; padding:16px 8px; background:var(--panel); }
+.about-stat .n{ font-family:var(--font-display); font-size:1.4rem; font-weight:700; color:var(--accent); }
+.about-stat .l{ font-family:var(--font-mono); font-size:0.68rem; color:var(--ink-faint); margin-top:4px; text-transform:uppercase; }
+
+.about-body p{ color:var(--ink-dim); margin-bottom:18px; }
+.about-meta{ display:flex; flex-wrap:wrap; gap:12px; margin:24px 0; }
+.meta-pill{
+  display:flex; align-items:center; gap:8px; padding:9px 14px; border:1px solid var(--line);
+  font-family:var(--font-mono); font-size:0.8rem; color:var(--ink-dim); border-radius:var(--radius);
+}
+.meta-pill .ic{ color:var(--accent); }
+
+/* ============================== SKILLS ============================== */
+.skills-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line); }
+.skill-cat{ background:var(--panel); padding:26px; }
+.skill-cat h3{ font-size:0.98rem; margin-bottom:6px; display:flex; align-items:center; gap:10px; }
+.skill-cat .cat-icon{ width:32px; height:32px; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:0.95rem; }
+.skill-cat .cat-desc{ font-size:0.78rem; color:var(--ink-faint); margin-bottom:18px; }
+.skill-list{ display:flex; flex-direction:column; gap:12px; }
+.skill-item .top{ display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:0.76rem; margin-bottom:6px; color:var(--ink-dim); }
+.skill-item .top strong{ color:var(--ink); font-weight:600; }
+.skill-bar{ height:5px; background:var(--paper-alt); overflow:hidden; }
+.skill-bar span{ display:block; height:100%; background:var(--accent); width:0; transition:width 1.1s ease; }
+
+/* ============================== SERVICES ============================== */
+.services-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:20px; }
+.service-card{ padding:28px 24px; }
+.service-icon{
+  width:46px; height:46px; border:1px solid var(--line); margin-bottom:18px;
+  display:flex; align-items:center; justify-content:center; font-size:1.3rem; color:var(--accent);
+}
+.service-card h3{ font-size:1rem; margin-bottom:10px; }
+.service-card p{ color:var(--ink-dim); font-size:0.88rem; }
+
+/* ============================== PROJECTS ============================== */
+.projects-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+.project-card{ overflow:hidden; display:flex; flex-direction:column; }
+.project-card.featured{ grid-column:span 2; }
+.project-thumb{
+  aspect-ratio:16/10; background:var(--paper-alt); border-bottom:1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; position:relative;
+}
+.project-thumb .ph-icon{ font-size:2rem; color:var(--ink-faint); }
+.project-thumb img{ width:100%; height:100%; object-fit:cover; }
+.project-tag-featured{
+  position:absolute; top:12px; left:12px; padding:5px 10px; background:var(--accent);
+  color:#fff; font-family:var(--font-mono); font-size:0.65rem; letter-spacing:0.05em; text-transform:uppercase;
+}
+.project-body{ padding:22px; display:flex; flex-direction:column; gap:12px; flex:1; }
+.project-body h3{ font-size:1.05rem; }
+.project-body p{ color:var(--ink-dim); font-size:0.86rem; flex:1; }
+.tech-tags{ display:flex; flex-wrap:wrap; gap:8px; }
+.tech-tag{ font-family:var(--font-mono); font-size:0.68rem; padding:4px 9px; border:1px solid var(--line); color:var(--ink-dim); }
+.project-actions{ display:flex; gap:10px; margin-top:6px; }
+
+/* ============================== CERTIFICATES ============================== */
+.cert-tabs{ display:flex; gap:0; margin-bottom:32px; border:1px solid var(--line); width:fit-content; }
+.cert-tab{
+  padding:10px 22px; font-family:var(--font-mono); font-size:0.8rem; color:var(--ink-dim);
+  border-right:1px solid var(--line); transition:all var(--transition);
+}
+.cert-tab:last-child{ border-right:none; }
+.cert-tab.active{ background:var(--accent); color:#fff; }
+.cert-panel{ display:none; }
+.cert-panel.active{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+.cert-card{ padding:20px; display:flex; gap:14px; align-items:flex-start; }
+.cert-badge-img{ width:50px; height:50px; border:1px solid var(--line); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:1.3rem; color:var(--accent); }
+.cert-card h4{ font-size:0.92rem; margin-bottom:4px; font-family:var(--font-body); font-weight:600; }
+.cert-card .issuer{ font-size:0.8rem; color:var(--ink-dim); }
+.cert-card .date{ font-family:var(--font-mono); font-size:0.7rem; color:var(--ink-faint); margin-top:6px; }
+
+/* ============================== TESTIMONIALS ============================== */
+.testi-track{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+.testi-card{ padding:26px; display:flex; flex-direction:column; gap:14px; }
+.testi-stars{ color:var(--star); font-family:var(--font-mono); letter-spacing:2px; }
+.testi-msg{ color:var(--ink-dim); font-size:0.92rem; flex:1; }
+.testi-person{ display:flex; align-items:center; gap:12px; border-top:1px solid var(--line); padding-top:14px; }
+.testi-avatar{ width:38px; height:38px; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-weight:700; font-family:var(--font-display); font-size:0.82rem; }
+.testi-person .name{ font-weight:600; font-size:0.88rem; }
+.testi-person .role{ font-family:var(--font-mono); font-size:0.72rem; color:var(--ink-faint); }
+
+/* ============================== CONTACT ============================== */
+.contact-grid{ display:grid; grid-template-columns:0.75fr 1.25fr; gap:36px; }
+.contact-info-list{ display:flex; flex-direction:column; gap:14px; }
+.contact-info-card{ padding:18px; display:flex; align-items:center; gap:14px; }
+.contact-info-card .ic{ width:42px; height:42px; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:1rem; color:var(--accent); flex-shrink:0; }
+.contact-info-card .lbl{ font-family:var(--font-mono); font-size:0.68rem; color:var(--ink-faint); text-transform:uppercase; }
+.contact-info-card .val{ font-size:0.92rem; font-weight:500; }
+
+.contact-form-card{ padding:32px; }
+.form-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+.form-group{ display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+.form-group label{ font-family:var(--font-mono); font-size:0.72rem; color:var(--ink-dim); text-transform:uppercase; letter-spacing:0.04em; }
+.form-group input, .form-group textarea{
+  padding:12px 14px; border:1px solid var(--line); border-radius:var(--radius); background:var(--paper);
+  color:var(--ink); font-size:0.9rem; transition:border-color var(--transition);
+}
+.form-group input:focus, .form-group textarea:focus{ border-color:var(--accent); outline:none; }
+.form-group textarea{ resize:vertical; min-height:120px; }
+.form-success{
+  display:none; align-items:center; gap:10px; padding:12px 16px; border:1px solid var(--success);
+  color:var(--success); font-size:0.86rem; margin-top:16px; font-family:var(--font-mono);
+}
+.form-success.show{ display:flex; }
+
+/* ============================== FOOTER ============================== */
+.site-footer{ border-top:1px solid var(--line); padding:40px 0; }
+.footer-inner{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+.footer-copy{ font-family:var(--font-mono); font-size:0.78rem; color:var(--ink-faint); }
+.footer-socials{ display:flex; gap:10px; }
+.back-to-top{
+  width:44px; height:44px; border:1px solid var(--line); background:var(--panel);
+  display:flex; align-items:center; justify-content:center; font-size:1rem;
+  position:fixed; bottom:26px; right:26px; z-index:900; opacity:0; pointer-events:none;
+  transition:opacity var(--transition), border-color var(--transition), transform var(--transition);
+}
+.back-to-top.show{ opacity:1; pointer-events:auto; }
+.back-to-top:hover{ border-color:var(--accent); transform:translateY(-3px); }
+
+/* ============================== RESPONSIVE ============================== */
+@media (max-width:1024px){
+  .hero-grid, .about-grid, .contact-grid{ grid-template-columns:1fr; }
+  .skills-grid, .services-grid{ grid-template-columns:repeat(2,1fr); }
+  .projects-grid, .cert-panel.active, .testi-track{ grid-template-columns:repeat(2,1fr); }
+  .project-card.featured{ grid-column:span 2; }
+}
+@media (max-width:768px){
+  section{ padding:72px 0; }
+  .nav-links{
+    position:fixed; top:var(--nav-h); left:0; right:0; bottom:0; flex-direction:column;
+    background:var(--paper); padding:28px 24px; gap:2px; transform:translateX(100%);
+    transition:transform var(--transition); border-top:1px solid var(--line); align-items:stretch;
+  }
+  .nav-links.open{ transform:translateX(0); }
+  .nav-links a{ width:100%; padding:14px 4px; font-size:0.95rem; }
+  .burger{ display:flex; }
+  .skills-grid, .services-grid, .projects-grid, .cert-panel.active, .testi-track{ grid-template-columns:1fr; }
+  .project-card.featured{ grid-column:span 1; }
+  .form-row{ grid-template-columns:1fr; }
+  .about-stats{ grid-template-columns:repeat(3,1fr); }
+  .footer-inner{ flex-direction:column; text-align:center; }
+  .section-head{ flex-direction:column; align-items:flex-start; }
+}
+
+/* ---------- CMS-bound additions ---------- */
+.empty-state{ grid-column:1/-1; padding:28px; color:var(--ink-dim); }
+.feature-tags{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+.project-meta{ display:flex; gap:12px; flex-wrap:wrap; font-family:var(--font-mono); font-size:.68rem; color:var(--ink-faint); }
+.exp-timeline{ display:flex; flex-direction:column; gap:18px; position:relative; }
+.exp-card{ display:grid; grid-template-columns:180px 1fr; gap:22px; padding:24px; }
+.exp-date{ font-family:var(--font-mono); font-size:.76rem; color:var(--accent); text-transform:uppercase; }
+.exp-company{ color:var(--ink-dim); font-weight:600; margin:4px 0 10px; }
+.exp-desc{ color:var(--ink-dim); font-size:.92rem; }
+.exp-tags{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+.cert-badge-img img,.testi-avatar img{ width:100%; height:100%; object-fit:cover; }
+.form-status{ display:none; margin-top:16px; padding:12px 16px; border:1px solid var(--line); font-family:var(--font-mono); font-size:.82rem; }
+.form-status.show{ display:block; }
+.form-status.success{ color:var(--success); border-color:var(--success); }
+.form-status.error{ color:var(--accent); border-color:var(--accent); }
+button[disabled]{ opacity:.65; cursor:not-allowed; }
+@media (max-width:768px){ .exp-card{grid-template-columns:1fr;} }
+
+</style>
+</head>
+<body data-theme="light">
+{% set stats = portfolio.stats or [] %}
+{% set has_resume = portfolio.resume_url %}
+{% set has_badges = namespace(value=false) %}
+{% for c in portfolio.certificates %}{% if c.badge_url %}{% set has_badges.value = true %}{% endif %}{% endfor %}
+<nav class="navbar" id="navbar">
+  <div class="container nav-inner">
+    <a href="#home" class="nav-logo">{{ portfolio.initials or 'ME' }}_<span class="blk" aria-hidden="true"></span></a>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="#home" class="nav-link active" data-section="home">home</a></li>
+      <li><a href="#about" class="nav-link" data-section="about">about</a></li>
+      <li><a href="#skills" class="nav-link" data-section="skills">skills</a></li>
+      <li><a href="#projects" class="nav-link" data-section="projects">projects</a></li>
+      {% if portfolio.services %}<li><a href="#services" class="nav-link" data-section="services">services</a></li>{% endif %}
+      {% if portfolio.experiences %}<li><a href="#experience" class="nav-link" data-section="experience">experience</a></li>{% endif %}
+      {% if portfolio.certificates %}<li><a href="#certificates" class="nav-link" data-section="certificates">certs</a></li>{% endif %}
+      {% if portfolio.testimonials %}<li><a href="#testimonials" class="nav-link" data-section="testimonials">reviews</a></li>{% endif %}
+      <li><a href="#contact" class="nav-link" data-section="contact">contact</a></li>
+      {% if profile is defined and profile and profile.tenant_slug == 'default' %}<li><a href="{{ url_for('main.billing') }}" class="nav-link">billing</a></li>{% elif profile is defined and profile and profile.tenant_slug != 'default' %}<li><a href="{{ url_for('tenant.billing', tenant_slug=profile.tenant_slug) }}" class="nav-link">billing</a></li>{% endif %}
+    </ul>
+    <div class="nav-actions">
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark and light theme">◐</button>
+      <button class="burger" id="burger" type="button" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    </div>
+  </div>
+</nav>
+
+<section class="hero" id="home">
+  <div class="container hero-grid">
+    <div class="hero-content reveal">
+      <div class="hero-tag"><span class="dot" aria-hidden="true"></span>STATUS: {{ (portfolio.availability_text or ('Available for work' if portfolio.available_for_work else 'Open to opportunities'))|upper|replace(' ', '_') }}</div>
+      <h1>{{ portfolio.name }}<br><span class="accent">{{ portfolio.title or 'Full-Stack Developer' }}</span></h1>
+      <div class="hero-role">&gt; role: {{ portfolio.title or 'Full-Stack Developer / Flask + Python' }}</div>
+      <p class="hero-bio">{{ portfolio.bio_plain or portfolio.hero_tagline or 'Build a powerful portfolio from your admin dashboard.' }}</p>
+      <div class="hero-ctas">
+        <a href="#projects" class="btn btn-primary">View Projects</a>
+        <a href="#contact" class="btn btn-outline">Contact Me</a>
+        {% if has_resume %}<a href="{{ portfolio.resume_url }}" target="_blank" rel="noopener" class="btn btn-outline">Download CV</a>{% endif %}
+      </div>
+      <div class="hero-socials">
+        {% if portfolio.github_url %}<a href="{{ portfolio.github_url }}" target="_blank" rel="noopener" class="social-icon" aria-label="GitHub">GH</a>{% endif %}
+        {% if portfolio.linkedin_url %}<a href="{{ portfolio.linkedin_url }}" target="_blank" rel="noopener" class="social-icon" aria-label="LinkedIn">in</a>{% endif %}
+        {% if portfolio.twitter_url %}<a href="{{ portfolio.twitter_url }}" target="_blank" rel="noopener" class="social-icon" aria-label="Twitter or X">X</a>{% endif %}
+        {% if portfolio.facebook_url %}<a href="{{ portfolio.facebook_url }}" target="_blank" rel="noopener" class="social-icon" aria-label="Facebook">fb</a>{% endif %}
+        {% if portfolio.instagram_url %}<a href="{{ portfolio.instagram_url }}" target="_blank" rel="noopener" class="social-icon" aria-label="Instagram">IG</a>{% endif %}
+        {% if portfolio.behance_url %}<a href="{{ portfolio.behance_url }}" target="_blank" rel="noopener" class="social-icon" aria-label="Behance">Be</a>{% endif %}
+        {% if portfolio.email %}<a href="mailto:{{ portfolio.email }}" class="social-icon" aria-label="Email">@</a>{% endif %}
+      </div>
+    </div>
+    <div class="terminal reveal">
+      <div class="terminal-bar"><span class="tdot"></span><span class="tdot"></span><span class="tdot"></span><span class="path">~/profile/status.log</span></div>
+      <div class="terminal-body" id="terminalBody">
+        <noscript>
+          <div>&gt; user: {{ portfolio.name }}</div>
+          <div>&gt; role: {{ portfolio.title or 'portfolio owner' }}</div>
+          <div>&gt; status: {{ portfolio.availability_text or 'available' }}</div>
+        </noscript>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="about">
+  <div class="container about-grid">
+    <div class="about-card panel reveal">
+      <div class="about-stats">
+        {% for stat in stats %}<div class="about-stat"><div class="n">{{ stat.value }}</div><div class="l">{{ stat.label }}</div></div>{% endfor %}
+      </div>
+      <div style="margin-top:22px; display:flex; flex-direction:column; gap:12px;">
+        {% if portfolio.location %}<div class="meta-pill"><span class="ic">▣</span> {{ portfolio.location }}</div>{% endif %}
+        {% if portfolio.email %}<div class="meta-pill"><span class="ic">▣</span> {{ portfolio.email }}</div>{% endif %}
+        {% if portfolio.phone %}<div class="meta-pill"><span class="ic">▣</span> {{ portfolio.phone }}</div>{% endif %}
+      </div>
+      {% if has_resume %}<a href="{{ portfolio.resume_url }}" target="_blank" rel="noopener" class="btn btn-outline" style="margin-top:22px; width:100%;">Download CV</a>{% endif %}
+    </div>
+    <div class="about-body reveal">
+      <div class="eyebrow"><span class="idx">INDEX / 01</span> — ABOUT</div>
+      <h2 class="section-title">{{ portfolio.subtitle or portfolio.about_subtitle or 'Spec sheet: the person behind the code.' }}</h2>
+      {% set about_text = portfolio.bio_extended or portfolio.bio_plain or 'Add your full biography from the Admin dashboard.' %}
+      {% for paragraph in about_text.split('
+') if paragraph.strip() %}<p>{{ paragraph }}</p>{% endfor %}
+    </div>
+  </div>
+</section>
+
+<section id="skills" style="background:var(--paper-alt);">
+  <div class="container">
+    <div class="section-head reveal">
+      <div><div class="eyebrow"><span class="idx">INDEX / 02</span> — CAPABILITIES</div><h2 class="section-title">Skills &amp; Technologies</h2><p class="section-sub">Toolkit loaded directly from your Admin dashboard.</p></div>
+      <div class="section-tag">{{ portfolio.skills|length }} modules</div>
+    </div>
+    <div class="skills-grid">
+      {% for group in portfolio.skills %}
+      <div class="skill-cat panel reveal">
+        <h3><span class="cat-icon">{% if loop.index == 1 %}◧{% elif loop.index == 2 %}◨{% elif loop.index == 3 %}◩{% else %}◪{% endif %}</span>{{ group.category }}</h3>
+        <p class="cat-desc">Editable {{ group.category|lower }} skills.</p>
+        <div class="skill-list">
+          {% for skill in group.skills %}<div class="skill-item"><div class="top"><strong>{{ skill.name }}</strong><span>{{ skill.level }}%</span></div><div class="skill-bar"><span data-width="{{ skill.level }}" style="width:{{ skill.level }}%;"></span></div></div>{% endfor %}
+        </div>
+      </div>
+      {% else %}<div class="empty-state panel reveal"><h3>No skills yet</h3><p>Add skills from the Admin dashboard.</p></div>{% endfor %}
+    </div>
+  </div>
+</section>
+
+<section id="projects" style="background:var(--paper-alt);">
+  <div class="container">
+    <div class="section-head reveal">
+      <div><div class="eyebrow"><span class="idx">INDEX / 03</span> — PORTFOLIO</div><h2 class="section-title">Featured Projects</h2><p class="section-sub">Projects, images, tech stack, views, likes, links, and case studies are CMS-bound.</p></div>
+      <div class="section-tag">{{ portfolio.projects|length }} entries</div>
+    </div>
+    <div class="projects-grid">
+      {% for p in portfolio.projects %}
+      <div class="project-card panel reveal {% if loop.index == 1 or p.is_featured %}featured{% endif %}">
+        <div class="project-thumb">
+          {% if p.is_featured %}<span class="project-tag-featured">Featured</span>{% endif %}
+          {% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">{% else %}<span class="ph-icon">{% if loop.index == 1 %}▣{% elif loop.index == 2 %}▤{% elif loop.index == 3 %}▥{% elif loop.index == 4 %}▦{% elif loop.index == 5 %}▧{% else %}▨{% endif %}</span>{% endif %}
+        </div>
+        <div class="project-body">
+          <h3>{{ p.title }}</h3>
+          <p>{{ p.short_description or p.description }}</p>
+          <div class="project-meta">
+            {% if p.category %}<span>{{ p.category }}</span>{% endif %}
+            <span>{{ p.view_count or 0 }} views</span>
+            <span>♥ {{ p.like_count or 0 }}</span>
+          </div>
+          {% if p.tech_stack or p.technologies %}<div class="tech-tags">{% for tech in p.tech_stack or p.technologies %}<span class="tech-tag">{{ tech }}</span>{% endfor %}</div>{% endif %}
+          <div class="project-actions">
+            {% if p.case_study_url or p.url %}<a href="{{ p.case_study_url or p.url }}" class="btn btn-primary btn-sm">Case Study</a>{% endif %}
+            {% if p.live_url or p.demo_url %}<a href="{{ p.live_url or p.demo_url }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Live Demo</a>{% endif %}
+            {% if p.github_url or p.repo_url %}<a href="{{ p.github_url or p.repo_url }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Source</a>{% endif %}
+          </div>
+        </div>
+      </div>
+      {% else %}<div class="empty-state panel reveal"><h3>No projects yet</h3><p>Add projects from the Admin dashboard.</p></div>{% endfor %}
+    </div>
+  </div>
+</section>
+
+{% if portfolio.services %}
+<section id="services">
+  <div class="container">
+    <div class="section-head reveal">
+      <div><div class="eyebrow"><span class="idx">INDEX / 04</span> — SERVICES</div><h2 class="section-title">What I Build</h2><p class="section-sub">Service cards are managed in the CMS.</p></div>
+      <div class="section-tag">{{ portfolio.services|length }} offerings</div>
+    </div>
+    <div class="services-grid">
+      {% for s in portfolio.services %}<div class="service-card panel reveal"><div class="service-icon">{% if loop.index == 1 %}◆{% elif loop.index == 2 %}◇{% elif loop.index == 3 %}◈{% else %}◉{% endif %}</div><h3>{{ s.name }}</h3><p>{{ s.description }}</p>{% if s.features %}<div class="feature-tags">{% for f in s.features %}<span class="tech-tag">{{ f }}</span>{% endfor %}</div>{% endif %}</div>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{% if portfolio.experiences %}
+<section id="experience" style="background:var(--paper-alt);">
+  <div class="container">
+    <div class="section-head reveal"><div><div class="eyebrow"><span class="idx">INDEX / 05</span> — EXPERIENCE</div><h2 class="section-title">Work Timeline</h2><p class="section-sub">Editable work experience entries from the Admin dashboard.</p></div></div>
+    <div class="exp-timeline">
+      {% for e in portfolio.experiences %}<article class="exp-card panel reveal"><div class="exp-date">{{ e.date_range or ((e.start_date or '') ~ (' — Present' if e.is_current else (' — ' ~ e.end_date if e.end_date else ''))) }}</div><div><h3>{{ e.role or e.title }}</h3><div class="exp-company">{{ e.company }}{% if e.location %} · {{ e.location }}{% endif %}</div>{% if e.description %}<p class="exp-desc">{{ e.description }}</p>{% endif %}{% if e.technologies %}<div class="exp-tags">{% for tech in e.technologies %}<span class="tech-tag">{{ tech }}</span>{% endfor %}</div>{% endif %}</div></article>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{% if portfolio.certificates %}
+<section id="certificates">
+  <div class="container">
+    <div class="section-head reveal"><div><div class="eyebrow"><span class="idx">INDEX / 06</span> — RECOGNITION</div><h2 class="section-title">Certificates &amp; Badges</h2><p class="section-sub">Certificate and badge uploads from your dashboard.</p></div></div>
+    <div class="cert-tabs reveal"><button class="cert-tab active" type="button" data-tab="certs">Certificates</button>{% if has_badges.value %}<button class="cert-tab" type="button" data-tab="badges">Badges</button>{% endif %}</div>
+    <div class="cert-panel active" id="certs">
+      {% for c in portfolio.certificates %}<div class="cert-card panel reveal"><div class="cert-badge-img">{% if c.image_url %}<img src="{{ c.image_url }}" alt="{{ c.title }}" loading="lazy">{% else %}{% if loop.index == 1 %}◆{% elif loop.index == 2 %}◈{% else %}◉{% endif %}{% endif %}</div><div><h4>{{ c.title }}</h4><div class="issuer">{{ c.issuer }}</div>{% if c.issue_date_display or c.issue_date %}<div class="date">{{ c.issue_date_display or c.issue_date }}</div>{% endif %}{% if c.verification_url %}<a href="{{ c.verification_url }}" target="_blank" rel="noopener" class="tech-tag" style="display:inline-flex;margin-top:10px;">Verify</a>{% endif %}</div></div>{% endfor %}
+    </div>
+    {% if has_badges.value %}<div class="cert-panel" id="badges">{% for c in portfolio.certificates if c.badge_url %}<div class="cert-card panel reveal"><div class="cert-badge-img"><img src="{{ c.badge_url }}" alt="{{ c.title }} badge" loading="lazy"></div><div><h4>{{ c.title }}</h4><div class="issuer">{{ c.issuer }}</div>{% if c.description %}<p style="margin-top:8px;color:var(--ink-dim);">{{ c.description }}</p>{% endif %}</div></div>{% endfor %}</div>{% endif %}
+  </div>
+</section>
+{% endif %}
+
+{% if portfolio.testimonials %}
+<section id="testimonials" style="background:var(--paper-alt);">
+  <div class="container">
+    <div class="section-head reveal"><div><div class="eyebrow"><span class="idx">INDEX / 07</span> — FEEDBACK</div><h2 class="section-title">Testimonials</h2><p class="section-sub">Client reviews from the CMS.</p></div></div>
+    <div class="testi-track">
+      {% for t in portfolio.testimonials %}<div class="testi-card panel reveal"><div class="testi-stars">{% for _ in range(t.rating or 5) %}★{% endfor %}</div><p class="testi-msg">“{{ t.message }}”</p><div class="testi-person"><div class="testi-avatar">{% if t.avatar_url %}<img src="{{ t.avatar_url }}" alt="{{ t.name }}" loading="lazy">{% else %}{{ (t.name or 'C')[:1] }}{% endif %}</div><div><div class="name">{{ t.name }}</div><div class="role">{{ t.role_display }}</div></div></div></div>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section id="contact">
+  <div class="container">
+    <div class="section-head reveal"><div><div class="eyebrow"><span class="idx">INDEX / 08</span> — CONTACT</div><h2 class="section-title">Let's build something.</h2><p class="section-sub">This form uses the same backend contact handler as the default theme.</p></div></div>
+    <div class="contact-grid">
+      <div class="contact-info-list reveal">
+        {% if portfolio.email %}<div class="contact-info-card panel"><div class="ic">✉</div><div><div class="lbl">Email</div><div class="val">{{ portfolio.email }}</div></div></div>{% endif %}
+        {% if portfolio.location %}<div class="contact-info-card panel"><div class="ic">▣</div><div><div class="lbl">Location</div><div class="val">{{ portfolio.location }}</div></div></div>{% endif %}
+        {% if portfolio.phone %}<div class="contact-info-card panel"><div class="ic">◷</div><div><div class="lbl">Phone</div><div class="val">{{ portfolio.phone }}</div></div></div>{% endif %}
+        <div class="contact-info-card panel"><div class="ic">◷</div><div><div class="lbl">Status</div><div class="val">{{ portfolio.availability_text or ('Available for work' if portfolio.available_for_work else 'Open to opportunities') }}</div></div></div>
+      </div>
+      <div class="contact-form-card panel reveal">
+        <form id="contactForm" method="post" action="{{ portfolio.contact_form_action or contact_url or '#' }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+          <input type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;opacity:0;height:0;width:0">
+          <div class="form-row"><div class="form-group"><label for="cf-name">Name</label><input type="text" id="cf-name" name="name" placeholder="Your name" required autocomplete="name"></div><div class="form-group"><label for="cf-email">Email</label><input type="email" id="cf-email" name="email" placeholder="you@example.com" required autocomplete="email"></div></div>
+          <div class="form-group"><label for="cf-subject">Subject</label><input type="text" id="cf-subject" name="subject" placeholder="What's this about?" required></div>
+          <div class="form-group"><label for="cf-message">Message</label><textarea id="cf-message" name="message" placeholder="Tell me about your project..." required></textarea></div>
+          <button type="submit" class="btn btn-primary" style="width:100%;">Send Message</button>
+          <div class="form-status" id="formStatus" role="status" aria-live="polite"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div class="footer-copy">© <span id="year">{{ current_year if current_year is defined else 2026 }}</span> {{ portfolio.name }} — built with Schematic Spec.</div>
+    <div class="footer-socials">
+      {% if portfolio.github_url %}<a href="{{ portfolio.github_url }}" target="_blank" rel="noopener" class="social-icon" aria-label="GitHub">GH</a>{% endif %}
+      {% if portfolio.linkedin_url %}<a href="{{ portfolio.linkedin_url }}" target="_blank" rel="noopener" class="social-icon" aria-label="LinkedIn">in</a>{% endif %}
+      {% if portfolio.email %}<a href="mailto:{{ portfolio.email }}" class="social-icon" aria-label="Email">@</a>{% endif %}
+    </div>
+  </div>
+</footer>
+<button class="back-to-top" id="backToTop" type="button" aria-label="Back to top">↑</button>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
+(function(){
+  'use strict';
+  document.documentElement.classList.add('js-ready');
+  var yearEl=document.getElementById('year'); if(yearEl){ yearEl.textContent=new Date().getFullYear(); }
+  var themeToggle=document.getElementById('themeToggle'); var body=document.body; var savedTheme=null;
+  try{ savedTheme=window.localStorage?localStorage.getItem('schematic-spec-theme'):null; }catch(e){ savedTheme=null; }
+  if(savedTheme){ body.setAttribute('data-theme',savedTheme); }
+  themeToggle&&themeToggle.addEventListener('click',function(){ var current=body.getAttribute('data-theme')==='dark'?'dark':'light'; var next=current==='dark'?'light':'dark'; body.setAttribute('data-theme',next); try{ if(window.localStorage)localStorage.setItem('schematic-spec-theme',next); }catch(e){} });
+  var burger=document.getElementById('burger'); var navLinks=document.getElementById('navLinks');
+  burger&&burger.addEventListener('click',function(){ var isOpen=navLinks.classList.toggle('open'); burger.classList.toggle('open',isOpen); burger.setAttribute('aria-expanded',isOpen?'true':'false'); });
+  navLinks&&navLinks.querySelectorAll('a').forEach(function(link){ link.addEventListener('click',function(){ navLinks.classList.remove('open'); burger&&burger.classList.remove('open'); burger&&burger.setAttribute('aria-expanded','false'); }); });
+  document.querySelectorAll('a[href^="#"]').forEach(function(anchor){ anchor.addEventListener('click',function(e){ var targetId=this.getAttribute('href'); if(targetId&&targetId.length>1){ var target=document.querySelector(targetId); if(target){ e.preventDefault(); var nav=document.getElementById('navbar'); var navH=nav?nav.offsetHeight:0; var top=target.getBoundingClientRect().top+window.pageYOffset-navH+1; window.scrollTo({top:top,behavior:'smooth'}); } } }); });
+  var sections=document.querySelectorAll('section[id]'); var navAnchors=document.querySelectorAll('.nav-link');
+  function onScrollSpy(){ var nav=document.getElementById('navbar'); var scrollPos=window.scrollY+(nav?nav.offsetHeight:0)+40; var currentId=sections[0]?sections[0].id:''; sections.forEach(function(sec){ if(scrollPos>=sec.offsetTop)currentId=sec.id; }); navAnchors.forEach(function(a){ a.classList.toggle('active',a.getAttribute('data-section')===currentId); }); }
+  var backToTop=document.getElementById('backToTop'); backToTop&&backToTop.addEventListener('click',function(){ window.scrollTo({top:0,behavior:'smooth'}); });
+  function onScrollUI(){ if(backToTop){ if(window.scrollY>400)backToTop.classList.add('show'); else backToTop.classList.remove('show'); } }
+  window.addEventListener('scroll',function(){ onScrollSpy(); onScrollUI(); },{passive:true}); onScrollSpy(); onScrollUI();
+  var revealEls=document.querySelectorAll('.reveal');
+  if('IntersectionObserver' in window){ var io=new IntersectionObserver(function(entries){ entries.forEach(function(entry){ if(entry.isIntersecting){ entry.target.classList.add('is-visible'); io.unobserve(entry.target); } }); },{threshold:0.15,rootMargin:'0px 0px -40px 0px'}); revealEls.forEach(function(el){ io.observe(el); }); } else { revealEls.forEach(function(el){ el.classList.add('is-visible'); }); }
+  var skillBars=document.querySelectorAll('.skill-bar span'); if('IntersectionObserver' in window){ var barIo=new IntersectionObserver(function(entries){ entries.forEach(function(entry){ if(entry.isIntersecting){ entry.target.style.width=entry.target.getAttribute('data-width')+'%'; barIo.unobserve(entry.target); } }); },{threshold:0.4}); skillBars.forEach(function(bar){ barIo.observe(bar); }); }
+  var certTabs=document.querySelectorAll('.cert-tab'); var certPanels=document.querySelectorAll('.cert-panel'); certTabs.forEach(function(tab){ tab.addEventListener('click',function(){ certTabs.forEach(function(t){t.classList.remove('active');}); certPanels.forEach(function(p){p.classList.remove('active');}); tab.classList.add('active'); var target=document.getElementById(tab.getAttribute('data-tab')); if(target)target.classList.add('active'); }); });
+  var termBody=document.getElementById('terminalBody');
+  var bootLines=[
+    '&gt; initializing profile<span class="terminal-cursor"></span>',
+    '&gt; user: '+ {{ portfolio.name|lower|replace(' ', '_')|tojson }},
+    '&gt; role: '+ {{ (portfolio.title or 'portfolio_owner')|lower|replace(' ', '_')|tojson }},
+    '&gt; projects: '+ {{ portfolio.projects|length|tojson }},
+    '&gt; skills: '+ {{ portfolio.skills_flat|length|tojson }},
+    '&gt; status: <span class="prompt">'+ {{ (portfolio.availability_text or 'available')|lower|replace(' ', '_')|tojson }} +'</span>',
+    '&gt; awaiting_input<span class="terminal-cursor"></span>'
+  ];
+  if(termBody){ var lineIndex=0; function typeNextLine(){ if(lineIndex>=bootLines.length)return; var lineEl=document.createElement('div'); lineEl.className='terminal-line'; lineEl.innerHTML=bootLines[lineIndex]; if(lineIndex===bootLines.length-1){ lineEl.querySelectorAll('.terminal-cursor').forEach(function(c){c.style.display='none';}); } else { termBody.querySelectorAll('.terminal-cursor').forEach(function(c){c.style.display='none';}); } termBody.appendChild(lineEl); requestAnimationFrame(function(){ lineEl.style.transition='opacity .3s ease'; lineEl.style.opacity='1'; }); lineIndex++; setTimeout(typeNextLine,480); } setTimeout(typeNextLine,400); }
+  var form=document.getElementById('contactForm'); var statusEl=document.getElementById('formStatus');
+  function showStatus(type,msg){ if(!statusEl)return; statusEl.className='form-status show '+type; statusEl.textContent=msg; }
+  if(form){ form.addEventListener('submit',function(e){ e.preventDefault(); if(!form.checkValidity()){ form.reportValidity(); return; } if(!form.action||form.getAttribute('action')==='#'){ showStatus('error','Contact form is not configured yet.'); return; } var btn=form.querySelector('button[type="submit"]'); var old=btn?btn.textContent:''; if(btn){ btn.disabled=true; btn.textContent='Sending...'; } fetch(form.action,{method:'POST',body:new FormData(form),headers:{'Accept':'application/json'}}).then(function(resp){ return resp.json().catch(function(){ return {status:resp.ok?'success':'error',message:resp.ok?'Message sent.':'Submission failed.'}; }).then(function(data){ if(!resp.ok||data.status==='error'){ throw new Error(data.message||'Submission failed.'); } return data; }); }).then(function(data){ showStatus('success',data.message||'Message sent successfully.'); form.reset(); }).catch(function(err){ showStatus('error',err.message||'Submission failed. Please try again.'); }).finally(function(){ if(btn){ btn.disabled=false; btn.textContent=old; } }); }); }
+})();
+</script>
+</body>
+</html>

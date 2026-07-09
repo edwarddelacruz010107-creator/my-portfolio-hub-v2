@@ -1,6 +1,8 @@
 {
   "id": "default",
   "name": "Default Clean",
+  "icon": "✨",
+  "icon_label": "Starter theme",
   "version": "1.0.0",
   "description": "A clean, minimal portfolio theme with light and dark mode support. Professional and accessible, works for all industries, and editable work experience timeline.",
   "author": "Portfolio CMS",

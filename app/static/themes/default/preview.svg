@@ -19,4 +19,11 @@
   <circle cx="810" cy="356" r="82" fill="#fff" opacity=".22"/>
   <rect x="710" y="570" width="288" height="22" rx="11" fill="#cbd5e1"/>
   <rect x="760" y="612" width="188" height="18" rx="9" fill="#e2e8f0"/>
+
+  <g id="theme-preview-icon-badge" transform="translate(1018 28)">
+    <rect x="0" y="0" width="132" height="60" rx="20" fill="#0f172a" opacity="0.88"/>
+    <rect x="1.5" y="1.5" width="129" height="57" rx="18.5" fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="3"/>
+    <text x="28" y="40" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#ffffff">✨</text>
+    <text x="64" y="35" font-family="Arial, sans-serif" font-size="15" font-weight="700" letter-spacing="1.5" fill="#ffffff">THEME</text>
+  </g>
 </svg>

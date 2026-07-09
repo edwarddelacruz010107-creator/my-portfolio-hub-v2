@@ -34,6 +34,7 @@ from .services.landing_service import (
 )
 from .services.pricing_service import get_pricing_content
 from .services.theme_showcase_service import get_showcase_themes, get_theme_detail
+from app.theme_preview_badge import inject_theme_preview_badge
 from app.forms import LandingContactForm
 from app.models.portfolio import Inquiry
 from app.services.email.email_service import EmailService
@@ -357,8 +358,10 @@ def theme_preview(theme_id: str):
         tenant_slug='preview',
         contact_url=url_for('public.contact'),
     )
+    sample_ctx['preview_mode'] = True
 
-    return engine.render(preview_profile, 'index.html', **sample_ctx)
+    rendered_preview = engine.render(preview_profile, 'index.html', **sample_ctx)
+    return inject_theme_preview_badge(rendered_preview, meta, label='Public preview')
 
 
 @public_bp.route('/administrator')

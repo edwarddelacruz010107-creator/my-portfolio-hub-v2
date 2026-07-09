@@ -1,0 +1,29 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="800" fill="#eef2f3"/>
+  <g opacity="0.55" stroke="#ccd4d6" stroke-width="1">
+    <path d="M0 80H1200M0 160H1200M0 240H1200M0 320H1200M0 400H1200M0 480H1200M0 560H1200M0 640H1200M0 720H1200"/>
+    <path d="M80 0V800M160 0V800M240 0V800M320 0V800M400 0V800M480 0V800M560 0V800M640 0V800M720 0V800M800 0V800M880 0V800M960 0V800M1040 0V800M1120 0V800"/>
+  </g>
+  <rect x="78" y="74" width="1044" height="66" fill="#eef2f3" stroke="#ccd4d6" stroke-width="2"/>
+  <text x="112" y="115" font-family="JetBrains Mono, monospace" font-size="30" font-weight="800" fill="#0f171e">JR_</text>
+  <text x="670" y="112" font-family="IBM Plex Mono, monospace" font-size="18" fill="#4c5a62">// about   // projects   // skills   // contact</text>
+  <text x="96" y="228" font-family="IBM Plex Mono, monospace" font-size="22" fill="#157a4a">● STATUS: AVAILABLE_FOR_HIRE</text>
+  <text x="96" y="316" font-family="JetBrains Mono, monospace" font-size="68" font-weight="800" fill="#0f171e">Systems engineered</text>
+  <text x="96" y="392" font-family="JetBrains Mono, monospace" font-size="68" font-weight="800" fill="#ff5a1f">like documentation</text>
+  <text x="96" y="462" font-family="IBM Plex Mono, monospace" font-size="25" fill="#4c5a62">&gt; role: Full-Stack Developer / Flask + Python</text>
+  <rect x="96" y="525" width="188" height="56" rx="2" fill="#ff5a1f"/>
+  <text x="126" y="562" font-family="IBM Plex Mono, monospace" font-size="18" font-weight="700" fill="white">VIEW PROJECTS</text>
+  <rect x="315" y="525" width="160" height="56" rx="2" fill="#eef2f3" stroke="#aab5b8" stroke-width="2"/>
+  <text x="347" y="562" font-family="IBM Plex Mono, monospace" font-size="18" font-weight="700" fill="#0f171e">CONTACT</text>
+  <rect x="706" y="206" width="390" height="334" rx="2" fill="#0f171e"/>
+  <rect x="706" y="206" width="390" height="50" rx="2" fill="#1e2a33"/>
+  <circle cx="735" cy="231" r="8" fill="#ff5f57"/><circle cx="762" cy="231" r="8" fill="#febc2e"/><circle cx="789" cy="231" r="8" fill="#28c840"/>
+  <text x="730" y="304" font-family="IBM Plex Mono, monospace" font-size="20" fill="#c9d4d8">&gt; initializing profile</text>
+  <text x="730" y="348" font-family="IBM Plex Mono, monospace" font-size="20" fill="#c9d4d8">&gt; user: jordan_reyes</text>
+  <text x="730" y="392" font-family="IBM Plex Mono, monospace" font-size="20" fill="#c9d4d8">&gt; stack: flask, postgres, js</text>
+  <text x="730" y="436" font-family="IBM Plex Mono, monospace" font-size="20" fill="#ff5a1f">&gt; status: available</text>
+  <rect x="96" y="650" width="300" height="72" fill="#fff" stroke="#ccd4d6" stroke-width="2"/>
+  <rect x="450" y="650" width="300" height="72" fill="#fff" stroke="#ccd4d6" stroke-width="2"/>
+  <rect x="804" y="650" width="300" height="72" fill="#fff" stroke="#ccd4d6" stroke-width="2"/>
+  <text x="112" y="696" font-family="JetBrains Mono, monospace" font-size="22" fill="#ff5a1f">📐 Schematic Spec</text>
+</svg>

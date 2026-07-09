@@ -339,6 +339,7 @@
                   style="--d:{{ loop.index0 * 60 }}ms;--tc1:{{ theme.primary_color }};--tc2:{{ theme.secondary_color }};--tc3:{{ theme.background_color }};--tc4:{{ theme.text_color }};">
           {% if theme.premium %}<span class="theme-badge">Premium</span>{% endif %}
           <div class="theme-preview">
+            <span class="theme-icon-chip" aria-label="{{ theme.icon_label|default(theme.name ~ ' icon', true) }}">{{ theme.icon|default('✨', true) }}</span>
             {% if theme.preview_image %}
               <img class="theme-preview-img" src="{{ theme.preview_image }}" alt="{{ theme.name }} theme preview" loading="lazy"
                    onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
@@ -354,7 +355,7 @@
             {% endif %}
           </div>
           <div class="theme-meta">
-            <span class="theme-name">{{ theme.name }}</span>
+            <span class="theme-name"><span class="theme-inline-icon" aria-hidden="true">{{ theme.icon|default('✨', true) }}</span>{{ theme.name }}</span>
             <span class="theme-tag">{{ theme.tagline or (theme.category | title) }}</span>
           </div>
           <a href="{{ url_for('public.theme_preview', theme_id=theme.id) }}" target="_blank" rel="noopener"

@@ -1,0 +1,32 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Local/editor files
+.vscode/
+_vscode/
+.idea/
+
+# Secrets and local env
+.env
+.env.*
+!.env.example
+!env.production.template
+
+# Logs and runtime artifacts
+*.log
+logs/*.log
+instance/*.sqlite
+instance/*.sqlite3
+instance/*.db
+*.sqlite
+*.sqlite3
+*.db
+
+# Local OS files
+.DS_Store
+Thumbs.db

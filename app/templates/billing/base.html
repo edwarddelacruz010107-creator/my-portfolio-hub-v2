@@ -1,0 +1,553 @@
+{% extends "base.html" %}
+
+{# ══════════════════════════════════════════════════════════════
+   BILLING BASE TEMPLATE v3.0
+   Extends public site base. Jinja logic 100% preserved.
+   v3: Premium glassmorphism nav tabs, refined shell layout.
+══════════════════════════════════════════════════════════════ #}
+
+{% block extra_css %}
+  <link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style-v3-enhancements.css') }}" />
+  <style>
+    /* ── Billing shell ─────────────────────────────────────── */
+    .page-shell {
+      padding: 4rem 1.5rem 5rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .billing-page-header { margin-bottom: 2rem; }
+    .billing-page-header h1 {
+      font-family: var(--font-display, 'Syne', sans-serif);
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      margin-bottom: 1.25rem;
+    }
+
+    /* ── Nav tabs: v3 glassmorphism pills ──────────────────── */
+    .billing-nav-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding: 0.4rem;
+      background: rgba(13, 17, 23, 0.5);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 14px;
+      backdrop-filter: blur(12px);
+      width: fit-content;
+    }
+    html[data-theme="light"] .billing-nav-tabs {
+      background: rgba(255,255,255,0.7);
+      border-color: rgba(99,102,241,0.1);
+    }
+    .billing-tab-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.6rem 1.1rem;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      color: var(--text-muted, #7a8094);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .billing-tab-link:hover {
+      background: rgba(99,102,241,0.08);
+      border-color: rgba(99,102,241,0.15);
+      color: #818cf8;
+    }
+    .billing-tab-link.active {
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 4px 16px rgba(99,102,241,0.3);
+    }
+
+    /* ── Content panels ────────────────────────────────────── */
+    .billing-content { display: grid; gap: 1.5rem; }
+
+    .dash-panel {
+      background: rgba(13,17,23,0.6);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 18px;
+      padding: 1.75rem;
+      backdrop-filter: blur(8px);
+    }
+    html[data-theme="light"] .dash-panel {
+      background: rgba(255,255,255,0.9);
+      border-color: rgba(15,23,42,0.08);
+      box-shadow: 0 2px 16px rgba(15,23,42,0.05);
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .panel-header h2 {
+      font-family: var(--font-display, 'Syne', sans-serif);
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+    }
+    .panel-subtext { color: var(--text-muted, #7a8094); font-size: 0.875rem; margin-top: 0.3rem; max-width: 600px; }
+
+    /* ── Subscription status card ──────────────────────────── */
+    .subscription-status-card {
+      border-radius: 18px;
+      padding: 1.75rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(13,17,23,0.7);
+      backdrop-filter: blur(8px);
+      position: relative;
+      overflow: hidden;
+    }
+    .subscription-status-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(99,102,241,0.4), transparent);
+    }
+    .status-active { border-color: rgba(16,185,129,0.2); background: linear-gradient(135deg, rgba(16,185,129,0.06), rgba(13,17,23,0.8)); }
+    .status-trial  { border-color: rgba(245,158,11,0.2); background: linear-gradient(135deg, rgba(245,158,11,0.05), rgba(13,17,23,0.8)); }
+    .status-expired{ border-color: rgba(239,68,68,0.2); background: linear-gradient(135deg, rgba(239,68,68,0.05), rgba(13,17,23,0.8)); }
+
+    .sub-status-label {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--text-muted, #7a8094); margin-bottom: 0.5rem;
+    }
+    .sub-status-name {
+      font-family: var(--font-display, 'Syne', sans-serif);
+      font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em;
+    }
+    .sub-status-meta { display: flex; flex-direction: column; gap: 0.5rem; }
+    .sub-meta-item { display: flex; align-items: center; gap: 0.6rem; font-size: 0.875rem; }
+    .sub-meta-key { color: var(--text-muted, #7a8094); min-width: 80px; font-size: 0.8rem; }
+    .sub-meta-val { font-weight: 600; }
+    .sub-actions { display: flex; flex-direction: column; gap: 0.6rem; flex-shrink: 0; }
+
+    /* ── Plan cards ────────────────────────────────────────── */
+    .plan-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+    .plan-card-v2 {
+      background: rgba(13,17,23,0.6);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      position: relative;
+      transition: all 0.25s ease;
+    }
+    .plan-card-v2:hover {
+      border-color: rgba(99,102,241,0.25);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+      transform: translateY(-2px);
+    }
+    .plan-card-v2.selected {
+      border-color: rgba(99,102,241,0.5);
+      background: rgba(99,102,241,0.08);
+      box-shadow: 0 0 0 1px rgba(99,102,241,0.3), 0 8px 32px rgba(99,102,241,0.15);
+    }
+    .plan-badge-popular {
+      position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #fff; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; padding: 0.25rem 0.75rem; border-radius: 999px;
+      box-shadow: 0 4px 12px rgba(99,102,241,0.4);
+      white-space: nowrap;
+    }
+    .plan-name {
+      font-family: var(--font-display, 'Syne', sans-serif);
+      font-weight: 700; font-size: 1rem;
+    }
+    .plan-price .amount {
+      font-family: var(--font-display, 'Syne', sans-serif);
+      font-size: 1.6rem; font-weight: 800; letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #818cf8, #6366f1);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    html[data-theme="light"] .plan-price .amount { background:none; -webkit-text-fill-color:unset; color:#6366f1; }
+    .plan-price .period { font-size: 0.8rem; color: var(--text-muted, #7a8094); }
+    .plan-desc { font-size: 0.85rem; color: var(--text-muted, #7a8094); line-height: 1.55; }
+.plan-features {
+  margin: 1rem 0 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 0.35rem;
+  list-style: disc;
+  color: var(--text-muted, #c7d2fe);
+  font-size: 0.88rem;
+}
+.plan-features li { line-height: 1.5; }
+.plan-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: auto;
+  font-weight: 700;
+  cursor: pointer;
+}
+.plan-select input[type="radio"] {
+  accent-color: #6366f1;
+}
+.plan-card-v2.selected .plan-select span {
+  color: #a5b4fc;
+}
+
+    /* ── Form fields ───────────────────────────────────────── */
+    .billing-form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-top: 1.25rem;
+    }
+    .billing-form-field { display: grid; gap: 0.4rem; }
+    .billing-form-field .form-label {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--text-muted, #7a8094); font-weight: 700;
+    }
+    .billing-form-field .field-input {
+      width: 100%; min-width: 0;
+      padding: 0.9rem 1rem;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      color: inherit;
+      font-family: var(--font-body, 'DM Sans', sans-serif);
+      font-size: 0.9rem;
+      transition: border-color 0.2s ease, background 0.2s ease;
+    }
+    .billing-form-field .field-input:focus {
+      background: rgba(99,102,241,0.06);
+      border-color: rgba(99,102,241,0.5);
+      outline: none;
+      box-shadow: 0 0 0 4px rgba(99,102,241,0.08);
+    }
+    html[data-theme="light"] .billing-form-field .field-input {
+      background: rgba(255,255,255,0.9);
+      border-color: rgba(99,102,241,0.12);
+    }
+    .form-error { color: #f87171; font-size: 0.8rem; }
+
+    .payment-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(300px, 1fr);
+      gap: 1.5rem;
+      align-items: start;
+    }
+    .payment-layout:has(.payment-sidebar--has-qr) {
+      grid-template-columns: minmax(0, 1.15fr) minmax(320px, 1.05fr);
+    }
+    @media (max-width: 980px) {
+      .payment-layout { grid-template-columns: 1fr; }
+    }
+
+    .payment-form-card,
+    .instructions-sidebar {
+      background: rgba(13,17,23,0.65);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 18px;
+      padding: 1.75rem;
+      backdrop-filter: blur(12px);
+    }
+
+    .payment-form-card h3 {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 0 0 1rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 14px;
+      background: rgba(99,102,241,0.12);
+      color: #c7d2fe;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .payment-card-subtitle {
+      color: var(--text-muted, #a1a8c0);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin-bottom: 1.25rem;
+    }
+
+    .form-row-group {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+    @media (max-width: 760px) {
+      .form-row-group { grid-template-columns: 1fr; }
+    }
+
+    .upload-zone {
+      position: relative;
+      display: grid;
+      place-items: center;
+      gap: 0.45rem;
+      padding: 2rem 1.25rem;
+      border: 1px dashed rgba(255,255,255,0.22);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.03);
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+    }
+    .upload-zone:hover,
+    .upload-zone.drag-over {
+      border-color: rgba(99,102,241,0.55);
+      background: rgba(99,102,241,0.08);
+      transform: translateY(-1px);
+    }
+    .upload-zone input[type=file] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .upload-zone-icon {
+      color: #a5b4fc;
+    }
+    .upload-zone-text {
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+    .upload-zone-sub {
+      color: var(--text-muted, #9ca3af);
+      font-size: 0.9rem;
+    }
+
+    .upload-preview {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.95rem 1rem;
+      border-radius: 14px;
+      border: 1px solid rgba(99,102,241,0.18);
+      background: rgba(15,23,42,0.7);
+      margin-top: 0.9rem;
+    }
+    .upload-preview.show { display: flex; }
+    .upload-preview-icon { color: #8b5cf6; }
+    .upload-preview-name { font-size: 0.95rem; font-weight: 600; color: #f8fafc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .upload-preview-size { color: var(--text-muted, #9ca3af); font-size: 0.85rem; }
+    .upload-preview-remove {
+      border: none;
+      background: rgba(148,163,184,0.12);
+      color: #f8fafc;
+      border-radius: 999px;
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+
+    .instructions-sidebar .instructions-header,
+    .instructions-sidebar .instruction-item,
+    .dash-panel {
+      background: rgba(13,17,23,0.65);
+    }
+    .instructions-sidebar {
+      display: grid;
+      gap: 1rem;
+    }
+    .instructions-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 0.5rem;
+    }
+    .instruction-item {
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 1rem;
+      display: grid;
+      gap: 0.9rem;
+    }
+    .instruction-method {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #c7d2fe;
+    }
+    .instruction-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #f8fafc;
+    }
+    .instruction-row {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.75rem;
+      font-size: 0.88rem;
+      align-items: center;
+    }
+    .instruction-row .key { color: var(--text-muted, #9ca3af); }
+    .instruction-row .val { font-weight: 600; }
+    .copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.04);
+      color: inherit;
+      cursor: pointer;
+      font-size: 0.78rem;
+    }
+
+    .payment-actions {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 1.25rem;
+    }
+
+    .field-hint { color: var(--text-muted, #9ca3af); font-size: 0.87rem; display: block; margin-top: 0.4rem; }
+
+    .toast { border-radius: 14px; padding: 0.95rem 1rem; }
+    .toast-inline { position: relative; top: auto; right: auto; margin-bottom: 1rem; max-width: 100%; animation: none; }
+
+    .instruction-description { font-size: 0.8rem; color: var(--text-muted, #9ca3af); margin-top: 0.5rem; line-height: 1.55; }
+    .full-width-btn { width: 100%; justify-content: center; }
+    .instruction-qr { margin-top: 0.75rem; }
+    .subscription-reference { font-family: var(--font-display); font-size: 0.9rem; }
+    .receipt-btn { padding: 0.3rem 0.75rem; font-size: 0.78rem; }
+
+    .billing-content > .payment-layout {
+      margin-top: 0.25rem;
+    }
+
+    .instructions-sidebar .dash-panel { padding: 1.25rem; }
+
+    .payment-form-card .field-label { margin-bottom: 0.45rem; font-weight: 700; }
+
+    .payment-form-card .form-group { display: grid; gap: 0.45rem; }
+
+    .payment-form-card .required { color: #fb7185; }
+
+    .payment-form-card .payment-form-card + .payment-form-card {
+      margin-top: 0.75rem;
+    }
+
+    .payment-form-card .action-tips {
+      color: var(--text-muted, #9ca3af);
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+
+    .payment-form-card .field-input[type="text"],
+    .payment-form-card .field-input[type="number"],
+    .payment-form-card textarea { min-height: 48px; }
+
+    .payment-button-group {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 1rem;
+    }
+
+    .instructions-sidebar .badge-status { margin-top: 0.6rem; }
+
+    /* ── Buttons (local overrides) ─────────────────────────── */
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
+      border: none !important;
+      box-shadow: 0 4px 16px rgba(99,102,241,0.25) !important;
+    }
+    .btn-primary:hover { transform: translateY(-1px) !important; box-shadow: 0 8px 24px rgba(99,102,241,0.35) !important; }
+
+    /* ── Badge status ──────────────────────────────────────── */
+    .badge-status { display:inline-flex; align-items:center; gap:0.3rem; padding:0.2rem 0.7rem; border-radius:999px; font-size:0.68rem; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; }
+    .badge-active { background:rgba(16,185,129,0.12); color:#6ee7b7; border:1px solid rgba(16,185,129,0.2); }
+    .badge-trial  { background:rgba(245,158,11,0.12); color:#fbbf24; border:1px solid rgba(245,158,11,0.2); }
+    .badge-expired{ background:rgba(239,68,68,0.1); color:#f87171; border:1px solid rgba(239,68,68,0.18); }
+    .badge-inactive,.badge-pending{ background:rgba(100,116,139,0.1); color:#94a3b8; border:1px solid rgba(100,116,139,0.15); }
+
+    .page-hd { margin-bottom: 1.5rem; }
+    .page-hd h1 { font-family: var(--font-display, 'Syne', sans-serif); font-size: 1.6rem; font-weight: 800; letter-spacing: -0.025em; }
+    .page-hd p { color: var(--text-muted, #7a8094); font-size: 0.875rem; margin-top: 0.35rem; }
+  </style>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+{% endblock %}
+
+{% macro billing_url(endpoint) -%}
+  {%- if active_tenant_slug -%}
+    {{ url_for(endpoint, tenant_slug=active_tenant_slug) }}
+  {%- elif tenant_slug is defined and tenant_slug -%}
+    {{ url_for(endpoint, tenant_slug=tenant_slug) }}
+  {%- else -%}
+    {{ url_for(endpoint) }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% block body %}
+<div class="page-shell">
+  <div class="billing-page-header">
+    <header>
+      <h1>{% block billing_page_title %}Billing{% endblock %}</h1>
+    </header>
+    {% if show_billing_tabs is not defined or show_billing_tabs %}
+    <nav class="billing-nav-tabs" aria-label="Billing navigation">
+      <a href="{{ billing_url('main.billing') }}"
+         class="billing-tab-link {% if request.endpoint in ['main.billing', 'tenant.billing'] %}active{% endif %}">
+        <iconify-icon icon="lucide:layout-dashboard" width="15"></iconify-icon>
+        Overview
+      </a>
+      <a href="{{ billing_url('main.billing_plans') }}"
+         class="billing-tab-link {% if request.endpoint in ['main.billing_plans', 'tenant.billing_plans'] %}active{% endif %}">
+        <iconify-icon icon="lucide:layers" width="15"></iconify-icon>
+        Plans
+      </a>
+      <a href="{{ billing_url('main.billing_history') }}"
+         class="billing-tab-link {% if request.endpoint in ['main.billing_history', 'tenant.billing_history'] %}active{% endif %}">
+        <iconify-icon icon="lucide:receipt" width="15"></iconify-icon>
+        History
+      </a>
+    </nav>
+    {% endif %}
+  </div>
+  <div class="billing-content">
+    {% block billing_content %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

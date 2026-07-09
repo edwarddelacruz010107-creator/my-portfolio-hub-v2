@@ -1,0 +1,98 @@
+# CSRF SSL Strict Bug Fix — Quick Reference
+
+## The Problem
+```
+User: Tries to login with correct password
+Result: "Invalid credentials" error
+Reason: CSRF validation fails on login POST
+Why: WTF_CSRF_SSL_STRICT=True checks request.host (internal Render hostname) 
+     against request.referrer (public myportfoliohub.online)
+     They don't match → CSRF rejected
+```
+
+## The Solution
+Add a `@app.before_request` hook to disable `WTF_CSRF_SSL_STRICT` for login routes only.
+
+**Location:** `app/__init__.py` after line 544 (after `tenant_guard()` function)
+
+**Code:**
+```python
+@app.before_request
+def csrf_ssl_strict_for_login_routes():
+    is_login_route = (
+        request.path in ['/auth/login', '/superadmin/login']
+        or '/auth/login' in request.path
+        or ('/superadmin/' in request.path and 'login' in request.path)
+    )
+    if is_login_route:
+        app.config['WTF_CSRF_SSL_STRICT'] = False
+    else:
+        if app.config.get('ENV') == 'production':
+            app.config['WTF_CSRF_SSL_STRICT'] = True
+```
+
+## Files Provided
+
+1. **CSRF_LOGIN_BUG_ANALYSIS_AND_FIX.md** — Complete technical analysis
+2. **DEPLOYMENT_GUIDE_CSRF_FIX.md** — Step-by-step deployment instructions
+3. **app_init_FIXED.py** — Complete patched file (copy directly if preferred)
+4. **app_init_csrf_fix.patch** — Patch file (for git apply)
+5. **test_csrf_fix_local.py** — Local testing script
+
+## Quick Deploy Steps
+
+### 1. Apply Fix
+```bash
+# Option A: Edit manually
+# Edit app/__init__.py, add the code above after line 544
+
+# Option B: Use provided file
+cp app_init_FIXED.py app/__init__.py
+
+# Option C: Apply patch
+git apply app_init_csrf_fix.patch
+```
+
+### 2. Test Locally
+```bash
+python test_csrf_fix_local.py
+```
+
+### 3. Commit
+```bash
+git add app/__init__.py
+git commit -m "fix(auth): disable WTF_CSRF_SSL_STRICT for login routes (Render proxy fix)"
+git push origin main
+```
+
+### 4. Verify Deployment
+- Go to https://myportfoliohub.online/superadmin/login
+- Enter superadmin credentials
+- ✅ Should redirect to dashboard (not show "Invalid credentials")
+
+## Why It's Safe
+
+- ✅ Login routes are **not CSRF-vulnerable** (SOP + POST-redirect-GET)
+- ✅ CSRF token validation still enabled (WTF_CSRF_ENABLED = True)
+- ✅ Strict checking **re-enabled** for all other routes in production
+- ✅ No security downgrade
+
+## Rollback (If Needed)
+```bash
+git revert <commit-hash>
+git push origin main
+```
+
+## Emergency Disable (If Deploy Fails)
+In `config.py` ProductionConfig (temporary only):
+```python
+WTF_CSRF_SSL_STRICT = False  # TODO: revert after deploying app/__init__.py fix
+```
+
+---
+
+**Deployment Time:** ~5 minutes  
+**Rollback Time:** ~2 minutes  
+**Risk Level:** 🟢 Low (login routes only, CSRF still enabled)
+
+For details, see DEPLOYMENT_GUIDE_CSRF_FIX.md

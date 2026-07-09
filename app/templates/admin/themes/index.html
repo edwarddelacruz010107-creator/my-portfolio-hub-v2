@@ -1,0 +1,1020 @@
+{% extends "admin/base.html" %}
+
+{% block page_title %}Appearance — Themes{% endblock %}
+{% block title %}Themes · Appearance{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+<style>
+/* ══════════════════════════════════════════════════════
+   THEMES PAGE — Premium SaaS UI
+   Uses existing design-system.css tokens
+══════════════════════════════════════════════════════ */
+
+.themes-page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem 1.75rem 4rem;
+}
+
+/* ── Page header ───────────────────────────────────── */
+.themes-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+.themes-header-left h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  margin: 0 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.themes-header-left h1 .h1-icon {
+  width: 32px; height: 32px;
+  background: var(--accent-bg);
+  border: 1px solid var(--border-accent);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+.themes-header-left p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+.themes-plan-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(217,119,6,0.1));
+  border: 1px solid rgba(245,158,11,0.3);
+  color: #f59e0b;
+  letter-spacing: 0.3px;
+}
+
+/* ── Active banner ─────────────────────────────────── */
+.active-banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--success-bg);
+  border: 1px solid var(--success-glow);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.75rem;
+  animation: slideDown 0.35s ease;
+}
+@keyframes slideDown {
+  from { opacity:0; transform:translateY(-8px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.active-banner-icon {
+  width: 38px; height: 38px; flex-shrink: 0;
+  background: var(--success-bg);
+  border: 1px solid var(--success-glow);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--success);
+  font-size: 1rem;
+}
+.active-banner-text { flex: 1; min-width: 0; }
+.active-banner-text strong {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--success);
+  margin-bottom: 2px;
+}
+.active-banner-text span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.active-banner-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border-light);
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  background: var(--surface);
+}
+.active-banner-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+/* ── Filter tabs ──────────────────────────────────── */
+.themes-filters {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  width: fit-content;
+}
+.filter-tab {
+  padding: 6px 16px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  transition: all 0.18s;
+  letter-spacing: 0.2px;
+}
+.filter-tab.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.35);
+}
+.filter-tab:not(.active):hover {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* ── Search + category bar ───────────────────────── */
+.themes-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+  align-items: center;
+}
+.themes-search {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+  max-width: 360px;
+}
+.themes-search input {
+  width: 100%;
+  padding: 8px 14px 8px 34px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.themes-search input:focus {
+  outline: none;
+  border-color: var(--border-accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+.themes-search i {
+  position: absolute;
+  left: 12px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+.themes-category-select {
+  padding: 8px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.themes-empty-state {
+  grid-column: 1/-1;
+  padding: 3rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ── Staggered entrance + hover glow ─────────────── */
+@keyframes themeCardIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.theme-card {
+  animation: themeCardIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  --glow-x: 50%;
+  --glow-y: 50%;
+}
+.theme-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle 180px at var(--glow-x) var(--glow-y), var(--accent-glow), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.25s;
+  pointer-events: none;
+  z-index: 1;
+}
+.theme-card:hover::before {
+  opacity: 1;
+}
+
+/* ── Theme grid ───────────────────────────────────── */
+.themes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+/* ── Theme card ───────────────────────────────────── */
+.theme-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color 0.22s, box-shadow 0.22s, transform 0.22s;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  cursor: pointer;
+}
+.theme-card:hover {
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-md), 0 0 0 1px var(--accent-glow);
+  transform: translateY(-3px);
+}
+.theme-card.tc-active {
+  border-color: var(--success);
+  box-shadow: 0 0 0 3px var(--success-bg), var(--shadow-md);
+}
+.theme-card.tc-active:hover {
+  border-color: var(--success);
+  box-shadow: 0 0 0 3px var(--success-glow), var(--shadow-lg);
+}
+.theme-card.tc-locked {
+  opacity: 0.75;
+}
+.theme-card.tc-hidden {
+  display: none;
+}
+
+/* ── Preview area ─────────────────────────────────── */
+.tc-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: var(--bg-3);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.tc-preview img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s ease;
+}
+.theme-card:hover .tc-preview img {
+  transform: scale(1.03);
+}
+.tc-preview-placeholder {
+  width: 100%; height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--text-faint);
+}
+.tc-preview-placeholder .ph-icon {
+  font-size: 2rem;
+  color: var(--accent);
+  opacity: 0.3;
+}
+.tc-preview-placeholder span {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* Badges */
+.tc-badge-active {
+  position: absolute; top: 10px; left: 10px;
+  background: var(--success);
+  color: #fff;
+  font-size: 10px; font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  display: flex; align-items: center; gap: 4px;
+  box-shadow: 0 2px 8px rgba(16,185,129,0.4);
+}
+.tc-badge-pro {
+  position: absolute; top: 10px; right: 10px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  font-size: 10px; font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  display: flex; align-items: center; gap: 4px;
+  box-shadow: 0 2px 8px rgba(245,158,11,0.4);
+}
+.tc-badge-free {
+  position: absolute; top: 10px; right: 10px;
+  background: var(--accent-bg-md);
+  border: 1px solid var(--border-accent);
+  color: var(--accent-light);
+  font-size: 10px; font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+/* Lock overlay */
+.tc-lock-overlay {
+  position: absolute; inset: 0;
+  background: rgba(8,10,15,0.65);
+  backdrop-filter: blur(3px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.22s;
+  pointer-events: none;
+}
+.tc-lock-overlay i { font-size: 1.75rem; color: #f59e0b; }
+.tc-lock-overlay p {
+  font-size: 12px; font-weight: 600;
+  color: rgba(255,255,255,0.9);
+  letter-spacing: 0.3px;
+}
+.theme-card.tc-locked:hover .tc-lock-overlay { opacity: 1; }
+
+/* ── Card body ────────────────────────────────────── */
+.tc-body {
+  padding: 1rem 1rem 0.875rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.tc-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+}
+.tc-desc {
+  font-size: 0.775rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+  margin-bottom: 0.625rem;
+  flex: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tc-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 0.75rem;
+}
+.tc-tag {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent-light);
+  background: var(--accent-bg);
+  border: 1px solid rgba(99,102,241,0.15);
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.2px;
+}
+.tc-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+}
+
+/* ── Buttons ──────────────────────────────────────── */
+.btn-apply {
+  flex: 1;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  letter-spacing: 0.1px;
+}
+.btn-apply.st-available {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.3);
+}
+.btn-apply.st-available:hover {
+  background: var(--accent-dark);
+  box-shadow: 0 4px 14px rgba(99,102,241,0.45);
+  transform: translateY(-1px);
+}
+.btn-apply.st-available:active {
+  transform: translateY(0);
+}
+.btn-apply.st-active {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success-glow);
+  cursor: default;
+}
+.btn-apply.st-locked {
+  background: var(--surface-raised);
+  color: var(--text-faint);
+  border: 1px dashed var(--border-light);
+  cursor: not-allowed;
+}
+.btn-apply.st-loading {
+  background: var(--accent-bg-md);
+  color: var(--accent-light);
+  cursor: wait;
+  border: 1px solid var(--border-accent);
+}
+
+.btn-preview-icon {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-light);
+  background: transparent;
+  color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.18s;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.btn-preview-icon:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-bg);
+  transform: scale(1.05);
+}
+.btn-preview-icon svg {
+  width: 17px;
+  height: 17px;
+  display: block;
+  stroke: currentColor;
+}
+.btn-preview-icon .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Upsell notice ────────────────────────────────── */
+.upsell-notice {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding: 1.125rem 1.375rem;
+  background: linear-gradient(135deg, rgba(245,158,11,0.07), rgba(217,119,6,0.05));
+  border: 1px solid rgba(245,158,11,0.22);
+  border-radius: 12px;
+}
+.upsell-icon {
+  width: 40px; height: 40px; flex-shrink: 0;
+  background: rgba(245,158,11,0.12);
+  border: 1px solid rgba(245,158,11,0.25);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; color: #f59e0b;
+}
+.upsell-text strong {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #f59e0b;
+  margin-bottom: 2px;
+}
+.upsell-text p { font-size: 0.8rem; color: var(--text-muted); margin: 0; }
+.upsell-text a { color: var(--accent-light); font-weight: 600; text-decoration: none; }
+.upsell-text a:hover { text-decoration: underline; }
+.upsell-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 7px 18px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(245,158,11,0.3);
+  letter-spacing: 0.2px;
+}
+.upsell-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(245,158,11,0.4);
+}
+
+/* ── Spinner ──────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.7s linear infinite; display: inline-block; }
+
+/* ── Toast ────────────────────────────────────────── */
+#themeToast {
+  position: fixed;
+  bottom: 1.5rem; right: 1.5rem;
+  z-index: 9999;
+  min-width: 300px;
+  max-width: 420px;
+  padding: 0.875rem 1.125rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  border: 1px solid transparent;
+}
+#themeToast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+#themeToast.t-success {
+  background: var(--surface-raised);
+  border-color: var(--success-glow);
+  color: var(--success);
+}
+#themeToast.t-error {
+  background: var(--surface-raised);
+  border-color: var(--danger-glow);
+  color: var(--danger);
+}
+.toast-close-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 2px;
+  transition: opacity 0.15s;
+}
+.toast-close-btn:hover { opacity: 1; }
+
+/* ── Applying overlay ─────────────────────────────── */
+.apply-overlay {
+  position: fixed; inset: 0;
+  background: rgba(8,10,15,0.7);
+  backdrop-filter: blur(4px);
+  z-index: 9998;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.apply-overlay.show { opacity: 1; pointer-events: auto; }
+.apply-overlay-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-accent);
+  border-radius: 16px;
+  padding: 2rem 2.5rem;
+  text-align: center;
+  box-shadow: var(--shadow-xl);
+}
+.apply-overlay-card .ao-spinner {
+  width: 48px; height: 48px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 1rem;
+}
+.apply-overlay-card p {
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.apply-overlay-card span {
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .themes-grid { grid-template-columns: 1fr; }
+  .themes-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .themes-filters { width: 100%; flex-wrap: wrap; }
+  .upsell-btn { display: none; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="themes-page">
+
+  {# ── Page header ──────────────────────────────── #}
+  <div class="themes-header">
+    <div class="themes-header-left">
+      <h1>
+        <span class="h1-icon"><i class="fas fa-palette"></i></span>
+        Themes
+      </h1>
+      <p>Choose a theme for your public portfolio. Changes apply instantly.</p>
+    </div>
+    {% if plan_name %}
+    <span class="themes-plan-pill">
+      <i class="fas fa-crown" style="font-size:10px;"></i>
+      {{ plan_name }} Plan
+    </span>
+    {% endif %}
+  </div>
+
+  {# ── Active theme banner ───────────────────────── #}
+  {% for theme in themes if theme._is_active %}
+  <div class="active-banner">
+    <div class="active-banner-icon">
+      <i class="fas fa-check-circle"></i>
+    </div>
+    <div class="active-banner-text">
+      <strong>Active: {{ theme.name }}</strong>
+      <span>{{ theme.description | truncate(90) }}</span>
+    </div>
+    <a href="{{ url_for('admin.preview_theme', theme_id=theme.id) }}"
+       class="active-banner-link" target="_blank" rel="noopener">
+      <i class="fas fa-external-link-alt"></i> View Live
+    </a>
+  </div>
+  {% endfor %}
+
+  {# ── Filter tabs ──────────────────────────────── #}
+  <div class="themes-toolbar">
+    <div class="themes-filters">
+      <button class="filter-tab active" data-filter="all">All Themes</button>
+      <button class="filter-tab" data-filter="free">Free</button>
+      <button class="filter-tab" data-filter="premium">PRO</button>
+    </div>
+    <div class="themes-search">
+      <i class="fas fa-search"></i>
+      <input type="text" id="themeSearchInput" placeholder="Search themes…" autocomplete="off">
+    </div>
+    {% if theme_categories %}
+    <select class="themes-category-select" id="themeCategorySelect">
+      <option value="all">All Categories</option>
+      {% for cat in theme_categories %}
+      <option value="{{ cat|lower }}">{{ cat|capitalize }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+  </div>
+
+  {# ── Theme grid ───────────────────────────────── #}
+  <div class="themes-grid" id="themesGrid">
+    {% for theme in themes %}
+    <div class="theme-card
+                {% if theme._is_active %}tc-active{% endif %}
+                {% if not theme._can_use %}tc-locked{% endif %}"
+         style="animation-delay: {{ (loop.index0 * 0.05)|round(2) }}s"
+         data-tier="{{ 'premium' if theme.premium else 'free' }}"
+         data-category="{{ (theme.category or '')|lower }}"
+         data-search="{{ (theme.name ~ ' ' ~ (theme.description or '') ~ ' ' ~ (theme.tags or [])|join(' '))|lower }}"
+         data-theme-id="{{ theme.id }}">
+
+      {# Preview #}
+      <div class="tc-preview">
+        {% if theme.preview_image %}
+          <img src="{{ theme.preview_image }}" alt="{{ theme.name }} preview" loading="lazy"
+               onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+          <div class="tc-preview-placeholder" hidden>
+            <span class="ph-icon"><i class="fas fa-palette"></i></span>
+            <span>No Preview</span>
+          </div>
+        {% else %}
+          <div class="tc-preview-placeholder">
+            <span class="ph-icon"><i class="fas fa-palette"></i></span>
+            <span>No Preview</span>
+          </div>
+        {% endif %}
+
+        {% if theme._is_active %}
+        <span class="tc-badge-active">
+          <i class="fas fa-check"></i> Active
+        </span>
+        {% endif %}
+
+        {% if theme.premium %}
+          <span class="tc-badge-pro">
+            <i class="fas fa-crown"></i> {{ theme.required_plan|capitalize if theme.required_plan else 'PRO' }}
+          </span>
+        {% else %}
+          <span class="tc-badge-free">Free</span>
+        {% endif %}
+
+        {% if not theme._can_use %}
+        <div class="tc-lock-overlay">
+          <i class="fas fa-lock"></i>
+          <p>{{ theme.required_plan|capitalize if theme.required_plan else 'PRO' }} Plan Required</p>
+        </div>
+        {% endif %}
+      </div>
+
+      {# Body #}
+      <div class="tc-body">
+        <div class="tc-name">{{ theme.name }}</div>
+        <div class="tc-desc">{{ theme.description }}</div>
+
+        {% if theme.tags %}
+        <div class="tc-tags">
+          {% for tag in theme.tags[:5] %}
+          <span class="tc-tag">{{ tag }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="tc-actions">
+          {% if theme._is_active %}
+            <button class="btn-apply st-active" disabled>
+              <i class="fas fa-check"></i> Currently Active
+            </button>
+          {% elif theme._can_use %}
+            <button class="btn-apply st-available"
+                    data-theme-id="{{ theme.id }}"
+                    data-theme-name="{{ theme.name }}"
+                    onclick="applyTheme(this)">
+              <i class="fas fa-paint-brush"></i> Apply Theme
+            </button>
+          {% else %}
+            <button class="btn-apply st-locked" disabled
+                    title="Upgrade to PRO to unlock this theme">
+              <i class="fas fa-lock"></i> PRO Required
+            </button>
+          {% endif %}
+
+          <a href="{{ url_for('admin.preview_theme', theme_id=theme.id) }}"
+             class="btn-preview-icon"
+             target="_blank" rel="noopener"
+             aria-label="Preview {{ theme.name }}"
+             title="Preview {{ theme.name }}">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M2.25 12s3.5-6.75 9.75-6.75S21.75 12 21.75 12 18.25 18.75 12 18.75 2.25 12 2.25 12Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M12 15.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="sr-only">Preview {{ theme.name }}</span>
+          </a>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="themes-empty-state">
+      <i class="fas fa-palette" style="font-size:2rem; margin-bottom:0.75rem; display:block; opacity:0.3;"></i>
+      No themes found. Check your <code>themes/</code> directory.
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ── PRO upsell ────────────────────────────────── #}
+  {% if plan_name and plan_name.lower() not in ('pro', 'premium', 'enterprise', 'agency') %}
+  <div class="upsell-notice">
+    <div class="upsell-icon"><i class="fas fa-crown"></i></div>
+    <div class="upsell-text">
+      <strong>Unlock Premium Themes</strong>
+      <p>Upgrade to PRO and get access to all premium themes, advanced designs, and future marketplace themes.</p>
+    </div>
+    <a href="{{ url_for('admin.billing_index') }}" class="upsell-btn">
+      Upgrade to PRO
+    </a>
+  </div>
+  {% endif %}
+
+</div>{# /themes-page #}
+
+{# ── Apply loading overlay ──────────────────────── #}
+<div class="apply-overlay" id="applyOverlay">
+  <div class="apply-overlay-card">
+    <div class="ao-spinner"></div>
+    <p>Applying theme…</p>
+    <span id="applyOverlayName"></span>
+  </div>
+</div>
+
+{# ── Toast ─────────────────────────────────────── #}
+<div id="themeToast">
+  <i class="fas fa-check-circle" id="toastIcon"></i>
+  <span id="themeToastMsg"></span>
+  <button class="toast-close-btn" onclick="dismissToast()">
+    <i class="fas fa-times"></i>
+  </button>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+
+  /* ── Filter tabs + search + category (combined) ──── */
+  const filterBtns   = document.querySelectorAll('.filter-tab');
+  const cards        = document.querySelectorAll('.theme-card');
+  const searchInput  = document.getElementById('themeSearchInput');
+  const categorySel  = document.getElementById('themeCategorySelect');
+
+  let activeTier = 'all';
+
+  function applyFilters () {
+    const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
+    const cat   = categorySel ? categorySel.value : 'all';
+    let visibleCount = 0;
+
+    cards.forEach(card => {
+      const tier    = card.dataset.tier;
+      const cardCat = card.dataset.category || '';
+      const search  = card.dataset.search || '';
+
+      const tierOk  = activeTier === 'all' || tier === activeTier;
+      const catOk   = cat === 'all' || cardCat === cat;
+      const queryOk = !query || search.indexOf(query) !== -1;
+
+      const show = tierOk && catOk && queryOk;
+      card.classList.toggle('tc-hidden', !show);
+      if (show) visibleCount++;
+    });
+
+    let emptyEl = document.getElementById('themesNoResults');
+    const grid = document.getElementById('themesGrid');
+    if (visibleCount === 0) {
+      if (!emptyEl) {
+        emptyEl = document.createElement('div');
+        emptyEl.id = 'themesNoResults';
+        emptyEl.className = 'themes-empty-state';
+        emptyEl.innerHTML = '<i class="fas fa-search" style="font-size:2rem;margin-bottom:0.75rem;display:block;opacity:0.3;"></i>No themes match your search.';
+        grid.appendChild(emptyEl);
+      }
+    } else if (emptyEl) {
+      emptyEl.remove();
+    }
+  }
+
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeTier = btn.dataset.filter;
+      applyFilters();
+    });
+  });
+  if (searchInput) searchInput.addEventListener('input', applyFilters);
+  if (categorySel) categorySel.addEventListener('change', applyFilters);
+
+  /* ── Mouse-tracked hover glow ─────────────────── */
+  cards.forEach(card => {
+    card.addEventListener('mousemove', e => {
+      const rect = card.getBoundingClientRect();
+      card.style.setProperty('--glow-x', `${e.clientX - rect.left}px`);
+      card.style.setProperty('--glow-y', `${e.clientY - rect.top}px`);
+    });
+  });
+
+  /* ── Apply theme ─────────────────────────── */
+  window.applyTheme = async function (btn) {
+    const themeId   = btn.dataset.themeId;
+    const themeName = btn.dataset.themeName;
+
+    // Show overlay
+    document.getElementById('applyOverlayName').textContent = themeName;
+    document.getElementById('applyOverlay').classList.add('show');
+
+    // Disable & animate btn
+    btn.disabled = true;
+    btn.className = 'btn-apply st-loading';
+    btn.innerHTML = '<span class="spin"><i class="fas fa-circle-notch"></i></span> Applying…';
+
+    try {
+      const formData = new FormData();
+      formData.append('theme_id', themeId);
+      const csrfInput = document.querySelector('input[name="csrf_token"]') ||
+                        document.querySelector('meta[name="csrf-token"]');
+      if (csrfInput) {
+        const val = csrfInput.value || csrfInput.getAttribute('content');
+        if (val) formData.append('csrf_token', val);
+      }
+
+      const res = await fetch("{{ url_for('admin.apply_theme') }}", {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+
+      let data = {};
+      try { data = await res.json(); } catch (_) {}
+
+      if (res.ok && (data.success !== false)) {
+        showToast(`"${themeName}" applied — refreshing…`, 'success');
+        setTimeout(() => window.location.reload(), 1600);
+      } else {
+        hideOverlay();
+        const msg = data.error || `HTTP ${res.status} — could not apply theme.`;
+        showToast(msg, 'error');
+        btn.disabled = false;
+        btn.className = 'btn-apply st-available';
+        btn.innerHTML = '<i class="fas fa-paint-brush"></i> Apply Theme';
+      }
+    } catch (err) {
+      hideOverlay();
+      showToast('Network error — please try again.', 'error');
+      btn.disabled = false;
+      btn.className = 'btn-apply st-available';
+      btn.innerHTML = '<i class="fas fa-paint-brush"></i> Apply Theme';
+    }
+  };
+
+  function hideOverlay () {
+    document.getElementById('applyOverlay').classList.remove('show');
+  }
+
+  /* ── Toast ────────────────────────────────── */
+  let _toastTimer = null;
+
+  function showToast (msg, type) {
+    clearTimeout(_toastTimer);
+    const toast  = document.getElementById('themeToast');
+    const msgEl  = document.getElementById('themeToastMsg');
+    const icon   = document.getElementById('toastIcon');
+    toast.className = 'show t-' + type;
+    msgEl.textContent = msg;
+    icon.className = type === 'success'
+      ? 'fas fa-check-circle'
+      : 'fas fa-exclamation-circle';
+    _toastTimer = setTimeout(() => dismissToast(), 5000);
+  }
+
+  window.dismissToast = function () {
+    clearTimeout(_toastTimer);
+    const toast = document.getElementById('themeToast');
+    toast.classList.remove('show');
+  };
+
+  /* ── Card click → preview on locked, apply on available ── */
+  cards.forEach(card => {
+    card.addEventListener('click', e => {
+      // Don't intercept button/link clicks
+      if (e.target.closest('.tc-actions')) return;
+      const previewLink = card.querySelector('.btn-preview-icon');
+      if (previewLink) previewLink.click();
+    });
+  });
+
+})();
+</script>
+{% endblock %}

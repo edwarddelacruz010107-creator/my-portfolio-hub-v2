@@ -1,0 +1,87 @@
+{% extends 'superadmin/base.html' %}
+
+{% block title %}Payment Instructions{% endblock %}
+{% block page_title %}Payment Instructions{% endblock %}
+
+{% block content %}
+<div class="page-header page-header-premium">
+  <div class="page-header-left">
+    <h1 class="page-heading">Payment Instructions</h1>
+    <p class="page-subtext">Create and manage wallet, bank, and QR payment instructions that tenants use for manual billing.</p>
+  </div>
+  <div class="page-header-right">
+    <a href="{{ url_for('superadmin.billing_instruction_new') }}" class="btn btn-primary">
+      <iconify-icon icon="lucide:plus" width="16"></iconify-icon>
+      New Instruction
+    </a>
+  </div>
+</div>
+
+{% if instructions %}
+<div class="instruction-grid">
+  {% for instruction in instructions %}
+  <article class="instruction-card">
+    <div class="instruction-card-top">
+      <div>
+        <div class="instruction-method">{{ instruction.method }}</div>
+        <h2 class="instruction-title">{{ instruction.title }}</h2>
+      </div>
+      <span class="status-pill {% if instruction.is_active %}status-active{% else %}status-inactive{% endif %}">
+        <span class="status-dot"></span>
+        {{ 'Active' if instruction.is_active else 'Inactive' }}
+      </span>
+    </div>
+
+    {% if instruction.description %}
+    <p class="instruction-copy">{{ instruction.description }}</p>
+    {% endif %}
+
+    <div class="instruction-details">
+      <div class="instruction-row">
+        <span class="instruction-label">Account name</span>
+        <span class="instruction-value">{{ instruction.account_name or '—' }}</span>
+      </div>
+      {% if instruction.account_number %}
+      <div class="instruction-row">
+        <span class="instruction-label">Wallet / account number</span>
+        <span class="instruction-value">{{ instruction.account_number }}</span>
+      </div>
+      {% endif %}
+      {% if instruction.bank_name %}
+      <div class="instruction-row">
+        <span class="instruction-label">Bank / branch</span>
+        <span class="instruction-value">{{ instruction.bank_name }}</span>
+      </div>
+      {% endif %}
+      <div class="instruction-row">
+        <span class="instruction-label">Applies to</span>
+        <span class="instruction-value">{{ instruction.tenant.slug if instruction.tenant else 'Global' }}</span>
+      </div>
+      {% if instruction.qr_image %}
+      <div class="instruction-row">
+        <span class="instruction-label">QR code</span>
+        <span class="instruction-value">Uploaded</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="instruction-card-footer">
+      <a href="{{ url_for('superadmin.billing_instruction_edit', instruction_id=instruction.id) }}" class="btn btn-outline btn-sm">
+        <iconify-icon icon="lucide:pencil" width="14"></iconify-icon>
+        Edit
+      </a>
+      <span class="instruction-note">{{ instruction.created_at.strftime('%b %d, %Y') if instruction.created_at else '' }}</span>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state-card">
+  <div class="empty-state-content">
+    <h3>No payment instructions configured</h3>
+    <p class="page-subtext">Set up your payment methods and bank details once, so tenants know exactly how to submit payment proof.</p>
+    <a href="{{ url_for('superadmin.billing_instruction_new') }}" class="btn btn-primary">Add first instruction</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

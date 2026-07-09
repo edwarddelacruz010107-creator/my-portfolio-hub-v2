@@ -1,0 +1,499 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Theme Catalog{% endblock %}
+{% block page_title %}Theme Catalog{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ══════════════════════════════════════════════════════════════
+   Theme Catalog — v6.5 futuristic neon dark UI
+══════════════════════════════════════════════════════════════ */
+
+/* Stat bar */
+.tc-stats{display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.75rem}
+.tc-stat{background:var(--card-bg,#1a1f2e);border:1px solid var(--border-color,#2d3448);
+  border-radius:12px;padding:.85rem 1.25rem;display:flex;align-items:center;gap:.75rem;
+  flex:1;min-width:150px}
+.tc-stat-icon{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;font-size:1.1rem;flex-shrink:0}
+.tc-stat-icon.blue{background:rgba(59,130,246,.15);color:#3b82f6}
+.tc-stat-icon.purple{background:rgba(168,85,247,.15);color:#a855f7}
+.tc-stat-icon.green{background:rgba(16,185,129,.15);color:#10b981}
+.tc-stat-icon.amber{background:rgba(245,158,11,.12);color:#f59e0b}
+.tc-stat-val{font-size:1.4rem;font-weight:700;line-height:1}
+.tc-stat-lbl{font-size:.72rem;color:var(--text-muted,#9ca3af);margin-top:.15rem;text-transform:uppercase;letter-spacing:.06em}
+
+/* Grid */
+.tc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.25rem}
+@media(max-width:640px){.tc-grid{grid-template-columns:1fr}}
+
+/* Cards */
+.tc-card{background:var(--card-bg,#1a1f2e);border:1px solid var(--border-color,#2d3448);
+  border-radius:14px;overflow:hidden;transition:transform .2s,box-shadow .2s,border-color .2s;
+  display:flex;flex-direction:column;position:relative}
+.tc-card:hover{transform:translateY(-3px);box-shadow:0 8px 32px rgba(0,0,0,.35);border-color:rgba(99,102,241,.35)}
+.tc-card.featured{border-color:rgba(168,85,247,.5);box-shadow:0 0 0 1px rgba(168,85,247,.2)}
+.tc-card.inactive{opacity:.55}
+
+/* Featured ribbon */
+.tc-featured-ribbon{position:absolute;top:12px;right:-24px;background:linear-gradient(90deg,#a855f7,#6366f1);
+  color:#fff;font-size:.65rem;font-weight:700;letter-spacing:.1em;padding:.2rem 2rem;
+  transform:rotate(35deg);transform-origin:right center;white-space:nowrap;z-index:3}
+
+/* Thumbnail */
+.tc-thumb-wrap{position:relative;height:180px;background:linear-gradient(135deg,#111827,#1e2535);overflow:hidden;flex-shrink:0}
+.tc-thumb-wrap img{width:100%;height:100%;object-fit:cover;transition:transform .35s}
+.tc-card:hover .tc-thumb-wrap img{transform:scale(1.04)}
+.tc-thumb-placeholder{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:.5rem;color:#4b5563}
+.tc-thumb-placeholder iconify-icon{font-size:2.5rem;opacity:.4}
+.tc-thumb-placeholder span{font-size:.8rem;opacity:.5}
+
+/* Preview ribbon at bottom of thumb */
+.tc-preview-count{position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);
+  color:#e5e7eb;font-size:.7rem;font-weight:600;padding:.2rem .55rem;border-radius:6px;
+  display:flex;align-items:center;gap:.3rem}
+
+/* Hover overlay on thumb */
+.tc-thumb-overlay{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;transition:.2s;
+  display:flex;align-items:center;justify-content:center;gap:.5rem;z-index:2}
+.tc-card:hover .tc-thumb-overlay{opacity:1}
+.tc-overlay-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;
+  border-radius:8px;padding:.35rem .7rem;font-size:.75rem;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;gap:.3rem;text-decoration:none;transition:background .15s}
+.tc-overlay-btn:hover{background:rgba(255,255,255,.22)}
+
+/* Card body */
+.tc-body{padding:1.1rem;flex:1;display:flex;flex-direction:column;gap:.6rem}
+.tc-header{display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem}
+.tc-title{font-size:1rem;font-weight:700;line-height:1.2}
+.tc-slug{font-size:.7rem;color:var(--text-muted,#9ca3af);font-family:monospace}
+.tc-desc{font-size:.83rem;color:var(--text-muted,#9ca3af);line-height:1.5;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+/* Badges row */
+.tc-badges{display:flex;gap:.35rem;flex-wrap:wrap}
+.tc-badge{display:inline-flex;align-items:center;gap:.25rem;padding:.18rem .55rem;
+  border-radius:99px;font-size:.68rem;font-weight:700;letter-spacing:.03em;white-space:nowrap}
+.tc-badge.free{background:rgba(16,185,129,.12);color:#10b981}
+.tc-badge.premium{background:rgba(168,85,247,.12);color:#c084fc}
+.tc-badge.active{background:rgba(34,197,94,.12);color:#22c55e}
+.tc-badge.inactive{background:rgba(100,116,139,.1);color:#94a3b8}
+.tc-badge.cat{background:rgba(59,130,246,.1);color:#60a5fa}
+.tc-badge.plan{background:rgba(245,158,11,.1);color:#fbbf24}
+.tc-badge.installs{background:rgba(99,102,241,.1);color:#818cf8}
+
+/* Feature dots */
+.tc-features{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.1rem}
+.tc-feat-dot{width:7px;height:7px;border-radius:50%}
+.tc-feat-dot.on{background:#22c55e}
+.tc-feat-dot.off{background:#374151}
+
+/* Footer actions */
+.tc-footer{border-top:1px solid var(--border-color,#2d3448);padding:.75rem 1.1rem;
+  display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
+.tc-btn{display:inline-flex;align-items:center;gap:.3rem;padding:.35rem .75rem;
+  border-radius:7px;font-size:.78rem;font-weight:600;cursor:pointer;border:none;
+  text-decoration:none;transition:background .15s,color .15s}
+.tc-btn.primary{background:#3b82f6;color:#fff}
+.tc-btn.primary:hover{background:#2563eb}
+.tc-btn.outline{background:transparent;color:#3b82f6;border:1px solid #3b82f6}
+.tc-btn.outline:hover{background:rgba(59,130,246,.1)}
+.tc-btn.ghost{background:transparent;color:var(--text-muted,#9ca3af);border:1px solid var(--border-color,#2d3448)}
+.tc-btn.ghost:hover{color:var(--text-primary,#f1f5f9);border-color:#4b5563}
+.tc-btn.danger{background:transparent;color:#ef4444;border:1px solid rgba(239,68,68,.3)}
+.tc-btn.danger:hover{background:rgba(239,68,68,.1)}
+.tc-btn.star{background:transparent;color:#f59e0b;border:1px solid rgba(245,158,11,.3)}
+.tc-btn.star.active-star{background:rgba(245,158,11,.12)}
+.tc-btn.star:hover{background:rgba(245,158,11,.12)}
+
+/* Empty state */
+.tc-empty{text-align:center;padding:4rem 2rem;color:var(--text-muted,#9ca3af)}
+.tc-empty iconify-icon{font-size:3.5rem;opacity:.25;display:block;margin-bottom:1rem}
+
+/* Preview Modal */
+.tc-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);
+  z-index:9998;display:none;align-items:center;justify-content:center}
+.tc-modal-backdrop.open{display:flex}
+.tc-modal{background:var(--card-bg,#1a1f2e);border:1px solid var(--border-color,#2d3448);
+  border-radius:16px;width:min(700px,95vw);max-height:90vh;overflow-y:auto;position:relative;z-index:9999}
+.tc-modal-header{display:flex;align-items:center;justify-content:space-between;padding:1.25rem 1.5rem;
+  border-bottom:1px solid var(--border-color,#2d3448)}
+.tc-modal-title{font-size:1.1rem;font-weight:700}
+.tc-modal-close{background:none;border:none;color:var(--text-muted,#9ca3af);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;
+  transition:background .15s}
+.tc-modal-close:hover{background:rgba(255,255,255,.08)}
+.tc-modal-body{padding:1.5rem}
+.tc-carousel{position:relative;border-radius:10px;overflow:hidden;background:#111827;margin-bottom:1.25rem}
+.tc-carousel-track{display:flex;transition:transform .35s cubic-bezier(.4,0,.2,1)}
+.tc-carousel-slide{min-width:100%;height:300px;object-fit:cover}
+.tc-carousel-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.6);
+  border:none;color:#fff;cursor:pointer;border-radius:8px;width:36px;height:36px;
+  display:flex;align-items:center;justify-content:center;z-index:5;transition:background .15s}
+.tc-carousel-nav:hover{background:rgba(0,0,0,.85)}
+.tc-carousel-prev{left:8px}
+.tc-carousel-next{right:8px}
+.tc-modal-info{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.tc-modal-info-row{display:flex;flex-direction:column;gap:.25rem}
+.tc-modal-info-label{font-size:.7rem;font-weight:700;color:var(--text-muted,#9ca3af);text-transform:uppercase;letter-spacing:.06em}
+.tc-modal-info-val{font-size:.9rem;font-weight:500}
+
+/* Install count animation */
+@keyframes tc-pulse{0%,100%{opacity:1}50%{opacity:.6}}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Page header -->
+<div class="page-header page-header-premium" style="margin-bottom:1.5rem">
+  <div class="page-header-left">
+    <h1 class="page-heading">Theme Catalog</h1>
+    <p class="page-subtext">Manage installed themes — images, feature matrix, premium gating, and display order.</p>
+  </div>
+  <div class="page-header-right" style="display:flex;gap:.5rem;flex-wrap:wrap">
+    <form method="post" action="{{ url_for('superadmin.theme_catalog_sync') }}" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <button type="submit" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:.4rem">
+        <iconify-icon icon="lucide:refresh-cw" width="15"></iconify-icon>
+        Sync from Disk
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Stats bar -->
+{% set active_themes  = themes | selectattr('catalog_active', 'equalto', true) | list %}
+{% set premium_themes = themes | selectattr('premium', 'equalto', true)         | list %}
+{% set featured_themes = themes | selectattr('is_featured', 'equalto', true)    | list %}
+<div class="tc-stats">
+  <div class="tc-stat">
+    <div class="tc-stat-icon blue"><iconify-icon icon="lucide:layers" width="18"></iconify-icon></div>
+    <div>
+      <div class="tc-stat-val">{{ themes | length }}</div>
+      <div class="tc-stat-lbl">Total Themes</div>
+    </div>
+  </div>
+  <div class="tc-stat">
+    <div class="tc-stat-icon green"><iconify-icon icon="lucide:check-circle" width="18"></iconify-icon></div>
+    <div>
+      <div class="tc-stat-val">{{ active_themes | length }}</div>
+      <div class="tc-stat-lbl">Active</div>
+    </div>
+  </div>
+  <div class="tc-stat">
+    <div class="tc-stat-icon purple"><iconify-icon icon="lucide:crown" width="18"></iconify-icon></div>
+    <div>
+      <div class="tc-stat-val">{{ premium_themes | length }}</div>
+      <div class="tc-stat-lbl">Premium</div>
+    </div>
+  </div>
+  <div class="tc-stat">
+    <div class="tc-stat-icon amber"><iconify-icon icon="lucide:download" width="18"></iconify-icon></div>
+    <div>
+      <div class="tc-stat-val">{{ total_installs }}</div>
+      <div class="tc-stat-lbl">Total Installs</div>
+    </div>
+  </div>
+</div>
+
+{% if themes %}
+<div class="tc-grid">
+  {% for theme in themes %}
+  {% set entry_id = theme.get('catalog_entry_id') %}
+  {% set thumb    = theme.get('thumbnail_url') or theme.get('preview_image') %}
+  {% set previews = theme.get('preview_images', []) %}
+  {% set matrix   = theme.get('feature_matrix', {}) %}
+  {% set is_active   = theme.get('catalog_active', True) %}
+  {% set is_featured = theme.get('is_featured', False) %}
+
+  <article class="tc-card {% if is_featured %}featured{% endif %} {% if not is_active %}inactive{% endif %}"
+           data-previews="{{ (previews) | tojson | e }}"
+           data-name="{{ theme.get('name') or theme.get('id') }}"
+           data-thumb="{{ thumb or '' }}"
+           data-desc="{{ theme.get('description') or '' }}"
+           data-author="{{ theme.get('theme_author') or '' }}"
+           data-version="{{ theme.get('theme_version') or '' }}">
+
+    {% if is_featured %}
+    <div class="tc-featured-ribbon">Featured</div>
+    {% endif %}
+
+    <!-- Thumbnail -->
+    <div class="tc-thumb-wrap">
+      {% if thumb %}
+        <img src="{{ thumb }}" alt="{{ theme.get('name') }} preview" loading="lazy"
+             onerror="this.hidden=true; this.nextElementSibling.hidden=false;"/>
+        <div class="tc-thumb-placeholder" hidden>
+          <iconify-icon icon="lucide:image" width="40"></iconify-icon>
+          <span>No thumbnail</span>
+        </div>
+      {% else %}
+        <div class="tc-thumb-placeholder">
+          <iconify-icon icon="lucide:image" width="40"></iconify-icon>
+          <span>No thumbnail</span>
+        </div>
+      {% endif %}
+
+      <div class="tc-thumb-overlay">
+        {% if thumb or previews %}
+        <button type="button" class="tc-overlay-btn" onclick="openPreviewModal(this.closest('.tc-card'))">
+          <iconify-icon icon="lucide:eye" width="14"></iconify-icon> Preview
+        </button>
+        {% endif %}
+        {% if entry_id %}
+        <a href="{{ url_for('superadmin.theme_catalog_edit', entry_id=entry_id) }}" class="tc-overlay-btn">
+          <iconify-icon icon="lucide:pencil" width="14"></iconify-icon> Edit
+        </a>
+        {% endif %}
+      </div>
+
+      {% if previews %}
+      <div class="tc-preview-count">
+        <iconify-icon icon="lucide:images" width="11"></iconify-icon>
+        {{ previews | length }} screenshots
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Body -->
+    <div class="tc-body">
+      <div class="tc-header">
+        <div>
+          <div class="tc-title">{{ theme.get('name') or theme.get('id') }}</div>
+          <div class="tc-slug">{{ theme.get('id') }}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.25rem;flex-shrink:0">
+          <span class="tc-badge {% if is_active %}active{% else %}inactive{% endif %}">
+            <iconify-icon icon="lucide:{% if is_active %}check{% else %}x{% endif %}" width="10"></iconify-icon>
+            {{ 'Active' if is_active else 'Inactive' }}
+          </span>
+          <span class="tc-badge {% if theme.get('premium') %}premium{% else %}free{% endif %}">
+            <iconify-icon icon="lucide:{% if theme.get('premium') %}crown{% else %}tag{% endif %}" width="10"></iconify-icon>
+            {{ 'Premium' if theme.get('premium') else 'Free' }}
+          </span>
+        </div>
+      </div>
+
+      {% if theme.get('description') %}
+      <p class="tc-desc">{{ theme.get('description') }}</p>
+      {% endif %}
+
+      <!-- Badges -->
+      <div class="tc-badges">
+        {% if theme.get('category') %}
+        <span class="tc-badge cat">
+          <iconify-icon icon="lucide:tag" width="9"></iconify-icon>
+          {{ theme.get('category') }}
+        </span>
+        {% endif %}
+        {% if theme.get('required_plan') %}
+        <span class="tc-badge plan">
+          <iconify-icon icon="lucide:shield" width="9"></iconify-icon>
+          {{ theme.get('required_plan') | capitalize }}+
+        </span>
+        {% endif %}
+        {% if theme.get('install_count', 0) > 0 %}
+        <span class="tc-badge installs">
+          <iconify-icon icon="lucide:download" width="9"></iconify-icon>
+          {{ theme.get('install_count') }} install{{ 's' if theme.get('install_count') != 1 }}
+        </span>
+        {% endif %}
+        <span class="tc-badge" style="background:rgba(100,116,139,.1);color:#94a3b8">
+          order: {{ theme.get('sort_order', 0) }}
+        </span>
+      </div>
+
+      <!-- Feature matrix dots -->
+      {% if matrix %}
+      <div title="Feature matrix: green=supported">
+        <div style="font-size:.68rem;color:var(--text-muted);margin-bottom:.25rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700">Sections</div>
+        <div class="tc-features">
+          {% for feat, supported in matrix.items() %}
+          <div class="tc-feat-dot {% if supported %}on{% else %}off{% endif %}" title="{{ feat }}: {{ 'supported' if supported else 'not supported' }}"></div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Footer actions -->
+    <div class="tc-footer">
+      {% if entry_id %}
+        <a href="{{ url_for('superadmin.theme_catalog_edit', entry_id=entry_id) }}" class="tc-btn outline">
+          <iconify-icon icon="lucide:pencil" width="13"></iconify-icon> Edit
+        </a>
+        <form method="post" action="{{ url_for('superadmin.theme_catalog_toggle_active', entry_id=entry_id) }}" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <button type="submit" class="tc-btn ghost">
+            <iconify-icon icon="lucide:{% if is_active %}eye-off{% else %}eye{% endif %}" width="13"></iconify-icon>
+            {{ 'Deactivate' if is_active else 'Activate' }}
+          </button>
+        </form>
+        <button type="button"
+                class="tc-btn star {% if is_featured %}active-star{% endif %}"
+                onclick="toggleFeatured({{ entry_id }}, this)"
+                title="{% if is_featured %}Remove from featured{% else %}Mark as featured{% endif %}">
+          <iconify-icon icon="lucide:star" width="13"></iconify-icon>
+        </button>
+        <form method="post" action="{{ url_for('superadmin.theme_catalog_delete', entry_id=entry_id) }}" style="display:inline"
+              onsubmit="return confirm('Remove catalog override for &quot;{{ theme.get('id') }}&quot;?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <button type="submit" class="tc-btn danger">
+            <iconify-icon icon="lucide:trash-2" width="13"></iconify-icon>
+          </button>
+        </form>
+      {% else %}
+        <span style="font-size:.75rem;color:var(--text-muted,#9ca3af);padding:.25rem 0">
+          Not in catalog —
+          <form method="post" action="{{ url_for('superadmin.theme_catalog_sync') }}" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" style="background:none;border:none;color:#3b82f6;cursor:pointer;font-size:.75rem;font-weight:600;padding:0">Sync now</button>
+          </form>
+        </span>
+      {% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="tc-empty">
+  <iconify-icon icon="lucide:palette" width="56"></iconify-icon>
+  <div style="font-size:1.1rem;font-weight:600;margin-bottom:.5rem">No themes found</div>
+  <p style="margin:0;max-width:340px;margin:0 auto">
+    Place a theme directory inside <code>/themes</code>, then click
+    <strong>Sync from Disk</strong>.
+  </p>
+</div>
+{% endif %}
+
+<!-- Preview Modal -->
+<div class="tc-modal-backdrop" id="previewModal" onclick="if(event.target===this)closePreviewModal()">
+  <div class="tc-modal">
+    <div class="tc-modal-header">
+      <div class="tc-modal-title" id="modalTitle">Theme Preview</div>
+      <button class="tc-modal-close" onclick="closePreviewModal()">
+        <iconify-icon icon="lucide:x" width="18"></iconify-icon>
+      </button>
+    </div>
+    <div class="tc-modal-body">
+      <div class="tc-carousel" id="modalCarousel" style="display:none">
+        <div class="tc-carousel-track" id="carouselTrack"></div>
+        <button class="tc-carousel-nav tc-carousel-prev" id="carouselPrev" onclick="carouselMove(-1)">
+          <iconify-icon icon="lucide:chevron-left" width="18"></iconify-icon>
+        </button>
+        <button class="tc-carousel-nav tc-carousel-next" id="carouselNext" onclick="carouselMove(1)">
+          <iconify-icon icon="lucide:chevron-right" width="18"></iconify-icon>
+        </button>
+      </div>
+      <div class="tc-modal-info" id="modalInfo"></div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* ── Featured toggle ─────────────────────────────────────── */
+function toggleFeatured(entryId, btn){
+  const csrf = document.querySelector('meta[name="csrf-token"]').content;
+  fetch(`/superadmin/themes/${entryId}/toggle-featured`, {
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRFToken':csrf},
+    body:`csrf_token=${encodeURIComponent(csrf)}`
+  })
+  .then(r=>r.json()).then(d=>{
+    if(d.ok){
+      btn.classList.toggle('active-star', d.is_featured);
+      btn.title = d.is_featured ? 'Remove from featured' : 'Mark as featured';
+      const card = btn.closest('.tc-card');
+      card.classList.toggle('featured', d.is_featured);
+      const ribbon = card.querySelector('.tc-featured-ribbon');
+      if(d.is_featured && !ribbon){
+        const r = document.createElement('div');
+        r.className='tc-featured-ribbon';r.textContent='Featured';
+        card.prepend(r);
+      } else if(!d.is_featured && ribbon){
+        ribbon.remove();
+      }
+    }
+  }).catch(()=>{});
+}
+
+/* ── Preview modal + carousel ───────────────────────────── */
+let _carouselIndex = 0;
+let _carouselSlides = [];
+
+function openPreviewModal(card){
+  const thumb    = card.dataset.thumb  || '';
+  const previews = JSON.parse(card.dataset.previews || '[]');
+  const allImgs  = thumb ? [thumb, ...previews.filter(u=>u!==thumb)] : previews;
+  const name     = card.dataset.name   || 'Theme Preview';
+  const desc     = card.dataset.desc   || '';
+  const author   = card.dataset.author || '';
+  const version  = card.dataset.version|| '';
+
+  document.getElementById('modalTitle').textContent = name;
+
+  // Carousel
+  const carousel = document.getElementById('modalCarousel');
+  const track    = document.getElementById('carouselTrack');
+  track.innerHTML = '';
+  _carouselSlides = allImgs;
+  _carouselIndex  = 0;
+  if(allImgs.length){
+    allImgs.forEach(url=>{
+      const img = document.createElement('img');
+      img.src = url; img.className='tc-carousel-slide';
+      img.alt = name + ' screenshot';
+      track.appendChild(img);
+    });
+    carousel.style.display = 'block';
+    updateCarousel();
+    document.getElementById('carouselPrev').style.display = allImgs.length > 1 ? '' : 'none';
+    document.getElementById('carouselNext').style.display = allImgs.length > 1 ? '' : 'none';
+  } else {
+    carousel.style.display = 'none';
+  }
+
+  // Info grid
+  const info = document.getElementById('modalInfo');
+  const rows = [];
+  if(desc)    rows.push(['Description', desc]);
+  if(author)  rows.push(['Author', author]);
+  if(version) rows.push(['Version', version]);
+  info.innerHTML = rows.map(([l,v])=>
+    `<div class="tc-modal-info-row">
+       <div class="tc-modal-info-label">${l}</div>
+       <div class="tc-modal-info-val">${v}</div>
+     </div>`
+  ).join('');
+
+  document.getElementById('previewModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closePreviewModal(){
+  document.getElementById('previewModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function updateCarousel(){
+  document.getElementById('carouselTrack').style.transform = `translateX(-${_carouselIndex * 100}%)`;
+}
+
+function carouselMove(dir){
+  _carouselIndex = (_carouselIndex + dir + _carouselSlides.length) % _carouselSlides.length;
+  updateCarousel();
+}
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape') closePreviewModal();
+  if(document.getElementById('previewModal').classList.contains('open')){
+    if(e.key==='ArrowLeft')  carouselMove(-1);
+    if(e.key==='ArrowRight') carouselMove(1);
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,1021 @@
+{% extends "superadmin/base.html" %}
+{% block title %}Email & Forms Settings{% endblock %}
+{% block page_title %}Email & Forms Settings{% endblock %}
+
+{% block content %}
+<style>
+/* ── Superadmin Email Services — v6.5 ─────────────────────────────────── */
+.es-header{margin-bottom:1.75rem}
+.es-header h1{font-size:1.5rem;font-weight:700;margin:0 0 .25rem}
+.es-header p{color:var(--text-muted,#9ca3af);margin:0;font-size:.875rem}
+
+.es-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+.es-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.25rem}
+@media(max-width:960px){.es-grid{grid-template-columns:1fr}}
+@media(max-width:768px){.es-grid-3{grid-template-columns:1fr}}
+
+.es-card{background:var(--card-bg,#1a1f2e);border:1px solid var(--border-color,#2d3448);
+  border-radius:12px;padding:1.5rem;transition:box-shadow .2s}
+.es-card:hover{box-shadow:0 4px 20px rgba(0,0,0,.25)}
+.es-card-full{grid-column:1/-1}
+.es-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+.es-card-title{font-size:1rem;font-weight:600;display:flex;align-items:center;gap:.5rem}
+.es-section-label{font-size:.7rem;font-weight:700;color:var(--text-muted);letter-spacing:.1em;
+  text-transform:uppercase;margin-bottom:.75rem;padding-bottom:.4rem;
+  border-bottom:1px solid var(--border-color,#2d3448)}
+
+/* Provider summary cards */
+.provider-card{position:relative;overflow:hidden}
+.provider-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  border-radius:12px 12px 0 0;opacity:0;transition:.3s}
+.provider-card.is-active::before{opacity:1}
+.provider-card.smtp::before{background:#3b82f6}
+.provider-card.mailersend::before{background:#a855f7}
+.provider-card.resend::before{background:#10b981}
+
+.provider-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;
+  justify-content:center;font-size:1.2rem;flex-shrink:0}
+.provider-icon.smtp{background:rgba(59,130,246,.15)}
+.provider-icon.mailersend{background:rgba(168,85,247,.15)}
+.provider-icon.resend{background:rgba(16,185,129,.15)}
+
+/* Status badges */
+.status-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .7rem;
+  border-radius:99px;font-size:.72rem;font-weight:600;letter-spacing:.02em;transition:all .25s}
+.status-badge.ok{background:rgba(34,197,94,.15);color:#22c55e}
+.status-badge.off{background:rgba(100,116,139,.12);color:#94a3b8}
+.status-badge.warn{background:rgba(245,158,11,.12);color:#f59e0b}
+
+/* Priority drag */
+.priority-list{display:flex;flex-direction:column;gap:.6rem}
+.priority-item{display:flex;align-items:center;gap:.75rem;padding:.6rem 1rem;
+  background:var(--input-bg,#111827);border:1px solid var(--border-color,#2d3448);
+  border-radius:8px;cursor:grab;transition:box-shadow .15s,opacity .15s;user-select:none}
+.priority-item:active{cursor:grabbing;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.priority-item.dragging{opacity:.4}
+.priority-item.drag-over{box-shadow:0 0 0 2px #3b82f6;background:rgba(59,130,246,.07)}
+.priority-handle{display:flex;flex-direction:column;gap:2px;flex-shrink:0;color:#6b7280}
+.priority-handle span{display:block;width:14px;height:2px;background:currentColor;border-radius:1px}
+.priority-num{font-size:.78rem;color:#6b7280;font-weight:700;width:18px;text-align:center;flex-shrink:0}
+.priority-name{flex:1;font-weight:600;font-size:.9rem}
+.priority-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;transition:background .25s}
+.priority-dot.active{background:#22c55e}
+.priority-dot.inactive{background:#6b7280}
+
+/* Provider toggle */
+.provider-toggle{display:flex;align-items:center;gap:.6rem}
+.toggle-switch{position:relative;width:42px;height:22px;flex-shrink:0}
+.toggle-switch input{opacity:0;width:0;height:0;position:absolute}
+.toggle-track{position:absolute;inset:0;background:#374151;border-radius:11px;transition:.25s;cursor:pointer}
+.toggle-track::before{content:'';position:absolute;height:16px;width:16px;left:3px;bottom:3px;
+  background:#fff;border-radius:50%;transition:.25s}
+.toggle-switch input:checked+.toggle-track{background:#3b82f6}
+.toggle-switch input:checked+.toggle-track::before{transform:translateX(20px)}
+.toggle-label{font-size:.83rem;color:var(--text-muted);font-weight:500}
+
+/* Form elements */
+.es-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+@media(max-width:600px){.es-form-grid{grid-template-columns:1fr}}
+.es-form-group{display:flex;flex-direction:column;gap:.35rem}
+.es-form-group.full{grid-column:1/-1}
+.es-label{font-size:.75rem;font-weight:600;color:var(--text-muted,#9ca3af);text-transform:uppercase;letter-spacing:.04em}
+.es-input{background:var(--input-bg,#111827);border:1px solid var(--border-color,#2d3448);
+  border-radius:8px;padding:.55rem .85rem;color:var(--text-primary,#f1f5f9);font-size:.9rem;
+  transition:border-color .2s;width:100%;box-sizing:border-box}
+.es-input:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+.es-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right .75rem center}
+.es-hint{font-size:.73rem;color:#6b7280;margin-top:.1rem}
+.es-password-group{position:relative}
+.es-password-group .es-input{padding-right:2.5rem}
+.es-password-toggle{position:absolute;right:.7rem;top:50%;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;color:#6b7280;padding:0;display:flex}
+
+/* Buttons */
+.es-actions{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-top:1rem}
+.btn-save{background:#3b82f6;color:#fff;border:none;padding:.5rem 1.1rem;border-radius:8px;
+  font-size:.85rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;transition:background .2s,opacity .2s}
+.btn-save:hover:not(:disabled){background:#2563eb}
+.btn-save:disabled{opacity:.55;cursor:not-allowed}
+.btn-validate{background:transparent;color:#3b82f6;border:1px solid #3b82f6;padding:.45rem .9rem;
+  border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;gap:.4rem;transition:all .2s}
+.btn-validate:hover:not(:disabled){background:rgba(59,130,246,.08)}
+.btn-validate:disabled{opacity:.55;cursor:not-allowed}
+.btn-test{background:transparent;color:#22c55e;border:1px solid #22c55e;padding:.45rem .9rem;
+  border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;gap:.4rem;transition:all .2s}
+.btn-test:hover:not(:disabled){background:rgba(34,197,94,.08)}
+.btn-test:disabled{opacity:.55;cursor:not-allowed}
+
+/* Spinner */
+.spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;
+  border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Status pill bar */
+.pill-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.5rem;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .8rem;
+  border-radius:99px;font-size:.78rem;font-weight:600;border:1px solid transparent;transition:all .25s}
+.pill.green{background:rgba(34,197,94,.12);color:#22c55e;border-color:rgba(34,197,94,.2)}
+.pill.gray{background:rgba(100,116,139,.1);color:#94a3b8;border-color:rgba(100,116,139,.2)}
+.pill.amber{background:rgba(245,158,11,.1);color:#f59e0b;border-color:rgba(245,158,11,.2)}
+
+/* Feedback toast */
+#es-toast{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:.5rem}
+.toast-msg{padding:.7rem 1.1rem;border-radius:10px;font-size:.875rem;font-weight:500;
+  display:flex;align-items:center;gap:.5rem;animation:toastIn .25s ease;
+  box-shadow:0 4px 12px rgba(0,0,0,.35);max-width:360px}
+.toast-msg.ok{background:#14532d;color:#bbf7d0;border:1px solid rgba(34,197,94,.25)}
+.toast-msg.err{background:#7f1d1d;color:#fecaca;border:1px solid rgba(239,68,68,.25)}
+@keyframes toastIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* Security sidebar */
+.sec-card{background:var(--card-bg,#1a1f2e);border:1px solid var(--border-color,#2d3448);
+  border-radius:12px;padding:1.25rem}
+.sec-section{margin-bottom:1rem}
+.sec-section:last-child{margin-bottom:0}
+.sec-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem}
+.sec-title.orange{color:#f59e0b}
+.sec-title.blue{color:#38bdf8}
+.sec-title.green{color:#4ade80}
+.sec-list{margin:0;padding-left:1.1rem;color:var(--text-muted,#9ca3af);font-size:.8rem;line-height:1.6}
+
+.delivery-provider{margin:.7rem 0 .95rem;padding:.75rem;border:1px solid var(--border-color,#2d3448);border-radius:10px;background:rgba(15,23,42,.28)}
+.delivery-provider-title{font-size:.82rem;font-weight:800;color:var(--text-primary,#f1f5f9);margin-bottom:.35rem}
+.delivery-provider-sender{font-size:.72rem;color:var(--text-muted,#9ca3af);margin-bottom:.55rem;word-break:break-all}
+.delivery-list{list-style:none;margin:0;padding:0;display:grid;gap:.42rem}
+.delivery-list li{display:grid;grid-template-columns:18px 1fr;gap:.4rem;font-size:.75rem;line-height:1.4;color:var(--text-muted,#9ca3af)}
+.delivery-mark{font-weight:800;text-align:center}
+.delivery-mark.ok{color:#22c55e}.delivery-mark.warn{color:#f59e0b}.delivery-mark.bad{color:#ef4444}
+.delivery-note{display:block;color:#6b7280;font-size:.7rem;margin-top:.08rem}
+
+/* SMTP test result inline */
+.smtp-result{margin-top:.75rem;padding:.65rem 1rem;border-radius:8px;font-size:.82rem;
+  font-weight:500;display:none;align-items:flex-start;gap:.5rem;line-height:1.4}
+.smtp-result.show{display:flex}
+.smtp-result.ok{background:rgba(34,197,94,.1);color:#4ade80;border:1px solid rgba(34,197,94,.2)}
+.smtp-result.err{background:rgba(239,68,68,.1);color:#fca5a5;border:1px solid rgba(239,68,68,.2)}
+</style>
+
+<!-- Pill status bar -->
+<div class="pill-bar" id="pillBar">
+  {% if providers_status.mailersend.configured and providers_status.mailersend.active %}
+    <span class="pill green" data-pill="mailersend">✓ MailerSend active</span>
+  {% elif providers_status.mailersend.configured %}
+    <span class="pill gray" data-pill="mailersend">◎ MailerSend configured, inactive</span>
+  {% endif %}
+  {% if providers_status.smtp.configured and providers_status.smtp.active %}
+    <span class="pill green" data-pill="smtp">✓ SMTP active</span>
+  {% elif providers_status.smtp.configured %}
+    <span class="pill gray" data-pill="smtp">◎ SMTP configured, inactive</span>
+  {% endif %}
+  {% if providers_status.resend.configured and providers_status.resend.active %}
+    <span class="pill green" data-pill="resend">✓ Resend active</span>
+  {% elif providers_status.resend.configured %}
+    <span class="pill gray" data-pill="resend">◎ Resend configured, inactive</span>
+  {% endif %}
+  {% if cfg.recovery_enabled %}
+    <span class="pill green">✓ OTP recovery enabled</span>
+  {% else %}
+    <span class="pill amber">⚠ OTP recovery disabled</span>
+  {% endif %}
+  <button type="button" id="refreshBtn" onclick="refreshProviderStatus(true)"
+          style="margin-left:auto;background:transparent;border:1px solid var(--border-color,#2d3448);color:var(--text-muted);
+                 border-radius:7px;padding:.2rem .65rem;font-size:.75rem;font-weight:600;cursor:pointer;
+                 display:inline-flex;align-items:center;gap:.3rem;transition:border-color .15s"
+          title="Refresh provider configured status from database">
+    <span id="refreshIcon">↺</span> Refresh Status
+  </button>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 280px;gap:1.25rem;align-items:start">
+<div>
+
+<!-- ── Provider Priority ─────────────────────────────────────────────── -->
+<div class="es-card" style="margin-bottom:1.25rem">
+  <div class="es-card-header">
+    <div class="es-card-title">⇅ Provider Priority</div>
+    <span style="font-size:.78rem;color:var(--text-muted)">Drag to reorder · Primary provider used first, fallover on failure</span>
+  </div>
+  <div class="priority-list" id="priorityList">
+    {% for pname in priority %}
+    {% set pinfo = providers_status[pname] %}
+    <div class="priority-item" draggable="true" data-provider="{{ pname }}">
+      <div class="priority-handle"><span></span><span></span><span></span></div>
+      <span class="priority-num">{{ loop.index }}</span>
+      <span class="priority-dot {{ 'active' if pinfo.active else 'inactive' }}"></span>
+      <span class="priority-name">
+        {% if pname == 'mailersend' %}📧 MailerSend
+        {% elif pname == 'smtp' %}📮 SMTP (Gmail / custom)
+        {% elif pname == 'resend' %}✉️ Resend
+        {% endif %}
+      </span>
+      {% if pinfo.configured %}
+        <span class="status-badge {{ 'ok' if pinfo.active else 'off' }}" data-priority-badge="{{ pname }}">
+          {{ '✓ Active' if pinfo.active else '◎ Inactive' }}
+        </span>
+      {% else %}
+        <span class="status-badge warn" data-priority-badge="{{ pname }}">Not configured</span>
+      {% endif %}
+      <!-- Active toggle -->
+      <label class="provider-toggle" title="Enable / disable this provider" onclick="event.stopPropagation()">
+        <div class="toggle-switch">
+          <input type="checkbox" {{ 'checked' if pinfo.active else '' }}
+                 onchange="toggleProvider('{{ pname }}', this.checked, this)">
+          <div class="toggle-track"></div>
+        </div>
+      </label>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="es-actions">
+    <button class="btn-save" id="savePriorityBtn" onclick="savePriority(this)">💾 Save Priority</button>
+    <!-- Test email across chain -->
+    <div style="display:flex;gap:.5rem;align-items:center;margin-left:auto">
+      <input id="testEmailInput" type="email" class="es-input" placeholder="test@example.com"
+             style="width:220px" value="">
+      <button class="btn-test" id="sendTestBtn" onclick="sendTestEmail(this)">🚀 Send Test</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MailerSend Config ──────────────────────────────────────────────── -->
+<div class="es-card" style="margin-bottom:1.25rem">
+  <div class="es-card-header">
+    <div class="es-card-title">
+      <span class="provider-icon mailersend">📧</span>
+      MailerSend
+    </div>
+    {% if providers_status.mailersend.configured %}
+      <span class="status-badge ok" data-provider-badge="mailersend">✓ Configured</span>
+    {% else %}
+      <span class="status-badge warn" data-provider-badge="mailersend">Not configured</span>
+    {% endif %}
+  </div>
+  <p style="font-size:.83rem;color:var(--text-muted);margin:0 0 1rem">
+    Primary transactional provider. Get a free API key at <a href="https://mailersend.com" target="_blank" style="color:#a78bfa">mailersend.com</a>.
+    Keys are stored encrypted and never sent to the browser.
+  </p>
+  <form method="POST" id="mailersendForm" onsubmit="return false;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save_mailersend">
+    <div class="es-form-grid">
+      <div class="es-form-group full">
+        <label class="es-label">MailerSend API Key
+          {% if has_superadmin_mailersend or has_mailersend %}
+            <span style="color:#a78bfa;font-size:.7rem;margin-left:.4rem">✓ CONFIGURED</span>
+          {% endif %}
+        </label>
+        <div style="display:flex;gap:.5rem">
+          <input id="msKey" type="password" name="mailersend_api_key" class="es-input"
+                 placeholder="{{ '(set — enter new value to replace)' if has_superadmin_mailersend or has_mailersend else 'Enter MailerSend API key' }}">
+          <button type="button" class="btn-validate" id="msValidateBtn" onclick="validateMailerSend(this)">✓ Validate</button>
+        </div>
+        <span class="es-hint">Leave blank to keep the current key.</span>
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">Sender Display Name</label>
+        <input type="text" name="mailersend_sender_name" class="es-input"
+               value="{{ cfg.superadmin_sender_name or cfg.sender_name or '' }}" placeholder="Portfolio CMS">
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">From Email Address (verified domain)</label>
+        <input type="email" name="mailersend_sender_email" class="es-input"
+               value="{{ cfg.superadmin_sender_email or cfg.sender_email or '' }}"
+               placeholder="noreply@yourdomain.com">
+      </div>
+    </div>
+    <div class="es-actions">
+      <button type="button" class="btn-save" onclick="saveMailerSend(this)">💾 Save MailerSend</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── SMTP Config ───────────────────────────────────────────────────── -->
+<div class="es-card" style="margin-bottom:1.25rem">
+  <div class="es-card-header">
+    <div class="es-card-title">
+      <span class="provider-icon smtp">📮</span>
+      SMTP — Gmail / Custom
+    </div>
+    {% if providers_status.smtp.configured %}
+      <span class="status-badge ok" data-provider-badge="smtp">✓ Configured</span>
+    {% else %}
+      <span class="status-badge warn" data-provider-badge="smtp">Not configured</span>
+    {% endif %}
+  </div>
+  <p style="font-size:.83rem;color:var(--text-muted);margin:0 0 1rem">
+    For Gmail: use <strong>smtp.gmail.com</strong> · port <strong>587</strong> · TLS, and an
+    <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:#60a5fa">App Password</a>
+    (not your main Gmail password). Credentials stored encrypted.
+  </p>
+  <form method="POST" id="smtpForm" onsubmit="return false;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save_smtp">
+    <div class="es-form-grid">
+      <div class="es-form-group">
+        <label class="es-label">SMTP Host</label>
+        <input id="smtpHost" type="text" name="smtp_host" class="es-input"
+               value="{{ cfg.sa_smtp_host or '' }}" placeholder="smtp.gmail.com">
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">Port</label>
+        <input id="smtpPort" type="number" name="smtp_port" class="es-input"
+               value="{{ cfg.sa_smtp_port or 587 }}" min="1" max="65535">
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">Username / Email</label>
+        <input id="smtpUser" type="text" name="smtp_username" class="es-input"
+               value="{{ cfg.sa_smtp_username or '' }}" placeholder="you@gmail.com">
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">Password / App Password
+          {% if cfg.has_sa_smtp %}
+            <span style="color:#22c55e;font-size:.7rem;margin-left:.4rem">✓ SET</span>
+          {% endif %}
+        </label>
+        <div class="es-password-group">
+          <input id="smtpPass" type="password" name="smtp_password" class="es-input"
+                 placeholder="{{ '(set — enter new value to replace)' if cfg.has_sa_smtp else 'App password or SMTP password' }}">
+          <button type="button" class="es-password-toggle"
+                  onclick="togglePwd('smtpPass', this)">👁</button>
+        </div>
+        <span class="es-hint">Leave blank to keep existing password.</span>
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">Sender Email</label>
+        <input id="smtpSenderEmail" type="email" name="smtp_sender_email" class="es-input"
+               value="{{ cfg.sa_smtp_sender_email or '' }}" placeholder="noreply@yourdomain.com">
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">Sender Display Name</label>
+        <input type="text" name="smtp_sender_name" class="es-input"
+               value="{{ cfg.sa_smtp_sender_name or '' }}" placeholder="Portfolio CMS">
+      </div>
+      <div class="es-form-group full">
+        <label class="es-label">Encryption</label>
+        <select name="smtp_encryption" class="es-input es-select">
+          <option value="tls" {{ 'selected' if (cfg.sa_smtp_encryption or 'tls') == 'tls' }}>STARTTLS (recommended · port 587)</option>
+          <option value="ssl" {{ 'selected' if cfg.sa_smtp_encryption == 'ssl' }}>SSL/TLS (port 465)</option>
+          <option value="none" {{ 'selected' if cfg.sa_smtp_encryption == 'none' }}>None (not recommended)</option>
+        </select>
+      </div>
+    </div>
+    <!-- SMTP test result panel -->
+    <div class="smtp-result" id="smtpTestResult" role="alert">
+      <span id="smtpTestIcon"></span>
+      <span id="smtpTestMsg"></span>
+    </div>
+    <div class="es-actions">
+      <button type="button" class="btn-validate" id="smtpTestBtn" onclick="validateSMTP(this)">🔌 Test Connection</button>
+      <button type="button" class="btn-save" onclick="saveSMTP(this)">💾 Save SMTP</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── Resend Config ─────────────────────────────────────────────────── -->
+<div class="es-card" style="margin-bottom:1.25rem">
+  <div class="es-card-header">
+    <div class="es-card-title">
+      <span class="provider-icon resend">✉️</span>
+      Resend
+    </div>
+    {% if providers_status.resend.configured %}
+      <span class="status-badge ok" data-provider-badge="resend">✓ Configured</span>
+    {% else %}
+      <span class="status-badge warn" data-provider-badge="resend">Not configured</span>
+    {% endif %}
+  </div>
+  <p style="font-size:.83rem;color:var(--text-muted);margin:0 0 1rem">
+    Alternative API-based provider. Get a free API key at
+    <a href="https://resend.com" target="_blank" style="color:#34d399">resend.com</a>.
+    Requires a verified domain for the sender address.
+  </p>
+  <form method="POST" id="resendForm" onsubmit="return false;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save_resend">
+    <div class="es-form-grid">
+      <div class="es-form-group full">
+        <label class="es-label">Resend API Key
+          {% if providers_status.resend.configured %}
+            <span style="color:#10b981;font-size:.7rem;margin-left:.4rem">✓ CONFIGURED</span>
+          {% endif %}
+        </label>
+        <div style="display:flex;gap:.5rem">
+          <input id="resendKey" type="password" name="resend_api_key" class="es-input"
+                 placeholder="{{ '(set — enter new value to replace)' if providers_status.resend.configured else 're_xxxxxxxx...' }}">
+          <button type="button" class="btn-validate" id="resendValidateBtn" onclick="validateResend(this)">✓ Validate</button>
+        </div>
+        <span class="es-hint">Leave blank to keep the current key. Keys start with <code>re_</code>.</span>
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">Sender Display Name</label>
+        <input type="text" name="resend_sender_name" class="es-input"
+               value="{{ cfg.sa_resend_sender_name or '' }}" placeholder="Portfolio CMS">
+      </div>
+      <div class="es-form-group">
+        <label class="es-label">From Email Address (verified domain)</label>
+        <input type="email" name="resend_sender_email" class="es-input"
+               value="{{ cfg.sa_resend_sender_email or '' }}" placeholder="noreply@yourdomain.com">
+      </div>
+    </div>
+    <div class="es-actions">
+      <button type="button" class="btn-save" onclick="saveResend(this)">💾 Save Resend</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── OTP & Recovery ────────────────────────────────────────────────── -->
+<div class="es-card">
+  <div class="es-card-header">
+    <div class="es-card-title">🔐 OTP & Password Recovery</div>
+  </div>
+  <form method="POST" id="otpForm" onsubmit="return false;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save_otp">
+    <div class="es-form-grid">
+      <div class="es-form-group">
+        <label class="es-label">OTP Expiration (minutes)</label>
+        <input type="number" name="otp_expiry_minutes" class="es-input"
+               value="{{ cfg.otp_expiry_minutes }}" min="1" max="60">
+        <span class="es-hint">1–60 minutes. Default: 10.</span>
+      </div>
+      <div class="es-form-group" style="justify-content:flex-end">
+        <label class="es-label">Password Recovery</label>
+        <label class="provider-toggle" style="margin-top:.4rem">
+          <div class="toggle-switch">
+            <input type="checkbox" name="recovery_enabled"
+                   id="recoveryToggle" {{ 'checked' if cfg.recovery_enabled }}>
+            <div class="toggle-track"></div>
+          </div>
+          <span class="toggle-label">Enable OTP-based recovery
+            <span style="font-size:.75rem;color:#6b7280">Disabling blocks all OTP resets</span>
+          </span>
+        </label>
+      </div>
+    </div>
+    <div class="es-actions">
+      <button type="button" class="btn-save" onclick="saveOTP(this)">💾 Save OTP Settings</button>
+    </div>
+  </form>
+</div>
+
+</div><!-- /main col -->
+
+<!-- ── Security Sidebar ──────────────────────────────────────────────── -->
+<div>
+  <div class="sec-card">
+    <div class="sec-section">
+      <div class="sec-title orange">🔒 Credential Storage</div>
+      <ul class="sec-list">
+        <li>Keys encrypted at rest via <strong>Fernet</strong></li>
+        <li>Never displayed in plain text after saving</li>
+        <li>Gmail → use an <strong>App Password</strong></li>
+      </ul>
+    </div>
+    <div class="sec-section">
+      <div class="sec-title blue">🔑 Provider Scope</div>
+      <ul class="sec-list">
+        <li>These providers send <strong>admin + superadmin</strong> portal OTPs</li>
+        <li>Tenant contact form emails use tenant-level settings</li>
+        <li>Priority order controls which provider is tried first</li>
+        <li>Failover is automatic on transient errors</li>
+      </ul>
+    </div>
+    <div class="sec-section">
+      <div class="sec-title green">🌐 Deliverability Checklist</div>
+      {% if deliverability_checklists %}
+        {% for pname, checklist in deliverability_checklists.items() %}
+          <div class="delivery-provider">
+            <div class="delivery-provider-title">{{ checklist['title'] }}</div>
+            <div class="delivery-provider-sender">From: {{ checklist['sender'] or 'Not set' }}</div>
+            <ul class="delivery-list">
+              {% for item in checklist['items'] %}
+                <li>
+                  {% if item['ok'] is sameas true %}
+                    <span class="delivery-mark ok">✓</span>
+                  {% elif item['ok'] is sameas false %}
+                    <span class="delivery-mark bad">!</span>
+                  {% else %}
+                    <span class="delivery-mark warn">•</span>
+                  {% endif %}
+                  <span>
+                    {{ item['label'] }}
+                    {% if item['note'] %}<span class="delivery-note">{{ item['note'] }}</span>{% endif %}
+                  </span>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endfor %}
+      {% else %}
+        <ul class="sec-list">
+          <li>Turn on at least one configured provider to see active-provider diagnostics.</li>
+          <li>Use a verified domain sender before production.</li>
+        </ul>
+      {% endif %}
+      <ul class="sec-list">
+        <li>For <code>myportfoliohub.online</code>, configure SPF, DKIM, and DMARC in DNS.</li>
+        <li>Starting DMARC: <code>v=DMARC1; p=none; rua=mailto:postmaster@myportfoliohub.online</code></li>
+        <li>After testing: <code>v=DMARC1; p=quarantine; rua=mailto:postmaster@myportfoliohub.online</code></li>
+        <li>Check with <a href="https://mail-tester.com" target="_blank" style="color:#4ade80">mail-tester.com</a></li>
+      </ul>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border-color);margin:1rem 0">
+    <div class="sec-section">
+      <div class="sec-title" style="color:#94a3b8">Gmail Quick Setup</div>
+      <ul class="sec-list">
+        <li>Host: <code>smtp.gmail.com</code></li>
+        <li>Port: <code>587</code> · STARTTLS</li>
+        <li>Username: your Gmail address</li>
+        <li>Password: <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:#60a5fa">App Password</a> (16-char, no spaces)</li>
+        <li>2FA must be enabled on Gmail</li>
+      </ul>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border-color);margin:1rem 0">
+    <div class="sec-section">
+      <div class="sec-title" style="color:#f59e0b">🔍 Backend Diagnostics</div>
+      <p style="font-size:.78rem;color:var(--text-muted);margin:.4rem 0 .7rem">
+        If a provider badge shows "Not configured" after saving, run diagnostics to inspect the raw DB + encryption state.
+      </p>
+      <button type="button" class="btn-validate" style="width:100%;font-size:.8rem"
+              onclick="runDiagnostics(this)">🔍 Run Provider Diagnostics</button>
+      <pre id="diagOutput" style="display:none;margin-top:.7rem;padding:.6rem;background:#0d1117;
+           border:1px solid #2d3448;border-radius:6px;font-size:.72rem;
+           color:#a8b2c1;white-space:pre-wrap;max-height:260px;overflow-y:auto"></pre>
+    </div>
+  </div>
+</div>
+
+</div><!-- /outer grid -->
+
+<!-- Toast container -->
+<div id="es-toast"></div>
+
+<script>
+// ── CSRF token helper ─────────────────────────────────────────────────────
+function getCsrf() {
+  const m = document.querySelector('meta[name="csrf-token"]');
+  return m ? m.content : '';
+}
+
+// ── Toast helper ──────────────────────────────────────────────────────────
+function toast(msg, ok = true, duration = 4500) {
+  const c = document.getElementById('es-toast');
+  const d = document.createElement('div');
+  d.className = 'toast-msg ' + (ok ? 'ok' : 'err');
+  d.textContent = (ok ? '✓ ' : '✗ ') + msg;
+  c.appendChild(d);
+  setTimeout(() => { d.style.opacity='0'; d.style.transition='opacity .3s'; setTimeout(()=>d.remove(), 300); }, duration);
+}
+
+// ── Button loading state ──────────────────────────────────────────────────
+function setBtnLoading(btn, loading, originalText) {
+  if (!btn) return;
+  btn.disabled = loading;
+  if (loading) {
+    btn._origText = btn.innerHTML;
+    btn.innerHTML = '<span class="spin"></span> Working…';
+  } else {
+    btn.innerHTML = originalText || btn._origText || btn.innerHTML;
+  }
+}
+
+// ── Async fetch with timeout and abort ───────────────────────────────────
+async function ajaxPost(formData, timeoutMs = 20000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(window.location.href, {
+      method: 'POST',
+      body: formData,
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  } catch (err) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError') throw new Error('Request timed out. Check your network or try again.');
+    throw err;
+  }
+}
+
+// ── Password visibility toggle ────────────────────────────────────────────
+function togglePwd(id, btn) {
+  const inp = document.getElementById(id);
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+  else { inp.type = 'password'; btn.textContent = '👁'; }
+}
+
+// ── Priority drag-and-drop ────────────────────────────────────────────────
+let dragged = null;
+document.querySelectorAll('.priority-item').forEach(item => {
+  item.addEventListener('dragstart', () => {
+    dragged = item;
+    setTimeout(() => item.classList.add('dragging'), 0);
+  });
+  item.addEventListener('dragend', () => {
+    item.classList.remove('dragging');
+    document.querySelectorAll('.priority-item').forEach(i => i.classList.remove('drag-over'));
+    renumberPriority();
+  });
+  item.addEventListener('dragover', e => {
+    e.preventDefault();
+    document.querySelectorAll('.priority-item').forEach(i => i.classList.remove('drag-over'));
+    if (item !== dragged) item.classList.add('drag-over');
+  });
+  item.addEventListener('drop', e => {
+    e.preventDefault();
+    if (item !== dragged) {
+      const list = document.getElementById('priorityList');
+      const items = [...list.querySelectorAll('.priority-item')];
+      const di = items.indexOf(dragged), ti = items.indexOf(item);
+      if (di < ti) list.insertBefore(dragged, item.nextSibling);
+      else list.insertBefore(dragged, item);
+    }
+  });
+});
+
+function renumberPriority() {
+  document.querySelectorAll('.priority-item').forEach((item, i) => {
+    item.querySelector('.priority-num').textContent = i + 1;
+  });
+}
+
+async function savePriority(btn) {
+  const order = [...document.querySelectorAll('.priority-item')].map(i => i.dataset.provider);
+  const fd = new FormData();
+  fd.append('csrf_token', getCsrf());
+  fd.append('action', 'save_priority');
+  fd.append('priority_order', JSON.stringify(order));
+  setBtnLoading(btn, true);
+  try {
+    const d = await ajaxPost(fd);
+    toast(d.message, d.ok);
+  } catch (e) {
+    toast(e.message || 'Save failed. Please try again.', false);
+  } finally {
+    setBtnLoading(btn, false);
+  }
+}
+
+// ── Toggle provider ───────────────────────────────────────────────────────
+async function toggleProvider(name, active, checkbox) {
+  const fd = new FormData();
+  fd.append('csrf_token', getCsrf());
+  fd.append('action', 'toggle_provider');
+  fd.append('provider', name);
+  fd.append('active', active ? '1' : '0');
+  // Optimistic UI update
+  updateProviderUI(name, { active, configured: null });
+  try {
+    const d = await ajaxPost(fd);
+    toast(d.message, d.ok);
+    if (!d.ok && checkbox) {
+      // Roll back toggle on failure
+      checkbox.checked = !active;
+      updateProviderUI(name, { active: !active, configured: null });
+    } else {
+      // Refresh full status from server
+      await refreshProviderStatus(false);
+    }
+  } catch (e) {
+    toast(e.message || 'Toggle failed.', false);
+    if (checkbox) checkbox.checked = !active;
+    updateProviderUI(name, { active: !active, configured: null });
+  }
+}
+
+// ── Validate MailerSend ───────────────────────────────────────────────────
+async function validateMailerSend(btn) {
+  const key = document.getElementById('msKey').value.trim();
+  const fd = new FormData();
+  fd.append('csrf_token', getCsrf());
+  fd.append('action', 'validate_mailersend_key');
+  fd.append('mailersend_api_key', key);
+  setBtnLoading(btn, true);
+  try {
+    const d = await ajaxPost(fd);
+    toast(d.message, d.ok);
+    if (d.ok) await refreshProviderStatus(false);
+  } catch (e) {
+    toast(e.message || 'Validation failed. Try again.', false);
+  } finally {
+    setBtnLoading(btn, false);
+  }
+}
+
+// ── Save OTP settings via AJAX (v6.6) ────────────────────────────────────
+async function saveOTP(btn) {
+  const form = document.getElementById('otpForm');
+  const fd = new FormData(form);
+  fd.set('action', 'save_otp');
+  fd.set('csrf_token', getCsrf());
+
+  setBtnLoading(btn, true, '💾 Saving…');
+  try {
+    const d = await ajaxPost(fd);
+    toast(d.message || (d.ok ? 'OTP settings saved.' : 'OTP save failed.'), d.ok);
+  } catch (e) {
+    toast(e.message || 'OTP save failed.', false);
+  } finally {
+    setBtnLoading(btn, false, '💾 Save OTP Settings');
+  }
+}
+
+// ── Run backend diagnostics ────────────────────────────────────────────────
+async function runDiagnostics(btn) {
+  const out = document.getElementById('diagOutput');
+  setBtnLoading(btn, true, '🔍 Running…');
+  out.style.display = 'none';
+  try {
+    const r = await fetch('{{ url_for("superadmin.email_provider_diagnostics") }}', {
+      cache: 'no-store',
+      headers: { 'X-CSRFToken': getCsrf() }
+    });
+    const d = await r.json();
+    out.textContent = JSON.stringify(d, null, 2);
+    out.style.display = 'block';
+  } catch (e) {
+    out.textContent = 'Diagnostics request failed: ' + (e.message || 'network error');
+    out.style.display = 'block';
+  } finally {
+    setBtnLoading(btn, false, '🔍 Run Provider Diagnostics');
+  }
+}
+
+// ── Validate SMTP / Test Connection ──────────────────────────────────────
+async function validateSMTP(btn) {
+  const result = document.getElementById('smtpTestResult');
+  const msgEl  = document.getElementById('smtpTestMsg');
+  const iconEl = document.getElementById('smtpTestIcon');
+  result.className = 'smtp-result';  // hide
+
+  const fd = new FormData();
+  fd.append('csrf_token', getCsrf());
+  fd.append('action', 'validate_smtp');
+  fd.append('smtp_host',       document.getElementById('smtpHost').value);
+  fd.append('smtp_port',       document.getElementById('smtpPort').value);
+  fd.append('smtp_username',   document.getElementById('smtpUser').value);
+  fd.append('smtp_password',   document.getElementById('smtpPass').value);
+  fd.append('smtp_encryption', document.querySelector('[name=smtp_encryption]').value);
+
+  setBtnLoading(btn, true, '🔌 Test Connection');
+  try {
+    const d = await ajaxPost(fd, 30000);  // 30s for SMTP which can be slow
+    result.className = 'smtp-result show ' + (d.ok ? 'ok' : 'err');
+    iconEl.textContent = d.ok ? '✓' : '✗';
+    msgEl.textContent  = d.message;
+    toast(d.message, d.ok);
+  } catch (e) {
+    result.className = 'smtp-result show err';
+    iconEl.textContent = '✗';
+    msgEl.textContent  = e.message || 'Connection test failed. Check your settings.';
+    toast(msgEl.textContent, false);
+  } finally {
+    setBtnLoading(btn, false, '🔌 Test Connection');
+  }
+}
+
+// ── Save SMTP via AJAX (v6.6 — no page reload, instant badge sync) ────────
+async function saveSMTP(btn) {
+  const form = document.getElementById('smtpForm');
+  const fd = new FormData(form);
+  fd.set('action', 'save_smtp');
+  fd.set('csrf_token', getCsrf());
+
+  setBtnLoading(btn, true, '💾 Saving…');
+  try {
+    const d = await ajaxPost(fd);
+    if (d.ok) {
+      toast(d.message || 'SMTP settings saved.', true);
+      // Instantly sync badge from response payload if provided
+      if (d.providers && d.providers.smtp) {
+        updateProviderUI('smtp', d.providers.smtp);
+      }
+      // Always re-poll provider-status endpoint for authoritative server state
+      await refreshProviderStatus(false);
+      // Clear password field so it shows "(set — enter new value to replace)"
+      const passField = document.getElementById('smtpPass');
+      if (passField) passField.value = '';
+      if (passField) passField.placeholder = '(set — enter new value to replace)';
+      // Update inline password SET indicator
+      const pwLabel = passField ? passField.closest('.es-form-group') : null;
+      if (pwLabel) {
+        const existing = pwLabel.querySelector('.smtp-pw-set-badge');
+        if (!existing) {
+          const badge = document.createElement('span');
+          badge.className = 'smtp-pw-set-badge';
+          badge.style.cssText = 'color:#22c55e;font-size:.7rem;margin-left:.4rem';
+          badge.textContent = '✓ SET';
+          const lbl = pwLabel.querySelector('label');
+          if (lbl) lbl.appendChild(badge);
+        }
+      }
+    } else {
+      toast(d.message || 'SMTP save failed.', false);
+    }
+  } catch (e) {
+    toast(e.message || 'SMTP save failed. Check the console.', false);
+  } finally {
+    setBtnLoading(btn, false, '💾 Save SMTP');
+  }
+}
+
+// ── Save MailerSend via AJAX (v6.6) ──────────────────────────────────────
+async function saveMailerSend(btn) {
+  const form = document.getElementById('mailersendForm');
+  const fd = new FormData(form);
+  fd.set('action', 'save_mailersend');
+  fd.set('csrf_token', getCsrf());
+
+  setBtnLoading(btn, true, '💾 Saving…');
+  try {
+    const d = await ajaxPost(fd);
+    if (d.ok) {
+      toast(d.message || 'MailerSend settings saved.', true);
+      if (d.providers && d.providers.mailersend) {
+        updateProviderUI('mailersend', d.providers.mailersend);
+      }
+      await refreshProviderStatus(false);
+      const keyField = document.getElementById('msKey');
+      if (keyField) { keyField.value = ''; keyField.placeholder = '(set — enter new value to replace)'; }
+    } else {
+      toast(d.message || 'MailerSend save failed.', false);
+    }
+  } catch (e) {
+    toast(e.message || 'MailerSend save failed.', false);
+  } finally {
+    setBtnLoading(btn, false, '💾 Save MailerSend');
+  }
+}
+
+// ── Save Resend via AJAX (v6.6) ───────────────────────────────────────────
+async function saveResend(btn) {
+  const form = document.getElementById('resendForm');
+  const fd = new FormData(form);
+  fd.set('action', 'save_resend');
+  fd.set('csrf_token', getCsrf());
+
+  setBtnLoading(btn, true, '💾 Saving…');
+  try {
+    const d = await ajaxPost(fd);
+    if (d.ok) {
+      toast(d.message || 'Resend settings saved.', true);
+      if (d.providers && d.providers.resend) {
+        updateProviderUI('resend', d.providers.resend);
+      }
+      await refreshProviderStatus(false);
+      const keyField = document.getElementById('resendKey');
+      if (keyField) { keyField.value = ''; keyField.placeholder = '(set — enter new value to replace)'; }
+    } else {
+      toast(d.message || 'Resend save failed.', false);
+    }
+  } catch (e) {
+    toast(e.message || 'Resend save failed.', false);
+  } finally {
+    setBtnLoading(btn, false, '💾 Save Resend');
+  }
+}
+
+// ── Validate Resend ───────────────────────────────────────────────────────
+async function validateResend(btn) {
+  const key = document.getElementById('resendKey').value.trim();
+  const fd = new FormData();
+  fd.append('csrf_token', getCsrf());
+  fd.append('action', 'validate_resend');
+  fd.append('resend_api_key', key);
+  setBtnLoading(btn, true);
+  try {
+    const d = await ajaxPost(fd);
+    toast(d.message, d.ok);
+    if (d.ok) await refreshProviderStatus(false);
+  } catch (e) {
+    toast(e.message || 'Validation failed.', false);
+  } finally {
+    setBtnLoading(btn, false);
+  }
+}
+
+// ── Send test email ───────────────────────────────────────────────────────
+async function sendTestEmail(btn) {
+  const email = document.getElementById('testEmailInput').value.trim();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    toast('Enter a valid test recipient email address first.', false);
+    return;
+  }
+  const fd = new FormData();
+  fd.append('csrf_token', getCsrf());
+  fd.append('action', 'send_test_email');
+  fd.append('test_email', email);
+  setBtnLoading(btn, true, '🚀 Send Test');
+  toast('Sending test email…', true, 2000);
+  try {
+    const d = await ajaxPost(fd, 40000);  // 40s — SMTP can be slow on first send
+    toast(d.message, d.ok);
+  } catch (e) {
+    toast(e.message || 'Test email failed. Check provider configuration.', false);
+  } finally {
+    setBtnLoading(btn, false, '🚀 Send Test');
+  }
+}
+
+// ── Provider UI update helper ─────────────────────────────────────────────
+function updateProviderUI(name, info) {
+  // Update header-level badges (inside provider config cards)
+  if (info.configured !== null) {
+    document.querySelectorAll(`[data-provider-badge="${name}"]`).forEach(badge => {
+      if (info.configured) {
+        badge.className = 'status-badge ' + (info.active ? 'ok' : 'off');
+        badge.textContent = info.active ? '✓ Configured & Active' : '✓ Configured (inactive)';
+      } else {
+        badge.className = 'status-badge warn';
+        badge.textContent = 'Not configured';
+      }
+    });
+  }
+  // Priority list badges + dots
+  const item = document.querySelector(`.priority-item[data-provider="${name}"]`);
+  if (item) {
+    const dot   = item.querySelector('.priority-dot');
+    const badge = item.querySelector('[data-priority-badge]');
+    if (dot) dot.className = 'priority-dot ' + (info.active ? 'active' : 'inactive');
+    if (badge && info.configured !== null) {
+      if (info.configured) {
+        badge.className = 'status-badge ' + (info.active ? 'ok' : 'off');
+        badge.textContent = info.active ? '✓ Active' : '◎ Inactive';
+      } else {
+        badge.className = 'status-badge warn';
+        badge.textContent = 'Not configured';
+      }
+    } else if (badge && info.configured === null) {
+      // Only update active state of existing badge
+      const isWarn = badge.classList.contains('warn');
+      if (!isWarn) {
+        badge.className = 'status-badge ' + (info.active ? 'ok' : 'off');
+        badge.textContent = info.active ? '✓ Active' : '◎ Inactive';
+      }
+    }
+  }
+  // Pill bar
+  updatePillBar(name, info);
+}
+
+function updatePillBar(name, info) {
+  const pill = document.querySelector(`[data-pill="${name}"]`);
+  if (!pill) return;
+  if (info.configured !== null && !info.configured) {
+    pill.style.display = 'none';
+    return;
+  }
+  pill.style.display = '';
+  if (info.configured) {
+    if (info.active) {
+      pill.className = 'pill green';
+      pill.textContent = '✓ ' + {mailersend:'MailerSend',smtp:'SMTP',resend:'Resend'}[name] + ' active';
+    } else {
+      pill.className = 'pill gray';
+      pill.textContent = '◎ ' + {mailersend:'MailerSend',smtp:'SMTP',resend:'Resend'}[name] + ' configured, inactive';
+    }
+  }
+}
+
+// ── Provider status live refresh ──────────────────────────────────────────
+const _statusUrl = '{{ url_for("superadmin.email_provider_status") }}';
+
+async function refreshProviderStatus(showToast = false) {
+  const refreshIcon = document.getElementById('refreshIcon');
+  if (refreshIcon) refreshIcon.style.animation = 'spin .6s linear infinite';
+  try {
+    const r = await fetch(_statusUrl, { cache: 'no-store' });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    if (!d.ok) return;
+    const p = d.providers;
+    ['mailersend','smtp','resend'].forEach(name => {
+      updateProviderUI(name, p[name]);
+    });
+    // Sync toggle checkboxes
+    ['mailersend','smtp','resend'].forEach(name => {
+      const item = document.querySelector(`.priority-item[data-provider="${name}"]`);
+      if (item) {
+        const cb = item.querySelector('input[type=checkbox]');
+        if (cb) cb.checked = p[name].active;
+      }
+    });
+    if (showToast) toast('Provider status refreshed.', true);
+  } catch (e) {
+    if (showToast) toast('Could not refresh status: ' + (e.message || 'network error'), false);
+  } finally {
+    if (refreshIcon) refreshIcon.style.animation = '';
+  }
+}
+
+// Auto-refresh on page load
+document.addEventListener('DOMContentLoaded', () => {
+  refreshProviderStatus(false);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MyPortfolioHub — Build Your Professional Portfolio</title>
+<meta name="description" content="MyPortfolioHub is the SaaS platform professionals use to build, publish, and share a modern online portfolio — projects, skills, certificates, and experience in one place.">
+
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+<!-- Bootstrap 5 (grid + utilities only — visual system is custom) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<meta name="csrf-token" content="{{ csrf_token() }}" />
+
+<!-- Site styles -->
+ <link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<div class="bg-mesh" aria-hidden="true"></div>
+<div class="bg-grid" aria-hidden="true"></div>
+
+<!-- =========================================================
+     NAVBAR
+========================================================= -->
+<header class="navbar-mph" id="navbar">
+  <div class="nav-inner">
+    <a href="#home" class="brand" aria-label="MyPortfolioHub home">
+      <span class="brand-mark"><img src="{{ url_for('static', filename='image/icon.ico') }}" alt="MyPortfolioHub Icon"></span>
+      MyPortfolioHub
+    </a>
+
+    <nav aria-label="Primary">
+      <ul class="nav-links">
+        <li><a href="#home">Home</a></li>
+        <li><a href="#explore">Explore</a></li>
+        <li><a href="{{ url_for('public.projects') }}">Projects</a></li>
+        <li><a href="{{ url_for('public.themes') }}">Themes</a></li>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="#faq">FAQ</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+    </nav>
+
+    <div class="nav-actions">
+      {% if current_user.is_authenticated %}
+        <a href="{{ url_for('public.administrator_gateway') }}" class="btn-mph btn-ghost">Dashboard</a>
+        {% if not current_user.is_superadmin and current_user.tenant_slug %}
+        <a href="{{ tenant_portfolio_url(current_user.tenant_slug) }}" class="btn-mph btn-outline">My Portfolio</a>
+        {% endif %}
+      {% else %}
+        <a href="{{ url_for('auth.portal', tab='login') }}" class="btn-mph btn-ghost">Sign In</a>
+        <a href="{{ url_for('auth.portal', tab='signup') }}" class="btn-mph btn-primary btn-sm ripple-wrap">Get Started</a>
+      {% endif %}
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="mobileMenu">
+        <i class="bi bi-list" aria-hidden="true"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="#home">Home</a>
+    <a href="#explore">Explore</a>
+    <a href="{{ url_for('public.projects') }}">Projects</a>
+    <a href="{{ url_for('public.themes') }}">Themes</a>
+    <a href="#features">Features</a>
+    <a href="#community">Community</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#faq">FAQ</a>
+    <a href="#contact">Contact</a>
+    {% if current_user.is_authenticated %}
+      <a href="{{ url_for('public.administrator_gateway') }}" class="btn-mph btn-outline btn-block">Dashboard</a>
+      {% if not current_user.is_superadmin and current_user.tenant_slug %}
+      <a href="{{ tenant_portfolio_url(current_user.tenant_slug) }}" class="btn-mph btn-primary btn-block ripple-wrap">My Portfolio</a>
+      {% endif %}
+    {% else %}
+      <a href="{{ url_for('auth.portal', tab='login') }}" class="btn-mph btn-outline btn-block">Sign In</a>
+      <a href="{{ url_for('auth.portal', tab='signup') }}" class="btn-mph btn-primary btn-block ripple-wrap">Get Started</a>
+    {% endif %}
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- =========================================================
+       HERO
+  ========================================================= -->
+  <section id="home" class="hero">
+    <div class="container-mph">
+      <div class="hero-grid">
+        <div class="hero-copy" data-reveal>
+          <span class="eyebrow"><span class="dot" aria-hidden="true"></span> {{ landing_content.hero_badge or 'Now live · Portfolio builder v7' }}</span>
+          <h1>{{ landing_content.hero_title or 'Build Your Professional Portfolio with ' }}<span class="text-gradient">MyPortfolioHub</span></h1>
+          <p class="lead">{{ landing_content.hero_subtitle or 'Create a modern online portfolio to showcase your projects, skills, certifications, and experience — no code, no design skills, published in minutes.' }}</p>
+
+          <div class="hero-cta">
+            {% if current_user.is_authenticated %}
+              <a href="{{ url_for('public.administrator_gateway') }}" class="btn-mph btn-primary ripple-wrap">Go to Dashboard <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+              {% if not current_user.is_superadmin and current_user.tenant_slug %}
+              <a href="{{ tenant_portfolio_url(current_user.tenant_slug) }}" class="btn-mph btn-outline ripple-wrap">View My Portfolio</a>
+              {% endif %}
+            {% else %}
+              <a href="{{ landing_content.hero_cta_primary_url or url_for('auth.portal', tab='signup') }}" class="btn-mph btn-primary ripple-wrap">{{ landing_content.hero_cta_primary_text or 'Get Started Free' }} <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+              <a href="{{ landing_content.hero_cta_secondary_url or url_for('auth.portal', tab='login') }}" class="btn-mph btn-outline ripple-wrap">{{ landing_content.hero_cta_secondary_text or 'Sign In' }}</a>
+            {% endif %}
+            <a href="#explore" class="btn-mph btn-ghost">Explore Portfolios <i class="bi bi-arrow-down-right" aria-hidden="true"></i></a>
+          </div>
+
+          <div class="hero-meta">
+            <div class="avatar-stack" aria-hidden="true">
+              {% for creator in community.avatars %}
+                {% set creator_avatar_url = creator.image|default('', true)|upload_url('profiles') %}
+                {% if creator_avatar_url %}
+                <img src="{{ creator_avatar_url }}" alt="" loading="lazy"
+                     onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+                <span class="avatar-fallback" hidden>{{ creator.initial }}</span>
+                {% else %}
+                <span class="avatar-fallback">{{ creator.initial }}</span>
+                {% endif %}
+              {% endfor %}
+            </div>
+            {% if community.member_count %}
+            <span>Joined by {{ community.member_count }}+ professionals{% if community.country_count %} across {{ community.country_count }}+ countries{% endif %}</span>
+            {% else %}
+            <span>Be one of the first professionals to join</span>
+            {% endif %}
+          </div>
+
+          <div class="trust-row" aria-label="Companies that have hired MyPortfolioHub members">
+            <span class="trust-label">Portfolios from this platform have been hired by</span>
+            <div class="trust-logos">
+              <span class="trust-logo">NORTHPEAK</span>
+              <span class="trust-logo">VELORA</span>
+              <span class="trust-logo">ARCLIGHT</span>
+              <span class="trust-logo">HALCYON&nbsp;CO.</span>
+              <span class="trust-logo">HAVENDALE</span>
+            </div>
+          </div>
+        </div>
+
+        {% set hero_has_image = landing_content.hero_image_url %}
+        {% set hero_animate = landing_content.hero_enable_animation is not defined or landing_content.hero_enable_animation %}
+        {% set hero_widgets = landing_content.hero_enable_widgets is not defined or landing_content.hero_enable_widgets %}
+        <div class="hero-preview-container hero-visual" data-reveal style="--d:120ms">
+          <div class="browser-mock hero-browser-frame{{ '' if hero_animate else ' no-animate' }}">
+            <div class="browser-bar">
+              <span class="browser-dot"></span>
+              <span class="browser-dot"></span>
+              <span class="browser-dot"></span>
+              <span class="browser-url"><i class="bi bi-lock-fill" aria-hidden="true"></i> {{ landing_content.hero_preview_url_text or 'myportfoliohub.online/you' }}</span>
+            </div>
+            <div class="browser-body">
+              {% if hero_has_image %}
+              <div class="hero-preview-image">
+                <img src="{{ landing_content.hero_image_url }}" alt="{{ landing_content.hero_preview_name or 'Live portfolio preview' }}" loading="lazy" />
+                {% if landing_content.hero_preview_name or landing_content.hero_preview_role %}
+                <div class="hero-preview-image-caption">
+                  {% if landing_content.hero_preview_name %}<span class="mock-name">{{ landing_content.hero_preview_name }}</span>{% endif %}
+                  {% if landing_content.hero_preview_role %}<span class="mock-role">{{ landing_content.hero_preview_role }}</span>{% endif %}
+                </div>
+                {% endif %}
+              </div>
+              {% else %}
+              <div class="mock-profile">
+                <div class="mock-avatar mock-avatar-placeholder" aria-hidden="true"><i class="bi bi-person-fill"></i></div>
+                <div>
+                  <div class="mock-name">{{ landing_content.hero_preview_name or 'Your portfolio' }}</div>
+                  <div class="mock-role">{{ landing_content.hero_preview_role or 'Add a hero screenshot in Landing Page Settings' }}</div>
+                </div>
+              </div>
+              <div class="mock-bar w-70"></div>
+              <div class="mock-bar w-45"></div>
+              <div class="mock-grid" aria-hidden="true">
+                <div class="mock-tile"></div>
+                <div class="mock-tile"></div>
+                <div class="mock-tile"></div>
+              </div>
+              {% endif %}
+              {% if hero_widgets %}
+              <div class="mock-engage">
+                <button class="like-btn demo-like" type="button" aria-pressed="false" aria-label="Like this portfolio">
+                  <i class="bi bi-heart" aria-hidden="true"></i>
+                  <span class="like-count">{{ landing_content.hero_stat_likes or '128' }}</span>
+                </button>
+                <span class="mock-engage-stat"><i class="bi bi-eye" aria-hidden="true"></i> {{ landing_content.hero_stat_views or '214' }} views</span>
+                <span class="mock-engage-stat"><i class="bi bi-chat" aria-hidden="true"></i> {{ landing_content.hero_stat_comments or '12' }}</span>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if hero_widgets %}
+          <div class="float-card hero-floating-widget card-1{{ '' if hero_animate else ' no-animate' }}">
+            <span class="icon-badge green"><i class="bi bi-patch-check-fill" aria-hidden="true"></i></span>
+            {{ landing_content.hero_stat_badge_text or 'Portfolio published' }}
+          </div>
+          <div class="float-card hero-floating-widget card-2{{ '' if hero_animate else ' no-animate' }}">
+            <span class="icon-badge violet"><i class="bi bi-heart-fill" aria-hidden="true"></i></span>
+            Liked by {{ landing_content.hero_stat_likes or '128' }} people
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <a href="#explore" class="scroll-cue" aria-label="Scroll to explore portfolios">
+        <span>Scroll to explore</span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </a>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       STATS
+  ========================================================= -->
+  <section class="stats-bar" aria-label="Platform statistics">
+    <div class="container-mph">
+      <div class="stats-row">
+        <div data-reveal>
+          <div class="stat-num"><span data-count="{{ stats.portfolios|default(1500) }}" data-suffix="+">0</span></div>
+          <div class="stat-label">Portfolios published</div>
+        </div>
+        <div data-reveal style="--d:80ms">
+          <div class="stat-num"><span data-count="{{ stats.projects|default(12000) }}" data-suffix="+">0</span></div>
+          <div class="stat-label">Projects showcased</div>
+        </div>
+        <div data-reveal style="--d:160ms">
+          <div class="stat-num"><span data-count="{{ stats.skills|default(8500) }}" data-suffix="+">0</span></div>
+          <div class="stat-label">Skills listed</div>
+        </div>
+        <div data-reveal style="--d:240ms">
+          <div class="stat-num"><span data-count="{{ stats.certificates|default(350) }}" data-suffix="+">0</span></div>
+          <div class="stat-label">Certificates earned</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       FEATURES
+  ========================================================= -->
+  <section id="features">
+    <div class="container-mph">
+      <div class="section-head center" data-reveal>
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Platform</span>
+        <h2>{{ landing_content.features_heading or 'Everything a portfolio needs, built in' }}</h2>
+        <p>{{ landing_content.features_subtitle or 'One workspace to structure your work, tell your story, and keep it looking sharp — automatically.' }}</p>
+      </div>
+
+      <div class="feature-grid">
+        <article class="feature-card" data-reveal>
+          <div class="feature-icon"><i class="bi bi-layout-text-window-reverse" aria-hidden="true"></i></div>
+          <h3>Portfolio Builder</h3>
+          <p>Drag, drop, and arrange sections with live preview — no code required.</p>
+        </article>
+        <article class="feature-card" data-reveal style="--d:60ms">
+          <div class="feature-icon"><i class="bi bi-kanban" aria-hidden="true"></i></div>
+          <h3>Projects</h3>
+          <p>Showcase case studies with images, links, tags, and outcomes.</p>
+        </article>
+        <article class="feature-card" data-reveal style="--d:120ms">
+          <div class="feature-icon"><i class="bi bi-stars" aria-hidden="true"></i></div>
+          <h3>Skills</h3>
+          <p>Organize technical and soft skills with proficiency indicators.</p>
+        </article>
+        <article class="feature-card" data-reveal style="--d:180ms">
+          <div class="feature-icon"><i class="bi bi-briefcase" aria-hidden="true"></i></div>
+          <h3>Experience</h3>
+          <p>A clean timeline of roles, companies, and impact.</p>
+        </article>
+        <article class="feature-card" data-reveal>
+          <div class="feature-icon"><i class="bi bi-mortarboard" aria-hidden="true"></i></div>
+          <h3>Education</h3>
+          <p>Degrees, coursework, and honours, formatted consistently.</p>
+        </article>
+        <article class="feature-card" data-reveal style="--d:60ms">
+          <div class="feature-icon"><i class="bi bi-patch-check" aria-hidden="true"></i></div>
+          <h3>Certificates</h3>
+          <p>Verified badges for licenses and certifications you've earned.</p>
+        </article>
+        <article class="feature-card" data-reveal style="--d:120ms">
+          <div class="feature-icon"><i class="bi bi-file-earmark-person" aria-hidden="true"></i></div>
+          <h3>Resume</h3>
+          <p>Export a matching PDF resume generated from your profile.</p>
+        </article>
+        <article class="feature-card" data-reveal style="--d:180ms">
+          <div class="feature-icon"><i class="bi bi-chat-dots" aria-hidden="true"></i></div>
+          <h3>Messaging</h3>
+          <p>Let visitors and recruiters reach you directly, spam-filtered.</p>
+        </article>
+        <article class="feature-card" data-reveal>
+          <div class="feature-icon"><i class="bi bi-palette" aria-hidden="true"></i></div>
+          <h3>Themes</h3>
+          <p>A curated theme catalog with full color and typography control.</p>
+        </article>
+        <article class="feature-card" data-reveal style="--d:60ms">
+          <div class="feature-icon"><i class="bi bi-bar-chart-line" aria-hidden="true"></i></div>
+          <h3>Analytics</h3>
+          <p>See who's viewing your portfolio, and which projects land.</p>
+        </article>
+        <article class="feature-card" data-reveal style="--d:120ms">
+          <div class="feature-icon"><i class="bi bi-phone" aria-hidden="true"></i></div>
+          <h3>Responsive</h3>
+          <p>Every theme adapts cleanly from desktop to mobile.</p>
+        </article>
+        <article class="feature-card" data-reveal style="--d:180ms">
+          <div class="feature-icon"><i class="bi bi-shield-check" aria-hidden="true"></i></div>
+          <h3>Security</h3>
+          <p>Encrypted credentials, scoped access, and rate-limited endpoints.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       THEME SHOWCASE
+  ========================================================= -->
+  <section id="themes" class="section-alt">
+    <div class="container-mph">
+      <div class="section-head center" data-reveal>
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Themes</span>
+        <h2>A theme for <span class="text-gradient">every kind of work</span></h2>
+        <p>Switch anytime — your content stays exactly the same, only the look changes.</p>
+      </div>
+
+      {% if themes %}
+      <div class="theme-grid">
+        {% for theme in themes %}
+        <article class="theme-card{% if theme.premium %} theme-card-premium{% endif %}" data-reveal
+                  style="--d:{{ loop.index0 * 60 }}ms;--tc1:{{ theme.primary_color }};--tc2:{{ theme.secondary_color }};--tc3:{{ theme.background_color }};--tc4:{{ theme.text_color }};">
+          {% if theme.premium %}<span class="theme-badge">Premium</span>{% endif %}
+          <div class="theme-preview">
+            {% if theme.preview_image %}
+              <img class="theme-preview-img" src="{{ theme.preview_image }}" alt="{{ theme.name }} theme preview" loading="lazy"
+                   onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+              <div class="theme-preview-fallback" hidden>
+                <div class="theme-mock-bar"></div>
+                <div class="theme-mock-lines"><span></span><span class="short"></span></div>
+                <div class="theme-swatches"><span style="background:var(--tc1)"></span><span style="background:var(--tc2)"></span><span style="background:var(--tc3)"></span></div>
+              </div>
+            {% else %}
+              <div class="theme-mock-bar"></div>
+              <div class="theme-mock-lines"><span></span><span class="short"></span></div>
+              <div class="theme-swatches"><span style="background:var(--tc1)"></span><span style="background:var(--tc2)"></span><span style="background:var(--tc3)"></span></div>
+            {% endif %}
+          </div>
+          <div class="theme-meta">
+            <span class="theme-name">{{ theme.name }}</span>
+            <span class="theme-tag">{{ theme.tagline or (theme.category | title) }}</span>
+          </div>
+          <a href="{{ url_for('public.theme_preview', theme_id=theme.id) }}" target="_blank" rel="noopener"
+             class="btn-mph btn-outline btn-sm btn-block ripple-wrap">Preview theme</a>
+        </article>
+        {% endfor %}
+      </div>
+
+      {% if themes_has_more %}
+      <div class="theme-showcase-actions mt-5" data-reveal>
+        <a href="{{ url_for('public.themes') }}" class="btn-mph btn-outline ripple-wrap">See all {{ themes_total }} themes <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+      </div>
+      {% endif %}
+      {% else %}
+      <div class="theme-empty-state" data-reveal>
+        <i class="bi bi-palette" aria-hidden="true"></i>
+        <p>New themes are on the way — check back soon.</p>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- =========================================================
+       PORTFOLIO SHOWCASE
+  ========================================================= -->
+  <section id="explore">
+    <div class="container-mph">
+      <div class="section-head" data-reveal>
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Explore</span>
+        <h2>Portfolios <span class="text-gradient">published this month</span></h2>
+        <p>A sample of the work professionals are publishing on MyPortfolioHub right now.</p>
+      </div>
+
+      <div class="showcase-grid">
+        {% for c in featured_creators %}
+        <article class="pf-card" data-reveal{% if loop.index0 %} style="--d:{{ loop.index0 * 60 }}ms"{% endif %}>
+          {% set creator_photo_url = c.profile_image|default('', true)|upload_url('profiles') %}
+          <div class="pf-cover">
+            {% if creator_photo_url %}
+              <img src="{{ creator_photo_url }}" alt="" loading="lazy"
+                   onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+              <div class="pf-cover-placeholder" hidden>{{ c.name[:1]|upper }}</div>
+            {% else %}
+              <div class="pf-cover-placeholder">{{ c.name[:1]|upper }}</div>
+            {% endif %}
+          </div>
+          <div class="pf-body">
+            {% if creator_photo_url %}
+              <img class="pf-avatar" src="{{ creator_photo_url }}" alt="Photo of {{ c.name }}" loading="lazy"
+                   onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+              <div class="pf-avatar pf-avatar-fallback" hidden>{{ c.name[:1]|upper }}</div>
+            {% else %}
+              <div class="pf-avatar pf-avatar-fallback">{{ c.name[:1]|upper }}</div>
+            {% endif %}
+            <div class="pf-name-row">
+              <span class="pf-name">{{ c.name }}</span>
+              {% if c.is_administrator %}<i class="bi bi-patch-check-fill pf-verified" title="Verified"></i>{% endif %}
+            </div>
+            <div class="pf-role">{{ c.title or 'Creator' }}</div>
+            {% if c.bio_short %}<p class="pf-bio">{{ c.bio_short }}</p>{% endif %}
+            <div class="pf-footer">
+              <span class="pf-projects"><strong>{{ c.project_count }}</strong> projects</span>
+              <a href="{{ tenant_portfolio_url(c.tenant_slug) }}" class="btn-mph btn-outline btn-sm">View</a>
+            </div>
+          </div>
+        </article>
+        {% else %}
+        <p style="opacity:.7;grid-column:1/-1;text-align:center;">No public portfolios yet — <a href="{{ url_for('auth.portal', tab='signup') }}">be the first to publish one</a>.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       PROJECT SHOWCASE
+  ========================================================= -->
+  <section id="projects" class="section-alt landing-case-studies">
+    <div class="container-mph">
+      <div class="section-head case-study-header" data-reveal>
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Projects</span>
+        <h2>Case studies <span class="text-gradient">worth a closer look</span></h2>
+        <p>Explore real projects published by creators using MyPortfolioHub.</p>
+      </div>
+
+      <div class="case-study-grid{% if trending_projects and trending_projects|length == 1 %} single-card{% endif %}" aria-live="polite">
+        {% if trending_projects %}
+          {% for project in trending_projects %}
+          {% set project_title = project.title|default('Untitled Project', true) %}
+          {% set project_desc = project.description_short|default(project.description|default('No description added yet.', true), true) %}
+          {% set project_category = project.category|default('Project', true) %}
+          {% set creator_name = project.creator_name|default('Creator', true) %}
+          {% set creator_profile_image = project.creator_profile_image|default('', true) %}
+          {% set creator_slug = project.creator_slug|default(project.tenant_slug|default('', true), true) %}
+          {% set case_url = project.url|default('', true) %}
+          <article class="proj-card case-study-card" data-reveal{% if loop.index0 %} style="--d:{{ loop.index0 * 60 }}ms"{% endif %}>
+            <div class="proj-cover">
+              {% set project_image_url = project.image|default('', true)|upload_url('projects') %}
+              {% if project_image_url %}
+                <img src="{{ project_image_url }}" alt="Preview of {{ project_title }}" loading="lazy"
+                     onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+                <div class="proj-cover-placeholder" aria-hidden="true" hidden>
+                  <i class="bi bi-window-stack"></i>
+                </div>
+              {% else %}
+                <div class="proj-cover-placeholder" aria-hidden="true">
+                  <i class="bi bi-window-stack"></i>
+                </div>
+              {% endif %}
+              <div class="proj-cover-shade" aria-hidden="true"></div>
+              <div class="proj-cover-badges">
+                <span class="proj-category-badge">{{ project_category }}</span>
+                {% if creator_name %}<span class="proj-creator-badge">{{ creator_name }}</span>{% endif %}
+              </div>
+            </div>
+
+            <div class="proj-body">
+              {% if project.tags %}
+                <div class="proj-tags" aria-label="Project tags">
+                  {% for tag in project.tags[:3] %}
+                    <span class="pf-tag">{{ tag }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+
+              <h3 class="proj-title">{{ project_title }}</h3>
+              <p class="proj-desc">{{ project_desc }}</p>
+
+              <div class="proj-author">
+                {% set creator_profile_url = creator_profile_image|default('', true)|upload_url('profiles') %}
+                {% if creator_profile_url %}
+                  <img class="proj-author-avatar" src="{{ creator_profile_url }}" alt="Photo of {{ creator_name }}" loading="lazy"
+                       onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+                  <span class="proj-author-fallback" aria-hidden="true" hidden>{{ creator_name[:1]|upper }}</span>
+                {% else %}
+                  <span class="proj-author-fallback" aria-hidden="true">{{ creator_name[:1]|upper }}</span>
+                {% endif %}
+                <span>by {{ creator_name }}</span>
+              </div>
+
+              <div class="project-card-actions">
+                <button
+                  class="like-btn project-action-btn project-action-like{% if project.liked %} liked{% endif %}{% if not current_user.is_authenticated %} signin-required{% endif %}"
+                  type="button"
+                  aria-pressed="{{ 'true' if project.liked else 'false' }}"
+                  aria-label="{% if project.liked %}Unlike {{ project_title }}{% else %}Like {{ project_title }}{% endif %}"
+                  data-project-id="{{ project.id }}"
+                  data-liked="{{ '1' if project.liked else '0' }}"
+                >
+                  <i class="bi bi-heart" aria-hidden="true"></i>
+                  <span class="like-label">{% if project.liked %}Liked{% else %}Like{% endif %}</span>
+                  <span class="like-count">{{ project.like_count or 0 }}</span>
+                </button>
+
+                {% if case_url %}
+                <a href="{{ case_url }}" class="project-action-btn project-action-case" aria-label="View case study for {{ project_title }}">
+                  <i class="bi bi-journal-text" aria-hidden="true"></i>
+                  <span>View case study</span>
+                </a>
+                {% else %}
+                <span class="project-action-btn project-action-case is-disabled" aria-disabled="true">
+                  <i class="bi bi-journal-text" aria-hidden="true"></i>
+                  <span>Case study unavailable</span>
+                </span>
+                {% endif %}
+
+                {% if creator_slug %}
+                <a href="{{ (project.portfolio_url if project.portfolio_url is defined and project.portfolio_url else tenant_portfolio_url(creator_slug)) }}" class="project-action-btn project-action-portfolio" aria-label="View {{ creator_name }} portfolio">
+                  <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                  <span>View portfolio</span>
+                </a>
+                {% else %}
+                <span class="project-action-btn project-action-portfolio is-disabled" aria-disabled="true">
+                  <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                  <span>Portfolio unavailable</span>
+                </span>
+                {% endif %}
+              </div>
+
+              <div class="proj-meta-row" aria-label="Project activity stats">
+                <span class="proj-meta-item"><i class="bi bi-eye" aria-hidden="true"></i>{{ project.view_count or 0 }} views</span>
+                <span class="proj-meta-item"><i class="bi bi-heart" aria-hidden="true"></i>{{ project.like_count or 0 }} likes</span>
+                {% if project_category %}<span class="proj-meta-item"><i class="bi bi-tag" aria-hidden="true"></i>{{ project_category }}</span>{% endif %}
+              </div>
+            </div>
+          </article>
+          {% endfor %}
+        {% else %}
+          <div class="case-study-empty" data-reveal>
+            <i class="bi bi-window-plus" aria-hidden="true"></i>
+            <h3>No published projects yet</h3>
+            <p>Case studies from creators will appear here as soon as projects are published.</p>
+            <a href="{{ url_for('auth.portal', tab='signup') }}" class="btn-mph btn-outline">Create a portfolio</a>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="text-center mt-5" data-reveal>
+        <a href="{{ url_for('public.projects') }}" class="btn-mph btn-outline ripple-wrap">Browse all projects <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       MEET THE FOUNDER
+  ========================================================= -->
+  <section id="founder">
+    <div class="container-mph">
+      <div class="founder-showcase" data-reveal>
+        <article class="founder-portrait-card">
+          {% if landing_content.founder_photo_url %}
+            {% set founder_fit = landing_content.founder_photo_fit if landing_content.founder_photo_fit in ['cover', 'contain'] else 'cover' %}
+            {% set founder_x = landing_content.founder_photo_position_x|default('50')|int %}
+            {% set founder_y = landing_content.founder_photo_position_y|default('50')|int %}
+            {% set founder_zoom = landing_content.founder_photo_zoom|default('100')|int %}
+            {% if founder_x < 0 %}{% set founder_x = 0 %}{% elif founder_x > 100 %}{% set founder_x = 100 %}{% endif %}
+            {% if founder_y < 0 %}{% set founder_y = 0 %}{% elif founder_y > 100 %}{% set founder_y = 100 %}{% endif %}
+            {% if founder_zoom < 100 %}{% set founder_zoom = 100 %}{% elif founder_zoom > 180 %}{% set founder_zoom = 180 %}{% endif %}
+            <img
+              class="founder-portrait-img"
+              src="{{ landing_content.founder_photo_url }}"
+              alt="Portrait of {{ landing_content.founder_name or 'the founder' }}"
+              loading="lazy"
+              style="object-fit: {{ founder_fit }}; object-position: {{ founder_x }}% {{ founder_y }}%; transform: scale({{ '%.2f'|format(founder_zoom / 100) }}); transform-origin: {{ founder_x }}% {{ founder_y }}%;"
+            />
+          {% else %}
+            <div class="founder-portrait-fallback" aria-hidden="true"></div>
+          {% endif %}
+
+          <div class="founder-portrait-overlay">
+            <span class="founder-portrait-label">{{ landing_content.founder_title or 'Founder & Creator' }}</span>
+            <h3 class="founder-portrait-name">{{ landing_content.founder_name or 'Portfolio Owner' }}</h3>
+            <p class="founder-portrait-role">{{ landing_content.founder_role or 'Founder of MyPortfolioHub' }}</p>
+          </div>
+
+          {% if landing_content.founder_preview_image %}
+          <div class="founder-mini-preview" aria-hidden="true">
+            <img
+              src="{{ landing_content.founder_preview_image }}"
+              alt="Subtle portfolio preview"
+              loading="lazy"
+            />
+          </div>
+          {% endif %}
+        </article>
+
+        <div class="founder-copy-panel">
+          <span class="eyebrow founder-label">MEET THE FOUNDER</span>
+          <h2 class="founder-heading">{{ landing_content.founder_name or 'Portfolio Owner' }}</h2>
+          <p class="founder-text">{{ landing_content.founder_description or 'Building a platform where every professional can showcase projects, experience, certifications, and skills in one beautiful portfolio they truly own.' }}</p>
+          <div class="founder-actions">
+            <a
+              class="btn-mph btn-primary ripple-wrap"
+              href="{{ landing_content.founder_portfolio_url or (tenant_portfolio_url(administrator.tenant_slug) if administrator else url_for('root')) }}"
+              aria-label="View founder portfolio"
+            >
+              View Portfolio
+            </a>
+            <a
+              class="btn-mph btn-outline ripple-wrap"
+              href="{{ landing_content.founder_contact_url or '#contact' }}"
+              aria-label="Contact the founder"
+            >
+              Contact
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       COMMUNITY ACTIVITY
+  ========================================================= -->
+  <section id="community" class="community-section">
+    <div class="container-mph">
+      <div class="section-head center" data-reveal>
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Community</span>
+        <h2>Latest <span class="text-gradient">community updates</span></h2>
+        <p>Real-time moments from professionals building in public.</p>
+      </div>
+
+      <div class="community-feed activity-list" aria-live="polite">
+        {% for p in trending_projects %}
+        {% set update_title = p.title|default('Untitled Project', true) %}
+        {% set update_creator = p.creator_name|default('Creator', true) %}
+        {% set update_creator_image = p.creator_profile_image|default('', true) %}
+        {% set update_category = p.category|default('Project', true) %}
+        {% set update_slug = p.creator_slug|default(p.tenant_slug|default('', true), true) %}
+        {% set update_url = p.url|default('', true) %}
+        <article class="community-update-card activity-item" data-reveal{% if loop.index0 %} style="--d:{{ loop.index0 * 60 }}ms"{% endif %}>
+          {% set update_creator_url = update_creator_image|default('', true)|upload_url('profiles') %}
+          {% set update_project_url = p.image|default('', true)|upload_url('projects') %}
+          {% if update_creator_url %}
+            <img class="community-avatar activity-avatar" src="{{ update_creator_url }}" alt="Photo of {{ update_creator }}" loading="lazy"
+                 onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+            <div class="community-avatar activity-avatar" aria-hidden="true" hidden>{{ update_creator[:1]|upper }}</div>
+          {% elif update_project_url %}
+            <img class="community-avatar activity-avatar" src="{{ update_project_url }}" alt="Preview of {{ update_title }}" loading="lazy"
+                 onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+            <div class="community-avatar activity-avatar" aria-hidden="true" hidden>{{ update_creator[:1]|upper }}</div>
+          {% else %}
+            <div class="community-avatar activity-avatar" aria-hidden="true">
+              {{ update_creator[:1]|upper }}
+            </div>
+          {% endif %}
+
+          <div class="community-update-body activity-text">
+            <div class="community-update-meta">
+              <strong>{{ update_creator }}</strong>
+              <span>published</span>
+              <span class="community-update-badge">{{ update_category }}</span>
+            </div>
+            <a
+              href="{{ update_url if update_url else (tenant_portfolio_url(update_slug) if update_slug else '#projects') }}"
+              class="community-update-link"
+            >{{ update_title }}</a>
+            <div class="community-update-stats">
+              <span><i class="bi bi-eye" aria-hidden="true"></i>{{ p.view_count or 0 }} views</span>
+              <span><i class="bi bi-heart" aria-hidden="true"></i>{{ p.like_count or 0 }} likes</span>
+            </div>
+          </div>
+
+          {% if update_url %}
+          <a href="{{ update_url }}" class="community-view-link" aria-label="View project {{ update_title }}">
+            View project
+            <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          </a>
+          {% elif update_slug %}
+          <a href="{{ tenant_portfolio_url(update_slug) }}" class="community-view-link" aria-label="View {{ update_creator }} portfolio">
+            View portfolio
+            <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          </a>
+          {% endif %}
+        </article>
+        {% else %}
+        <div class="community-empty" data-reveal>
+          <i class="bi bi-megaphone" aria-hidden="true"></i>
+          <h3>No community updates yet</h3>
+          <p>When creators publish projects, updates will appear here.</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       HOW IT WORKS
+  ========================================================= -->
+  <section id="how-it-works">
+    <div class="container-mph">
+      <div class="section-head center" data-reveal>
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Process</span>
+        <h2>From blank page to <span class="text-gradient">published portfolio</span></h2>
+        <p>Four steps, in the order you'll actually do them.</p>
+      </div>
+
+      <div class="steps-row">
+        <div class="step-item" data-reveal>
+          <div class="step-num">01</div>
+          <h4>Create Account</h4>
+          <p>Sign up free with email or SSO. No credit card needed.</p>
+          <div class="step-connector" aria-hidden="true"></div>
+        </div>
+        <div class="step-item" data-reveal style="--d:80ms">
+          <div class="step-num">02</div>
+          <h4>Customize</h4>
+          <p>Pick a theme, add your projects, skills, and experience.</p>
+          <div class="step-connector" aria-hidden="true"></div>
+        </div>
+        <div class="step-item" data-reveal style="--d:160ms">
+          <div class="step-num">03</div>
+          <h4>Publish</h4>
+          <p>Go live on your own MyPortfolioHub subdomain instantly.</p>
+          <div class="step-connector" aria-hidden="true"></div>
+        </div>
+        <div class="step-item" data-reveal style="--d:240ms">
+          <div class="step-num">04</div>
+          <h4>Share</h4>
+          <p>Send your link anywhere — resumes, LinkedIn, email signatures.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       TESTIMONIALS
+  ========================================================= -->
+  <section id="testimonials">
+    <div class="container-mph">
+      <div class="section-head center" data-reveal>
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Testimonials</span>
+        <h2>Trusted by professionals <span class="text-gradient">who ship</span></h2>
+      </div>
+
+      <div class="testimonial-track" data-reveal>
+        <div class="testimonial-slides" id="testimonialSlides">
+          <div class="t-slide">
+            <div class="t-card">
+              <div class="t-stars" aria-label="5 out of 5 stars">★★★★★</div>
+              <p class="t-quote">MyPortfolioHub replaced three tools I was juggling. I published in an afternoon and started getting inbound within a week.</p>
+              <div class="t-person">
+                <img src="https://i.pravatar.cc/100?img=30" alt="" loading="lazy">
+                <div>
+                  <div class="t-person-name">Sofia Álvarez</div>
+                  <div class="t-person-role">Frontend Engineer</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="t-slide">
+            <div class="t-card">
+              <div class="t-stars" aria-label="5 out of 5 stars">★★★★★</div>
+              <p class="t-quote">The theme system is genuinely premium. Clients assume I hired an agency to build my site.</p>
+              <div class="t-person">
+                <img src="https://i.pravatar.cc/100?img=17" alt="" loading="lazy">
+                <div>
+                  <div class="t-person-name">Ryan Okoye</div>
+                  <div class="t-person-role">Freelance Designer</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="t-slide">
+            <div class="t-card">
+              <div class="t-stars" aria-label="5 out of 5 stars">★★★★★</div>
+              <p class="t-quote">Analytics showed me exactly which case study recruiters cared about. I doubled down and it worked.</p>
+              <div class="t-person">
+                <img src="https://i.pravatar.cc/100?img=48" alt="" loading="lazy">
+                <div>
+                  <div class="t-person-name">Hana Kobayashi</div>
+                  <div class="t-person-role">Product Designer</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="t-slide">
+            <div class="t-card">
+              <div class="t-stars" aria-label="5 out of 5 stars">★★★★★</div>
+              <p class="t-quote">Migrating my old static site took fifteen minutes. Everything just looked better immediately.</p>
+              <div class="t-person">
+                <img src="https://i.pravatar.cc/100?img=60" alt="" loading="lazy">
+                <div>
+                  <div class="t-person-name">Tomasz Nowak</div>
+                  <div class="t-person-role">Backend Engineer</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="t-dots" id="testimonialDots" role="tablist" aria-label="Testimonial navigation"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       PRICING
+  ========================================================= -->
+  <section id="pricing">
+    <div class="container-mph">
+      <div class="section-head center" data-reveal>
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Pricing</span>
+        <h2>Plans that <span class="text-gradient">grow with you</span></h2>
+        <p>Start free. Upgrade only when your portfolio needs more room.</p>
+      </div>
+
+      <div class="pricing-grid">
+        {% for key, plan in plans.items() %}
+        {% set featured = loop.index == 3 %}
+        <div class="price-card{% if featured %} featured{% endif %}" data-reveal{% if not loop.first %} style="--d:{{ loop.index0 * 60 }}ms"{% endif %}>
+          {% if featured %}<span class="price-badge">MOST POPULAR</span>{% endif %}
+          <div class="price-plan">{{ plan.label or key }}</div>
+          <div class="price-value">{{ plan.currency_symbol or '$' }}{{ '%g'|format(plan.price_monthly or plan.price or 0) }}<span>/mo</span></div>
+          {% if plan.description %}<div class="price-desc">{{ plan.description }}</div>{% endif %}
+          <ul class="price-features">
+            {% for f in plan.features or [] %}
+            <li><i class="bi bi-check-circle-fill"></i> {{ f }}</li>
+            {% endfor %}
+          </ul>
+          <a href="{{ url_for('auth.portal', tab='signup', plan=key) }}" class="btn-mph {% if featured %}btn-primary{% else %}btn-outline{% endif %} btn-block ripple-wrap">Choose {{ plan.label or key }}</a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       FAQ
+  ========================================================= -->
+  <section id="faq">
+    <div class="container-mph">
+      <div class="section-head center" data-reveal>
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> FAQ</span>
+        <h2>Questions, <span class="text-gradient">answered</span></h2>
+      </div>
+
+      <div class="faq-list" data-reveal>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">Is MyPortfolioHub really free to start? <i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+          <div class="faq-a"><div class="faq-a-inner">Yes. The Free plan includes one portfolio, five projects, and access to our basic theme set — no credit card required to sign up.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">Can I use my own domain name? <i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+          <div class="faq-a"><div class="faq-a-inner">Starter plans and above let you connect a custom domain in a few clicks, with automatic SSL.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">Do I need design or coding experience? <i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+          <div class="faq-a"><div class="faq-a-inner">No. Every theme is pre-built and fully responsive — you fill in your content and the layout handles itself.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">Can I switch plans later? <i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+          <div class="faq-a"><div class="faq-a-inner">You can upgrade, downgrade, or cancel at any time from your account settings. Changes apply immediately with prorated billing.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">How does the analytics feature work? <i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+          <div class="faq-a"><div class="faq-a-inner">Professional plans and above show visitor counts, referral sources, and which projects get the most attention.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">Is my portfolio data secure? <i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+          <div class="faq-a"><div class="faq-a-inner">Yes — credentials are encrypted at rest, access is scoped per tenant, and every account is protected by rate-limited authentication.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">Can teams manage multiple portfolios together? <i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+          <div class="faq-a"><div class="faq-a-inner">Business and Enterprise plans include team seats so agencies and organizations can manage several portfolios from one dashboard.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">What happens if I cancel? <i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+          <div class="faq-a"><div class="faq-a-inner">Your portfolio stays live on the Free plan tier, with paid-only features simply turned off — nothing is deleted.</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       CONTACT
+  ========================================================= -->
+  <section id="contact">
+    <div class="container-mph">
+      <div class="section-head center" data-reveal>
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Contact</span>
+        {% if landing_content.contact_heading %}
+          <h2>{{ landing_content.contact_heading }}</h2>
+        {% else %}
+          <h2>Let's <span class="text-gradient">talk</span></h2>
+        {% endif %}
+        <p>{{ landing_content.contact_subtitle or 'Questions about plans, migrations, or enterprise? We reply within one business day.' }}</p>
+      </div>
+
+      <div class="contact-grid">
+        <div class="contact-info-card" data-reveal>
+          {% set contact_email = landing_content.contact_email or landing_content.contact_receiver_email or 'hello@myportfoliohub.online' %}
+          {% set contact_phone = landing_content.contact_phone or '+1 (415) 555-0182' %}
+          {% set contact_location = landing_content.contact_location or 'San Francisco, CA · Remote-first' %}
+          <div class="contact-row">
+            <span class="icon-badge violet"><i class="bi bi-envelope" aria-hidden="true"></i></span>
+            <div><strong>Email</strong><span><a href="mailto:{{ contact_email }}">{{ contact_email }}</a></span></div>
+          </div>
+          <div class="contact-row">
+            <span class="icon-badge cyan"><i class="bi bi-telephone" aria-hidden="true"></i></span>
+            <div><strong>Phone</strong><span>{% if contact_phone %}<a href="tel:{{ contact_phone|replace(' ', '')|replace('(', '')|replace(')', '')|replace('-', '') }}">{{ contact_phone }}</a>{% else %}Available by email{% endif %}</span></div>
+          </div>
+          <div class="contact-row">
+            <span class="icon-badge green"><i class="bi bi-geo-alt" aria-hidden="true"></i></span>
+            <div><strong>Location</strong><span>{{ contact_location }}</span></div>
+          </div>
+
+          {% set social_links = [
+            ('x', 'MyPortfolioHub on X', 'bi-twitter-x', landing_content.contact_x_url),
+            ('linkedin', 'MyPortfolioHub on LinkedIn', 'bi-linkedin', landing_content.contact_linkedin_url),
+            ('instagram', 'MyPortfolioHub on Instagram', 'bi-instagram', landing_content.contact_instagram_url),
+            ('github', 'MyPortfolioHub on GitHub', 'bi-github', landing_content.contact_github_url)
+          ] %}
+          <div class="social-row" aria-label="Social links">
+            {% for _, label, icon, href in social_links %}
+              {% if href %}
+              <a href="{{ href }}" class="social-btn" target="_blank" rel="noopener noreferrer" aria-label="{{ label }}"><i class="bi {{ icon }}" aria-hidden="true"></i></a>
+              {% endif %}
+            {% endfor %}
+            {% if not (landing_content.contact_x_url or landing_content.contact_linkedin_url or landing_content.contact_instagram_url or landing_content.contact_github_url) %}
+              <span class="contact-muted">Add social links in SuperAdmin → Landing Page Settings.</span>
+            {% endif %}
+          </div>
+
+          <div class="map-card">
+            <div class="map-card-canvas" role="img" aria-label="Contact location: {{ contact_location }}">
+              <i class="bi bi-pin-map" aria-hidden="true"></i> {{ landing_content.contact_map_title or contact_location }}
+            </div>
+            <div class="map-card-footer">
+              <span>{{ landing_content.contact_map_note or 'Remote-first' }}</span>
+              <span>Platform support</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="contact-form-card" data-reveal style="--d:100ms">
+          <form id="contactForm" method="post" action="{{ url_for('public.contact') }}" data-fallback-url="{{ url_for('public.contact') }}" onsubmit="this.querySelector('button[type=submit]').disabled=true;">
+            {{ contact_form.csrf_token }}
+            <div style="display:none;">{{ contact_form.honeypot() }}</div>
+            <div class="form-row">
+              <div class="field">
+                <label for="fname">Full name</label>
+                {{ contact_form.full_name(id='fname', placeholder='Jane Doe', class='') }}
+              </div>
+              <div class="field">
+                <label for="femail">Email address</label>
+                {{ contact_form.email(id='femail', placeholder='jane@company.com', class='') }}
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label for="fcompany">Company</label>
+                {{ contact_form.company(id='fcompany', placeholder='Acme Inc.', class='') }}
+              </div>
+              <div class="field">
+                <label for="fphone">Phone</label>
+                {{ contact_form.phone(id='fphone', placeholder='+1 555 0100', class='') }}
+              </div>
+            </div>
+            <div class="field">
+              <label for="fsubject">Subject</label>
+              {{ contact_form.subject(id='fsubject', placeholder='How can we help?', class='') }}
+            </div>
+            <div class="field">
+              <label for="fmessage">Message</label>
+              {{ contact_form.message(id='fmessage', placeholder='Tell us a bit about what you need...', class='') }}
+            </div>
+            <button type="submit" class="btn-mph btn-primary btn-block ripple-wrap">Send Message <i class="bi bi-send" aria-hidden="true"></i></button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- =========================================================
+     FOOTER
+========================================================= -->
+<footer class="footer-mph">
+  <div class="container-mph">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="#home" class="brand"><span class="brand-mark">MP</span>MyPortfolioHub</a>
+        <p>The SaaS platform professionals use to build, publish, and share a modern portfolio.</p>
+        <div class="social-row">
+          {% if profile and profile.social_links.github %}
+              <a href="{{ profile.social_links.github }}" class="social-btn" aria-label="GitHub" target="_blank" rel="noopener">
+                  <iconify-icon icon="lucide:github" width="18"></iconify-icon>
+              </a>
+          {% endif %}
+          {% if profile and profile.social_links.linkedin %}
+              <a href="{{ profile.social_links.linkedin }}" class="social-btn" aria-label="LinkedIn" target="_blank" rel="noopener">
+                  <iconify-icon icon="lucide:linkedin" width="18"></iconify-icon>
+              </a>
+          {% endif %}
+          {% if profile and profile.social_links.twitter %}
+              <a href="{{ profile.social_links.twitter }}" class="social-btn" aria-label="Twitter" target="_blank" rel="noopener">
+                  <iconify-icon icon="lucide:twitter" width="18"></iconify-icon>
+              </a>
+          {% endif %}
+          {% if profile and profile.social_links.facebook %}
+              <a href="{{ profile.social_links.facebook }}" class="social-btn" aria-label="Facebook" target="_blank" rel="noopener">
+                  <iconify-icon icon="lucide:facebook" width="18"></iconify-icon>
+              </a>
+          {% endif %}
+          {% if profile and profile.social_links.website %}
+              <a href="{{ profile.social_links.website }}" class="social-link" aria-label="Website" target="_blank" rel="noopener">
+                  <iconify-icon icon="lucide:external-link" width="18"></iconify-icon>
+              </a>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="footer-col">
+        <h5>Product</h5>
+        <ul>
+          <li><a href="#features">Features</a></li>
+          <li><a href="{{ url_for('public.themes') }}">Themes</a></li>
+          <li><a href="#explore">Explore</a></li>
+          <li><a href="{{ url_for('public.projects') }}">Projects</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h5>Company</h5>
+        <ul>
+          <li><a href="#founder">About</a></li>
+          <li><a href="#faq">FAQ</a></li>
+          <li><a href="{{ url_for('main.contact') }}">Contact</a></li>
+          <li><a href="#">Careers</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h5>Legal</h5>
+        <ul>
+          <li><a href="{{ url_for('public.privacy') }}">Privacy Policy</a></li>
+          <li><a href="{{ url_for('public.terms') }}">Terms of Service</a></li>
+          <li><a href="{{ url_for('public.privacy') }}#cookies">Cookie Policy</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <span>© <span id="year">2026</span> MyPortfolioHub. All rights reserved.</span>
+      <span>Made for people who ship their work.</span>
+    </div>
+  </div>
+</footer>
+
+<button class="to-top" id="toTop" aria-label="Back to top">
+  <i class="bi bi-arrow-up" aria-hidden="true"></i>
+</button>
+
+<!-- Bootstrap 5 JS bundle (utilities only; site interactivity is vanilla JS below) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/landing.js') }}"></script>
+</body>
+</html>

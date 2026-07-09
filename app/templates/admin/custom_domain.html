@@ -1,0 +1,172 @@
+{% extends 'admin/base.html' %}
+{% block title %}Custom Domain{% endblock %}
+{% block page_title %}Custom Domain{% endblock %}
+
+{% block extra_css %}
+<style>
+  .custom-domain-shell{max-width:1180px;margin:0 auto;padding:1.25rem 1.25rem 2.5rem;animation:domainFade .35s ease both;}
+  .domain-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1rem;align-items:end;margin-bottom:1.2rem;}
+  .domain-kicker{display:inline-flex;gap:.45rem;align-items:center;color:var(--text-muted);font-size:.82rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.45rem;}
+  .domain-title{font-size:clamp(1.9rem,3vw,3rem);line-height:1.02;margin:0;color:var(--text);}
+  .domain-subtitle{max-width:720px;margin:.65rem 0 0;color:var(--text-muted);line-height:1.6;}
+  .domain-status-card,.domain-panel,.domain-record{background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.025));border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow-card,0 18px 50px rgba(0,0,0,.25));}
+  .domain-status-card{min-width:220px;padding:1rem;}
+  .domain-status-card strong{display:block;font-size:1.45rem;color:var(--text);}
+  .domain-status-card span{color:var(--text-muted);font-size:.9rem;}
+  .domain-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.7fr);gap:1rem;align-items:start;}
+  .domain-panel{padding:1.1rem;}
+  .domain-panel h2,.domain-record h2{font-size:1rem;margin:0 0 .55rem;color:var(--text);display:flex;align-items:center;gap:.45rem;}
+  .domain-panel p{color:var(--text-muted);line-height:1.55;margin:.35rem 0 1rem;}
+  .domain-form{display:flex;gap:.65rem;align-items:center;margin-top:1rem;}
+  .domain-input-wrap{flex:1;min-width:0;}
+  .domain-input-wrap label{display:block;font-weight:700;color:var(--text);font-size:.88rem;margin-bottom:.4rem;}
+  .domain-input{width:100%;min-height:44px;border-radius:14px;border:1px solid var(--border);background:var(--surface,rgba(255,255,255,.04));color:var(--text);padding:.7rem .85rem;outline:none;}
+  .domain-input:focus{border-color:var(--accent,#8b5cf6);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent,#8b5cf6) 18%,transparent);}
+  .domain-btn{min-height:42px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;gap:.45rem;padding:.68rem 1rem;font-weight:800;text-decoration:none;cursor:pointer;transition:transform .18s ease,border-color .18s ease,background .18s ease;}
+  .domain-btn:hover{transform:translateY(-1px);}
+  .domain-btn-primary{border-color:transparent;color:#fff;background:linear-gradient(135deg,#8b5cf6,#06b6d4);}
+  .domain-btn-secondary{background:rgba(255,255,255,.05);color:var(--text);}
+  .domain-btn-danger{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.28);color:#fca5a5;}
+  .domain-btn[disabled]{opacity:.55;cursor:not-allowed;transform:none;}
+  .domain-lock{display:grid;gap:.75rem;padding:1rem;border:1px solid color-mix(in srgb,var(--accent,#8b5cf6) 35%,var(--border));border-radius:18px;background:color-mix(in srgb,var(--accent,#8b5cf6) 8%,transparent);}
+  .domain-lock strong{color:var(--text);}
+  .domain-record{padding:1rem;margin-top:1rem;}
+  .domain-record-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.8rem;}
+  .domain-name{font-weight:900;color:var(--text);word-break:break-word;}
+  .domain-badges{display:flex;gap:.45rem;flex-wrap:wrap;justify-content:flex-end;}
+  .domain-badge{display:inline-flex;align-items:center;gap:.35rem;border-radius:999px;border:1px solid var(--border);padding:.3rem .55rem;font-size:.78rem;font-weight:800;color:var(--text-muted);}
+  .domain-badge--verified{color:#86efac;border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.1);}
+  .domain-badge--pending{color:#facc15;border-color:rgba(250,204,21,.35);background:rgba(250,204,21,.1);}
+  .dns-grid{display:grid;gap:.6rem;margin:.8rem 0;}
+  .dns-row{display:grid;grid-template-columns:92px minmax(0,1fr);gap:.65rem;align-items:start;border:1px solid var(--border);border-radius:14px;padding:.65rem;background:rgba(0,0,0,.12);}
+  .dns-label{font-size:.72rem;color:var(--text-muted);font-weight:900;text-transform:uppercase;letter-spacing:.06em;}
+  .dns-value{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--text);word-break:break-word;font-size:.86rem;}
+  .domain-actions{display:flex;gap:.55rem;flex-wrap:wrap;margin-top:.9rem;}
+  .domain-help-list{display:grid;gap:.65rem;padding:0;margin:1rem 0 0;list-style:none;}
+  .domain-help-list li{display:flex;gap:.55rem;color:var(--text-muted);line-height:1.45;}
+  .domain-help-list iconify-icon{color:var(--accent,#8b5cf6);margin-top:.15rem;}
+  .domain-empty{border:1px dashed var(--border);border-radius:18px;padding:1.1rem;text-align:center;color:var(--text-muted);background:rgba(255,255,255,.025);}
+  @media (max-width:900px){.domain-hero,.domain-grid{grid-template-columns:1fr}.domain-status-card{min-width:0}.domain-form{align-items:stretch;flex-direction:column}.domain-btn{width:100%}}
+  @media (max-width:520px){.custom-domain-shell{padding:.85rem}.domain-record-head{align-items:flex-start;flex-direction:column}.domain-badges{justify-content:flex-start}.dns-row{grid-template-columns:1fr}.domain-actions{flex-direction:column}.domain-actions .domain-btn{width:100%}}
+  @media (prefers-reduced-motion:reduce){.custom-domain-shell,.domain-btn{animation:none;transition:none}}
+  @keyframes domainFade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="custom-domain-shell" aria-labelledby="customDomainTitle">
+  <div class="domain-hero">
+    <div>
+      <div class="domain-kicker"><iconify-icon icon="lucide:globe-2" width="16"></iconify-icon> Admin / Settings / Custom Domain</div>
+      <h1 id="customDomainTitle" class="domain-title">Custom Domain</h1>
+      <p class="domain-subtitle">Connect your own domain to this portfolio. Your existing MyPortfolioHub slug URL will continue to work while the custom domain is verified.</p>
+    </div>
+    <div class="domain-status-card" aria-label="Custom domain summary">
+      <strong>{{ domain_rows|length }}</strong>
+      <span>{{ 'Domain' if domain_rows|length == 1 else 'Domains' }} configured</span>
+    </div>
+  </div>
+
+  <div class="domain-grid">
+    <div class="domain-panel">
+      <h2><iconify-icon icon="lucide:link-2" width="18"></iconify-icon> Add a domain</h2>
+      <p>Use a full public hostname such as <strong>www.yourdomain.com</strong> or <strong>portfolio.yourdomain.com</strong>. Do not enter paths like <code>/projects</code>.</p>
+
+      {% if not can_use_custom_domain %}
+        <div class="domain-lock" role="note">
+          <strong>Custom domains are locked on your current plan.</strong>
+          <span>Upgrade to Pro, Enterprise, or use the Administrator plan to connect a domain.</span>
+          <a class="domain-btn domain-btn-primary" href="{{ url_for('admin.billing_plans') }}">
+            <iconify-icon icon="lucide:sparkles" width="16"></iconify-icon> View upgrade options
+          </a>
+        </div>
+      {% else %}
+        <form class="domain-form" method="post" action="{{ url_for('admin.custom_domain_settings') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <input type="hidden" name="action" value="add"/>
+          <div class="domain-input-wrap">
+            <label for="domainInput">Domain name</label>
+            <input id="domainInput" class="domain-input" type="text" name="domain" placeholder="www.yourdomain.com" autocomplete="off" inputmode="url" required>
+          </div>
+          <button class="domain-btn domain-btn-primary" type="submit">
+            <iconify-icon icon="lucide:plus" width="16"></iconify-icon> Save domain
+          </button>
+        </form>
+      {% endif %}
+    </div>
+
+    <aside class="domain-panel" aria-labelledby="domainDnsHelp">
+      <h2 id="domainDnsHelp"><iconify-icon icon="lucide:shield-check" width="18"></iconify-icon> DNS setup guide</h2>
+      <p>After saving a domain, add both DNS records at your domain provider. TXT proves ownership; CNAME routes traffic to MyPortfolioHub.</p>
+      <ul class="domain-help-list">
+        <li><iconify-icon icon="lucide:badge-check" width="16"></iconify-icon><span>Wait a few minutes after saving DNS records before verifying.</span></li>
+        <li><iconify-icon icon="lucide:lock" width="16"></iconify-icon><span>One verified domain can only belong to one tenant.</span></li>
+        <li><iconify-icon icon="lucide:server" width="16"></iconify-icon><span>Your host must accept the custom domain and SSL must be configured in production.</span></li>
+      </ul>
+    </aside>
+  </div>
+
+  {% if domain_rows %}
+    {% for row in domain_rows %}
+      {% set record = row.record %}
+      {% set dns = row.dns %}
+      <article class="domain-record" aria-labelledby="domainRecord{{ record.id }}">
+        <div class="domain-record-head">
+          <div>
+            <h2 id="domainRecord{{ record.id }}"><iconify-icon icon="lucide:panel-top" width="18"></iconify-icon> Domain record</h2>
+            <div class="domain-name">{{ record.normalized_domain }}</div>
+          </div>
+          <div class="domain-badges">
+            <span class="domain-badge {% if record.status == 'verified' %}domain-badge--verified{% else %}domain-badge--pending{% endif %}">
+              <iconify-icon icon="{% if record.status == 'verified' %}lucide:check-circle-2{% else %}lucide:clock-3{% endif %}" width="14"></iconify-icon>
+              {{ record.status|title }}
+            </span>
+            {% if record.is_primary %}<span class="domain-badge"><iconify-icon icon="lucide:star" width="14"></iconify-icon> Primary</span>{% endif %}
+          </div>
+        </div>
+
+        <div class="dns-grid" aria-label="DNS records for {{ record.normalized_domain }}">
+          <div class="dns-row"><div class="dns-label">TXT name</div><div class="dns-value">{{ dns.txt_name }}</div></div>
+          <div class="dns-row"><div class="dns-label">TXT value</div><div class="dns-value">{{ dns.txt_value }}</div></div>
+          <div class="dns-row"><div class="dns-label">CNAME</div><div class="dns-value">{{ dns.cname_name }} → {{ dns.cname_value }}</div></div>
+        </div>
+
+        {% if record.failure_reason %}
+          <p class="domain-subtitle"><strong>Last check:</strong> {{ record.failure_reason }}</p>
+        {% endif %}
+
+        <div class="domain-actions">
+          {% if can_use_custom_domain %}
+            <form method="post" action="{{ url_for('admin.custom_domain_settings') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <input type="hidden" name="action" value="verify"/>
+              <input type="hidden" name="domain_id" value="{{ record.id }}"/>
+              <button class="domain-btn domain-btn-secondary" type="submit"><iconify-icon icon="lucide:refresh-cw" width="16"></iconify-icon> Verify DNS</button>
+            </form>
+            {% if record.status == 'verified' and not record.is_primary %}
+              <form method="post" action="{{ url_for('admin.custom_domain_settings') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="action" value="set_primary"/>
+                <input type="hidden" name="domain_id" value="{{ record.id }}"/>
+                <button class="domain-btn domain-btn-secondary" type="submit"><iconify-icon icon="lucide:star" width="16"></iconify-icon> Set primary</button>
+              </form>
+            {% endif %}
+          {% endif %}
+          <form method="post" action="{{ url_for('admin.custom_domain_settings') }}" onsubmit="return confirm('Remove this custom domain? Existing slug URLs will keep working.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <input type="hidden" name="action" value="remove"/>
+            <input type="hidden" name="domain_id" value="{{ record.id }}"/>
+            <button class="domain-btn domain-btn-danger" type="submit"><iconify-icon icon="lucide:trash-2" width="16"></iconify-icon> Remove</button>
+          </form>
+        </div>
+      </article>
+    {% endfor %}
+  {% else %}
+    <div class="domain-empty">
+      <iconify-icon icon="lucide:globe" width="28"></iconify-icon>
+      <p><strong>No custom domain added yet.</strong></p>
+      <p>Save a domain above to generate DNS verification instructions.</p>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

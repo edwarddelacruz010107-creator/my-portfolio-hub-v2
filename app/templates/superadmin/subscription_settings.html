@@ -1,0 +1,476 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Subscription Settings{% endblock %}
+{% block page_title %}Subscription Settings{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/subscription-cms.css') }}"/>
+<style>
+.badge-administrator{display:inline-flex;align-items:center;gap:.35rem;background:linear-gradient(135deg,rgba(124,58,237,.18),rgba(245,158,11,.16));border:1px solid rgba(167,139,250,.45);color:#c4b5fd;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.system-plan-card{border-color:rgba(167,139,250,.38);box-shadow:0 14px 40px rgba(88,28,135,.14)}
+.system-plan-grid{grid-template-columns:minmax(260px,420px)}
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="subscription-settings-shell">
+
+  <!-- ── BREADCRUMB ───────────────────────────────────────── -->
+  <div class="breadcrumb-trail">
+    <a href="{{ url_for('superadmin.dashboard') }}" class="bc-link">
+      <iconify-icon icon="lucide:layout-dashboard" width="14"></iconify-icon>
+      SuperAdmin
+    </a>
+    <iconify-icon icon="lucide:chevron-right" width="14" class="bc-sep"></iconify-icon>
+    <span class="bc-current">Billing</span>
+    <iconify-icon icon="lucide:chevron-right" width="14" class="bc-sep"></iconify-icon>
+    <span class="bc-current">Subscription Settings</span>
+  </div>
+
+  <!-- ── HEADER ───────────────────────────────────────────── -->
+  <div class="subscription-header">
+    <div>
+      <h1 class="page-heading" style="margin:0;">Subscription Settings</h1>
+      <p class="page-subtext">
+        Configure public billing plans, pricing, durations, and plan features available to tenants.
+      </p>
+      <div class="subscription-header-chips">
+        <span class="badge badge-info">
+          <iconify-icon icon="lucide:layers" width="12"></iconify-icon>
+          {{ billing_plans|length }} plan{{ 's' if billing_plans|length != 1 else '' }} configured
+        </span>
+        <span class="badge badge-default">
+          <iconify-icon icon="lucide:calendar" width="12"></iconify-icon>
+          Monthly billing
+        </span>
+        <span class="badge badge-default">
+          <iconify-icon icon="lucide:users" width="12"></iconify-icon>
+          {{ tenants|length }} tenant{{ 's' if tenants|length != 1 else '' }}
+        </span>
+      </div>
+    </div>
+    <!-- "New Tenant" intentionally not duplicated here — it already lives
+         in the topbar (see superadmin/base.html) on every superadmin page. -->
+  </div>
+
+  <!-- ── PLAN MANAGEMENT SUMMARY ──────────────────────────── -->
+  {% set _plan_list = billing_plans.items() | list %}
+  {% set _sorted_by_price = _plan_list | sort(attribute='1.price') %}
+  <div class="billing-summary-strip">
+    <div class="billing-summary-item">
+      <div class="billing-summary-label">Total Plans</div>
+      <div class="billing-summary-value">{{ _plan_list|length }}</div>
+    </div>
+    <div class="billing-summary-item">
+      <div class="billing-summary-label">Active Plans</div>
+      <div class="billing-summary-value">{{ _plan_list|length }}</div>
+    </div>
+    {% if _sorted_by_price %}
+    <div class="billing-summary-item">
+      <div class="billing-summary-label">Lowest Price</div>
+      <div class="billing-summary-value">{{ _sorted_by_price[0][1].get('currency_symbol', '₱') }}{{ '%.2f'|format(_sorted_by_price[0][1].get('price', 0)) }}</div>
+    </div>
+    <div class="billing-summary-item">
+      <div class="billing-summary-label">Highest Price</div>
+      <div class="billing-summary-value">{{ _sorted_by_price[-1][1].get('currency_symbol', '₱') }}{{ '%.2f'|format(_sorted_by_price[-1][1].get('price', 0)) }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── PLAN LIMITS EDITOR ────────────────────────── -->
+  <div class="subscription-section-intro trial-limits-intro plan-limits-intro">
+    <h2><iconify-icon icon="lucide:sliders-horizontal" width="16"></iconify-icon> Plan Limits Editor</h2>
+    <p class="page-subtext">
+      Control what Trial, Basic, Pro, and Enterprise tenants can use inside the Admin Dashboard. These settings are enforced by the same feature gates used by projects, uploads, custom domains, email services, certificates, testimonials, skills, services, and premium themes.
+    </p>
+  </div>
+
+  <div class="plan-limits-editor-stack">
+    {% for plan_name in plan_limit_meta.plans %}
+      {% set plan_slug = plan_limit_meta.slugs.get(plan_name, plan_name|lower) %}
+      {% set limits = plan_limits.get(plan_name, {}) %}
+      <details class="trial-limits-card plan-limits-card" {% if plan_name == 'Trial' %}open{% endif %}>
+        <summary class="plan-limits-summary">
+          <div class="plan-limits-title-block">
+            <span class="badge badge-{{ plan_slug }}">
+              <iconify-icon icon="{{ 'lucide:clock' if plan_name == 'Trial' else 'lucide:badge-check' }}" width="12"></iconify-icon>
+              {{ plan_name }}
+            </span>
+            <div>
+              <h3>{{ plan_name }} Dashboard Limits</h3>
+              <p>
+                {% if plan_name == 'Trial' %}
+                  Trial duration applies to new signups. Feature and quota changes apply immediately to Trial tenants.
+                {% else %}
+                  Feature and quota changes apply immediately to tenants on the {{ plan_name }} plan.
+                {% endif %}
+              </p>
+            </div>
+          </div>
+          <iconify-icon class="form-card-chevron" icon="lucide:chevron-down" width="18"></iconify-icon>
+        </summary>
+
+        <form method="post" class="plan-limits-form" id="{{ plan_slug }}LimitsForm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <input type="hidden" name="action" value="update_plan_limits" />
+          <input type="hidden" name="plan_name" value="{{ plan_name }}" />
+
+          <div class="trial-limits-grid plan-limits-grid">
+            {% for section_label, fields in plan_limit_meta.sections %}
+            <section class="trial-limit-section" aria-labelledby="{{ plan_slug }}-limit-{{ loop.index }}">
+              <h4 id="{{ plan_slug }}-limit-{{ loop.index }}">{{ section_label }}</h4>
+              <div class="trial-limit-fields">
+                {% for field in fields %}
+                  {% if plan_name != 'Trial' and field == 'trial_duration_days' %}
+                    {# Paid plans keep billing duration in the Billing Plans editor, not this trial-only field. #}
+                  {% elif field in plan_limit_meta.numeric_fields %}
+                  <label class="trial-limit-field">
+                    <span>{{ plan_limit_meta.labels.get(field, field|replace('_',' ')|title) }}</span>
+                    <input
+                      class="field-input"
+                      type="number"
+                      min="0"
+                      name="{{ plan_slug }}_{{ field }}"
+                      value="{{ '' if limits.get(field) is none else limits.get(field) }}"
+                      placeholder="{{ 'Unlimited' if field in plan_limit_meta.unlimited_fields and plan_name != 'Trial' else '' }}"
+                    />
+                    {% if plan_name != 'Trial' and field in plan_limit_meta.unlimited_fields %}
+                      <small>Leave blank for unlimited.</small>
+                    {% elif plan_limit_meta.help.get(field) %}
+                      <small>{{ plan_limit_meta.help.get(field) }}</small>
+                    {% endif %}
+                  </label>
+                  {% else %}
+                  <label class="trial-feature-toggle">
+                    <input type="checkbox" name="{{ plan_slug }}_{{ field }}" value="1" {% if limits.get(field) %}checked{% endif %} />
+                    <span class="trial-toggle-ui" aria-hidden="true"></span>
+                    <span class="trial-toggle-text">
+                      <strong>{{ plan_limit_meta.labels.get(field, field|replace('_',' ')|title) }}</strong>
+                      {% if plan_limit_meta.help.get(field) %}<small>{{ plan_limit_meta.help.get(field) }}</small>{% endif %}
+                    </span>
+                  </label>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </section>
+            {% endfor %}
+          </div>
+
+          <div class="plan-limits-actions">
+            <button class="btn btn-primary" type="submit">
+              <iconify-icon icon="lucide:save" width="15"></iconify-icon>
+              Save {{ plan_name }} Limits
+            </button>
+          </div>
+        </form>
+
+        <form method="post" class="trial-reset-form plan-reset-form" onsubmit="return confirm('Reset {{ plan_name }} limits to defaults?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <input type="hidden" name="action" value="reset_plan_limits" />
+          <input type="hidden" name="plan_name" value="{{ plan_name }}" />
+          <button class="btn btn-ghost btn-sm" type="submit">
+            <iconify-icon icon="lucide:rotate-ccw" width="14"></iconify-icon>
+            Reset {{ plan_name }} defaults
+          </button>
+          <span>
+            {% if plan_name == 'Trial' %}Defaults: 7 days, 5 projects, 10 uploads, 10 MB storage, premium features off.{% else %}Restore the safe {{ plan_name }} dashboard quota and feature defaults.{% endif %}
+          </span>
+        </form>
+      </details>
+    {% endfor %}
+  </div>
+
+  <!-- ── PLAN CONFIGURATION SECTION ──────────────────────────── -->
+  <div class="subscription-section-intro">
+    <h2><iconify-icon icon="lucide:credit-card" width="16"></iconify-icon> Billing Plans</h2>
+    <p class="page-subtext">Configure and update the subscription plans available to all tenants.</p>
+  </div>
+
+  {% if system_billing_plans %}
+  <div class="subscription-section-intro" style="margin-top:1rem">
+    <h2><iconify-icon icon="lucide:shield-check" width="16"></iconify-icon> Protected System Plan</h2>
+    <p class="page-subtext">Internal-only access for the default portfolio. This plan is hidden from checkout and cannot be purchased or deleted.</p>
+  </div>
+  <div class="billing-plans-grid system-plan-grid" style="margin-bottom:1.5rem">
+    {% for plan_name, plan_data in system_billing_plans.items() %}
+    <article class="billing-plan-card system-plan-card" data-plan="administrator">
+      <div class="billing-plan-preview">
+        <div class="billing-plan-card-top">
+          <h3 class="billing-plan-name">{{ plan_name }}</h3>
+          <span class="badge badge-administrator">Internal only</span>
+        </div>
+        <div class="billing-price-row">
+          <span class="billing-price-amount">Full access</span>
+          <span class="billing-price-period">forever</span>
+        </div>
+        <div class="billing-plan-desc">{{ plan_data.get('description', 'Protected system portfolio with full platform access.') }}</div>
+        <ul class="billing-feature-list">
+          <li><iconify-icon icon="lucide:check" width="13"></iconify-icon> Not available for checkout</li>
+          <li><iconify-icon icon="lucide:check" width="13"></iconify-icon> Cannot be purchased by tenants</li>
+          <li><iconify-icon icon="lucide:check" width="13"></iconify-icon> Assigned only to the default portfolio</li>
+          <li><iconify-icon icon="lucide:check" width="13"></iconify-icon> Unlocks all premium platform features</li>
+        </ul>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="post" id="subscriptionPlansForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <input type="hidden" name="action" value="update_plans" />
+
+    <div class="billing-plans-grid">
+      {% for plan_name, plan_data in billing_plans.items() %}
+      {% set slug = plan_name.lower() %}
+      <article class="billing-plan-card" data-plan="{{ slug }}">
+
+        <!-- ── Preview ──────────────────────────────────────── -->
+        <div class="billing-plan-preview">
+          <div class="billing-plan-card-top">
+            <h3 class="billing-plan-name">{{ plan_name }}</h3>
+            <span class="badge badge-{{ slug }}">{{ plan_data.get('label', plan_name) }}</span>
+          </div>
+
+          <div class="billing-price-row">
+            <span class="billing-price-amount">{{ plan_data.get('currency_symbol', '₱') }}{{ '%.2f'|format(plan_data.get('price', 0)) }}</span>
+            <span class="billing-price-period">/ mo</span>
+          </div>
+
+          <div class="billing-plan-desc">{{ plan_data.get('description', '') }}</div>
+
+          {% set _features = plan_data.get('features', []) %}
+          {% if _features is string %}{% set _features = [_features] if _features else [] %}{% endif %}
+          {% if _features %}
+          <ul class="billing-feature-list">
+            {% for feature in _features[:4] %}
+            <li><iconify-icon icon="lucide:check" width="13"></iconify-icon> {{ feature }}</li>
+            {% endfor %}
+          </ul>
+          {% if _features|length > 4 %}
+          <div class="billing-feature-more">+{{ _features|length - 4 }} more</div>
+          {% endif %}
+          {% endif %}
+        </div>
+
+        <!-- ── Edit ─────────────────────────────────────────── -->
+        <details class="form-card-collapsible billing-plan-edit">
+          <summary>
+            <div class="form-card-heading-group">
+              <span class="form-card-icon"><iconify-icon icon="lucide:pencil" width="15"></iconify-icon></span>
+              <div>
+                <h3 style="margin:0; font-size:0.9rem;">Edit Plan</h3>
+                <div class="form-card-note" style="margin-top:2px;">Label, price, duration, description, and features</div>
+              </div>
+            </div>
+            <iconify-icon class="form-card-chevron" icon="lucide:chevron-down" width="18"></iconify-icon>
+          </summary>
+          <div class="form-card-body">
+
+            <div class="form-grid-2">
+              <div class="form-field">
+                <label for="plan_label_{{ plan_name }}" class="field-label">Label</label>
+                <input
+                  id="plan_label_{{ plan_name }}"
+                  name="plan_label_{{ plan_name }}"
+                  type="text"
+                  class="field-input"
+                  value="{{ plan_data.get('label', plan_name) }}"
+                  placeholder="e.g., Professional"
+                />
+              </div>
+              <div class="form-field">
+                <label for="plan_price_{{ plan_name }}" class="field-label">Price</label>
+                <input
+                  id="plan_price_{{ plan_name }}"
+                  name="plan_price_{{ plan_name }}"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  class="field-input"
+                  value="{{ plan_data.get('price', 0) }}"
+                />
+                <div class="field-hint">Monthly amount shown to tenants.</div>
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-field">
+                <label for="plan_currency_{{ plan_name }}" class="field-label">Currency</label>
+                <input
+                  id="plan_currency_{{ plan_name }}"
+                  name="plan_currency_{{ plan_name }}"
+                  type="text"
+                  class="field-input"
+                  maxlength="3"
+                  value="{{ plan_data.get('currency_symbol', '₱') }}"
+                />
+              </div>
+              <div class="form-field">
+                <label for="plan_duration_{{ plan_name }}" class="field-label">Duration (days)</label>
+                <input
+                  id="plan_duration_{{ plan_name }}"
+                  name="plan_duration_{{ plan_name }}"
+                  type="number"
+                  min="1"
+                  class="field-input"
+                  value="{{ plan_data.get('duration_days', 30) }}"
+                />
+                <div class="field-hint">Number of days in this billing cycle.</div>
+              </div>
+            </div>
+
+            <div class="form-field">
+              <label for="plan_description_{{ plan_name }}" class="field-label">Description</label>
+              <textarea
+                id="plan_description_{{ plan_name }}"
+                name="plan_description_{{ plan_name }}"
+                class="field-input field-textarea"
+                rows="3"
+              >{{ plan_data.get('description', '') }}</textarea>
+            </div>
+
+            <div class="form-field">
+              <label for="plan_features_{{ plan_name }}" class="field-label">Features</label>
+              <textarea
+                id="plan_features_{{ plan_name }}"
+                name="plan_features_{{ plan_name }}"
+                class="field-input field-textarea"
+                rows="5"
+              >{% set _f = plan_data.get('features', '') %}{% if _f is string %}{{ _f }}{% else %}{{ _f | join('
+') }}{% endif %}</textarea>
+              <div class="field-hint">Separate features using commas or new lines.</div>
+            </div>
+
+            <div class="form-field">
+              <label for="plan_payment_link_{{ plan_name }}" class="field-label">Payment Link (PayMongo)</label>
+              <input
+                id="plan_payment_link_{{ plan_name }}"
+                name="plan_payment_link_{{ plan_name }}"
+                type="url"
+                class="field-input"
+                value="{{ plan_data.get('payment_link', '') }}"
+                placeholder="https://pay.mungo.example/checkout/abcd"
+              />
+            </div>
+
+          </div>
+        </details>
+      </article>
+      {% endfor %}
+    </div>
+
+    <div class="sticky-actions-bar">
+      <span class="billing-action-bar-note" id="billingActionBarNote">Changes affect subscription plans shown to tenants.</span>
+      <button class="btn btn-primary" type="submit">
+        <iconify-icon icon="lucide:save" width="16"></iconify-icon>
+        Save Changes
+      </button>
+    </div>
+  </form>
+
+  <!-- ── TENANT SUBSCRIPTIONS SECTION ────────────────────────── -->
+  <div class="subscription-tenants-section">
+    <div class="subscription-section-intro">
+      <h2><iconify-icon icon="lucide:users" width="16"></iconify-icon> Tenant Subscriptions</h2>
+      <p class="page-subtext">View and manage subscriptions for all tenants.</p>
+    </div>
+
+    {% if tenants %}
+    <div class="table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Tenant</th>
+            <th>Plan</th>
+            <th>Plan Price</th>
+            <th>Status</th>
+            <th>Started</th>
+            <th>Expires</th>
+            <th>Payment Method</th>
+            <th>Amount Paid</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tenant in tenants %}
+          <tr>
+            <td data-label="Tenant">
+              <div class="tenant-info">
+                <strong>{{ tenant.tenant_slug }}</strong>
+                {% if tenant.name %}<div class="muted small">{{ tenant.name }}</div>{% endif %}
+              </div>
+            </td>
+            <td data-label="Plan">
+              <span class="badge badge-{{ 'administrator' if tenant.is_system_plan else tenant.plan.lower() }}">
+                {{ tenant.plan }}
+              </span>
+            </td>
+            <td class="small" data-label="Plan Price">
+              {{ tenant.plan_price_label or '—' }}
+            </td>
+            <td data-label="Status">
+              <span class="status-pill status-{{ tenant.status }}">
+                {{ tenant.status.replace('_', ' ').title() }}
+              </span>
+            </td>
+            <td class="small" data-label="Started">
+              {% if tenant.started_at %}
+                {{ tenant.started_at.strftime('%Y-%m-%d') }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td class="small" data-label="Expires">
+              {% if tenant.expires_at %}
+                {{ tenant.expires_at.strftime('%Y-%m-%d') }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td class="small" data-label="Payment Method">
+              {{ tenant.payment_method or '—' }}
+            </td>
+            <td class="small" data-label="Amount Paid">
+              {{ '₱' if tenant.amount_paid else '' }}{{ "%.2f"|format(tenant.amount_paid) if tenant.amount_paid else '0.00' }}
+            </td>
+            <td data-label="Action">
+              {% if tenant.is_system_plan %}
+              <span class="badge badge-administrator" title="Protected system plan">
+                <iconify-icon icon="lucide:lock" width="12"></iconify-icon>
+                Protected
+              </span>
+              {% else %}
+              <form method="post" style="display: inline;" onsubmit="return confirm('Reset subscription for {{ tenant.tenant_slug }}?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <input type="hidden" name="action" value="reset_subscription" />
+                <input type="hidden" name="tenant_id" value="{{ tenant.id }}" />
+                <button type="submit" class="btn btn-sm btn-ghost" title="Reset Subscription">
+                  <iconify-icon icon="lucide:rotate-ccw" width="14"></iconify-icon>
+                  Reset
+                </button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state-card">
+      <div class="empty-state-icon">
+        <iconify-icon icon="lucide:inbox" width="40"></iconify-icon>
+      </div>
+      <h3 class="empty-state-title">No tenants yet</h3>
+      <p class="empty-state-text">Tenant subscriptions will appear here once tenants sign up.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/subscription-cms.js') }}"></script>
+{% endblock %}

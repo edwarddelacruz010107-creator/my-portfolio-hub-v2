@@ -1,0 +1,9 @@
+# ─── Google OAuth (added by auth upgrade) ─────────────────────────────
+# Get these from https://console.cloud.google.com/apis/credentials
+# Authorized redirect URI (Google Console) must exactly match GOOGLE_REDIRECT_URI.
+GOOGLE_CLIENT_ID=735261873134-2cib78p022i3n8151lpmma2lgbnd7bnk.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=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
+# Optional; when unset, Flask builds it via url_for('auth.google_callback', _external=True).
+# Prod example:
+#   GOOGLE_REDIRECT_URI=https://yourdomain.com/auth/google/callback
+GOOGLE_REDIRECT_URI=https://myportfoliohub.online/auth/google/callback

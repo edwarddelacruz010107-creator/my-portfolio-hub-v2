@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Browse Projects — MyPortfolioHub</title>
+<meta name="description" content="Browse real case studies and portfolio projects published by creators on MyPortfolioHub.">
+<meta name="csrf-token" content="{{ csrf_token() }}" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+</head>
+<body class="projects-browser-page">
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="bg-mesh" aria-hidden="true"></div>
+<div class="bg-grid" aria-hidden="true"></div>
+
+<header class="navbar-mph" id="navbar">
+  <div class="nav-inner">
+    <a href="{{ url_for('root') }}#home" class="brand" aria-label="MyPortfolioHub home">
+      <span class="brand-mark"><img src="{{ url_for('static', filename='image/icon.ico') }}" alt="MyPortfolioHub Icon"></span>
+      MyPortfolioHub
+    </a>
+    <nav aria-label="Primary">
+      <ul class="nav-links">
+        <li><a href="{{ url_for('root') }}#home">Home</a></li>
+        <li><a href="{{ url_for('root') }}#explore">Explore</a></li>
+        <li><a class="active" href="{{ url_for('public.projects') }}">Projects</a></li>
+        <li><a href="{{ url_for('public.themes') }}">Themes</a></li>
+        <li><a href="{{ url_for('root') }}#features">Features</a></li>
+        <li><a href="{{ url_for('root') }}#pricing">Pricing</a></li>
+        <li><a href="{{ url_for('root') }}#faq">FAQ</a></li>
+        <li><a href="{{ url_for('root') }}#contact">Contact</a></li>
+      </ul>
+    </nav>
+    <div class="nav-actions">
+      {% if current_user.is_authenticated %}
+        <a href="{{ url_for('public.administrator_gateway') }}" class="btn-mph btn-ghost">Dashboard</a>
+        {% if not current_user.is_superadmin and current_user.tenant_slug %}
+        <a href="{{ tenant_portfolio_url(current_user.tenant_slug) }}" class="btn-mph btn-outline">My Portfolio</a>
+        {% endif %}
+      {% else %}
+        <a href="{{ url_for('auth.portal', tab='login') }}" class="btn-mph btn-ghost">Sign In</a>
+        <a href="{{ url_for('auth.portal', tab='signup') }}" class="btn-mph btn-primary btn-sm ripple-wrap">Get Started</a>
+      {% endif %}
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="mobileMenu">
+        <i class="bi bi-list" aria-hidden="true"></i>
+      </button>
+    </div>
+  </div>
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="{{ url_for('root') }}#home">Home</a>
+    <a href="{{ url_for('root') }}#explore">Explore</a>
+    <a href="{{ url_for('public.projects') }}">Projects</a>
+    <a href="{{ url_for('public.themes') }}">Themes</a>
+    <a href="{{ url_for('root') }}#features">Features</a>
+    <a href="{{ url_for('root') }}#community">Community</a>
+    <a href="{{ url_for('root') }}#pricing">Pricing</a>
+    <a href="{{ url_for('root') }}#faq">FAQ</a>
+    <a href="{{ url_for('root') }}#contact">Contact</a>
+    {% if current_user.is_authenticated %}
+      <a href="{{ url_for('public.administrator_gateway') }}" class="btn-mph btn-outline btn-block">Dashboard</a>
+      {% if not current_user.is_superadmin and current_user.tenant_slug %}
+      <a href="{{ tenant_portfolio_url(current_user.tenant_slug) }}" class="btn-mph btn-primary btn-block ripple-wrap">My Portfolio</a>
+      {% endif %}
+    {% else %}
+      <a href="{{ url_for('auth.portal', tab='login') }}" class="btn-mph btn-outline btn-block">Sign In</a>
+      <a href="{{ url_for('auth.portal', tab='signup') }}" class="btn-mph btn-primary btn-block ripple-wrap">Get Started</a>
+    {% endif %}
+  </div>
+</header>
+
+<main id="main">
+  <section class="projects-browser-hero">
+    <div class="container-mph">
+      <div class="browser-hero-card" data-reveal>
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Project Gallery</span>
+        <h1>Browse real creator projects</h1>
+        <p class="lead">Search polished case studies, apps, design work, APIs, and portfolio builds published by MyPortfolioHub creators.</p>
+        <div class="browser-stat-row" aria-label="Project browser summary">
+          <span><strong>{{ total }}</strong> published project{{ 's' if total != 1 else '' }}</span>
+          {% if category %}<span>Category: <strong>{{ category }}</strong></span>{% endif %}
+          {% if query %}<span>Search: <strong>{{ query }}</strong></span>{% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="projects-browser-shell">
+    <div class="container-mph">
+      <form class="projects-browser-toolbar" method="get" action="{{ url_for('public.projects') }}" role="search" data-reveal>
+        <label class="browser-field browser-search-field">
+          <span>Search projects</span>
+          <div class="browser-input-wrap">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <input type="search" name="q" value="{{ query }}" placeholder="Search by title, category, framework…" aria-label="Search projects">
+          </div>
+        </label>
+
+        <label class="browser-field">
+          <span>Category</span>
+          <select name="category" aria-label="Filter by category">
+            <option value="">All categories</option>
+            {% for cat in categories %}
+            <option value="{{ cat }}" {% if cat == category %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label class="browser-field">
+          <span>Sort</span>
+          <select name="sort" aria-label="Sort projects">
+            <option value="latest" {% if sort == 'latest' %}selected{% endif %}>Latest</option>
+            <option value="featured" {% if sort == 'featured' %}selected{% endif %}>Featured</option>
+            <option value="popular" {% if sort == 'popular' %}selected{% endif %}>Most viewed</option>
+            <option value="liked" {% if sort == 'liked' %}selected{% endif %}>Most liked</option>
+          </select>
+        </label>
+
+        <div class="browser-toolbar-actions">
+          <button type="submit" class="btn-mph btn-primary ripple-wrap">Apply filters</button>
+          {% if query or category or sort != 'latest' %}
+          <a href="{{ url_for('public.projects') }}" class="btn-mph btn-outline">Reset</a>
+          {% endif %}
+        </div>
+      </form>
+
+      {% if projects %}
+      <div class="browse-project-grid" aria-live="polite">
+        {% for project in projects %}
+        {% set project_title = project.title|default('Untitled Project', true) %}
+        {% set project_desc = project.description_short|default('No description added yet.', true) %}
+        {% set project_category = project.category|default('Project', true) %}
+        {% set creator_name = project.creator_name|default('Creator', true) %}
+        {% set creator_profile_image = project.creator_profile_image|default('', true) %}
+        {% set creator_slug = project.creator_slug|default(project.tenant_slug|default('', true), true) %}
+        {% set case_url = project.url|default('', true) %}
+        {% set portfolio_url = project.portfolio_url|default(tenant_portfolio_url(creator_slug) if creator_slug else '#', true) %}
+        <article class="proj-card case-study-card browse-project-card" data-reveal>
+          <a class="proj-cover" href="{{ case_url or '#' }}" aria-label="View case study for {{ project_title }}">
+            {% if project.image %}
+              <img src="{{ project.image|upload_url('projects') }}" alt="Preview of {{ project_title }}" loading="lazy">
+            {% else %}
+              <div class="project-cover-placeholder" aria-hidden="true">
+                <i class="bi bi-window-sidebar" aria-hidden="true"></i>
+              </div>
+            {% endif %}
+            <span class="proj-category-badge">{{ project_category }}</span>
+            {% if project.is_featured %}<span class="proj-creator-badge">Featured</span>{% endif %}
+          </a>
+
+          <div class="proj-body">
+            <div class="proj-author">
+              {% set creator_profile_url = creator_profile_image|default('', true)|upload_url('profiles') %}
+              {% if creator_profile_url %}
+                <img class="proj-author-avatar" src="{{ creator_profile_url }}" alt="Photo of {{ creator_name }}" loading="lazy"
+                     onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+                <span class="proj-author-fallback" aria-hidden="true" hidden>{{ creator_name[:1]|upper }}</span>
+              {% else %}
+                <span class="proj-author-fallback" aria-hidden="true">{{ creator_name[:1]|upper }}</span>
+              {% endif %}
+              <span>by {{ creator_name }}</span>
+            </div>
+            <h2 class="proj-title"><a href="{{ case_url or '#' }}">{{ project_title }}</a></h2>
+            <p class="proj-desc">{{ project_desc }}</p>
+
+            <div class="proj-tags" aria-label="Project tags">
+              {% if project_category %}<span class="pf-tag">{{ project_category }}</span>{% endif %}
+              {% for tag in project.tags[:3] %}<span class="pf-tag">{{ tag }}</span>{% endfor %}
+            </div>
+
+            <div class="project-card-actions">
+              <button
+                type="button"
+                class="like-btn project-action-btn project-action-like{% if project.liked %} liked{% endif %}{% if not current_user.is_authenticated %} signin-required{% endif %}"
+                aria-pressed="{{ 'true' if project.liked else 'false' }}"
+                aria-label="{% if project.liked %}Unlike {{ project_title }}{% else %}Like {{ project_title }}{% endif %}"
+                data-project-id="{{ project.id }}"
+                data-liked="{{ '1' if project.liked else '0' }}"
+              >
+                <i class="bi bi-heart{% if project.liked %}-fill{% endif %}" aria-hidden="true"></i>
+                <span class="like-label">{% if project.liked %}Liked{% else %}Like{% endif %}</span>
+                <span class="like-count">{{ project.like_count or 0 }}</span>
+              </button>
+
+              <a href="{{ case_url or '#' }}" class="project-action-btn project-action-case" aria-label="View case study for {{ project_title }}">
+                <i class="bi bi-journal-text" aria-hidden="true"></i>
+                <span>View case study</span>
+              </a>
+
+              <a href="{{ portfolio_url }}" class="project-action-btn project-action-portfolio" aria-label="View {{ creator_name }} portfolio">
+                <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                <span>View portfolio</span>
+              </a>
+            </div>
+
+            <div class="proj-meta-row" aria-label="Project activity stats">
+              <span class="proj-meta-item"><i class="bi bi-eye" aria-hidden="true"></i>{{ project.view_count or 0 }} views</span>
+              <span class="proj-meta-item"><i class="bi bi-heart" aria-hidden="true"></i>{{ project.like_count or 0 }} likes</span>
+              {% if project_category %}<span class="proj-meta-item"><i class="bi bi-tag" aria-hidden="true"></i>{{ project_category }}</span>{% endif %}
+            </div>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="case-study-empty browser-empty-state" data-reveal>
+        <i class="bi bi-search" aria-hidden="true"></i>
+        {% if query or category %}
+          <h3>No matching projects found</h3>
+          <p>Try another keyword, choose a different category, or reset the filters.</p>
+          <a href="{{ url_for('public.projects') }}" class="btn-mph btn-primary">View all projects</a>
+        {% else %}
+          <h3>No published projects yet</h3>
+          <p>Projects from creators will appear here as soon as they publish their work.</p>
+          <a href="{{ url_for('auth.portal', tab='signup') }}" class="btn-mph btn-primary">Create your portfolio</a>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% if has_prev or has_next %}
+      <nav class="browser-pagination" aria-label="Projects pagination">
+        {% if has_prev %}
+          <a class="btn-mph btn-outline" href="{{ url_for('public.projects', q=query, category=category, sort=sort, page=page-1) }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> Previous</a>
+        {% else %}
+          <span class="btn-mph btn-outline disabled" aria-disabled="true"><i class="bi bi-arrow-left" aria-hidden="true"></i> Previous</span>
+        {% endif %}
+        <span class="browser-page-status">Page {{ page }}</span>
+        {% if has_next %}
+          <a class="btn-mph btn-outline" href="{{ url_for('public.projects', q=query, category=category, sort=sort, page=page+1) }}">Next <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+        {% else %}
+          <span class="btn-mph btn-outline disabled" aria-disabled="true">Next <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+        {% endif %}
+      </nav>
+      {% endif %}
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="container-mph">
+    <div class="footer-bottom browse-footer-bottom">
+      <span>© <span id="year">2026</span> MyPortfolioHub. All rights reserved.</span>
+      <span><a href="{{ url_for('root') }}#home">Back to landing page</a></span>
+    </div>
+  </div>
+</footer>
+
+<button class="to-top" id="toTop" aria-label="Back to top">
+  <i class="bi bi-arrow-up" aria-hidden="true"></i>
+</button>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/landing.js') }}"></script>
+</body>
+</html>

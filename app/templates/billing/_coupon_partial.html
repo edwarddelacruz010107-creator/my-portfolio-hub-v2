@@ -1,0 +1,78 @@
+{# ---------------------------------------------------------------------------
+   Coupon / discount block for the checkout page.
+
+   Include this inside the same <form> that posts to billing_plans (i.e.
+   somewhere between the billing_cycle selector and the payment-method
+   buttons in templates/billing/_plans.html).
+
+     {% include 'billing/_coupon_partial.html' %}
+
+   Expects `discount_quote` and `coupon_code` in the context (both are
+   provided by billing_plans_context after the patch).
+   --------------------------------------------------------------------------- #}
+
+<div class="billing-section-hd" style="margin-top:1.5rem">
+  <span class="step-bubble">★</span>
+  <h2>Coupon Code <small style="font-weight:400;opacity:.7">(optional)</small></h2>
+</div>
+
+<div class="coupon-block" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem">
+  <input
+    type="text"
+    name="coupon_code"
+    value="{{ coupon_code or '' }}"
+    placeholder="e.g. LAUNCH25"
+    autocomplete="off"
+    style="flex:1;min-width:200px;padding:.55rem .75rem;border:1px solid var(--border,#ddd);border-radius:.375rem;text-transform:uppercase;letter-spacing:.05em"
+  >
+  <button
+    type="submit"
+    name="action"
+    value="apply_coupon"
+    class="btn btn-secondary"
+    style="padding:.55rem 1rem"
+  >
+    Apply
+  </button>
+</div>
+
+{% if discount_quote and discount_quote.has_discount %}
+  <div
+    class="coupon-summary"
+    style="border:1px solid var(--success-border,#b7ebc6);background:var(--success-bg,#f0fbf3);padding:.75rem 1rem;border-radius:.5rem;margin-bottom:1rem"
+  >
+    <div style="display:flex;justify-content:space-between;margin-bottom:.25rem">
+      <span>Original</span>
+      <span>₱{{ '%.2f'|format(discount_quote.amount_before) }}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:.25rem;color:var(--success,#1a7f37)">
+      <span>
+        Discount
+        {% if discount_quote.campaign and discount_quote.campaign.code %}
+          <small>({{ discount_quote.campaign.code }})</small>
+        {% elif discount_quote.campaign %}
+          <small>({{ discount_quote.campaign.name }})</small>
+        {% endif %}
+        {% if discount_quote.amount_before %}
+        <small>&middot; {{ '%.0f'|format((discount_quote.amount_discounted / discount_quote.amount_before) * 100) }}% off</small>
+        {% endif %}
+      </span>
+      <span>− ₱{{ '%.2f'|format(discount_quote.amount_discounted) }}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-weight:600;border-top:1px solid var(--success-border,#b7ebc6);padding-top:.4rem;margin-top:.4rem">
+      <span>Total</span>
+      <span>
+        ₱{{ '%.2f'|format(discount_quote.amount_after) }}{% if discount_quote.billing_cycle %}<small style="font-weight:400;opacity:.75">/{{ 'yr' if discount_quote.billing_cycle == 'yearly' else 'mo' }}</small>{% endif %}
+      </span>
+    </div>
+    {% if discount_quote.campaign and discount_quote.campaign.applies_to != 'one_time' %}
+    <p style="margin:.5rem 0 0;font-size:.8rem;opacity:.75">
+      This discount applies to this billing cycle. Future renewals bill at the standard {{ 'yearly' if discount_quote.billing_cycle == 'yearly' else 'monthly' }} rate unless a new coupon is applied.
+    </p>
+    {% endif %}
+  </div>
+{% elif coupon_code %}
+  <p class="coupon-hint" style="opacity:.75;margin-bottom:1rem">
+    The coupon <strong>{{ coupon_code }}</strong> isn't currently valid for this plan.
+  </p>
+{% endif %}

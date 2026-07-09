@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Browse Themes — MyPortfolioHub</title>
+<meta name="description" content="Browse all active MyPortfolioHub portfolio themes and preview each design with sample content.">
+<meta name="csrf-token" content="{{ csrf_token() }}" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+</head>
+<body class="themes-browser-page">
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="bg-mesh" aria-hidden="true"></div>
+<div class="bg-grid" aria-hidden="true"></div>
+
+<header class="navbar-mph" id="navbar">
+  <div class="nav-inner">
+    <a href="{{ url_for('root') }}#home" class="brand" aria-label="MyPortfolioHub home">
+      <span class="brand-mark"><img src="{{ url_for('static', filename='image/icon.ico') }}" alt="MyPortfolioHub Icon"></span>
+      MyPortfolioHub
+    </a>
+    <nav aria-label="Primary">
+      <ul class="nav-links">
+        <li><a href="{{ url_for('root') }}#home">Home</a></li>
+        <li><a href="{{ url_for('root') }}#explore">Explore</a></li>
+        <li><a href="{{ url_for('public.projects') }}">Projects</a></li>
+        <li><a class="active" href="{{ url_for('public.themes') }}">Themes</a></li>
+        <li><a href="{{ url_for('root') }}#features">Features</a></li>
+        <li><a href="{{ url_for('root') }}#pricing">Pricing</a></li>
+        <li><a href="{{ url_for('root') }}#faq">FAQ</a></li>
+        <li><a href="{{ url_for('root') }}#contact">Contact</a></li>
+      </ul>
+    </nav>
+    <div class="nav-actions">
+      {% if current_user.is_authenticated %}
+        <a href="{{ url_for('public.administrator_gateway') }}" class="btn-mph btn-ghost">Dashboard</a>
+        {% if not current_user.is_superadmin and current_user.tenant_slug %}
+        <a href="{{ tenant_portfolio_url(current_user.tenant_slug) }}" class="btn-mph btn-outline">My Portfolio</a>
+        {% endif %}
+      {% else %}
+        <a href="{{ url_for('auth.portal', tab='login') }}" class="btn-mph btn-ghost">Sign In</a>
+        <a href="{{ url_for('auth.portal', tab='signup') }}" class="btn-mph btn-primary btn-sm ripple-wrap">Get Started</a>
+      {% endif %}
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="mobileMenu">
+        <i class="bi bi-list" aria-hidden="true"></i>
+      </button>
+    </div>
+  </div>
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="{{ url_for('root') }}#home">Home</a>
+    <a href="{{ url_for('root') }}#explore">Explore</a>
+    <a href="{{ url_for('public.projects') }}">Projects</a>
+    <a href="{{ url_for('public.themes') }}">Themes</a>
+    <a href="{{ url_for('root') }}#features">Features</a>
+    <a href="{{ url_for('root') }}#community">Community</a>
+    <a href="{{ url_for('root') }}#pricing">Pricing</a>
+    <a href="{{ url_for('root') }}#faq">FAQ</a>
+    <a href="{{ url_for('root') }}#contact">Contact</a>
+    {% if current_user.is_authenticated %}
+      <a href="{{ url_for('public.administrator_gateway') }}" class="btn-mph btn-outline btn-block">Dashboard</a>
+      {% if not current_user.is_superadmin and current_user.tenant_slug %}
+      <a href="{{ tenant_portfolio_url(current_user.tenant_slug) }}" class="btn-mph btn-primary btn-block ripple-wrap">My Portfolio</a>
+      {% endif %}
+    {% else %}
+      <a href="{{ url_for('auth.portal', tab='login') }}" class="btn-mph btn-outline btn-block">Sign In</a>
+      <a href="{{ url_for('auth.portal', tab='signup') }}" class="btn-mph btn-primary btn-block ripple-wrap">Get Started</a>
+    {% endif %}
+  </div>
+</header>
+
+<main id="main">
+  <section class="projects-browser-hero themes-browser-hero">
+    <div class="container-mph">
+      <div class="browser-hero-card" data-reveal>
+        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Theme Gallery</span>
+        <h1>Browse every portfolio theme</h1>
+        <p class="lead">Preview all active MyPortfolioHub themes with sample content before choosing the look for your professional portfolio.</p>
+        <div class="browser-stat-row" aria-label="Theme browser summary">
+          <span><strong>{{ total }}</strong> active theme{{ 's' if total != 1 else '' }}</span>
+          {% if category %}<span>Category: <strong>{{ category }}</strong></span>{% endif %}
+          {% if query %}<span>Search: <strong>{{ query }}</strong></span>{% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="projects-browser-shell themes-browser-shell">
+    <div class="container-mph">
+      <form class="projects-browser-toolbar" method="get" action="{{ url_for('public.themes') }}" role="search" data-reveal>
+        <label class="browser-field browser-search-field">
+          <span>Search themes</span>
+          <div class="browser-input-wrap">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <input type="search" name="q" value="{{ query }}" placeholder="Search by name, category, style…" aria-label="Search themes">
+          </div>
+        </label>
+
+        <label class="browser-field">
+          <span>Category</span>
+          <select name="category" aria-label="Filter by category">
+            <option value="">All categories</option>
+            {% for cat in categories %}
+            <option value="{{ cat }}" {% if cat == category %}selected{% endif %}>{{ cat|title }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label class="browser-field">
+          <span>Sort</span>
+          <select name="sort" aria-label="Sort themes">
+            <option value="featured" {% if sort == 'featured' %}selected{% endif %}>Featured</option>
+            <option value="name" {% if sort == 'name' %}selected{% endif %}>Name A-Z</option>
+            <option value="premium" {% if sort == 'premium' %}selected{% endif %}>Premium first</option>
+            <option value="free" {% if sort == 'free' %}selected{% endif %}>Free first</option>
+          </select>
+        </label>
+
+        <div class="browser-toolbar-actions">
+          <button type="submit" class="btn-mph btn-primary ripple-wrap">Apply filters</button>
+          {% if query or category or sort != 'featured' %}
+          <a href="{{ url_for('public.themes') }}" class="btn-mph btn-outline">Reset</a>
+          {% endif %}
+        </div>
+      </form>
+
+      {% if themes %}
+      <div class="theme-grid browse-theme-grid" aria-live="polite">
+        {% for theme in themes %}
+        <article class="theme-card browse-theme-card{% if theme.premium %} theme-card-premium{% endif %}" data-reveal
+                 style="--d:{{ loop.index0 * 60 }}ms;--tc1:{{ theme.primary_color|default('#7C5CFF', true) }};--tc2:{{ theme.secondary_color|default('#22D3EE', true) }};--tc3:{{ theme.background_color|default('#0D0F16', true) }};--tc4:{{ theme.text_color|default('#F6F7FA', true) }};">
+          {% if theme.premium %}<span class="theme-badge">Premium</span>{% else %}<span class="theme-badge theme-badge-free">Free</span>{% endif %}
+          <div class="theme-preview">
+            {% if theme.preview_image %}
+              <img class="theme-preview-img" src="{{ theme.preview_image }}" alt="{{ theme.name }} theme preview" loading="lazy"
+                   onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+              <div class="theme-preview-fallback" hidden>
+                <div class="theme-mock-bar"></div>
+                <div class="theme-mock-lines"><span></span><span class="short"></span></div>
+                <div class="theme-swatches"><span style="background:var(--tc1)"></span><span style="background:var(--tc2)"></span><span style="background:var(--tc3)"></span></div>
+              </div>
+            {% else %}
+              <div class="theme-mock-bar"></div>
+              <div class="theme-mock-lines"><span></span><span class="short"></span></div>
+              <div class="theme-swatches"><span style="background:var(--tc1)"></span><span style="background:var(--tc2)"></span><span style="background:var(--tc3)"></span></div>
+            {% endif %}
+          </div>
+          <div class="theme-meta browse-theme-meta">
+            <span class="theme-name">{{ theme.name }}</span>
+            <span class="theme-tag">{{ theme.category|default('Theme', true)|title }}</span>
+          </div>
+          <p class="theme-card-description">{{ theme.description or theme.tagline or 'A polished portfolio design ready for your projects, skills, and services.' }}</p>
+          <div class="theme-card-tags" aria-label="Theme tags">
+            {% for tag in theme.tags[:4] %}<span class="pf-tag">{{ tag }}</span>{% endfor %}
+          </div>
+          <div class="theme-card-actions">
+            <a href="{{ url_for('public.theme_preview', theme_id=theme.id) }}" target="_blank" rel="noopener"
+               class="btn-mph btn-outline btn-sm ripple-wrap">Preview theme</a>
+            {% if current_user.is_authenticated %}
+              <a href="{{ url_for('public.administrator_gateway') }}" class="btn-mph btn-primary btn-sm ripple-wrap">Use theme</a>
+            {% else %}
+              <a href="{{ url_for('auth.portal', tab='signup') }}" class="btn-mph btn-primary btn-sm ripple-wrap">Start free</a>
+            {% endif %}
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+
+      {% if has_prev or has_next %}
+      <nav class="browser-pagination" aria-label="Theme pagination">
+        <a class="btn-mph btn-outline{% if not has_prev %} disabled{% endif %}" href="{{ url_for('public.themes', q=query, category=category, sort=sort, page=page-1) if has_prev else '#' }}">Previous</a>
+        <span class="browser-page-status">Page {{ page }}</span>
+        <a class="btn-mph btn-outline{% if not has_next %} disabled{% endif %}" href="{{ url_for('public.themes', q=query, category=category, sort=sort, page=page+1) if has_next else '#' }}">Next</a>
+      </nav>
+      {% endif %}
+      {% else %}
+      <div class="case-study-empty browser-empty-state" data-reveal>
+        <i class="bi bi-palette" aria-hidden="true"></i>
+        {% if query or category %}
+          <h3>No matching themes found</h3>
+          <p>Try another keyword, choose a different category, or reset the filters.</p>
+          <a href="{{ url_for('public.themes') }}" class="btn-mph btn-primary">View all themes</a>
+        {% else %}
+          <h3>No active themes yet</h3>
+          <p>Themes will appear here once they are enabled in the SuperAdmin theme catalog.</p>
+          <a href="{{ url_for('root') }}" class="btn-mph btn-primary">Back to homepage</a>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </section>
+</main>
+
+<footer class="footer-mph browse-footer-bottom">
+  <div class="container-mph">
+    <div class="footer-bottom">
+      <span>© <span id="year">2026</span> MyPortfolioHub. All rights reserved.</span>
+      <span><a href="{{ url_for('root') }}">Home</a> · <a href="{{ url_for('public.projects') }}">Projects</a> · <a href="{{ url_for('public.pricing') }}">Pricing</a></span>
+    </div>
+  </div>
+</footer>
+
+<button class="to-top" id="toTop" aria-label="Back to top">
+  <i class="bi bi-arrow-up" aria-hidden="true"></i>
+</button>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/landing.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ page_title if page_title is defined else 'Settings' }}{% endblock %}
+{% block page_title %}{{ page_title if page_title is defined else 'Settings' }}{% endblock %}
+
+{% block content %}
+<div class="page-hd" style="margin-bottom:1.5rem;">
+  <div class="page-hd-left">
+    <h1>Settings</h1>
+    <p>Manage your account security and preferences.</p>
+  </div>
+</div>
+<div class="settings-grid">
+
+  <!-- Account Overview -->
+  <div class="form-card">
+    <h3>Account Overview</h3>
+    <div class="profile-summary">
+      <div class="profile-summary-row">
+        <span>Username</span>
+        <strong>{{ current_user.username }}</strong>
+      </div>
+      <div class="profile-summary-row">
+        <span>Email</span>
+        <strong>{{ current_user.email }}</strong>
+      </div>
+      <div class="profile-summary-row">
+        <span>Last login</span>
+        <strong>{{ current_user.last_login.strftime('%b %d, %Y %H:%M') if current_user.last_login else 'N/A' }}</strong>
+      </div>
+      <div class="profile-summary-row">
+        <span>Two-Factor Auth</span>
+        <strong>
+          {% if current_user.totp_enabled %}
+            <span style="color:#22c55e; display:inline-flex; align-items:center; gap:0.4rem;">
+              <iconify-icon icon="lucide:shield-check" width="15"></iconify-icon> Enabled
+            </span>
+          {% else %}
+            <span style="color:var(--text-muted); display:inline-flex; align-items:center; gap:0.4rem;">
+              <iconify-icon icon="lucide:shield-off" width="15"></iconify-icon> Disabled
+            </span>
+          {% endif %}
+        </strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Password -->
+  <form data-loading="true" method="POST" class="admin-form" id="changePasswordForm">
+    {{ form.hidden_tag() }}
+    <div class="form-card">
+      <h3>Change Password</h3>
+      <div class="form-group">
+        {{ form.current_password.label }}
+        {{ form.current_password(class="form-input", placeholder="Current password") }}
+        {% for e in form.current_password.errors %}
+          <span class="form-error">{{ e }}</span>
+        {% endfor %}
+      </div>
+      <div class="form-group">
+        {{ form.new_password.label }}
+        {{ form.new_password(class="form-input", placeholder="New password (min. 8 chars)") }}
+        {% for e in form.new_password.errors %}
+          <span class="form-error">{{ e }}</span>
+        {% endfor %}
+      </div>
+      <div class="form-group">
+        {{ form.confirm_password.label }}
+        {{ form.confirm_password(class="form-input", placeholder="Repeat new password") }}
+        {% for e in form.confirm_password.errors %}
+          <span class="form-error">{{ e }}</span>
+        {% endfor %}
+      </div>
+      <div class="form-actions">
+        {{ form.submit(class="btn btn-primary") }}
+      </div>
+    </div>
+  </form>
+
+  <!-- Two-Factor Authentication -->
+  <div class="form-card">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+      <h3 style="margin:0;">Two-Factor Authentication</h3>
+      {% if current_user.totp_enabled %}
+        <span style="
+            display:inline-flex; align-items:center; gap:0.4rem;
+            padding:0.3rem 0.75rem; border-radius:999px;
+            background:rgba(34,197,94,0.15); color:#22c55e;
+            font-size:0.8rem; font-weight:600; letter-spacing:0.05em;">
+          <iconify-icon icon="lucide:shield-check" width="13"></iconify-icon> Active
+        </span>
+      {% else %}
+        <span style="
+            display:inline-flex; align-items:center; gap:0.4rem;
+            padding:0.3rem 0.75rem; border-radius:999px;
+            background:rgba(122,128,148,0.15); color:var(--text-muted);
+            font-size:0.8rem; font-weight:600; letter-spacing:0.05em;">
+          <iconify-icon icon="lucide:shield-off" width="13"></iconify-icon> Inactive
+        </span>
+      {% endif %}
+    </div>
+
+    {% if current_user.totp_enabled %}
+      <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem; line-height:1.6;">
+        Your account is protected with TOTP two-factor authentication.
+        You have <strong style="color:var(--text);">{{ current_user.backup_codes_remaining }}</strong>
+        backup code{{ 's' if current_user.backup_codes_remaining != 1 else '' }} remaining.
+      </p>
+
+      <div style="display:flex; flex-direction:column; gap:0.75rem;">
+
+        <!-- Regenerate backup codes -->
+        <form data-loading="true" method="POST" action="{{ url_for('admin.regenerate_backup_codes') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <button type="submit" class="btn btn-secondary" style="width:100%;">
+            <iconify-icon icon="lucide:refresh-cw" width="16"></iconify-icon>
+            Regenerate Backup Codes
+          </button>
+        </form>
+
+        <!-- Disable 2FA -->
+        <button class="btn btn-danger" style="width:100%;"
+                onclick="document.getElementById('disable2faModal').classList.remove('hidden')">
+          <iconify-icon icon="lucide:shield-off" width="16"></iconify-icon>
+          Disable Two-Factor Auth
+        </button>
+      </div>
+
+    {% else %}
+      <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem; line-height:1.6;">
+        Add an extra layer of security to your account. Once enabled, you'll need a 6-digit code
+        from your authenticator app each time you log in.
+      </p>
+      <a href="{{ url_for('admin.setup_2fa') }}" class="btn btn-primary" style="display:flex;">
+        <iconify-icon icon="lucide:shield-plus" width="16"></iconify-icon>
+        Enable Two-Factor Auth
+      </a>
+    {% endif %}
+  </div>
+
+  <!-- Portfolio Links -->
+  <div class="form-card">
+    <h3>Portfolio Links</h3>
+    <div class="settings-links">
+      <a href="{{ url_for('root') }}" target="_blank" class="btn btn-secondary">
+        <span class="link-icon">↗</span>
+        View Live Portfolio
+      </a>
+      <a href="{{ url_for('admin.edit_profile') }}" class="btn btn-secondary">
+        <span class="link-icon">◎</span>
+        Edit Profile
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<!-- Disable 2FA confirmation modal -->
+{% if current_user.totp_enabled %}
+<div class="modal-backdrop hidden" id="disable2faModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Disable Two-Factor Authentication</h3>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom:1.25rem; color:var(--text-muted);">
+        Enter your password to confirm. This will remove 2FA from your account.
+      </p>
+      <form data-loading="true" method="POST" action="{{ url_for('admin.disable_2fa') }}" id="disable2faForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="form-group">
+          <label for="disable_password" style="text-transform:uppercase; font-size:0.82rem; letter-spacing:0.08em; color:var(--text-muted);">Current Password</label>
+          <input type="password" id="disable_password" name="password"
+                 class="form-input" placeholder="Enter your password" required
+                 style="margin-top:0.5rem;"/>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('disable2faModal').classList.add('hidden')">
+        Cancel
+      </button>
+      <button type="submit" form="disable2faForm" class="btn btn-danger">
+        Disable 2FA
+      </button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+
+{% endblock %}

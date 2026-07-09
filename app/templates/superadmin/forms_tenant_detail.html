@@ -1,0 +1,185 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Form Config — {{ tenant.company_name or tenant.slug }}{% endblock %}
+{% block page_title %}Form Config — {{ tenant.company_name or tenant.slug }}{% endblock %}
+
+{% block content %}
+
+<div class="breadcrumb-trail">
+  <a href="{{ url_for('superadmin_forms.forms_overview') }}" class="bc-link">
+    <iconify-icon icon="lucide:layout-panel-top" width="14"></iconify-icon>
+    Form Providers
+  </a>
+  <iconify-icon icon="lucide:chevron-right" width="14" class="bc-sep"></iconify-icon>
+  <span class="bc-current">{{ tenant.company_name or tenant.slug }}</span>
+</div>
+
+<div class="content-grid" style="max-width:680px;">
+
+  {# ── Tenant info ────────────────────────────────────────────────────────── #}
+  <div class="form-card">
+    <div class="form-card-header">
+      <iconify-icon icon="lucide:user" width="18"></iconify-icon>
+      <h3>Tenant</h3>
+    </div>
+    <div class="form-card-body">
+      <div class="detail-grid">
+        <div class="detail-row">
+          <span class="detail-label">Company</span>
+          <span class="detail-value">{{ tenant.company_name or '—' }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Slug</span>
+          <span class="detail-value"><code>{{ tenant.slug }}</code></span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Email</span>
+          <span class="detail-value">{{ tenant.email or '—' }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Provider config ────────────────────────────────────────────────────── #}
+  {% if settings %}
+  <div class="form-card">
+    <div class="form-card-header">
+      <iconify-icon icon="lucide:layout-panel-top" width="18"></iconify-icon>
+      <h3>Form Provider</h3>
+      {% if settings.status_label == 'connected' %}
+        <span class="tag-sm tag-success" style="margin-left:auto;">
+          <iconify-icon icon="lucide:circle-check" width="13"></iconify-icon>
+          Connected
+        </span>
+      {% elif settings.status_label == 'needs_setup' %}
+        <span class="tag-sm tag-warn" style="margin-left:auto;">
+          <iconify-icon icon="lucide:circle-alert" width="13"></iconify-icon>
+          Needs Setup
+        </span>
+      {% else %}
+        <span class="tag-sm tag-muted" style="margin-left:auto;">Disabled</span>
+      {% endif %}
+    </div>
+    <div class="form-card-body">
+      <div class="detail-grid">
+        <div class="detail-row">
+          <span class="detail-label">Provider</span>
+          <span class="detail-value">
+            {% if settings.provider == 'basin' %}
+              <span class="provider-badge provider-badge--basin">
+                <iconify-icon icon="lucide:layout-panel-top" width="12"></iconify-icon>
+                Basin
+              </span>
+            {% elif settings.provider == 'web3forms' %}
+              <span class="provider-badge provider-badge--web3">
+                <iconify-icon icon="lucide:zap" width="12"></iconify-icon>
+                Web3Forms
+              </span>
+            {% else %}
+              <span class="provider-badge provider-badge--internal">
+                <iconify-icon icon="lucide:inbox" width="12"></iconify-icon>
+                Disabled
+              </span>
+            {% endif %}
+          </span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Enabled</span>
+          <span class="detail-value">
+            {% if settings.is_enabled %}
+              <iconify-icon icon="lucide:toggle-right" width="22" style="color:#34d399;vertical-align:middle;"></iconify-icon>
+              <span style="font-size:.82rem;color:#34d399;margin-left:.25rem;">Yes</span>
+            {% else %}
+              <iconify-icon icon="lucide:toggle-left" width="22" style="color:#475569;vertical-align:middle;"></iconify-icon>
+              <span style="font-size:.82rem;color:#94a3b8;margin-left:.25rem;">No</span>
+            {% endif %}
+          </span>
+        </div>
+        {% if settings.form_endpoint %}
+        <div class="detail-row">
+          <span class="detail-label">Endpoint</span>
+          <span class="detail-value" style="font-size:.82rem;color:var(--text-muted,#94a3b8);word-break:break-all;">
+            {{ settings.form_endpoint }}
+          </span>
+        </div>
+        {% endif %}
+        <div class="detail-row">
+          <span class="detail-label">API Key</span>
+          <span class="detail-value">
+            {% if masked_key %}
+              <code class="masked-key">{{ masked_key }}</code>
+              <span class="field-hint" style="display:block;margin-top:.2rem;">
+                Only last 4 characters shown. Key is stored encrypted.
+              </span>
+            {% else %}
+              <span class="text-muted" style="font-size:.82rem;">Not set</span>
+            {% endif %}
+          </span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Receiver Email</span>
+          <span class="detail-value">{{ settings.receiver_email or '—' }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Sender Name</span>
+          <span class="detail-value">{{ settings.sender_name or '—' }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Last Updated</span>
+          <span class="detail-value text-muted" style="font-size:.82rem;">
+            {{ settings.updated_at.strftime('%b %d, %Y %H:%M UTC') if settings.updated_at else '—' }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% else %}
+  <div class="form-card">
+    <div class="form-card-body">
+      <div class="empty-state">
+        <div class="empty-icon">
+          <iconify-icon icon="lucide:inbox" width="32"></iconify-icon>
+        </div>
+        <p class="empty-title">Not configured</p>
+        <p class="empty-sub">This tenant has not set up a contact form provider yet. They can configure it in their admin settings.</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="form-actions">
+    <a href="{{ url_for('superadmin_forms.forms_overview') }}" class="btn btn-ghost">
+      <iconify-icon icon="lucide:arrow-left" width="15"></iconify-icon>
+      Back to Overview
+    </a>
+    <a href="{{ url_for('superadmin.tenant_edit', tenant_id=tenant.id) }}" class="btn btn-ghost">
+      <iconify-icon icon="lucide:user-cog" width="15"></iconify-icon>
+      Edit Tenant
+    </a>
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.detail-grid  { display:flex;flex-direction:column;gap:0; }
+.detail-row   { display:flex;align-items:flex-start;gap:1rem;padding:.65rem 0;border-bottom:1px solid var(--border-color,rgba(255,255,255,.05)); }
+.detail-row:last-child { border-bottom:none; }
+.detail-label { font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted,#94a3b8);min-width:130px;padding-top:.1rem; }
+.detail-value { font-size:.875rem;color:var(--text-primary,#f1f5f9);flex:1; }
+
+.provider-badge { display:inline-flex;align-items:center;gap:.3rem;padding:2px 9px;border-radius:5px;font-size:.73rem;font-weight:600; }
+.provider-badge--basin    { background:rgba(16,185,129,.12);color:#34d399; }
+.provider-badge--web3     { background:rgba(99,102,241,.12);color:#a5b4fc; }
+.provider-badge--internal { background:rgba(148,163,184,.1);color:#94a3b8; }
+
+.masked-key { font-family:monospace;font-size:.78rem;color:var(--text-muted,#94a3b8);background:rgba(255,255,255,.04);padding:2px 8px;border-radius:4px; }
+
+.empty-state { padding:2rem 1rem;text-align:center; }
+.empty-icon  { color:var(--text-muted,#94a3b8);margin-bottom:.75rem;opacity:.5; }
+.empty-title { font-weight:600;color:var(--text-primary,#f1f5f9);margin-bottom:.25rem;font-size:.9rem; }
+.empty-sub   { font-size:.82rem;color:var(--text-muted,#94a3b8);margin:0; }
+</style>
+{% endblock %}

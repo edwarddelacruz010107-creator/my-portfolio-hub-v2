@@ -1,0 +1,89 @@
+<!-- Projects Section Component -->
+<section id="projects" class="section projects">
+    <div class="container">
+        <!-- Section Header -->
+        <div class="section-header reveal-up">
+            <span class="section-tag">My Work</span>
+            <h2 class="section-title">Featured <span class="gradient-text">Projects</span></h2>
+            <p class="section-subtitle">
+                A selection of recent projects that showcase my skills and expertise
+            </p>
+        </div>
+
+        <!-- Projects Grid -->
+        <div class="projects-grid">
+            {% if featured_projects %}
+                {% for project in featured_projects %}
+                <article class="project-card reveal-up" style="--delay: {{ loop.index0 * 0.1 }}s">
+                    <div class="project-image">
+                        <img 
+                            src="{% if project.image %}{{ url_for('static', filename='uploads/projects/' + project.image) }}{% else %}{{ url_for('static', filename='image/project_placeholder.svg') }}{% endif %}" 
+                            alt="{{ project.title }}"
+                        >
+                        <div class="project-overlay">
+                            <div class="project-overlay-actions">
+                                {% if project.live_url %}
+                                    <a href="{{ project.live_url }}" target="_blank" class="project-btn" aria-label="View live project">
+                                        <iconify-icon icon="lucide:external-link" width="18"></iconify-icon>
+                                    </a>
+                                {% endif %}
+                                {% if project.github_url %}
+                                    <a href="{{ project.github_url }}" target="_blank" class="project-btn" aria-label="View GitHub repo">
+                                        <iconify-icon icon="lucide:github" width="18"></iconify-icon>
+                                    </a>
+                                {% else %}
+                                    <a href="{{ tenant_project_url(tenant_slug or active_tenant_slug or 'default', project.slug) }}" class="project-btn" aria-label="View project details">
+                                        <iconify-icon icon="lucide:arrow-right" width="18"></iconify-icon>
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="project-info">
+                        {% if project.tags %}
+                        <div class="project-tags">
+                            {% for tag in project.tags[:3] %}
+                                <span class="tag">{{ tag }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        <h3 class="project-title">{{ project.title }}</h3>
+                        <p class="project-desc">
+                            {% if project.description_short %}{{ project.description_short }}{% else %}{{ project.description[:150] }}{% if project.description|length > 150 %}...{% endif %}{% endif %}
+                        </p>
+                        <div class="project-links">
+                            {% if project.live_url %}
+                                <a href="{{ project.live_url }}" target="_blank" class="project-link">
+                                    <iconify-icon icon="lucide:external-link" width="14"></iconify-icon>
+                                    Live Demo
+                                </a>
+                            {% endif %}
+                            {% if project.github_url %}
+                                <a href="{{ project.github_url }}" target="_blank" class="project-link">
+                                    <iconify-icon icon="lucide:github" width="14"></iconify-icon>
+                                    Source Code
+                                </a>
+                            {% else %}
+                                <a href="{{ tenant_project_url(tenant_slug or active_tenant_slug or 'default', project.slug) }}" class="project-link">
+                                    <iconify-icon icon="lucide:arrow-right" width="14"></iconify-icon>
+                                    View Details
+                                </a>
+                            {% endif %}
+                            {% if project.framework or project.language %}
+                                <div class="project-tech">
+                                    {% if project.framework %}<span class="tech-item">{{ project.framework }}</span>{% endif %}
+                                    {% if project.language %}<span class="tech-item">{{ project.language }}</span>{% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </article>
+                {% endfor %}
+            {% else %}
+                <p style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 2rem;">
+                    No featured projects yet. Check back soon!
+                </p>
+            {% endif %}
+        </div>
+    </div>
+</section>

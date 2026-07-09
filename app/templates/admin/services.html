@@ -1,0 +1,96 @@
+{% extends "admin/base.html" %}
+{% block title %}Services{% endblock %}
+{% block page_title %}Services{% endblock %}
+
+{% block content %}
+<div class="list-page">
+  <div class="page-hd">
+    <div class="page-hd-left">
+      <h1>Services <span style="font-size:0.6em;color:var(--text-muted);font-weight:600;vertical-align:middle;">({{ services|length }})</span></h1>
+      <p>Manage the service cards displayed on your portfolio.</p>
+    </div>
+    <div class="page-hd-right">
+      <a href="{{ url_for('admin.new_service') }}" class="btn btn-primary">
+        <iconify-icon icon="lucide:plus" width="15"></iconify-icon> Add Service
+      </a>
+    </div>
+  </div>
+
+  {% if services %}
+  <div class="skill-list" id="servicesList">
+    {% for svc in services %}
+    <div class="skill-row" data-id="{{ svc.id }}">
+      <div class="skill-drag">⠿</div>
+
+      <div class="skill-icon-col">
+        <span class="skill-icon" style="font-size:1.3rem;">
+          <iconify-icon icon="{{ svc.icon or 'lucide:briefcase' }}" width="22"></iconify-icon>
+        </span>
+      </div>
+
+      <div class="skill-info" style="flex:1;">
+        <div class="skill-title-row">
+          <strong>{{ svc.title }}</strong>
+          <span class="skill-cat-badge">order {{ svc.display_order }}</span>
+        </div>
+        <span class="skill-subtitle">
+          {% if svc.description %}
+            {{ svc.description | truncate(80) }}
+          {% else %}
+            <em style="color:var(--text-muted)">No description</em>
+          {% endif %}
+        </span>
+        {% if svc.features_list %}
+        <span class="skill-subtitle" style="margin-top:2px;">
+          {{ svc.features_list|length }} feature bullet{{ 's' if svc.features_list|length != 1 else '' }}
+        </span>
+        {% endif %}
+      </div>
+
+      <div class="skill-actions">
+        <span class="visibility-badge {% if svc.is_visible %}visible{% else %}hidden{% endif %}">
+          {% if svc.is_visible %}Visible{% else %}Hidden{% endif %}
+        </span>
+        <a href="{{ url_for('admin.edit_service', id=svc.id) }}" class="icon-btn">✎</a>
+        <button class="icon-btn icon-btn--danger"
+                onclick="confirmDelete('{{ url_for('admin.delete_service', id=svc.id) }}',
+                'Delete service &quot;{{ svc.title }}&quot;?')">✕</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <script>
+  // Drag-and-drop reorder (mirrors skills reorder pattern)
+  (function () {
+    const list = document.getElementById('servicesList');
+    if (!list || typeof Sortable === 'undefined') return;
+    Sortable.create(list, {
+      handle: '.skill-drag',
+      animation: 150,
+      onEnd() {
+        const order = [...list.querySelectorAll('[data-id]')].map((el, i) => ({
+          id: parseInt(el.dataset.id), order: i
+        }));
+        fetch('{{ url_for("admin.reorder_services") }}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order })
+        });
+      }
+    });
+  })();
+  </script>
+
+  {% else %}
+  <div class="empty-page">
+    <div class="empty-icon">
+      <iconify-icon icon="lucide:briefcase" width="48"></iconify-icon>
+    </div>
+    <h2>No services yet</h2>
+    <p>Add your first service to display it on your portfolio.</p>
+    <a href="{{ url_for('admin.new_service') }}" class="btn btn-primary">Add your first service</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

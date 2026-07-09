@@ -1,0 +1,62 @@
+📋 INSTRUCTION: Update app/models/core.py
+
+═════════════════════════════════════════════════════════════════════════════
+
+FILE TO MODIFY: app/models/core.py
+CLASS TO REPLACE: TenantCommunicationSettings (around line 664)
+
+═════════════════════════════════════════════════════════════════════════════
+
+HOW TO DO IT:
+
+1. Open: app/models/core.py
+2. Find: class TenantCommunicationSettings (around line 664)
+3. Select: Entire class definition until next class definition
+4. Delete: The entire class
+5. Copy: Content from DOCUMENTATION/TenantCommunicationSettings_COMPLETE.py
+6. Paste: In place of deleted class
+7. Save: app/models/core.py
+
+═════════════════════════════════════════════════════════════════════════════
+
+WHAT CHANGES:
+
+ADD (New fields for MailerSend):
+  ✓ _mailersend_api_key (encrypted TEXT)
+  ✓ mailersend_from_email (VARCHAR 200)
+  ✓ mailersend_from_name (VARCHAR 200)
+
+ADD (New properties):
+  ✓ mailersend_api_key (property with encryption)
+  ✓ has_mailersend (bool)
+  ✓ effective_mailersend_config() (method)
+
+UPDATE (Modified property):
+  ✓ is_configured (now checks MailerSend first)
+
+KEEP (Unchanged - backward compatible):
+  ✓ web3forms_key (property)
+  ✓ has_web3forms (property)
+  ✓ mail_password (property)
+  ✓ has_smtp (property)
+  ✓ effective_smtp_config() (method)
+  ✓ All SMTP columns
+
+═════════════════════════════════════════════════════════════════════════════
+
+VERIFICATION:
+
+After saving, verify in Python:
+
+  from app.models.core import TenantCommunicationSettings
+  comm = TenantCommunicationSettings(tenant_id=1)
+  
+  # These should work:
+  print(comm.has_mailersend)                    # Should be False (not configured)
+  print(hasattr(comm, 'mailersend_api_key'))   # Should be True
+  print(hasattr(comm, 'effective_mailersend_config'))  # Should be True
+
+═════════════════════════════════════════════════════════════════════════════
+
+For more details, see:
+  DOCUMENTATION/QUICK_IMPLEMENTATION.md (Step 2)

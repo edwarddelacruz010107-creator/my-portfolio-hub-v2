@@ -1,0 +1,77 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Analytics — {{ campaign.name }}{% endblock %}
+{% block page_title %}Analytics — {{ campaign.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-heading">{{ campaign.name }}</h1>
+    <p class="page-subtext">{{ campaign.code or 'Auto-applied campaign' }} &middot; {{ 'Percent' if campaign.discount_type == 'percent' else 'Fixed amount' }} discount</p>
+  </div>
+  <div class="page-header-right">
+    <a href="{{ url_for('superadmin.discount_edit', campaign_id=campaign.id) }}" class="btn btn-secondary btn-sm">
+      <iconify-icon icon="lucide:pencil" width="14"></iconify-icon>
+      Edit Campaign
+    </a>
+    <a href="{{ url_for('superadmin.discounts') }}" class="btn btn-outline btn-sm">Back to List</a>
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total Redemptions</div>
+    <div class="stat-value">{{ stats.total_redemptions }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Revenue Impact</div>
+    <div class="stat-value">&#x20B1;{{ '%.2f'|format(stats.revenue_impact) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Usage Remaining</div>
+    <div class="stat-value">{{ stats.usage_remaining if stats.usage_remaining is not none else 'Unlimited' }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Status</div>
+    <div class="stat-value" style="font-size:1.1rem">
+      {% if stats.is_expired %}Expired{% elif campaign.is_active %}Active{% else %}Inactive{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="dash-panel">
+  <div class="panel-header">
+    <h2>Redemption History</h2>
+  </div>
+
+  {% if redemptions %}
+  <div style="overflow-x:auto">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Tenant</th>
+          <th>Cycle</th>
+          <th>Before</th>
+          <th>Discount</th>
+          <th>After</th>
+          <th>Redeemed At</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in redemptions %}
+        <tr>
+          <td>{{ r.tenant.slug if r.tenant else r.tenant_id }}</td>
+          <td>{{ r.billing_cycle or '—' }}</td>
+          <td>&#x20B1;{{ '%.2f'|format(r.amount_before) }}</td>
+          <td>-&#x20B1;{{ '%.2f'|format(r.amount_discounted) }}</td>
+          <td>&#x20B1;{{ '%.2f'|format(r.amount_after) }}</td>
+          <td>{{ r.redeemed_at.strftime('%Y-%m-%d %H:%M UTC') if r.redeemed_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="page-subtext">No redemptions yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

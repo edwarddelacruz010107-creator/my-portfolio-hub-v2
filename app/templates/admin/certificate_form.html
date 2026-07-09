@@ -1,0 +1,141 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit' if certificate else 'New' }} Certificate{% endblock %}
+{% block page_title %}{{ 'Edit Certificate' if certificate else 'New Certificate' }}{% endblock %}
+
+{% block content %}
+<div class="page-hd" style="margin-bottom:1.5rem;">
+  <div class="page-hd-left">
+    <h1>{{ 'Edit Certificate' if certificate else 'New Certificate' }}</h1>
+    <p>{% if certificate %}Update this certification's details.{% else %}Add a certification or badge to your portfolio.{% endif %}</p>
+  </div>
+  <div class="page-hd-right">
+    <a href="{{ url_for('admin.certificates') }}" class="btn btn-ghost btn-sm">
+      <iconify-icon icon="lucide:arrow-left" width="14"></iconify-icon> Back
+    </a>
+  </div>
+</div>
+
+<form data-loading="true" method="POST" enctype="multipart/form-data" class="admin-form form-narrow">
+  {{ form.hidden_tag() }}
+
+  <div class="form-card">
+    <h3>Images</h3>
+    <div class="avatar-upload-card avatar-upload-row">
+      <div class="avatar-preview" id="imagePreview">
+        {% if certificate and certificate.image_path %}
+          <img src="{{ certificate.image_path|upload_url('certificates') }}" alt="{{ certificate.title }}" id="imageImg"/>
+        {% else %}
+          <div class="avatar-placeholder" id="imagePlaceholder"><span>◉</span></div>
+          <img src="" id="imageImg" class="hidden-field"/>
+        {% endif %}
+      </div>
+      <div class="avatar-upload-copy">
+        <label class="upload-btn" for="image_input">↑ Upload Certificate Image</label>
+        {{ form.image_file(id="image_input", class_="hidden-field", onchange="previewImg(this,'imageImg','imagePlaceholder')") }}
+        <p class="form-hint">Landscape recommended. Up to 800×600px.</p>
+      </div>
+    </div>
+
+    <div class="avatar-upload-card avatar-upload-row">
+      <div class="avatar-preview" id="badgePreview">
+        {% if certificate and certificate.badge_path %}
+          <img src="{{ certificate.badge_path|upload_url('certificates') }}" alt="{{ certificate.title }}" id="badgeImg"/>
+        {% else %}
+          <div class="avatar-placeholder" id="badgePlaceholder"><span>◉</span></div>
+          <img src="" id="badgeImg" class="hidden-field"/>
+        {% endif %}
+      </div>
+      <div class="avatar-upload-copy">
+        <label class="upload-btn" for="badge_input">↑ Upload Badge</label>
+        {{ form.badge_file(id="badge_input", class_="hidden-field", onchange="previewImg(this,'badgeImg','badgePlaceholder')") }}
+        <p class="form-hint">Square image recommended. 300×300px.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <h3>Certification</h3>
+    <div class="form-row">
+      <div class="form-group">
+        {{ form.title.label }}
+        {{ form.title(class="form-input", placeholder="AWS Certified Solutions Architect") }}
+        {% for e in form.title.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+      <div class="form-group">
+        {{ form.issuer.label }}
+        {{ form.issuer(class="form-input", placeholder="Amazon Web Services") }}
+        {% for e in form.issuer.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+    </div>
+    <div class="form-group">
+      {{ form.description.label }}
+      {{ form.description(class="form-textarea", rows=4, placeholder="What did this certification cover?") }}
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        {{ form.credential_id.label }}
+        {{ form.credential_id(class="form-input", placeholder="ABC-123-XYZ") }}
+      </div>
+      <div class="form-group">
+        {{ form.verification_url.label }}
+        {{ form.verification_url(class="form-input", placeholder="https://verify.example.com/...") }}
+        {% for e in form.verification_url.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        {{ form.issue_date.label }}
+        {{ form.issue_date(class="form-input") }}
+      </div>
+      <div class="form-group">
+        {{ form.expiration_date.label }}
+        {{ form.expiration_date(class="form-input") }}
+        {% for e in form.expiration_date.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+    </div>
+    <div class="form-group">
+      {{ form.skills.label }}
+      {{ form.skills(class="form-input", placeholder="Cloud Architecture, AWS, DevOps") }}
+    </div>
+  </div>
+
+  <div class="form-card">
+    <h3>Display</h3>
+    <div class="form-row">
+      <div class="form-group">
+        {{ form.display_order.label }}
+        {{ form.display_order(class="form-input", placeholder="0") }}
+      </div>
+    </div>
+    <div class="form-group toggle-group">
+      {{ form.is_featured() }}
+      <label for="{{ form.is_featured.id }}">Featured certificate</label>
+    </div>
+    <div class="form-group toggle-group">
+      {{ form.is_visible() }}
+      <label for="{{ form.is_visible.id }}">Visible on portfolio</label>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    {{ form.submit(class="btn btn-primary") }}
+    <a href="{{ url_for('admin.certificates') }}" class="btn btn-ghost">Cancel</a>
+  </div>
+</form>
+
+<script>
+function previewImg(input, imgId, placeholderId) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.getElementById(imgId);
+      const ph = document.getElementById(placeholderId);
+      img.src = e.target.result;
+      img.style.display = 'block';
+      if (ph) ph.style.display = 'none';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+</script>
+{% endblock %}

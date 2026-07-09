@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    {# ── Tenant context guards ── #}
+    {# tenant_slug is always passed by both root() and portfolio() routes.      #}
+    {# is_root_domain=True only on the default portfolio at myportfoliohub.online/ #}
+    {# is_owner=True → this is the default portfolio (owner/superadmin page)    #}
+    {% set _tenant_slug = tenant_slug if tenant_slug is defined else 'default' %}
+    {% set is_owner = (is_root_domain is defined and is_root_domain) or (_tenant_slug == 'default') %}
+
+    {# ── Title ── #}
+    {% set page_title = (profile.meta_title or (profile.name ~ ' — ' ~ (profile.title or 'Portfolio'))) if profile else 'Portfolio' %}
+    <title>{{ page_title }}</title>
+
+    {# ── Primary SEO meta ── #}
+    {% set meta_desc = (profile.meta_description or profile.bio_short or (profile.name ~ ' portfolio — ' ~ (profile.title or 'developer'))) if profile else '' %}
+    <meta name="description" content="{{ meta_desc | truncate(160, True, '...') }}">
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+    {% if profile and profile.name %}<meta name="author" content="{{ profile.name }}">{% endif %}
+    {% if profile and profile.location %}<meta name="geo.placename" content="{{ profile.location }}">{% endif %}
+
+    {# ── Canonical ── #}
+    <link rel="canonical" href="{{ request.host_url.rstrip('/') }}{{ request.path }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon">
+
+    {# ── Open Graph ── #}
+    {% set og_image_url = '' %}
+    {% if profile %}
+      {% if profile.og_image %}
+        {% if profile.og_image.startswith('http') %}
+          {% set og_image_url = profile.og_image %}
+        {% else %}
+          {% set og_image_url = url_for('static', filename='uploads/profiles/' ~ profile.og_image, _external=True) %}
+        {% endif %}
+      {% elif profile.profile_image %}
+        {% if profile.profile_image.startswith('http') %}
+          {% set og_image_url = profile.profile_image %}
+        {% else %}
+          {% set og_image_url = url_for('static', filename='uploads/profiles/' ~ profile.profile_image, _external=True) %}
+        {% endif %}
+      {% endif %}
+    {% endif %}
+    <meta property="og:type"        content="profile">
+    <meta property="og:title"       content="{{ page_title }}">
+    <meta property="og:description" content="{{ meta_desc | truncate(200, True, '...') }}">
+    <meta property="og:url"         content="{{ request.host_url.rstrip('/') }}{{ request.path }}">
+    <meta property="og:site_name"   content="{{ profile.name if profile else 'Portfolio' }}">
+    {% if og_image_url %}
+    <meta property="og:image"       content="{{ og_image_url }}">
+    <meta property="og:image:width"  content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt"    content="{{ profile.name }} — {{ profile.title or 'Portfolio' }}">
+    {% endif %}
+    {% if profile and profile.name %}
+    <meta property="profile:first_name" content="{{ profile.name.split()[0] }}">
+    {% if profile.name.split() | length > 1 %}
+    <meta property="profile:last_name"  content="{{ profile.name.split()[-1] }}">
+    {% endif %}
+    {% endif %}
+
+    {# ── Twitter Card ── #}
+    <meta name="twitter:card"        content="summary_large_image">
+    <meta name="twitter:title"       content="{{ page_title }}">
+    <meta name="twitter:description" content="{{ meta_desc | truncate(200, True, '...') }}">
+    {% if og_image_url %}<meta name="twitter:image" content="{{ og_image_url }}">{% endif %}
+    {% if profile and profile.social_links and profile.social_links.get('twitter') %}
+    <meta name="twitter:creator" content="@{{ profile.social_links.twitter.rstrip('/').split('/')[-1] }}">
+    {% endif %}
+
+    {# ── JSON-LD: Person ── #}
+    {% if profile %}
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Person",
+      "name": "{{ profile.name | e }}",
+      "jobTitle": "{{ (profile.title or '') | e }}",
+      "description": "{{ (profile.bio_short or '') | e }}",
+      "url": "{{ request.host_url.rstrip('/') }}{{ request.path }}",
+      {% if profile.email %}"email": "mailto:{{ profile.email | e }}",{% endif %}
+      {% if profile.location %}"address": {"@type": "PostalAddress", "addressLocality": "{{ profile.location | e }}"},{% endif %}
+      {% if og_image_url %}"image": "{{ og_image_url }}",{% endif %}
+      "sameAs": [
+        {% set links = [] %}
+        {% for k, v in (profile.social_links or {}).items() if v %}
+          {% if links.append('"' ~ v ~ '"') %}{% endif %}
+        {% endfor %}
+        {{ links | join(',\n        ') }}
+      ]
+    }
+    </script>
+
+    {# ── JSON-LD: ProfilePage ── #}
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "ProfilePage",
+      "name": "{{ page_title | e }}",
+      "description": "{{ meta_desc | e }}",
+      "url": "{{ request.host_url.rstrip('/') }}{{ request.path }}",
+      "mainEntity": {
+        "@type": "Person",
+        "name": "{{ profile.name | e }}",
+        "jobTitle": "{{ (profile.title or '') | e }}"
+      }
+    }
+    </script>
+
+    {# ── JSON-LD: ItemList (projects) for Google rich results ── #}
+    {% set pub_projects = (featured_projects or []) + (other_projects or []) %}
+    {% if pub_projects %}
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      "name": "{{ profile.name | e }} — Projects",
+      "numberOfItems": {{ pub_projects | length }},
+      "itemListElement": [
+        {% for project in pub_projects[:10] %}
+        {
+          "@type": "ListItem",
+          "position": {{ loop.index }},
+          "item": {
+            "@type": "CreativeWork",
+            "name": "{{ project.title | e }}",
+            "description": "{{ (project.description_short or project.description or '') | striptags | truncate(150) | e }}",
+            "url": "{{ tenant_project_url(tenant_slug, project.slug, external=True) }}"
+            {% if project.image %},
+            "image": "{{ url_for('static', filename='uploads/projects/' ~ project.image, _external=True) }}"
+            {% endif %}
+          }
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+      ]
+    }
+    </script>
+    {% endif %}
+    {% endif %}
+
+    {# ── Theme: apply saved preference BEFORE paint to avoid flash ── #}
+    <script>
+    (function(){
+      var k = 'portfolio-theme';
+      var saved = localStorage.getItem(k);
+      if (!saved) {
+        saved = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+      document.documentElement.setAttribute('data-theme', saved);
+    })();
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Oswald:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Iconify Icons -->
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+    <script src="https://unpkg.com/iconify-icon@1.0.7/dist/iconify-icon.min.js" defer></script>
+
+    <!-- Custom Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<base target="_blank">
+</head>
+<body>
+
+    <!-- ===================== LOADING SCREEN ===================== -->
+    <div class="loader" id="loader">
+        <div class="loader-spinner"></div>
+        <span class="loader-text">Loading...</span>
+    </div>
+
+    <!-- ===================== NAVIGATION ===================== -->
+    <nav class="navbar" id="navbar">
+        <div class="container navbar-inner">
+            <!-- Logo -->
+            <a href="#hero" class="nav-logo">
+                {% if profile and profile.name %}
+                    {% set parts = profile.name.split() %}
+                    <span class="logo-bracket">&lt;</span>{{ parts[0][0] }}{{ parts[-1][0] if parts|length > 1 else '' }}<span class="logo-bracket"> /&gt;</span>
+                {% else %}
+                    <span class="logo-bracket">&lt;</span>ME<span class="logo-bracket"> /&gt;</span>
+                {% endif %}
+            </a>
+
+            <!-- Desktop Navigation Links -->
+            <ul class="nav-links" id="navLinks">
+                <li><a href="#hero" class="nav-link active" data-section="hero">Home</a></li>
+                <li><a href="#about" class="nav-link" data-section="about">About</a></li>
+                <li><a href="#projects" class="nav-link" data-section="projects">Projects</a></li>
+                {% if services %}<li><a href="#services" class="nav-link" data-section="services">Services</a></li>{% endif %}
+                    {% if experiences %}<li><a href="#experience" class="nav-link" data-section="experience">Experience</a></li>{% endif %}
+                {% if testimonials %}<li><a href="#testimonials" class="nav-link" data-section="testimonials">Testimonials</a></li>{% endif %}
+                <li><a href="#contact" class="nav-link" data-section="contact">Contact</a></li>
+                {% if profile and profile.tenant_slug == 'default' %}
+                <li><a href="{{ url_for('main.billing') }}" class="nav-link">Billing</a></li>
+                {% elif profile and profile.tenant_slug != 'default' %}
+                <li><a href="{{ url_for('tenant.billing', tenant_slug=profile.tenant_slug) }}" class="nav-link">Billing</a></li>
+                {% endif %}
+            </ul>
+
+            <div class="nav-actions">
+                <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+                    <iconify-icon icon="lucide:moon" class="theme-icon moon-icon"></iconify-icon>
+                    <iconify-icon icon="lucide:sun" class="theme-icon sun-icon"></iconify-icon>
+                </button>
+
+                <!-- Hamburger Menu (Mobile) -->
+                <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Menu -->
+        <div class="mobile-menu" id="mobileMenu">
+            <ul class="mobile-nav-links">
+                <li><a href="#hero" class="mobile-nav-link" data-section="hero">Home</a></li>
+                <li><a href="#about" class="mobile-nav-link" data-section="about">About</a></li>
+                <li><a href="#projects" class="mobile-nav-link" data-section="projects">Projects</a></li>
+                {% if services %}<li><a href="#services" class="mobile-nav-link" data-section="services">Services</a></li>{% endif %}
+                    {% if experiences %}<li><a href="#experience" class="mobile-nav-link" data-section="experience">Experience</a></li>{% endif %}
+                {% if testimonials %}<li><a href="#testimonials" class="mobile-nav-link" data-section="testimonials">Testimonials</a></li>{% endif %}
+                <li><a href="#contact" class="mobile-nav-link" data-section="contact">Contact</a></li>
+                {% if profile and profile.tenant_slug == 'default' %}
+                <li><a href="{{ url_for('main.billing') }}" class="mobile-nav-link">Billing</a></li>
+                {% elif profile and profile.tenant_slug != 'default' %}
+                <li><a href="{{ url_for('tenant.billing', tenant_slug=profile.tenant_slug) }}" class="mobile-nav-link">Billing</a></li>
+                {% endif %}
+            </ul>
+        </div>
+    </nav>
+
+    <main>
+        <!-- ===================== HERO SECTION ===================== -->
+        <section id="hero" class="hero">
+            <!-- Decorative Background Elements -->
+            <div class="hero-bg-orb hero-orb-1"></div>
+            <div class="hero-bg-orb hero-orb-2"></div>
+            <div class="hero-grid-overlay"></div>
+
+            <div class="container hero-content">
+                <div class="hero-text">
+                    <!-- Greeting Badge -->
+                    <div class="hero-badge reveal-up">
+                        <iconify-icon icon="lucide:sparkles" width="14"></iconify-icon>
+                        {% if profile and profile.availability_status %}<span>{{ profile.availability_status }}</span>{% endif %}
+                    </div>
+
+                    <!-- Main Heading -->
+                    <h1 class="hero-heading reveal-up" style="--delay: 0.1s">
+                        Hi, I'm <span class="gradient-text">{% if profile and profile.name %}{{ profile.name }}{% else %}Welcome{% endif %}</span>
+                    </h1>
+
+                    <!-- Typing Subtitle -->
+                    <div class="hero-subtitle reveal-up" style="--delay: 0.2s">
+                        <span class="typing-prefix">I'm a </span>
+                        <span class="typing-text" id="typingText" data-words="{% if profile and profile.hero_tagline %}{{ profile.hero_tagline }}{% elif profile and profile.title %}{{ profile.title }}{% endif %}"></span>
+                        <span class="typing-cursor">|</span>
+                    </div>
+
+                    <!-- Description -->
+                    <p class="hero-desc reveal-up" style="--delay: 0.3s">
+                        {% if profile and profile.subtitle %}{{ profile.subtitle }}
+                        {% elif profile and profile.bio_short %}{{ profile.bio_short }}
+                        {% endif %}
+                    </p>
+
+                    <!-- CTA Buttons -->
+                    <div class="hero-actions reveal-up" style="--delay: 0.4s">
+                        <a href="#projects" class="btn btn-primary">
+                            <span>View Projects</span>
+                            <iconify-icon icon="lucide:arrow-right" width="18"></iconify-icon>
+                        </a>
+                        <a href="#contact" class="btn btn-outline">
+                            <span>Get in Touch</span>
+                        </a>
+                    </div>
+
+                    {# License notice moved to header for compact UI #}
+
+                    <!-- Quick Stats -->
+                    <div class="hero-stats reveal-up" style="--delay: 0.5s">
+                        <div class="stat-item">
+                            <span class="stat-number">{{ stats.years_experience }}+</span>
+                            <span class="stat-label">Years Experience</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-item">
+                            <span class="stat-number">{{ stats.projects_count }}+</span>
+                            <span class="stat-label">Projects Done</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-item">
+                            <span class="stat-number">{% if profile %}{{ profile.clients_count }}{% else %}0{% endif %}+</span>
+                            <span class="stat-label">Happy Clients</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hero Visual / Avatar -->
+                <div class="hero-visual reveal-up" style="--delay: 0.3s">
+                    <div class="hero-avatar-wrapper">
+                        <div class="hero-avatar-ring"></div>
+                        <div class="hero-avatar-ring ring-2"></div>
+                        <img 
+                            src="{% if profile and profile.profile_image %}{{ profile.profile_image|upload_url('profiles') }}{% else %}{{ url_for('static', filename='image/profile_img.jpg') }}{% endif %}" 
+                            alt="{% if profile %}{{ profile.name }}{% else %}Portfolio{% endif %}" 
+                            class="hero-avatar"
+                        >
+                        {% if profile and is_owner %}
+                        <!-- Administrator Badge: only rendered for the default portfolio owner -->
+                        <div class="admin-badge" title="Portfolio Administrator">
+                            <iconify-icon icon="lucide:shield-check" width="14"></iconify-icon>
+                            <span>Administrator</span>
+                        </div>
+                        {% endif %}
+                        <!-- Floating Tech Badges -->
+                        <div class="float-badge badge-1">
+                            <iconify-icon icon="logos:react" width="24"></iconify-icon>
+                        </div>
+                        <div class="float-badge badge-2">
+                            <iconify-icon icon="logos:javascript" width="24"></iconify-icon>
+                        </div>
+                        <div class="float-badge badge-3">
+                            <iconify-icon icon="logos:html-5" width="24"></iconify-icon>
+                        </div>
+                        <div class="float-badge badge-4">
+                            <iconify-icon icon="logos:css-3" width="24"></iconify-icon>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scroll Indicator -->
+            <div class="scroll-indicator reveal-up" style="--delay: 0.6s">
+                <span>Scroll Down</span>
+                <div class="scroll-line"></div>
+            </div>
+        </section>
+
+        <!-- ===================== ABOUT SECTION ===================== -->
+        <section id="about" class="section about">
+            <div class="container">
+                <!-- Section Header -->
+                <div class="section-header reveal-up">
+                    <span class="section-tag">Get to Know Me</span>
+                    <h2 class="section-title">About <span class="gradient-text">Me</span></h2>
+                    <p class="section-subtitle">
+                        A brief introduction about who I am and what I do
+                    </p>
+                </div>
+
+                <div class="about-grid">
+                    <!-- About Text -->
+                    <div class="about-text reveal-left">
+                        {% if profile and profile.title %}<h3 class="about-heading">{{ profile.title }}</h3>{% endif %}
+                        {% if profile and profile.bio %}
+                            <div class="about-bio">
+                                {% for paragraph in profile.bio.split('\n\n') %}
+                                    <p>{{ paragraph }}</p>
+                                {% endfor %}
+                            </div>
+                        {% elif profile and profile.bio_short %}
+                            <p>{{ profile.bio_short }}</p>
+                        {% endif %}
+
+                        <!-- Quick Info -->
+                        <div class="about-info-grid">
+                            {% if profile and profile.location %}
+                                <div class="info-item">
+                                    <iconify-icon icon="lucide:map-pin" width="16" class="info-icon"></iconify-icon>
+                                    <span>{{ profile.location }}</span>
+                                </div>
+                            {% endif %}
+                            {% if profile and profile.email %}
+                                <div class="info-item">
+                                    <iconify-icon icon="lucide:mail" width="16" class="info-icon"></iconify-icon>
+                                    <span>{{ profile.email }}</span>
+                                </div>
+                            {% endif %}
+                            {% if profile and profile.phone %}
+                                <div class="info-item">
+                                    <iconify-icon icon="lucide:phone" width="16" class="info-icon"></iconify-icon>
+                                    <span>{{ profile.phone }}</span>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <a href="#contact" class="btn btn-primary" style="margin-top: 2rem;">
+                            <span>Let's Talk</span>
+                            <iconify-icon icon="lucide:message-circle" width="18"></iconify-icon>
+                        </a>
+                    </div>
+
+                    <!-- Skills -->
+                    <div class="about-skills reveal-right">
+                        <h3 class="skills-heading">My Skills</h3>
+                        <div class="skills-list">
+                            {% if skills_by_category %}
+                                {% for category, category_skills in skills_by_category.items() %}
+                                    <div class="skills-category" data-category="{{ category }}">
+                                        {% for skill in category_skills %}
+                                            <div class="skill-item">
+                                                <div class="skill-header">
+                                                    <span class="skill-name">{{ skill.name }}</span>
+                                                    <span class="skill-percent">{{ skill.proficiency }}%</span>
+                                                </div>
+                                                <div class="skill-bar">
+                                                    <div class="skill-progress" data-width="{{ skill.proficiency }}"></div>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===================== PROJECTS SECTION ===================== -->
+        <section id="projects" class="section projects">
+            <div class="container">
+                <!-- Section Header -->
+                <div class="section-header reveal-up">
+                    <span class="section-tag">My Work</span>
+                    <h2 class="section-title">Projects <span class="gradient-text">Showcase</span></h2>
+                    <p class="section-subtitle">
+                        A selection of the latest work.
+                    </p>
+                </div>
+
+                <!-- Projects Grid -->
+                <div class="projects-grid">
+                    {% if featured_projects %}
+                        {% for project in featured_projects %}
+                        <article class="project-card reveal-up" data-category="{{ project.category }}" style="--delay: {{ loop.index0 * 0.1 }}s">
+                            <div class="project-image" style="position:relative;">
+                                <img src="{% if project.image %}{{ project.image|upload_url('projects') }}{% else %}{{ url_for('static', filename='image/project_placeholder.svg') }}{% endif %}"
+                                     alt="{{ project.title }}">
+                                {% if project.view_count %}<span class="project-view-badge"><iconify-icon icon="lucide:eye" width="12"></iconify-icon> {{ project.view_count }}</span>{% endif %}
+                                <div class="project-overlay">
+                                    <div class="project-overlay-actions">
+                                        {% if project.live_url %}
+                                        <a href="{{ project.live_url }}" target="_blank" class="project-btn" aria-label="View live project">
+                                            <iconify-icon icon="lucide:external-link" width="18"></iconify-icon>
+                                        </a>
+                                        {% endif %}
+                                        {% if project.github_url %}
+                                        <a href="{{ project.github_url }}" target="_blank" class="project-btn" aria-label="View GitHub repo">
+                                            <iconify-icon icon="lucide:github" width="18"></iconify-icon>
+                                        </a>
+                                        {% endif %}
+                                        <a href="{{ tenant_project_url(_tenant_slug, project.slug) }}" class="project-btn" aria-label="View project details">
+                                            <iconify-icon icon="lucide:arrow-right" width="18"></iconify-icon>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="project-info">
+                                <span class="project-badge">Featured</span>
+                                {% if project.tags %}
+                                <div class="project-tags">
+                                    {% for tag in project.tags[:3] %}
+                                    <span class="tag">{{ tag }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                <h3 class="project-title">{{ project.title }}</h3>
+                                <p class="project-desc">
+                                    {% if project.description_short %}
+                                        {{ project.description_short }}
+                                    {% else %}
+                                        {{ project.description[:150] }}{% if project.description|length > 150 %}...{% endif %}
+                                    {% endif %}
+                                </p>
+                                <div class="project-links">
+                                    {% if project.live_url %}
+                                    <a href="{{ project.live_url }}" target="_blank" class="project-link">
+                                        <iconify-icon icon="lucide:external-link" width="14"></iconify-icon>
+                                        Live Demo
+                                    </a>
+                                    {% endif %}
+                                    {% if project.github_url %}
+                                    <a href="{{ project.github_url }}" target="_blank" class="project-link">
+                                        <iconify-icon icon="lucide:github" width="14"></iconify-icon>
+                                        Source Code
+                                    </a>
+                                    {% endif %}
+                                    <a href="{{ tenant_project_url(_tenant_slug, project.slug) }}" class="project-link">
+                                        <iconify-icon icon="lucide:arrow-right" width="14"></iconify-icon>
+                                        Details
+                                    </a>
+                                </div>
+                            </div>
+                        </article>
+                        {% endfor %}
+                    {% else %}
+                        <p style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 2rem;">
+                            No featured projects yet. Check back soon!
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+
+        {% if other_projects %}
+        <section class="section projects" id="all-projects">
+            <div class="container">
+                <div class="section-header reveal-up">
+                    <span class="section-tag">More Work</span>
+                    <h2 class="section-title">Other <span class="gradient-text">Projects</span></h2>
+                    <p class="section-subtitle">
+                        Additional published projects.
+                    </p>
+                </div>
+
+                {# ── Category filter bar (only shown when there are categories) ── #}
+                {% if categories and categories|length > 1 %}
+                <div class="project-filter-bar reveal-up" role="group" aria-label="Filter by category">
+                    <button class="filter-btn active" data-filter="all">All</button>
+                    {% for cat in categories %}
+                    <button class="filter-btn" data-filter="{{ cat }}">{{ cat }}</button>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="projects-grid" id="otherProjectsGrid">
+                    {% for project in other_projects %}
+                    <article class="project-card reveal-up" data-category="{{ project.category }}" style="--delay: {{ loop.index0 * 0.1 }}s">
+                        <div class="project-image">
+                            <img src="{% if project.image %}{{ project.image|upload_url('projects') }}{% else %}{{ url_for('static', filename='image/project_placeholder.svg') }}{% endif %}"
+                                 alt="{{ project.title }}">
+                            <div class="project-overlay">
+                                <div class="project-overlay-actions">
+                                    {% if project.live_url %}
+                                    <a href="{{ project.live_url }}" target="_blank" class="project-btn" aria-label="View live project">
+                                        <iconify-icon icon="lucide:external-link" width="18"></iconify-icon>
+                                    </a>
+                                    {% endif %}
+                                    {% if project.github_url %}
+                                    <a href="{{ project.github_url }}" target="_blank" class="project-btn" aria-label="View GitHub repo">
+                                        <iconify-icon icon="lucide:github" width="18"></iconify-icon>
+                                    </a>
+                                    {% endif %}
+                                    <a href="{{ tenant_project_url(_tenant_slug, project.slug) }}" class="project-btn" aria-label="View project details">
+                                        <iconify-icon icon="lucide:arrow-right" width="18"></iconify-icon>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="project-info">
+                            {% if project.tags %}
+                            <div class="project-tags">
+                                {% for tag in project.tags[:3] %}
+                                <span class="tag">{{ tag }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            <h3 class="project-title">{{ project.title }}</h3>
+                            <p class="project-desc">
+                                {% if project.description_short %}
+                                    {{ project.description_short }}
+                                {% else %}
+                                    {{ project.description[:150] }}{% if project.description|length > 150 %}...{% endif %}
+                                {% endif %}
+                            </p>
+                            <div class="project-links">
+                                {% if project.live_url %}
+                                <a href="{{ project.live_url }}" target="_blank" class="project-link">
+                                    <iconify-icon icon="lucide:external-link" width="14"></iconify-icon>
+                                    Live Demo
+                                </a>
+                                {% endif %}
+                                {% if project.github_url %}
+                                <a href="{{ project.github_url }}" target="_blank" class="project-link">
+                                    <iconify-icon icon="lucide:github" width="14"></iconify-icon>
+                                    Source Code
+                                </a>
+                                {% endif %}
+                                <a href="{{ tenant_project_url(_tenant_slug, project.slug) }}" class="project-link">
+                                    <iconify-icon icon="lucide:arrow-right" width="14"></iconify-icon>
+                                    Details
+                                </a>
+                            </div>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- ===================== SERVICES SECTION ===================== -->
+        {% if services %}
+        <section id="services" class="section services">
+            <div class="container">
+                <!-- Section Header -->
+                <div class="section-header reveal-up">
+                    <span class="section-tag">What I Offer</span>
+                    <h2 class="section-title">My <span class="gradient-text">Services</span></h2>
+                    <p class="section-subtitle">
+                        Specialized services to help bring your digital vision to life
+                    </p>
+                </div>
+
+                <!-- Services Grid -->
+                <div class="services-grid">
+                    {% for svc in services %}
+                    <div class="service-card reveal-up" style="--delay: {{ loop.index0 * 0.1 }}s">
+                        <div class="service-icon-wrapper">
+                            <iconify-icon icon="{{ svc.icon or 'lucide:briefcase' }}" width="28" class="service-icon"></iconify-icon>
+                        </div>
+                        <h3 class="service-title">{{ svc.title }}</h3>
+                        {% if svc.description %}
+                        <p class="service-desc">{{ svc.description }}</p>
+                        {% endif %}
+                        {% if svc.features_list %}
+                        <ul class="service-features">
+                            {% for feature in svc.features_list %}
+                            <li><iconify-icon icon="lucide:check" width="14"></iconify-icon> {{ feature }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- ===================== TESTIMONIALS SECTION ===================== -->
+        {% if testimonials %}
+        <section id="testimonials" class="section testimonials">
+            <div class="container">
+                <div class="section-header reveal-up">
+                    <span class="section-tag">Social Proof</span>
+                    <h2 class="section-title">What <span class="gradient-text">Clients Say</span></h2>
+                    <p class="section-subtitle">Feedback from people I've had the pleasure of working with.</p>
+                </div>
+
+                <div class="testimonial-carousel" id="testimonialCarousel" aria-label="Client testimonials">
+                    <div class="testimonial-track" id="testimonialTrack">
+                        {% for t in testimonials %}
+                        <div class="testimonial-slide" role="group" aria-label="Testimonial {{ loop.index }} of {{ testimonials|length }}">
+                            <div class="testimonial-card reveal-up">
+                                <!-- Rating stars -->
+                                <div class="testimonial-stars" aria-label="{{ t.rating }} out of 5 stars">
+                                    {% for i in range(5) %}
+                                    <iconify-icon icon="lucide:star" width="16"
+                                        class="star-icon {% if i < t.rating %}star-filled{% else %}star-empty{% endif %}">
+                                    </iconify-icon>
+                                    {% endfor %}
+                                </div>
+
+                                <!-- Quote -->
+                                <blockquote class="testimonial-quote">
+                                    <p>"{{ t.content }}"</p>
+                                </blockquote>
+
+                                <!-- Author -->
+                                <div class="testimonial-author">
+                                    {% if t.author_avatar %}
+                                    <img src="{{ t.author_avatar|upload_url('profiles') }}"
+                                         alt="{{ t.author_name }}" class="testimonial-avatar">
+                                    {% else %}
+                                    <div class="testimonial-avatar-placeholder">
+                                        {{ t.author_name[0] | upper }}
+                                    </div>
+                                    {% endif %}
+                                    <div class="testimonial-author-info">
+                                        <strong class="testimonial-name">{{ t.author_name }}</strong>
+                                        <span class="testimonial-role">
+                                            {{ t.author_title }}{% if t.author_title and t.author_company %}, {% endif %}{{ t.author_company }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    {% if testimonials|length > 1 %}
+                    <!-- Controls -->
+                    <div class="carousel-controls" aria-label="Carousel controls">
+                        <button class="carousel-btn carousel-prev" id="carouselPrev" aria-label="Previous testimonial">
+                            <iconify-icon icon="lucide:chevron-left" width="20"></iconify-icon>
+                        </button>
+                        <div class="carousel-dots" id="carouselDots" role="tablist" aria-label="Testimonial navigation">
+                            {% for t in testimonials %}
+                            <button class="carousel-dot {% if loop.first %}active{% endif %}"
+                                    data-index="{{ loop.index0 }}"
+                                    role="tab"
+                                    aria-selected="{{ 'true' if loop.first else 'false' }}"
+                                    aria-label="Go to testimonial {{ loop.index }}">
+                            </button>
+                            {% endfor %}
+                        </div>
+                        <button class="carousel-btn carousel-next" id="carouselNext" aria-label="Next testimonial">
+                            <iconify-icon icon="lucide:chevron-right" width="20"></iconify-icon>
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+
+        {% if experiences %}
+        <!-- ===================== EXPERIENCE TIMELINE SECTION ===================== -->
+        <section id="experience" class="section experience-timeline">
+            <div class="container">
+                <div class="section-header reveal-up">
+                    <span class="section-tag">Career Journey</span>
+                    <h2 class="section-title">Experience <span class="gradient-text">Timeline</span></h2>
+                    <p class="section-subtitle">Work history, internships, freelance roles, milestones, and career highlights.</p>
+                </div>
+
+                <div class="experience-timeline-list">
+                    {% for exp in experiences %}
+                    <article class="experience-timeline-item reveal-up" style="--delay: {{ loop.index0 * 0.08 }}s">
+                        <div class="experience-timeline-marker">
+                            <iconify-icon icon="{{ exp.icon or 'lucide:briefcase-business' }}" width="18"></iconify-icon>
+                        </div>
+                        <div class="experience-timeline-card">
+                            <div class="experience-timeline-meta">
+                                <span>{{ exp.date_range or exp.year }}</span>
+                                {% if exp.employment_type %}<span>{{ exp.employment_type }}</span>{% endif %}
+                                {% if exp.is_current %}<span class="experience-current">Current</span>{% endif %}
+                            </div>
+                            <h3 class="experience-role">{{ exp.role }}</h3>
+                            <p class="experience-company">{{ exp.company }}{% if exp.location %} · {{ exp.location }}{% endif %}</p>
+                            {% if exp.description %}<p class="experience-desc">{{ exp.description }}</p>{% endif %}
+                            {% if exp.achievements_list %}
+                            <ul class="experience-achievements">
+                                {% for item in exp.achievements_list %}<li>{{ item }}</li>{% endfor %}
+                            </ul>
+                            {% endif %}
+                            {% if exp.technologies_list %}
+                            <div class="experience-tech">
+                                {% for tech in exp.technologies_list %}<span>{{ tech }}</span>{% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- ===================== CONTACT SECTION ===================== -->
+        <section id="contact" class="section contact">
+            <div class="container">
+                <!-- Section Header -->
+                <div class="section-header reveal-up">
+                    <span class="section-tag">Get in Touch</span>
+                    <h2 class="section-title">Contact <span class="gradient-text">Me</span></h2>
+                    <p class="section-subtitle">
+                        Have a project in mind? Let's work together to make it happen
+                    </p>
+                </div>
+
+                <div class="contact-grid">
+                    <!-- Contact Info -->
+                    <div class="contact-info reveal-left">
+                        <h3 class="contact-info-heading">Let's build something amazing</h3>
+                        <p>
+                            I'm always open to discussing new projects, creative ideas, or 
+                            opportunities to be part of your vision. Feel free to reach out!
+                        </p>
+
+                        <div class="contact-details">
+                            {% if profile and profile.email %}
+                            <div class="contact-detail-item">
+                                <div class="contact-detail-icon">
+                                    <iconify-icon icon="lucide:mail" width="20"></iconify-icon>
+                                </div>
+                                <div>
+                                    <span class="contact-detail-label">Email</span>
+                                    <span class="contact-detail-value">{{ profile.email }}</span>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if profile and profile.location %}
+                            <div class="contact-detail-item">
+                                <div class="contact-detail-icon">
+                                    <iconify-icon icon="lucide:map-pin" width="20"></iconify-icon>
+                                </div>
+                                <div>
+                                    <span class="contact-detail-label">Location</span>
+                                    <span class="contact-detail-value">{{ profile.location }}</span>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if profile and profile.availability_status %}
+                            <div class="contact-detail-item">
+                                <div class="contact-detail-icon">
+                                    <iconify-icon icon="lucide:clock" width="20"></iconify-icon>
+                                </div>
+                                <div>
+                                    <span class="contact-detail-label">Availability</span>
+                                    <span class="contact-detail-value">{{ profile.availability_status }}</span>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Social Links -->
+                        <div class="contact-socials">
+                            {% if profile and profile.social_links.github %}
+                                <a href="{{ profile.social_links.github }}" class="social-link" aria-label="GitHub" target="_blank" rel="noopener">
+                                    <iconify-icon icon="lucide:github" width="20"></iconify-icon>
+                                </a>
+                            {% endif %}
+                            {% if profile and profile.social_links.linkedin %}
+                                <a href="{{ profile.social_links.linkedin }}" class="social-link" aria-label="LinkedIn" target="_blank" rel="noopener">
+                                    <iconify-icon icon="lucide:linkedin" width="20"></iconify-icon>
+                                </a>
+                            {% endif %}
+                            {% if profile and profile.social_links.twitter %}
+                                <a href="{{ profile.social_links.twitter }}" class="social-link" aria-label="Twitter" target="_blank" rel="noopener">
+                                    <iconify-icon icon="lucide:twitter" width="20"></iconify-icon>
+                                </a>
+                            {% endif %}
+                            {% if profile and profile.social_links.facebook %}
+                                <a href="{{ profile.social_links.facebook }}" class="social-link" aria-label="Facebook" target="_blank" rel="noopener">
+                                    <iconify-icon icon="lucide:facebook" width="20"></iconify-icon>
+                                </a>
+                            {% endif %}
+                            {% if profile and profile.social_links.website %}
+                                <a href="{{ profile.social_links.website }}" class="social-link" aria-label="Website" target="_blank" rel="noopener">
+                                    <iconify-icon icon="lucide:external-link" width="20"></iconify-icon>
+                                </a>
+                            {% endif %}
+                        </div>
+
+                        <!-- Billing Button -->
+                        {% if profile and profile.tenant_slug == 'default' and current_user.is_authenticated and current_user.is_admin %}
+                            <a href="{{ url_for('main.billing') }}" class="btn btn-outline" style="margin-top: 1.5rem; width: 100%;">
+                                <iconify-icon icon="lucide:credit-card" width="18"></iconify-icon>
+                                <span>View Billing</span>
+                            </a>
+                        {% elif profile and profile.tenant_slug != 'default' and current_user.is_authenticated and current_user.is_admin and current_user.tenant_slug == profile.tenant_slug %}
+                            <a href="{{ url_for('tenant.billing', tenant_slug=profile.tenant_slug) }}" class="btn btn-outline" style="margin-top: 1.5rem; width: 100%;">
+                                <iconify-icon icon="lucide:credit-card" width="18"></iconify-icon>
+                                <span>View Billing</span>
+                            </a>
+                        {% endif %}
+                    </div>
+
+                    <!-- Contact Form -->
+                    <div class="contact-form-wrapper reveal-right">
+
+                        <form
+                            id="contactForm"
+                            class="contact-form"
+                            novalidate
+                            data-fallback-url="{{ contact_url if contact_url else url_for('tenant.contact', tenant_slug=_tenant_slug) }}"
+                            aria-label="Contact form"
+                        >
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="submission_id" id="submissionId" value="">
+                            {# ── Honeypot: hidden from real users, bots fill it in ── #}
+                            <div class="form-honeypot" aria-hidden="true" tabindex="-1">
+                                <input type="text" name="website" autocomplete="off" tabindex="-1" id="hpWebsite">
+                            </div>
+
+                            <!-- Name Field -->
+                            <div class="form-group">
+                                <label for="name" class="form-label">
+                                    Your Name <span class="form-required" aria-label="required">*</span>
+                                </label>
+                                <div class="form-input-wrapper">
+                                    <iconify-icon icon="lucide:user" width="18" class="form-input-icon" aria-hidden="true"></iconify-icon>
+                                    <input
+                                        type="text"
+                                        id="name"
+                                        name="name"
+                                        class="form-input"
+                                        placeholder="John Smith"
+                                        autocomplete="name"
+                                        maxlength="100"
+                                        aria-required="true"
+                                        aria-describedby="nameError"
+                                    >
+                                    <span class="form-validation-icon" aria-hidden="true"></span>
+                                </div>
+                                <span class="form-error" id="nameError" role="alert" aria-live="polite"></span>
+                            </div>
+
+                            <!-- Email Field -->
+                            <div class="form-group">
+                                <label for="email" class="form-label">
+                                    Your Email <span class="form-required" aria-label="required">*</span>
+                                </label>
+                                <div class="form-input-wrapper">
+                                    <iconify-icon icon="lucide:mail" width="18" class="form-input-icon" aria-hidden="true"></iconify-icon>
+                                    <input
+                                        type="email"
+                                        id="email"
+                                        name="email"
+                                        class="form-input"
+                                        placeholder="john@example.com"
+                                        autocomplete="email"
+                                        maxlength="150"
+                                        aria-required="true"
+                                        aria-describedby="emailError"
+                                    >
+                                    <span class="form-validation-icon" aria-hidden="true"></span>
+                                </div>
+                                <span class="form-error" id="emailError" role="alert" aria-live="polite"></span>
+                            </div>
+
+                            <!-- Subject Field -->
+                            <div class="form-group">
+                                <label for="subject" class="form-label">
+                                    Subject <span class="form-required" aria-label="required">*</span>
+                                </label>
+                                <div class="form-input-wrapper">
+                                    <iconify-icon icon="lucide:file-text" width="18" class="form-input-icon" aria-hidden="true"></iconify-icon>
+                                    <input
+                                        type="text"
+                                        id="subject"
+                                        name="subject"
+                                        class="form-input"
+                                        placeholder="Project Inquiry"
+                                        maxlength="150"
+                                        aria-required="true"
+                                        aria-describedby="subjectError subjectCount"
+                                    >
+                                    <span class="form-validation-icon" aria-hidden="true"></span>
+                                </div>
+                                <div class="form-footer-row">
+                                    <span class="form-error" id="subjectError" role="alert" aria-live="polite"></span>
+                                    <span class="form-char-count" id="subjectCount" aria-live="polite">0 / 150</span>
+                                </div>
+                            </div>
+
+                            <!-- Message Field -->
+                            <div class="form-group">
+                                <label for="message" class="form-label">
+                                    Your Message <span class="form-required" aria-label="required">*</span>
+                                </label>
+                                <div class="form-input-wrapper form-textarea-wrapper">
+                                    <iconify-icon icon="lucide:message-square" width="18" class="form-input-icon textarea-icon" aria-hidden="true"></iconify-icon>
+                                    <textarea
+                                        id="message"
+                                        name="message"
+                                        class="form-input form-textarea"
+                                        placeholder="Tell me about your project..."
+                                        rows="5"
+                                        maxlength="2000"
+                                        aria-required="true"
+                                        aria-describedby="messageError messageCount"
+                                    ></textarea>
+                                </div>
+                                <div class="form-footer-row">
+                                    <span class="form-error" id="messageError" role="alert" aria-live="polite"></span>
+                                    <span class="form-char-count" id="messageCount" aria-live="polite">0 / 2000</span>
+                                </div>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <button type="submit" class="btn btn-primary btn-submit" id="submitBtn" aria-live="polite">
+                                <span class="btn-text">Send Message</span>
+                                <iconify-icon icon="lucide:send" width="18" aria-hidden="true"></iconify-icon>
+                                <span class="btn-loader" style="display:none;" aria-hidden="true">
+                                    <span class="spinner-small"></span>
+                                </span>
+                            </button>
+                        </form>
+
+                        {# ── Success overlay shown after message sent ── #}
+                        <div class="contact-success-overlay" id="contactSuccess" aria-live="assertive" aria-hidden="true">
+                            <div class="contact-success-inner">
+                                <div class="contact-success-icon">
+                                    <svg viewBox="0 0 56 56" fill="none" aria-hidden="true">
+                                        <circle cx="28" cy="28" r="26" stroke="currentColor" stroke-width="2.5" class="success-circle"/>
+                                        <path d="M16 28.5l8.5 8.5 16-17" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="success-check"/>
+                                    </svg>
+                                </div>
+                                <h3 class="contact-success-title">Message Sent!</h3>
+                                <p class="contact-success-msg">Thanks for reaching out. I'll get back to you as soon as possible.</p>
+                                <button class="btn btn-outline contact-success-reset" id="resetFormBtn" type="button">
+                                    Send Another Message
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    
+
+    <!-- ===================== FOOTER ===================== -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <!-- Footer Brand -->
+                <div class="footer-brand">
+                    <a href="#hero" class="nav-logo">
+                        {% if profile and profile.name %}
+                            {% set parts = profile.name.split() %}
+                            <span class="logo-bracket">&lt;</span>{{ parts[0][0] }}{{ parts[-1][0] if parts|length > 1 else '' }}<span class="logo-bracket"> /&gt;</span>
+                        {% else %}
+                            <span class="logo-bracket">&lt;</span>ME<span class="logo-bracket"> /&gt;</span>
+                        {% endif %}
+                    </a>
+                    <p class="footer-tagline">
+                        {{ profile.hero_tagline if profile and profile.hero_tagline else 'Crafting digital experiences with code and creativity.' }}
+                    </p>
+                </div>
+
+                <!-- Quick Links -->
+                <div class="footer-links-group">
+                    <h4 class="footer-heading">Quick Links</h4>
+                    <ul class="footer-links">
+                        <li><a href="#hero">Home</a></li>
+                        <li><a href="#about">About</a></li>
+                        <li><a href="#projects">Projects</a></li>
+                        <li><a href="#services">Services</a></li>
+                        <li><a href="#contact">Contact</a></li>
+                    </ul>
+                </div>
+
+                <!-- Services -->
+                <div class="footer-links-group">
+                    <h4 class="footer-heading">Services</h4>
+                    <ul class="footer-links">
+                        <li><a href="#services">Web Development</a></li>
+                        <li><a href="#services">UI/UX Design</a></li>
+                        <li><a href="#services">Responsive Design</a></li>
+                        <li><a href="#services">Performance</a></li>
+                    </ul>
+                </div>
+
+                <!-- Social -->
+                <div class="footer-links-group">
+                    <h4 class="footer-heading">Connect</h4>
+                    <div class="footer-socials">
+                        {% if profile and profile.social_links.github %}
+                            <a href="{{ profile.social_links.github }}" class="social-link" aria-label="GitHub" target="_blank" rel="noopener">
+                                <iconify-icon icon="lucide:github" width="18"></iconify-icon>
+                            </a>
+                        {% endif %}
+                        {% if profile and profile.social_links.linkedin %}
+                            <a href="{{ profile.social_links.linkedin }}" class="social-link" aria-label="LinkedIn" target="_blank" rel="noopener">
+                                <iconify-icon icon="lucide:linkedin" width="18"></iconify-icon>
+                            </a>
+                        {% endif %}
+                        {% if profile and profile.social_links.twitter %}
+                            <a href="{{ profile.social_links.twitter }}" class="social-link" aria-label="Twitter" target="_blank" rel="noopener">
+                                <iconify-icon icon="lucide:twitter" width="18"></iconify-icon>
+                            </a>
+                        {% endif %}
+                        {% if profile and profile.social_links.facebook %}
+                            <a href="{{ profile.social_links.facebook }}" class="social-link" aria-label="Facebook" target="_blank" rel="noopener">
+                                <iconify-icon icon="lucide:facebook" width="18"></iconify-icon>
+                            </a>
+                        {% endif %}
+                        {% if profile and profile.social_links.website %}
+                            <a href="{{ profile.social_links.website }}" class="social-link" aria-label="Website" target="_blank" rel="noopener">
+                                <iconify-icon icon="lucide:external-link" width="18"></iconify-icon>
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Bottom -->
+            <div class="footer-bottom">
+                <p>&copy; {{ now.year }} {{ profile.name if profile else 'Portfolio' }}. All rights reserved.</p>
+                <p>Designed &amp; Built with <iconify-icon icon="lucide:heart" width="14" style="color: #6366f1; vertical-align: middle;"></iconify-icon> using Flask &amp; ❤</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ===================== BACK TO TOP ===================== -->
+    <button class="back-to-top" id="backToTop" aria-label="Back to top">
+        <iconify-icon icon="lucide:chevron-up" width="22"></iconify-icon>
+    </button>
+
+    <!-- ===================== TOAST CONTAINER ===================== -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

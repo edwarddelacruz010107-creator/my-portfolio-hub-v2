@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Required — Portfolio CMS</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+               background: #0f172a; color: #e2e8f0; display: flex;
+               align-items: center; justify-content: center;
+               min-height: 100vh; margin: 0; }
+        .card { background: #1e293b; border: 1px solid #334155;
+                border-radius: 12px; padding: 2.5rem; max-width: 480px;
+                text-align: center; }
+        h1 { color: #6366f1; margin-bottom: 0.5rem; }
+        p  { color: #94a3b8; line-height: 1.6; }
+        code { background: #0f172a; padding: 0.2em 0.6em; border-radius: 4px;
+               font-family: monospace; color: #a78bfa; }
+        .steps { text-align: left; background: #0f172a; border-radius: 8px;
+                 padding: 1rem 1.5rem; margin-top: 1.5rem; }
+        .steps li { color: #94a3b8; margin: 0.4rem 0; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>⚙️ Setup Required</h1>
+    <p>The default portfolio profile hasn't been created yet.</p>
+    <p>Run these commands to initialize the database:</p>
+    <div class="steps">
+        <ol>
+            <li><code>flask init-db</code></li>
+            <li><code>flask ensure-default-tenant</code></li>
+            <li><code>flask create-admin</code></li>
+        </ol>
+    </div>
+    <p style="margin-top:1.5rem;">
+        Then visit <a href="/auth/login" style="color:#6366f1;">/auth/login</a>
+        to set up your portfolio.
+    </p>
+</div>
+</body>
+</html>

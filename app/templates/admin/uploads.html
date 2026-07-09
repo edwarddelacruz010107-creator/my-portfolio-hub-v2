@@ -1,0 +1,181 @@
+{% extends 'admin/base.html' %}
+
+{% block title %}Uploaded Photos{% endblock %}
+
+{% block page_title %}Uploaded Photos{% endblock %}
+
+{% block content %}
+{% set current_count = assets|length %}
+{% if asset_type == 'profile' %}
+  {% set current_filter_label = 'Profile Image' %}
+{% elif asset_type == 'project' %}
+  {% set current_filter_label = 'Project Images' %}
+{% elif asset_type == 'testimonial' %}
+  {% set current_filter_label = 'Testimonial Avatars' %}
+{% elif asset_type == 'certificate' %}
+  {% set current_filter_label = 'Certificate Images' %}
+{% elif asset_type == 'badge' %}
+  {% set current_filter_label = 'Certificate Badges' %}
+{% else %}
+  {% set current_filter_label = 'All uploads' %}
+{% endif %}
+
+<div class="uploads-shell">
+  <header class="uploads-header" aria-labelledby="uploadsPageTitle">
+    <div class="uploads-breadcrumb" aria-label="Breadcrumb">
+      <span>Admin</span>
+      <iconify-icon icon="lucide:chevron-right" width="13" aria-hidden="true"></iconify-icon>
+      <span>Content</span>
+      <iconify-icon icon="lucide:chevron-right" width="13" aria-hidden="true"></iconify-icon>
+      <strong>Uploads</strong>
+    </div>
+
+    <div class="uploads-header-main">
+      <div class="uploads-header-copy">
+        <span class="section-tag">Media Library</span>
+        <h1 id="uploadsPageTitle">Uploaded Photos</h1>
+        <p>Manage photos uploaded to your portfolio.</p>
+        <p class="uploads-helper">Review profile, project, testimonial, certificate, and badge images uploaded to your portfolio.</p>
+      </div>
+      <div class="uploads-header-chip" aria-label="Current upload filter">
+        <iconify-icon icon="lucide:filter" width="16" aria-hidden="true"></iconify-icon>
+        <span>{{ current_filter_label }}</span>
+      </div>
+    </div>
+  </header>
+
+  <section class="uploads-summary-grid" aria-label="Upload summary">
+    <article class="uploads-summary-card">
+      <span class="uploads-summary-icon" aria-hidden="true"><iconify-icon icon="lucide:images" width="20"></iconify-icon></span>
+      <div>
+        <strong>{{ total_assets }}</strong>
+        <span>Total Files</span>
+      </div>
+    </article>
+    <article class="uploads-summary-card">
+      <span class="uploads-summary-icon" aria-hidden="true"><iconify-icon icon="lucide:hard-drive" width="20"></iconify-icon></span>
+      <div>
+        <strong>{{ total_size }}</strong>
+        <span>Storage Used</span>
+      </div>
+    </article>
+    <article class="uploads-summary-card">
+      <span class="uploads-summary-icon" aria-hidden="true"><iconify-icon icon="lucide:list-filter" width="20"></iconify-icon></span>
+      <div>
+        <strong>{{ current_count }}</strong>
+        <span>{{ current_filter_label }}</span>
+      </div>
+    </article>
+  </section>
+
+  <section class="uploads-table-card" aria-labelledby="uploadsListTitle">
+    <div class="uploads-card-head">
+      <div>
+        <h2 id="uploadsListTitle">Media assets</h2>
+        <p>{{ current_count }} shown · {{ counts.all }} total in this tenant library</p>
+      </div>
+    </div>
+
+    <div class="uploads-toolbar">
+      <div class="uploads-toolbar-summary">
+        <span class="uploads-toolbar-dot" aria-hidden="true"></span>
+        <span>Showing <strong>{{ current_filter_label }}</strong></span>
+      </div>
+
+      <form class="uploads-filter-form" method="GET" action="{{ url_for('admin.uploads') }}">
+        <label for="assetTypeFilter" class="sr-only">Filter uploaded photos by type</label>
+        <select id="assetTypeFilter" name="asset_type" class="form-select uploads-filter-select">
+          <option value="all" {% if asset_type == 'all' %}selected{% endif %}>All uploads ({{ counts.all }})</option>
+          <option value="profile" {% if asset_type == 'profile' %}selected{% endif %}>Profile Image ({{ counts.profile }})</option>
+          <option value="project" {% if asset_type == 'project' %}selected{% endif %}>Project Images ({{ counts.project }})</option>
+          <option value="testimonial" {% if asset_type == 'testimonial' %}selected{% endif %}>Testimonial Avatars ({{ counts.testimonial }})</option>
+          <option value="certificate" {% if asset_type == 'certificate' %}selected{% endif %}>Certificate Images ({{ counts.certificate }})</option>
+          <option value="badge" {% if asset_type == 'badge' %}selected{% endif %}>Certificate Badges ({{ counts.badge }})</option>
+        </select>
+        <button type="submit" class="btn btn-secondary uploads-filter-button">
+          <iconify-icon icon="lucide:filter" width="15" aria-hidden="true"></iconify-icon>
+          Filter
+        </button>
+        {% if asset_type != 'all' %}
+          <a class="uploads-reset-link" href="{{ url_for('admin.uploads') }}">Reset</a>
+        {% endif %}
+      </form>
+    </div>
+
+    {% if assets %}
+      <div class="uploads-table-wrap">
+        <table class="uploads-table">
+          <thead>
+            <tr>
+              <th scope="col">Preview</th>
+              <th scope="col">Type</th>
+              <th scope="col">Record</th>
+              <th scope="col">Filename</th>
+              <th scope="col">Size</th>
+              <th scope="col" class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for asset in assets %}
+            <tr class="upload-row">
+              <td data-label="Preview">
+                <div class="upload-preview{% if not asset.url %} is-missing{% endif %}">
+                  {% if asset.url %}
+                    <img src="{{ asset.url }}"
+                         alt="Preview of {{ asset.label }}"
+                         class="upload-thumb"
+                         loading="lazy"
+                         decoding="async"
+                         onerror="this.closest('.upload-preview').classList.add('is-missing'); this.remove();"/>
+                  {% endif %}
+                  <span class="upload-preview-fallback" aria-hidden="true">
+                    <iconify-icon icon="lucide:image-off" width="20"></iconify-icon>
+                    <small>No preview</small>
+                  </span>
+                </div>
+              </td>
+              <td data-label="Type">
+                <span class="upload-type-badge upload-type-badge--{{ asset.type }}">{{ asset.label }}</span>
+              </td>
+              <td data-label="Record">
+                <div class="upload-record-name">{{ asset.description or 'Untitled record' }}</div>
+              </td>
+              <td data-label="Filename">
+                <code class="upload-filename" title="{{ asset.filename }}">{{ asset.filename }}</code>
+              </td>
+              <td data-label="Size">
+                {% if asset.size_text and asset.size_text != 'n/a' %}
+                  <span class="upload-size">{{ asset.size_text }}</span>
+                {% else %}
+                  <span class="upload-size upload-size--unknown">Unknown</span>
+                {% endif %}
+              </td>
+              <td data-label="Actions" class="upload-actions-cell text-right">
+                <form data-loading="true" method="post" action="{{ url_for('admin.delete_upload') }}" class="upload-actions">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                  <input type="hidden" name="asset_type" value="{{ asset.type }}"/>
+                  <input type="hidden" name="asset_id" value="{{ asset.id }}"/>
+                  <button type="submit"
+                          class="upload-delete-btn"
+                          aria-label="Delete {{ asset.label }} for {{ asset.description or 'this record' }}"
+                          onclick="return confirm('Delete photo?\n\nThis removes the uploaded file from your portfolio records. This action cannot be undone.')">
+                    <iconify-icon icon="lucide:trash-2" width="15" aria-hidden="true"></iconify-icon>
+                    <span>Delete</span>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="uploads-empty-state">
+        <span class="uploads-empty-icon" aria-hidden="true"><iconify-icon icon="lucide:images" width="34"></iconify-icon></span>
+        <h2>No uploaded photos yet</h2>
+        <p>Images you add to your profile, projects, testimonials, certificates, or badges will appear here.</p>
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

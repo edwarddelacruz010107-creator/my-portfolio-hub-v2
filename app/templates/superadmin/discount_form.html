@@ -1,0 +1,107 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="form-card">
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+    <div class="form-row">
+      {{ form.name.label }}
+      {{ form.name(class="field-input", placeholder='e.g. Summer Launch 20%') }}
+      {% for err in form.name.errors %}<span class="field-hint" style="color:var(--danger,#ef4444)">{{ err }}</span>{% endfor %}
+    </div>
+
+    <div class="form-row">
+      {{ form.code.label }}
+      <div style="display:flex;gap:0.5rem">
+        {{ form.code(class="field-input", placeholder='e.g. LAUNCH20', id='discount-code-input') }}
+        <button type="button" class="btn btn-outline btn-sm" id="generate-code-btn">Generate</button>
+      </div>
+      <span class="field-hint">{{ form.code.description }}</span>
+      {% for err in form.code.errors %}<span class="field-hint" style="color:var(--danger,#ef4444)">{{ err }}</span>{% endfor %}
+    </div>
+
+    <div class="form-row">
+      {{ form.description.label }}
+      {{ form.description(class="field-input", placeholder='Internal notes about this campaign') }}
+    </div>
+
+    <div class="form-row" style="display:flex;gap:1rem;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        {{ form.discount_type.label }}
+        {{ form.discount_type(class="field-input") }}
+      </div>
+      <div style="flex:1;min-width:200px">
+        {{ form.value.label }}
+        {{ form.value(class="field-input") }}
+        {% for err in form.value.errors %}<span class="field-hint" style="color:var(--danger,#ef4444)">{{ err }}</span>{% endfor %}
+      </div>
+    </div>
+
+    <div class="form-row" style="display:flex;gap:1rem;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        {{ form.applies_to.label }}
+        {{ form.applies_to(class="field-input") }}
+      </div>
+      <div style="flex:1;min-width:200px">
+        {{ form.plan_slug.label }}
+        {{ form.plan_slug(class="field-input") }}
+      </div>
+    </div>
+
+    <div class="form-row" style="display:flex;gap:1rem;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        {{ form.usage_limit.label }}
+        {{ form.usage_limit(class="field-input", placeholder='Unlimited') }}
+      </div>
+      <div style="flex:1;min-width:200px">
+        {{ form.per_tenant_limit.label }}
+        {{ form.per_tenant_limit(class="field-input", placeholder='Unlimited') }}
+      </div>
+    </div>
+
+    <div class="form-row" style="display:flex;gap:1rem;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        {{ form.starts_at.label }}
+        {{ form.starts_at(class="field-input") }}
+      </div>
+      <div style="flex:1;min-width:200px">
+        {{ form.expires_at.label }}
+        {{ form.expires_at(class="field-input") }}
+        {% for err in form.expires_at.errors %}<span class="field-hint" style="color:var(--danger,#ef4444)">{{ err }}</span>{% endfor %}
+      </div>
+    </div>
+
+    <div class="form-row" style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
+      <label>{{ form.is_global() }} {{ form.is_global.label }}</label>
+      <label>{{ form.is_active() }} {{ form.is_active.label }}</label>
+      <label>{{ form.first_time_only() }} {{ form.first_time_only.label }}</label>
+    </div>
+    <span class="field-hint">{{ form.is_global.description }}</span>
+
+    {% if campaign %}
+    <div class="form-row">
+      <span class="field-hint">Redeemed {{ campaign.usage_count }} time(s) so far.
+        <a href="{{ url_for('superadmin.discount_analytics', campaign_id=campaign.id) }}">View analytics →</a>
+      </span>
+    </div>
+    {% endif %}
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">{{ form.submit.label.text }}</button>
+      <a href="{{ url_for('superadmin.discounts') }}" class="btn btn-outline">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+document.getElementById('generate-code-btn').addEventListener('click', function () {
+  fetch("{{ url_for('superadmin.discount_generate_code') }}")
+    .then(function (res) { return res.text(); })
+    .then(function (code) { document.getElementById('discount-code-input').value = code.trim(); })
+    .catch(function () { /* silent — admin can still type a code manually */ });
+});
+</script>
+{% endblock %}

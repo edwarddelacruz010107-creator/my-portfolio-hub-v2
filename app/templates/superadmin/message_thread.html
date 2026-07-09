@@ -1,0 +1,155 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Thread — {{ msg.subject or 'No subject' }}{% endblock %}
+{% block page_title %}Message Thread{% endblock %}
+
+{% block content %}
+<div class="page-header page-header-premium">
+  <div class="page-header-left">
+    <a href="{{ url_for('superadmin.messages_inbox') }}" class="back-link">
+      <iconify-icon icon="lucide:arrow-left" width="15"></iconify-icon> Inbox
+    </a>
+    <h1 class="page-heading" style="margin-top:.5rem;">{{ msg.subject or '(no subject)' }}</h1>
+    <div class="thread-meta">
+      <span class="tenant-slug-pill">{{ msg.tenant_slug }}</span>
+      <span class="meta-sep">·</span>
+      <span class="text-muted">Started by <strong>{{ msg.name }}</strong></span>
+      <span class="meta-sep">·</span>
+      <span class="text-muted">{{ msg.created_at.strftime('%b %d, %Y %H:%M') if msg.created_at else '' }}</span>
+      {% if msg.sender == 'superadmin' %}
+        <span class="tag-sm tag-accent" style="margin-left:.5rem;">Sent by you</span>
+      {% elif msg.sender == 'tenant' %}
+        <span class="tag-sm tag-info" style="margin-left:.5rem;">From Tenant</span>
+      {% else %}
+        <span class="tag-sm tag-muted" style="margin-left:.5rem;">Visitor</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="page-header-right">
+    <form method="POST" action="{{ url_for('superadmin.delete_message_thread', msg_id=msg.id) }}"
+          onsubmit="return confirm('Delete this entire thread?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-danger btn-sm btn-pill">
+        <iconify-icon icon="lucide:trash-2" width="14"></iconify-icon> Delete Thread
+      </button>
+    </form>
+  </div>
+</div>
+
+{# ── Thread ──────────────────────────────────────────────────────────────── #}
+<div class="thread-wrap">
+
+  {# Root message #}
+  <div class="bubble-wrap bubble-{{ 'right' if msg.sender == 'superadmin' else 'left' }}">
+    <div class="bubble-avatar {{ 'avatar-super' if msg.sender == 'superadmin' else 'avatar-tenant' }}">
+      <iconify-icon icon="{{ 'lucide:shield' if msg.sender == 'superadmin' else 'lucide:building-2' }}" width="16"></iconify-icon>
+    </div>
+    <div class="bubble-body">
+      <div class="bubble-header">
+        <span class="bubble-sender">
+          {{ msg.name }}
+          {% if msg.sender == 'superadmin' %}<span class="tag-sm tag-accent">Superadmin</span>{% endif %}
+          {% if msg.sender == 'tenant' %}<span class="tag-sm tag-info">Tenant Admin</span>{% endif %}
+        </span>
+        <span class="bubble-time">{{ msg.created_at.strftime('%b %d, %Y · %H:%M') if msg.created_at else '' }}</span>
+      </div>
+      {% if msg.email %}
+      <div class="bubble-sub">{{ msg.email }}</div>
+      {% endif %}
+      <div class="bubble-text">{{ msg.message | nl2br }}</div>
+    </div>
+  </div>
+
+  {# Replies #}
+  {% for reply in replies %}
+  <div class="bubble-wrap bubble-{{ 'right' if reply.direction == 'superadmin' else 'left' }}">
+    <div class="bubble-avatar {{ 'avatar-super' if reply.direction == 'superadmin' else 'avatar-tenant' }}">
+      <iconify-icon icon="{{ 'lucide:shield' if reply.direction == 'superadmin' else 'lucide:building-2' }}" width="16"></iconify-icon>
+    </div>
+    <div class="bubble-body">
+      <div class="bubble-header">
+        <span class="bubble-sender">
+          {{ reply.sender_name }}
+          {% if reply.direction == 'superadmin' %}<span class="tag-sm tag-accent">Superadmin</span>{% endif %}
+          {% if reply.direction == 'tenant' %}<span class="tag-sm tag-info">Tenant Admin</span>{% endif %}
+        </span>
+        <span class="bubble-time">{{ reply.created_at.strftime('%b %d, %Y · %H:%M') if reply.created_at else '' }}</span>
+      </div>
+      <div class="bubble-text">{{ reply.message | nl2br }}</div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {# Reply form #}
+  <div class="reply-compose">
+    <div class="reply-compose-avatar avatar-super">
+      <iconify-icon icon="lucide:shield" width="16"></iconify-icon>
+    </div>
+    <div class="reply-compose-body">
+      <form method="POST" action="{{ url_for('superadmin.message_thread', msg_id=msg.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}{% for cat, m in messages %}
+          <div class="alert-inline alert-{{ cat }}">{{ m }}</div>
+          {% endfor %}{% endif %}
+        {% endwith %}
+        <textarea
+          name="message"
+          class="reply-textarea"
+          rows="4"
+          placeholder="Write a reply to {{ msg.tenant_slug }} tenant admin…"
+          required
+          minlength="1"
+        ></textarea>
+        {% if form.message.errors %}
+        <div class="field-err">{{ form.message.errors[0] }}</div>
+        {% endif %}
+        <div class="reply-actions">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <iconify-icon icon="lucide:send" width="14"></iconify-icon>
+            Send Reply
+          </button>
+          <span class="text-muted" style="font-size:.8rem;">
+            Sending as <strong>{{ current_user.username }}</strong> (Superadmin)
+          </span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<style>
+.back-link{display:inline-flex;align-items:center;gap:.4rem;color:var(--text-muted);font-size:.875rem;text-decoration:none;transition:color .2s}
+.back-link:hover{color:var(--accent)}
+.thread-meta{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.35rem;font-size:.85rem}
+.meta-sep{color:var(--border)}
+.tenant-slug-pill{display:inline-block;padding:2px 8px;border-radius:6px;background:rgba(99,102,241,.12);color:var(--accent);font-size:.75rem;font-weight:700;font-family:monospace}
+.thread-wrap{display:flex;flex-direction:column;gap:1.25rem;max-width:820px;margin:0 auto}
+.bubble-wrap{display:flex;gap:.85rem;align-items:flex-start}
+.bubble-right{flex-direction:row-reverse}
+.bubble-avatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}
+.avatar-super{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;box-shadow:0 2px 12px rgba(99,102,241,.35)}
+.avatar-tenant{background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;box-shadow:0 2px 12px rgba(14,165,233,.3)}
+.bubble-body{flex:1;max-width:78%}
+.bubble-right .bubble-body{align-items:flex-end}
+.bubble-header{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.35rem}
+.bubble-right .bubble-header{flex-direction:row-reverse}
+.bubble-sender{font-weight:600;font-size:.875rem}
+.bubble-time{font-size:.75rem;color:var(--text-muted)}
+.bubble-sub{font-size:.78rem;color:var(--text-muted);margin-bottom:.4rem}
+.bubble-right .bubble-sub{text-align:right}
+.bubble-text{background:var(--bg-card,rgba(255,255,255,.05));border:1px solid var(--border);border-radius:14px;padding:.9rem 1.1rem;font-size:.9rem;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+.bubble-right .bubble-text{background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.2);border-top-right-radius:4px}
+.bubble-left .bubble-text{border-top-left-radius:4px}
+.reply-compose{display:flex;gap:.85rem;align-items:flex-start;margin-top:.75rem;padding-top:1.25rem;border-top:1px solid var(--border)}
+.reply-compose-avatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}
+.reply-compose-body{flex:1}
+.reply-textarea{width:100%;padding:.85rem 1rem;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);font-family:var(--font-body,inherit);font-size:.9rem;line-height:1.6;resize:vertical;transition:border-color .2s}
+.reply-textarea:focus{outline:none;border-color:rgba(99,102,241,.6);box-shadow:0 0 0 4px rgba(99,102,241,.1)}
+.reply-actions{display:flex;align-items:center;gap:1rem;margin-top:.75rem}
+.alert-inline{padding:.6rem .9rem;border-radius:8px;font-size:.85rem;margin-bottom:.75rem}
+.alert-success{background:rgba(16,185,129,.1);color:#6ee7b7;border:1px solid rgba(16,185,129,.2)}
+.alert-danger{background:rgba(239,68,68,.1);color:#fca5a5;border:1px solid rgba(239,68,68,.2)}
+.tag-info{background:rgba(6,182,212,.1);color:#22d3ee;border:1px solid rgba(6,182,212,.2)}
+</style>
+{% endblock %}

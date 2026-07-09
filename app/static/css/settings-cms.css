@@ -1,0 +1,943 @@
+/* ==========================================================================
+   Settings / CMS layout — reusable across superadmin settings pages
+   ==========================================================================
+   Builds a Stripe/Linear-style settings page: a slim sticky section nav on
+   desktop, denser field grouping via grid utilities, collapsible cards for
+   less-frequently-touched sections, and a sticky save/publish bar that
+   stays reachable no matter how long the page is.
+
+   Everything here is built on design-system.css tokens — no new colors,
+   radii, or spacing values are introduced.
+   ========================================================================== */
+
+/* ── Page shell: sticky nav + content column ───────────────────────────── */
+
+.settings-shell {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.settings-nav {
+  position: sticky;
+  top: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-right: var(--space-2);
+  border-right: 1px solid var(--border);
+}
+
+.settings-nav a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: background var(--transition), color var(--transition);
+  white-space: nowrap;
+}
+
+.settings-nav a:hover {
+  color: var(--text);
+  background: var(--bg-3);
+}
+
+.settings-nav a.is-active {
+  color: var(--accent-light);
+  background: var(--accent-bg);
+}
+
+.settings-nav a iconify-icon {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.settings-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .settings-shell { grid-template-columns: 1fr; }
+  .settings-nav {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: var(--space-3);
+    margin-bottom: var(--space-2);
+  }
+  .settings-nav a { flex-shrink: 0; }
+}
+
+/* ── Field grid utilities (replace one-off inline flex styles) ─────────── */
+
+.form-grid-2,
+.form-grid-3 {
+  display: grid;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.form-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.form-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.form-grid-2 .form-field,
+.form-grid-3 .form-field {
+  margin-bottom: 0;
+}
+
+@media (max-width: 640px) {
+  .form-grid-2,
+  .form-grid-3 { grid-template-columns: 1fr; }
+}
+
+/* ── Subgroups within a card — visual rhythm without a full new card ───── */
+
+.form-subgroup {
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+.form-subgroup:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.form-subgroup-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: var(--space-4);
+}
+
+.form-subgroup-label iconify-icon {
+  color: var(--accent-light);
+  opacity: 0.9;
+}
+
+/* ── Toggle row (checkbox pairs) ─────────────────────────────────────── */
+
+.form-toggle-row {
+  display: flex;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.form-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+
+/* ── Collapsible cards (<details> based, no JS required) ───────────────── */
+
+
+.form-card-collapsible[id] {
+  scroll-margin-top: var(--space-6);
+}
+
+
+.form-card-collapsible {
+  padding: 0;
+}
+
+.form-card-collapsible > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-6);
+  margin: 0;
+}
+
+.form-card-collapsible > summary::-webkit-details-marker { display: none; }
+
+.form-card-collapsible .form-card-heading-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.form-card-collapsible .form-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--accent-bg);
+  color: var(--accent-light);
+  flex-shrink: 0;
+}
+
+.form-card-collapsible .form-card-chevron {
+  color: var(--text-dim);
+  transition: transform var(--transition);
+  flex-shrink: 0;
+}
+
+.form-card-collapsible[open] > summary .form-card-chevron {
+  transform: rotate(180deg);
+}
+
+.form-card-collapsible > .form-card-body {
+  padding: 0 var(--space-6) var(--space-6);
+}
+
+.form-card-collapsible > summary:hover {
+  background: var(--bg-3);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+/* ── Sticky save/publish action bar ─────────────────────────────────────── */
+
+.sticky-actions-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-overlay);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.sticky-actions-bar .sticky-actions-spacer {
+  flex: 1;
+}
+
+.sticky-actions-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.sticky-actions-status .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.sticky-actions-status.is-dirty { color: var(--warn); }
+.sticky-actions-status.is-dirty .dot { background: var(--warn); }
+
+.sticky-actions-status.is-saving { color: var(--text-dim); }
+.sticky-actions-status.is-saving .dot {
+  background: var(--accent);
+  animation: settings-pulse 1s ease-in-out infinite;
+}
+
+.sticky-actions-status.is-saved { color: var(--success); }
+.sticky-actions-status.is-saved .dot { background: var(--success); }
+
+.sticky-actions-status.is-error { color: var(--danger); }
+.sticky-actions-status.is-error .dot { background: var(--danger); }
+
+@keyframes settings-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.field-char-count {
+  margin-top: var(--space-1);
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  text-align: right;
+}
+
+.field-char-count.is-near-limit { color: var(--warn); }
+
+@media (max-width: 640px) {
+  .sticky-actions-bar { padding: var(--space-3); }
+  .sticky-actions-status { display: none; }
+}
+
+/* ── Landing/Settings CMS mobile refinement ──────────────────────────────
+   Keeps long CMS forms usable on phones/tablets without changing backend
+   behavior. These rules are intentionally scoped to the settings CMS layout.
+   ---------------------------------------------------------------------- */
+.settings-shell,
+.settings-main,
+.form-card-collapsible,
+.form-card-collapsible > .form-card-body,
+.form-grid-2,
+.form-grid-3,
+.sticky-actions-bar {
+  min-width: 0;
+}
+
+.settings-main input,
+.settings-main textarea,
+.settings-main select {
+  max-width: 100%;
+}
+
+@media (max-width: 900px) {
+  .settings-shell {
+    gap: var(--space-4);
+  }
+
+  .settings-nav {
+    position: sticky;
+    top: 0;
+    z-index: 25;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    gap: var(--space-2);
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--space-2);
+    margin: calc(var(--space-2) * -1) 0 var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-overlay, rgba(15, 23, 42, 0.84));
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: var(--shadow-sm, 0 10px 28px rgba(0,0,0,0.18));
+    scrollbar-width: none;
+  }
+
+  .settings-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-nav a {
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 var(--space-3);
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.03);
+    white-space: nowrap;
+  }
+
+  .settings-nav a.is-active {
+    border-color: rgba(139, 92, 246, 0.35);
+    box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.08), 0 10px 28px rgba(99, 102, 241, 0.18);
+  }
+
+  .form-card-collapsible[id] {
+    scroll-margin-top: 90px;
+  }
+
+  .form-card-collapsible > summary {
+    padding: var(--space-5);
+  }
+
+  .form-card-collapsible > .form-card-body {
+    padding: 0 var(--space-5) var(--space-5);
+  }
+
+  .form-card-collapsible .form-card-heading-group {
+    align-items: flex-start;
+  }
+
+  .sticky-actions-bar {
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .settings-shell {
+    gap: var(--space-3);
+  }
+
+  .settings-nav {
+    top: 0;
+    margin-top: 0;
+    padding: var(--space-2);
+    border-radius: var(--radius-lg);
+  }
+
+  .settings-nav a {
+    min-height: 38px;
+    padding: 0 var(--space-3);
+    font-size: 0.76rem;
+  }
+
+  .settings-nav a iconify-icon {
+    width: 14px;
+  }
+
+  .page-header {
+    margin-bottom: var(--space-4);
+  }
+
+  .page-heading {
+    font-size: clamp(1.55rem, 9vw, 2rem);
+    line-height: 1.05;
+    overflow-wrap: anywhere;
+  }
+
+  .page-subtext {
+    font-size: 0.86rem;
+    line-height: 1.55;
+  }
+
+  .form-card-collapsible {
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .form-card-collapsible > summary {
+    padding: var(--space-4);
+    gap: var(--space-2);
+  }
+
+  .form-card-collapsible .form-card-icon {
+    width: 30px;
+    height: 30px;
+  }
+
+  .form-card-collapsible h3 {
+    font-size: 0.98rem;
+    line-height: 1.25;
+  }
+
+  .form-card-collapsible .form-card-note {
+    font-size: 0.78rem;
+    line-height: 1.45;
+  }
+
+  .form-card-collapsible > .form-card-body {
+    padding: 0 var(--space-4) var(--space-4);
+  }
+
+  .form-subgroup {
+    padding-top: var(--space-4);
+    margin-top: var(--space-4);
+  }
+
+  .form-subgroup:first-child {
+    margin-top: 0;
+  }
+
+  .form-subgroup-label {
+    align-items: flex-start;
+    font-size: 0.68rem;
+    line-height: 1.35;
+    margin-bottom: var(--space-3);
+  }
+
+  .form-grid-2,
+  .form-grid-3 {
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  .field-label {
+    font-size: 0.72rem;
+    line-height: 1.35;
+  }
+
+  .field-input,
+  .field-textarea,
+  .settings-main input,
+  .settings-main textarea,
+  .settings-main select {
+    min-height: 44px;
+    font-size: 0.92rem;
+  }
+
+  .field-textarea,
+  .settings-main textarea {
+    min-height: 104px;
+  }
+
+  .field-hint,
+  .field-err,
+  .field-char-count {
+    font-size: 0.74rem;
+    line-height: 1.45;
+  }
+
+  .sticky-actions-bar {
+    position: sticky;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    margin: var(--space-4) calc(var(--space-3) * -1) calc(var(--space-4) * -1);
+    border-right: none;
+    border-bottom: none;
+    border-left: none;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    background: var(--surface-overlay, rgba(15,23,42,0.94));
+    box-shadow: 0 -18px 60px rgba(0,0,0,0.35);
+  }
+
+  .sticky-actions-bar .sticky-actions-spacer,
+  .sticky-actions-bar .sticky-actions-status {
+    display: none;
+  }
+
+  .sticky-actions-bar .btn {
+    width: 100%;
+    min-height: 42px;
+    justify-content: center;
+    padding-right: var(--space-3);
+    padding-left: var(--space-3);
+    white-space: nowrap;
+  }
+
+  .sticky-actions-bar .btn:first-child {
+    grid-column: 1 / -1;
+    order: 4;
+  }
+
+  .sticky-actions-bar .btn:nth-of-type(2) {
+    grid-column: 1 / -1;
+    order: 1;
+  }
+
+  .sticky-actions-bar button[value="save"] {
+    order: 2;
+  }
+
+  .sticky-actions-bar button[value="publish"] {
+    order: 3;
+  }
+}
+
+@media (max-width: 420px) {
+  .settings-nav {
+    border-radius: var(--radius-md);
+  }
+
+  .settings-nav a {
+    min-height: 36px;
+    padding: 0 0.75rem;
+    font-size: 0.72rem;
+  }
+
+  .form-card-collapsible > summary,
+  .form-card-collapsible > .form-card-body {
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+
+  .sticky-actions-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .sticky-actions-bar .btn:first-child,
+  .sticky-actions-bar .btn:nth-of-type(2),
+  .sticky-actions-bar button[value="save"],
+  .sticky-actions-bar button[value="publish"] {
+    grid-column: 1;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   LANDING CMS MOBILE SCROLL / WIDTH FIX
+   Prevents inner horizontal scroll, sticky action overlap, and form-card
+   clipping in DevTools/mobile view without changing form behavior.
+════════════════════════════════════════════════════════ */
+.settings-shell,
+.settings-main,
+.settings-main *,
+.sticky-actions-bar,
+.form-card-collapsible,
+.form-card-collapsible > summary,
+.form-card-collapsible > .form-card-body {
+  box-sizing: border-box;
+}
+
+.settings-main {
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.settings-main textarea {
+  resize: vertical;
+}
+
+.form-card-collapsible {
+  max-width: 100%;
+  overflow: clip;
+}
+
+.form-card-collapsible .form-card-heading-group,
+.form-card-collapsible h3,
+.form-card-collapsible .form-card-note,
+.form-subgroup-label {
+  min-width: 0;
+}
+
+.form-card-collapsible h3,
+.form-card-collapsible .form-card-note,
+.form-subgroup-label,
+.field-label,
+.field-hint,
+.field-err {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .settings-shell {
+    width: 100%;
+    max-width: 100%;
+    overflow: visible;
+  }
+
+  .settings-nav {
+    left: 0;
+    right: 0;
+    max-width: 100%;
+  }
+
+  .settings-main {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 640px) {
+  .settings-nav {
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
+  }
+
+  .form-card-collapsible {
+    width: 100%;
+  }
+
+  .form-card-collapsible > summary,
+  .form-card-collapsible > .form-card-body {
+    width: 100%;
+  }
+
+  .sticky-actions-bar {
+    position: sticky;
+    bottom: env(safe-area-inset-bottom);
+    width: 100%;
+    max-width: 100%;
+    margin: var(--space-4) 0 0 !important;
+    padding: var(--space-3);
+    z-index: 80;
+  }
+
+  .sticky-actions-bar .btn {
+    min-width: 0;
+    white-space: normal;
+    line-height: 1.15;
+  }
+}
+
+@media (max-width: 430px) {
+  .settings-nav a {
+    max-width: 44vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .form-card-collapsible > summary {
+    align-items: flex-start;
+  }
+
+  .form-card-collapsible .form-card-heading-group {
+    gap: var(--space-2);
+  }
+
+  .form-card-collapsible .form-card-chevron {
+    margin-top: 0.25rem;
+  }
+
+  .field-input,
+  .field-textarea,
+  .settings-main input,
+  .settings-main textarea,
+  .settings-main select {
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   LANDING CMS MOBILE SECTION TABS — FINAL FIX
+   Fixes cramped/overflowing Hero/Features/Contact/Foundation pills and
+   prevents horizontal page drift when the active tab is focused.
+════════════════════════════════════════════════════════ */
+@media (max-width: 700px) {
+  html,
+  body,
+  .admin-body,
+  .admin-body .admin-main,
+  .admin-body .admin-content {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .settings-shell,
+  .settings-main {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .settings-nav {
+    position: relative !important;
+    top: auto !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-auto-flow: row !important;
+    grid-auto-columns: unset !important;
+    gap: 0.55rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 0 var(--space-4) 0 !important;
+    padding: 0.55rem !important;
+    overflow: visible !important;
+    border-radius: 16px !important;
+  }
+
+  .settings-nav a {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 42px !important;
+    justify-content: center !important;
+    gap: 0.45rem !important;
+    padding: 0 0.6rem !important;
+    font-size: 0.76rem !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .settings-nav a iconify-icon {
+    width: 15px !important;
+    min-width: 15px !important;
+    flex: 0 0 auto !important;
+  }
+
+  .settings-nav a.is-active {
+    background: color-mix(in srgb, var(--accent-bg, rgba(124, 92, 255, .18)) 78%, transparent) !important;
+    border-color: rgba(139, 92, 246, 0.55) !important;
+  }
+
+  .page-header,
+  .page-header > div,
+  .page-heading,
+  .page-subtext {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .page-heading {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 380px) {
+  .settings-nav {
+    gap: 0.45rem !important;
+    padding: 0.45rem !important;
+  }
+
+  .settings-nav a {
+    min-height: 40px !important;
+    padding: 0 0.45rem !important;
+    font-size: 0.7rem !important;
+  }
+
+  .settings-nav a iconify-icon {
+    width: 14px !important;
+    min-width: 14px !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   FINAL CMS MOBILE TAB/ACTION PATCH
+   Keeps Landing/Pricing CMS tabs and sticky bars inside narrow screens.
+════════════════════════════════════════════════════════ */
+@media (max-width: 700px) {
+  .settings-shell {
+    gap: var(--space-4);
+  }
+
+  .settings-nav {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.55rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0.55rem !important;
+    overflow: hidden !important;
+  }
+
+  .settings-nav a {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    min-height: 42px !important;
+    padding: 0 0.55rem !important;
+    justify-content: center !important;
+    gap: 0.42rem !important;
+    font-size: 0.74rem !important;
+    line-height: 1.05 !important;
+    white-space: normal !important;
+    text-align: center !important;
+  }
+
+  .settings-nav a iconify-icon {
+    flex: 0 0 auto !important;
+  }
+
+  .form-card-collapsible > summary {
+    align-items: flex-start;
+  }
+
+  .sticky-actions-bar {
+    max-width: 100%;
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 380px) {
+  .settings-nav a {
+    font-size: 0.68rem !important;
+    padding-inline: 0.35rem !important;
+  }
+}
+
+/* ── Founder portrait crop/focus editor ─────────────────────────────── */
+.founder-photo-editor {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: stretch;
+  margin-top: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-3) 70%, transparent);
+}
+
+.founder-photo-editor-preview {
+  position: relative;
+  min-height: 360px;
+  border-radius: 24px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 25% 20%, rgba(139, 92, 246, 0.2), transparent 42%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+}
+
+.founder-photo-editor-preview img {
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  display: block;
+  object-fit: cover;
+  object-position: 50% 50%;
+  transform: scale(1);
+  transform-origin: 50% 50%;
+  transition: object-position 180ms ease, transform 180ms ease;
+}
+
+.founder-photo-editor-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.founder-photo-editor-empty iconify-icon {
+  color: var(--accent-light);
+  width: 44px;
+  height: 44px;
+  padding: var(--space-3);
+  border-radius: 16px;
+  background: var(--accent-bg);
+}
+
+.founder-photo-editor-controls {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.founder-crop-grid {
+  margin-bottom: 0;
+}
+
+.founder-crop-grid input[type="range"].field-input {
+  height: 42px;
+  padding: 0;
+  accent-color: var(--accent-light);
+  cursor: pointer;
+}
+
+[data-founder-reset-crop] {
+  align-self: flex-start;
+}
+
+@media (max-width: 760px) {
+  .founder-photo-editor {
+    grid-template-columns: 1fr;
+    padding: var(--space-3);
+  }
+  .founder-photo-editor-preview,
+  .founder-photo-editor-preview img {
+    min-height: 320px;
+  }
+  [data-founder-reset-crop] {
+    width: 100%;
+    justify-content: center;
+  }
+}

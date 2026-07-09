@@ -1,0 +1,100 @@
+version: "3.9"
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  portfolio_net:
+    driver: bridge
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  redis_data:
+
+# ── Services ──────────────────────────────────────────────────────────────────
+services:
+
+  # ── PostgreSQL (local dev only; use Supabase in production) ────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       portfolio_dev
+      POSTGRES_USER:     portfolio
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-devpassword}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - portfolio_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portfolio"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis (rate limiting + sessions) ─────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - portfolio_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ── Flask Application ─────────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      FLASK_ENV:         ${FLASK_ENV:-production}
+      DATABASE_URL:      postgresql://portfolio:${DB_PASSWORD:-devpassword}@db:5432/portfolio_dev
+      REDIS_URL:         redis://redis:6379/0
+      RATELIMIT_STORAGE_URL: redis://redis:6379/1
+      PORT:              8000
+      GUNICORN_WORKERS:  2
+      GUNICORN_THREADS:  2
+    ports:
+      - "${HOST_PORT:-8000}:8000"
+    volumes:
+      # Persist uploaded images across container restarts
+      - ./static/uploads:/home/app/portfolio/static/uploads
+    networks:
+      - portfolio_net
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/heartbeat')\""]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+  # ── Migrations (one-shot, runs then exits) ────────────────────────────────
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      FLASK_ENV:    ${FLASK_ENV:-production}
+      DATABASE_URL: postgresql://portfolio:${DB_PASSWORD:-devpassword}@db:5432/portfolio_dev
+    command: >
+      sh -c "flask db upgrade && echo 'Migrations complete'"
+    networks:
+      - portfolio_net
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - migrate  # Run with: docker-compose --profile migrate up migrate

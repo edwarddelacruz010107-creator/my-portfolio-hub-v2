@@ -1,0 +1,92 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit' if service else 'New' }} Service{% endblock %}
+{% block page_title %}{{ 'Edit Service' if service else 'New Service' }}{% endblock %}
+
+{% block content %}
+<div class="page-hd" style="margin-bottom:1.5rem;">
+  <div class="page-hd-left">
+    <h1>{{ 'Edit Service' if service else 'New Service' }}</h1>
+    <p>{% if service %}Update this service card.{% else %}Add a service to your portfolio.{% endif %}</p>
+  </div>
+  <div class="page-hd-right">
+    <a href="{{ url_for('admin.services') }}" class="btn btn-ghost btn-sm">
+      <iconify-icon icon="lucide:arrow-left" width="14"></iconify-icon> Back
+    </a>
+  </div>
+</div>
+
+<form data-loading="true" method="POST" class="admin-form form-narrow">
+  {{ form.hidden_tag() }}
+  <div class="form-card">
+
+    <div class="form-row">
+      <div class="form-group" style="flex:2;">
+        {{ form.title.label }}
+        {{ form.title(class="form-input", placeholder="e.g. Web Development") }}
+        {% for e in form.title.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+      <div class="form-group" style="flex:1;">
+        {{ form.display_order.label }}
+        {{ form.display_order(class="form-input", placeholder="0") }}
+        {% for e in form.display_order.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+      </div>
+    </div>
+
+    <div class="form-group">
+      {{ form.icon.label }}
+      <div style="display:flex;gap:0.5rem;align-items:center;">
+        {{ form.icon(class="form-input", id="iconInput",
+           placeholder="e.g. lucide:code-2",
+           oninput="updateIconPreview(this.value)") }}
+        <span id="iconPreview" style="font-size:1.6rem;min-width:2rem;text-align:center;">
+          <iconify-icon id="iconEl"
+            icon="{{ service.icon if service else 'lucide:briefcase' }}"
+            width="28"></iconify-icon>
+        </span>
+      </div>
+      <small style="color:var(--text-muted);">
+        Use any <a href="https://icon-sets.iconify.design/" target="_blank" rel="noopener">Iconify</a> icon string.
+        Prefix: <code>lucide:</code>, <code>mdi:</code>, <code>ph:</code>, etc.
+      </small>
+      {% for e in form.icon.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+    </div>
+
+    <div class="form-group">
+      {{ form.description.label }}
+      {{ form.description(class="form-input form-textarea",
+         rows=3,
+         placeholder="Short description of what this service covers.") }}
+      {% for e in form.description.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+    </div>
+
+    <div class="form-group">
+      {{ form.features.label }}
+      {{ form.features(class="form-input form-textarea",
+         rows=5,
+         placeholder="Single Page Apps\nProgressive Web Apps\nAPI Integration") }}
+      <small style="color:var(--text-muted);">One bullet point per line. These appear as the feature list under the description.</small>
+      {% for e in form.features.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+    </div>
+
+    <div class="form-group toggle-group">
+      {{ form.is_visible() }}
+      <label for="{{ form.is_visible.id }}">Visible on portfolio</label>
+    </div>
+
+    <div class="form-actions">
+      {{ form.submit(class="btn btn-primary") }}
+      <a href="{{ url_for('admin.services') }}" class="btn btn-ghost">Cancel</a>
+    </div>
+
+  </div>
+</form>
+
+<script>
+function updateIconPreview(value) {
+  const el = document.getElementById('iconEl');
+  if (el && value.trim()) {
+    el.setAttribute('icon', value.trim());
+  }
+}
+</script>
+{% endblock %}

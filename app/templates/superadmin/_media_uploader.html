@@ -1,0 +1,75 @@
+{#
+  Reusable drag-and-drop image uploader.
+
+  Usage (from any superadmin settings template):
+
+    {% include 'superadmin/_media_uploader.html' with context %}
+
+  after setting these Jinja variables right above the include:
+
+    {% set uploader_category   = 'hero' %}
+    {% set uploader_label      = 'Hero image' %}
+    {% set uploader_hint       = 'PNG, JPG, WEBP, or GIF · up to 5MB · 1600×900 recommended' %}
+    {% set uploader_upload_url = url_for('superadmin.landing_upload_image') %}
+    {% set uploader_target_id  = form.hero_image_url.id %}
+    {% set uploader_current    = form.hero_image_url.data %}
+    {% set uploader_ratio      = 'hero' %}   {# hero | square | card #}
+    {% set uploader_accept     = 'image/png,image/jpeg,image/webp,image/gif' %}
+    {% set uploader_max_size   = 5242880 %}  {# bytes, must match server-side limit #}
+
+  Pairs with app/static/css/media-uploader.css and
+  app/static/js/media-uploader.js (both loaded once from superadmin/base.html).
+#}
+<div class="uploader"
+     data-uploader
+     data-category="{{ uploader_category }}"
+     data-upload-url="{{ uploader_upload_url }}"
+     data-target-input="#{{ uploader_target_id }}"
+     data-max-size="{{ uploader_max_size | default(5242880) }}"
+     data-accept="{{ uploader_accept | default('image/png,image/jpeg,image/webp,image/gif') }}">
+
+  <div class="uploader-preview"
+       data-role="preview"
+       data-ratio="{{ uploader_ratio | default('card') }}"
+       {% if not uploader_current %}hidden{% endif %}>
+    <img data-role="preview-img"
+         src="{{ uploader_current or '' }}"
+         alt="{{ uploader_label }} preview" />
+    <div class="uploader-preview-overlay">
+      <button type="button" class="btn btn-sm btn-ghost" data-action="replace">
+        <iconify-icon icon="lucide:refresh-cw" width="14"></iconify-icon> Replace
+      </button>
+      <button type="button" class="btn btn-sm btn-ghost" data-action="remove">
+        <iconify-icon icon="lucide:trash-2" width="14"></iconify-icon> Remove
+      </button>
+    </div>
+    <div class="uploader-progress" data-role="progress" hidden>
+      <div class="uploader-progress-bar" data-role="progress-bar"></div>
+    </div>
+  </div>
+
+  <label class="uploader-dropzone"
+         data-role="dropzone"
+         for="uploader-file-{{ uploader_category }}"
+         {% if uploader_current %}hidden{% endif %}>
+    <span class="uploader-icon">
+      <iconify-icon icon="lucide:image-plus" width="18"></iconify-icon>
+    </span>
+    <span class="uploader-title">{{ uploader_label }}</span>
+    <span class="uploader-hint">
+      <strong>Click to upload</strong> or drag and drop<br />
+      {{ uploader_hint | default('PNG, JPG, WEBP, or GIF · up to 5MB') }}
+    </span>
+  </label>
+
+  {# Single file input, always present in the DOM regardless of dropzone/preview
+     visibility — both the dropzone label (via `for`) and the Replace button
+     (via JS .click()) target this same element. #}
+  <input type="file"
+         id="uploader-file-{{ uploader_category }}"
+         data-role="file-input"
+         class="uploader-file-input-hidden"
+         accept="{{ uploader_accept | default('image/png,image/jpeg,image/webp,image/gif') }}" />
+
+  <div class="uploader-status" data-role="status"></div>
+</div>

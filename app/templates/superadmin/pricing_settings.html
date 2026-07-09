@@ -1,0 +1,302 @@
+{% extends 'superadmin/base.html' %}
+
+{% block title %}{{ page_title }}{% endblock %}
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pricing-cms.css') }}"/>
+{% endblock %}
+
+{% block content %}
+<div class="pricing-cms-shell">
+
+  <!-- ── BREADCRUMB ───────────────────────────────────────── -->
+  <div class="breadcrumb-trail">
+    <a href="{{ url_for('superadmin.dashboard') }}" class="bc-link">
+      <iconify-icon icon="lucide:layout-dashboard" width="14"></iconify-icon>
+      SuperAdmin
+    </a>
+    <iconify-icon icon="lucide:chevron-right" width="14" class="bc-sep"></iconify-icon>
+    <a href="{{ url_for('superadmin.settings') }}" class="bc-link">Settings</a>
+    <iconify-icon icon="lucide:chevron-right" width="14" class="bc-sep"></iconify-icon>
+    <span class="bc-current">Pricing CMS</span>
+  </div>
+
+  <!-- ── HEADER ───────────────────────────────────────────── -->
+  <div class="pricing-cms-header">
+    <div class="pricing-cms-header-main">
+      <div class="pricing-cms-title-row">
+        <h1 class="page-heading" style="margin:0;">Pricing Page Content</h1>
+        <span class="pricing-status-pill" id="pricingStatusBadge">
+          <iconify-icon icon="lucide:file-pen-line" width="12"></iconify-icon>
+          <span id="pricingStatusBadgeLabel">Draft mode</span>
+        </span>
+      </div>
+      <p class="page-subtext">
+        Edit the public pricing page copy, badges, CTAs, and feature highlights.
+        Plans are managed separately in Billing &rarr; Plans.
+      </p>
+    </div>
+    <div class="pricing-cms-header-actions">
+      <a href="{{ url_for('public.pricing') }}" target="_blank" class="btn btn-ghost btn-sm">
+        <iconify-icon icon="lucide:external-link" width="14"></iconify-icon>
+        View live page
+      </a>
+      <a href="{{ url_for('superadmin.pricing_settings_preview') }}" target="_blank" class="btn btn-secondary btn-sm">
+        <iconify-icon icon="lucide:eye" width="14"></iconify-icon>
+        Preview draft
+      </a>
+    </div>
+  </div>
+
+  <!-- ── STATUS BANNER ────────────────────────────────────── -->
+  <div class="pricing-status-banner">
+    <span class="pricing-status-banner-icon">
+      <iconify-icon icon="lucide:info" width="17"></iconify-icon>
+    </span>
+    <div class="pricing-status-banner-body">
+      <div class="pricing-status-banner-title">Draft editing</div>
+      <div class="pricing-status-banner-text">
+        Changes are saved as draft first and won't appear on the live pricing page.
+        Publish when you're ready to update it.
+      </div>
+    </div>
+  </div>
+
+  <div class="pricing-editor-grid">
+    <div class="pricing-editor-main">
+      <div class="settings-shell">
+        <nav class="settings-nav" aria-label="Pricing page sections">
+          <a href="#section-copy"><iconify-icon icon="lucide:file-text" width="15"></iconify-icon> Section Copy</a>
+          {% for slug, plan_key in (('basic', 'Basic'), ('pro', 'Pro'), ('enterprise', 'Enterprise')) %}
+          <a href="#section-{{ slug }}"><iconify-icon icon="lucide:box" width="15"></iconify-icon> {{ plan_key }}</a>
+          {% endfor %}
+        </nav>
+
+        <form method="POST" class="admin-form settings-main" id="pricingSettingsForm" data-settings-form data-autosave-url="{{ url_for('superadmin.pricing_autosave') }}">
+          {{ form.hidden_tag() }}
+
+          <details class="form-card form-card-collapsible" id="section-copy" data-settings-section open>
+            <summary>
+              <div class="form-card-heading-group">
+                <span class="form-card-icon"><iconify-icon icon="lucide:file-text" width="16"></iconify-icon></span>
+                <div>
+                  <h3 style="margin:0;">Section Copy</h3>
+                  <div class="form-card-note" style="margin-top:2px;">Draft values are saved separately until you publish.</div>
+                </div>
+              </div>
+              <iconify-icon class="form-card-chevron" icon="lucide:chevron-down" width="18"></iconify-icon>
+            </summary>
+            <div class="form-card-body">
+              <div class="form-subgroup">
+                <div class="form-subgroup-label">
+                  <iconify-icon icon="lucide:type" width="13"></iconify-icon> Headline &amp; copy
+                </div>
+                <div class="form-field">
+                  {{ form.heading.label(class='field-label') }}
+                  {{ form.heading(class='field-input' + (' field-error' if form.heading.errors else ''), placeholder='Simple, transparent pricing') }}
+                  <div class="field-hint">The main headline shown above the pricing cards.</div>
+                  {% if form.heading.errors %}<div class="field-err">{{ form.heading.errors[0] }}</div>{% endif %}
+                </div>
+                <div class="form-field">
+                  {{ form.subtitle.label(class='field-label') }}
+                  {{ form.subtitle(class='field-input field-textarea' + (' field-error' if form.subtitle.errors else ''), rows=2) }}
+                  <div class="field-hint">A short supporting line under the headline.</div>
+                  {% if form.subtitle.errors %}<div class="field-err">{{ form.subtitle.errors[0] }}</div>{% endif %}
+                </div>
+                <div class="form-field">
+                  {{ form.footnote.label(class='field-label') }}
+                  {{ form.footnote(class='field-input field-textarea' + (' field-error' if form.footnote.errors else ''), rows=2, placeholder='Shown when online checkout is disabled') }}
+                  <div class="field-hint">Only appears if online checkout is turned off.</div>
+                  {% if form.footnote.errors %}<div class="field-err">{{ form.footnote.errors[0] }}</div>{% endif %}
+                </div>
+              </div>
+              <div class="form-subgroup">
+                <div class="form-subgroup-label">
+                  <iconify-icon icon="lucide:toggle-left" width="13"></iconify-icon> Display options
+                </div>
+                <div class="toggle-row">
+                  <div class="toggle-info">
+                    <div class="toggle-label">Monthly / yearly toggle</div>
+                    <div class="toggle-desc">Let visitors switch between monthly and yearly pricing on the public page</div>
+                  </div>
+                  <label class="toggle-switch">
+                    {{ form.yearly_toggle_enabled(id='yearlyToggleEnabled') }}
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          {% for slug, plan_key in (('basic', 'Basic'), ('pro', 'Pro'), ('enterprise', 'Enterprise')) %}
+          <details class="form-card form-card-collapsible" id="section-{{ slug }}" data-settings-section open>
+            <summary>
+              <div class="form-card-heading-group">
+                <span class="form-card-icon"><iconify-icon icon="lucide:box" width="16"></iconify-icon></span>
+                <div>
+                  <h3 style="margin:0;">{{ plan_key }} Plan</h3>
+                  <div class="form-card-note" style="margin-top:2px;">
+                    {{ billing_plans[plan_key].price_label if billing_plans.get(plan_key) else '' }}
+                    &middot; price is managed in Billing &rarr; Plans
+                  </div>
+                </div>
+              </div>
+              <iconify-icon class="form-card-chevron" icon="lucide:chevron-down" width="18"></iconify-icon>
+            </summary>
+            <div class="form-card-body">
+
+              <div class="form-subgroup">
+                <div class="form-subgroup-label">
+                  <iconify-icon icon="lucide:tag" width="13"></iconify-icon> Badge &amp; call to action
+                </div>
+                <div class="form-grid-2">
+                  <div class="form-field">
+                    {{ form[slug ~ '_badge_text'].label(class='field-label') }}
+                    {{ form[slug ~ '_badge_text'](class='field-input' + (' field-error' if form[slug ~ '_badge_text'].errors else ''), placeholder='e.g. Most Popular') }}
+                    {% if form[slug ~ '_badge_text'].errors %}<div class="field-err">{{ form[slug ~ '_badge_text'].errors[0] }}</div>{% endif %}
+                  </div>
+                  <div class="form-field">
+                    {{ form[slug ~ '_cta_text'].label(class='field-label') }}
+                    {{ form[slug ~ '_cta_text'](class='field-input' + (' field-error' if form[slug ~ '_cta_text'].errors else ''), placeholder='Get Started') }}
+                    {% if form[slug ~ '_cta_text'].errors %}<div class="field-err">{{ form[slug ~ '_cta_text'].errors[0] }}</div>{% endif %}
+                  </div>
+                </div>
+                <div class="form-field">
+                  {{ form[slug ~ '_cta_url'].label(class='field-label') }}
+                  {{ form[slug ~ '_cta_url'](class='field-input' + (' field-error' if form[slug ~ '_cta_url'].errors else ''), placeholder='/auth/portal?tab=signup') }}
+                  {% if form[slug ~ '_cta_url'].errors %}<div class="field-err">{{ form[slug ~ '_cta_url'].errors[0] }}</div>{% endif %}
+                  <div class="field-hint">Relative paths (e.g. /billing/plans) or full https:// links only.</div>
+                </div>
+              </div>
+
+              <div class="form-subgroup">
+                <div class="form-subgroup-label">
+                  <iconify-icon icon="lucide:align-left" width="13"></iconify-icon> Content overrides
+                </div>
+                <div class="form-field">
+                  {{ form[slug ~ '_description_override'].label(class='field-label') }}
+                  {{ form[slug ~ '_description_override'](class='field-input field-textarea' + (' field-error' if form[slug ~ '_description_override'].errors else ''), rows=2, placeholder=billing_plans[plan_key].description if billing_plans.get(plan_key) else '') }}
+                  {% if form[slug ~ '_description_override'].errors %}<div class="field-err">{{ form[slug ~ '_description_override'].errors[0] }}</div>{% endif %}
+                </div>
+                <div class="form-field">
+                  {{ form[slug ~ '_features_override'].label(class='field-label') }}
+                  {{ form[slug ~ '_features_override'](class='field-input field-textarea' + (' field-error' if form[slug ~ '_features_override'].errors else ''), rows=5, placeholder='One feature per line — leave blank to use the default plan features') }}
+                  {% if form[slug ~ '_features_override'].errors %}<div class="field-err">{{ form[slug ~ '_features_override'].errors[0] }}</div>{% endif %}
+                  <div class="field-hint">Max 10 lines, 120 characters each. Blank = falls back to the default feature list.</div>
+                </div>
+              </div>
+
+              <div class="form-subgroup">
+                <div class="form-subgroup-label">
+                  <iconify-icon icon="lucide:star" width="13"></iconify-icon> Display
+                </div>
+                <div class="toggle-row">
+                  <div class="toggle-info">
+                    <div class="toggle-label">Highlight this plan</div>
+                    <div class="toggle-desc">Only one plan can be highlighted — checking this unchecks the others</div>
+                  </div>
+                  <label class="toggle-switch">
+                    {{ form[slug ~ '_highlighted'](**{'class': 'highlight-radio'}) }}
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                  </label>
+                </div>
+              </div>
+
+            </div>
+          </details>
+          {% endfor %}
+
+          <div class="sticky-actions-bar">
+            <a href="{{ url_for('superadmin.settings') }}" class="btn btn-ghost">
+              <iconify-icon icon="lucide:arrow-left" width="15"></iconify-icon>
+              Back to Settings
+            </a>
+            <span class="sticky-actions-spacer"></span>
+            <span class="sticky-actions-status" data-role="save-status"><span class="dot"></span>No changes</span>
+            <a href="{{ url_for('superadmin.pricing_settings_preview') }}" target="_blank" class="btn btn-ghost">
+              <iconify-icon icon="lucide:eye" width="15"></iconify-icon> Preview Draft
+            </a>
+            <button type="submit" name="action" value="save" class="btn btn-primary">Save Draft</button>
+            <button type="submit" name="action" value="publish" class="btn btn-secondary">Publish Now</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ── HELPER PANEL ──────────────────────────────────── -->
+    <aside class="pricing-helper-panel">
+
+      <div class="pricing-helper-card">
+        <div class="pricing-helper-card-title">
+          <iconify-icon icon="lucide:layers" width="14"></iconify-icon> Publishing status
+        </div>
+        <div class="pricing-helper-row">
+          <iconify-icon icon="lucide:file-pen-line" width="14"></iconify-icon>
+          <span>Draft changes are saved separately and never touch the live page on their own.</span>
+        </div>
+        <div class="pricing-helper-row">
+          <iconify-icon icon="lucide:upload-cloud" width="14"></iconify-icon>
+          <span>Publishing copies your draft over the currently live pricing content.</span>
+        </div>
+      </div>
+
+      <div class="pricing-helper-card">
+        <div class="pricing-helper-card-title">
+          <iconify-icon icon="lucide:list-checks" width="14"></iconify-icon> Quick checklist
+        </div>
+        <div class="pricing-checklist" id="pricingChecklist">
+          <div class="pricing-checklist-item" data-check-field="heading">
+            <span class="check-dot"></span> Clear headline
+          </div>
+          <div class="pricing-checklist-item" data-check-field="subtitle">
+            <span class="check-dot"></span> Short subtitle
+          </div>
+          <div class="pricing-checklist-item" data-check-field="basic_cta_text,pro_cta_text,enterprise_cta_text">
+            <span class="check-dot"></span> CTA text set
+          </div>
+          <div class="pricing-checklist-item" data-check-field="footnote">
+            <span class="check-dot"></span> Checkout notice reviewed
+          </div>
+        </div>
+      </div>
+
+      <div class="pricing-helper-card">
+        <div class="pricing-helper-card-title">
+          <iconify-icon icon="lucide:eye" width="14"></iconify-icon> Preview
+        </div>
+        <div class="pricing-helper-card-actions">
+          <a href="{{ url_for('superadmin.pricing_settings_preview') }}" target="_blank" class="btn btn-secondary btn-sm">
+            <iconify-icon icon="lucide:eye" width="14"></iconify-icon> Preview draft
+          </a>
+          <a href="{{ url_for('public.pricing') }}" target="_blank" class="btn btn-ghost btn-sm">
+            <iconify-icon icon="lucide:external-link" width="14"></iconify-icon> View live page
+          </a>
+        </div>
+      </div>
+
+    </aside>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/pricing-cms.js') }}"></script>
+<script>
+  // Client-side convenience only — server enforces single-highlight
+  // authoritatively in both the manual save path
+  // (pricing_settings.py::_save_form_data) and the autosave path
+  // (pricing_settings.py::pricing_autosave), so this is UX polish,
+  // not a security boundary.
+  document.querySelectorAll('.highlight-radio').forEach((box) => {
+    box.addEventListener('change', () => {
+      if (box.checked) {
+        document.querySelectorAll('.highlight-radio').forEach((other) => {
+          if (other !== box) other.checked = false;
+        });
+      }
+    });
+  });
+</script>
+{% endblock %}

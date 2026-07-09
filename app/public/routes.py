@@ -364,6 +364,21 @@ def theme_preview(theme_id: str):
     return inject_theme_preview_badge(rendered_preview, meta, label='Public preview')
 
 
+@public_bp.route('/administrator-portfolio')
+@public_bp.route('/administrator-portfolio/')
+def administrator_portfolio():
+    """Public owner portfolio for the protected default administrator tenant."""
+    from app import _render_default_portfolio
+    return _render_default_portfolio()
+
+
+@public_bp.route('/administrator-portfolio/project/<slug>')
+def administrator_project_detail(slug: str):
+    """Public project detail page for the protected default administrator tenant."""
+    from app import _render_default_project_detail
+    return _render_default_project_detail(slug)
+
+
 @public_bp.route('/administrator')
 def administrator_gateway():
     """
@@ -379,14 +394,32 @@ def administrator_gateway():
     return redirect(url_for('admin.dashboard'))
 
 
-@public_bp.route('/api/projects/<int:project_id>/reaction-state')
-def project_reaction_state(project_id: int):
-    from app.models.core import Tenant
-    from app.models.tenant_data import Project, ProjectReaction
 
-    project = Project.query.filter_by(id=project_id, status='published').first_or_404()
+
+def _load_public_project_or_404(project_id: int):
+    """Load a project visible on public portfolio pages.
+
+    Regular tenants require Published status. The protected default owner
+    portfolio also allows featured Drafts, matching /administrator-portfolio.
+    """
+    from app.models.core import Tenant
+    from app.models.tenant_data import Project
+
+    project = Project.query.filter_by(id=project_id).first_or_404()
+    visible = project.status == 'published'
+    if (project.tenant_slug or '').strip().lower() == 'default':
+        visible = visible or (project.status == 'draft' and bool(project.is_featured))
+    if not visible:
+        abort(404)
     if not Tenant.query.filter_by(slug=project.tenant_slug, status='active').first():
         abort(404)
+    return project
+
+@public_bp.route('/api/projects/<int:project_id>/reaction-state')
+def project_reaction_state(project_id: int):
+    from app.models.tenant_data import ProjectReaction
+
+    project = _load_public_project_or_404(project_id)
 
     liked = False
     if current_user.is_authenticated:
@@ -406,15 +439,12 @@ def project_reaction_state(project_id: int):
 @public_bp.route('/api/projects/<int:project_id>/react', methods=['POST'])
 def project_like(project_id: int):
     from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-    from app.models.core import Tenant
-    from app.models.tenant_data import Project, ProjectReaction
+    from app.models.tenant_data import ProjectReaction
 
     if not current_user.is_authenticated:
         return jsonify({'success': False, 'message': 'Login required'}), 401
 
-    project = Project.query.filter_by(id=project_id, status='published').first_or_404()
-    if not Tenant.query.filter_by(slug=project.tenant_slug, status='active').first():
-        abort(404)
+    project = _load_public_project_or_404(project_id)
 
     existing = ProjectReaction.query.filter_by(project_id=project.id, user_id=current_user.id).first()
     if existing:
@@ -455,15 +485,12 @@ def project_like(project_id: int):
 @public_bp.route('/api/projects/<int:project_id>/react', methods=['DELETE'])
 def project_unlike(project_id: int):
     from sqlalchemy.exc import SQLAlchemyError
-    from app.models.core import Tenant
-    from app.models.tenant_data import Project, ProjectReaction
+    from app.models.tenant_data import ProjectReaction
 
     if not current_user.is_authenticated:
         return jsonify({'success': False, 'message': 'Login required'}), 401
 
-    project = Project.query.filter_by(id=project_id, status='published').first_or_404()
-    if not Tenant.query.filter_by(slug=project.tenant_slug, status='active').first():
-        abort(404)
+    project = _load_public_project_or_404(project_id)
 
     existing = ProjectReaction.query.filter_by(project_id=project.id, user_id=current_user.id).first()
     if not existing:
@@ -496,10 +523,8 @@ def creator_link(tenant_slug: str):
     ("DO NOT rewrite billing architecture / auth system / break existing
     tenant URLs"). This gives creators the clean /u/<name> link the spec
     wants for sharing, without touching tenant_bp at all:
-      • slug == 'default' → rendered directly here (the 'default' slug
-        itself is reserved — see RESERVED_SLUGS in app/tenant_security.py
-        — and deliberately excluded from tenant_bp's catch-all, so it
-        can't just redirect to /<slug>/ like every other tenant does).
+      • slug == 'default' → 301 to /administrator-portfolio, the clean
+        public URL for the platform owner's portfolio.
       • any other slug     → 301 to the existing, unchanged
         /<tenant_slug>/ route. Zero risk to tenant_bp's session/HMAC/
         reserved-slug logic.
@@ -507,8 +532,7 @@ def creator_link(tenant_slug: str):
     tenant_slug = tenant_slug.strip().lower()
 
     if tenant_slug == 'default':
-        from app import _render_default_portfolio
-        return _render_default_portfolio()
+        return redirect(url_for('public.administrator_portfolio'), 301)
 
     from app.services.custom_domain_service import tenant_portfolio_public_url
     return redirect(tenant_portfolio_public_url(tenant_slug), 301)

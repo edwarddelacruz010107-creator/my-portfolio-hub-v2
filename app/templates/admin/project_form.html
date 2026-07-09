@@ -28,7 +28,7 @@
         <h3>Project Image</h3>
         <div class="image-preview" id="imagePreview">
           {% if project and project.image %}
-            <img src="{{ url_for('static', filename='uploads/projects/' + project.image) }}"
+            <img src="{{ project.image|upload_url('projects') }}"
                  alt="{{ project.title }}" id="projectImg"/>
           {% else %}
             <div class="img-placeholder-lg" id="imagePlaceholder">

@@ -843,10 +843,11 @@ def create_app(config_name: str = 'default') -> Flask:
     # the SaaS homepage instead of one tenant's portfolio is the CORRECT new
     # behavior for a multi-tenant SaaS root, not a regression.
     #
-    # The former default-tenant-at-'/' behavior now lives at /u/default
-    # (app/public/routes.py::creator_link) — see that function's docstring
-    # for why 'default' gets a dedicated path instead of joining tenant_bp's
-    # normal /<tenant_slug>/ catch-all like every other tenant.
+    # The former default-tenant-at-'/' behavior now lives at
+    # /administrator-portfolio. Legacy /u/default redirects there — see
+    # app/public/routes.py::creator_link for backward compatibility.
+    # The default slug still cannot join tenant_bp's catch-all because it is
+    # reserved by tenant security.
     @app.route('/')
     def root():
         """Root domain handler.
@@ -873,15 +874,14 @@ def create_app(config_name: str = 'default') -> Flask:
         from app.services.custom_domain_public import render_custom_domain_project
         return render_custom_domain_project(domain_record, slug)
 
-    # ── 301 backward-compat redirect: /default → /u/default ────────────────────
-    # CHANGED (Phase 1b): target moved from '/' to '/u/default' now that '/'
-    # is the SaaS landing page, not the default tenant's portfolio. Anyone
-    # with an old /default bookmark still lands on their actual portfolio.
+    # ── 301 backward-compat redirect: /default → /administrator-portfolio ──────
+    # The root '/' is the SaaS landing page. The protected default tenant's
+    # public owner portfolio has a clean, explicit URL.
     @app.route('/default')
     @app.route('/default/')
     def default_redirect():
         """Permanently redirect old /default URLs to the default tenant's portfolio."""
-        return redirect(url_for('public.creator_link', tenant_slug='default'), 301)
+        return redirect(url_for('public.administrator_portfolio'), 301)
 
 
 
@@ -1593,7 +1593,11 @@ def _render_default_portfolio():
         # Graceful fallback: show a setup page instead of 500
         return render_template('errors/setup_needed.html'), 503
 
-    all_projects = Project.published_for_tenant(TENANT).all()
+    # Owner/default portfolio: include Published projects and featured Drafts.
+    # This keeps existing administrator showcase cards visible when they were
+    # marked Featured but accidentally saved with the Draft status. Regular
+    # tenant portfolios still use published_for_tenant() and remain publish-gated.
+    all_projects = Project.public_for_tenant(TENANT, include_featured_drafts=True).all()
     featured_projects = [p for p in all_projects if p.is_featured]
     other_projects = [p for p in all_projects if not p.is_featured]
     skills = (
@@ -1637,7 +1641,7 @@ def _render_default_portfolio():
     categories = sorted({p.category for p in featured_projects + other_projects if p.category})
 
     stats = {
-        'projects_count':   Project.query.filter_by(status='published', tenant_slug=TENANT).count(),
+        'projects_count':   len(all_projects),
         'years_experience': profile.get_years_experience() if profile else 0,
         'clients_count':    profile.clients_count if profile else 0,
     }
@@ -1682,6 +1686,49 @@ def _render_default_portfolio():
         is_root_domain=True,  # Template flag: disables tenant-slug links
         trial_days_left=profile.trial_days_remaining() if profile else 0,
         license_status=profile.license_status() if profile else 'unlicensed',
+    )
+
+
+def _render_default_project_detail(slug: str):
+    """Render project detail for the protected default administrator portfolio."""
+    from flask import render_template
+    from app.models.portfolio import Profile, Project
+
+    TENANT = 'default'
+    g.tenant_slug = TENANT
+
+    profile = Profile.query.filter_by(tenant_slug=TENANT).first()
+    if not profile:
+        return render_template('errors/setup_needed.html'), 503
+
+    project = (
+        Project.query
+        .filter(Project.slug == slug)
+        .filter(Project.tenant_slug == TENANT)
+        .filter(db.or_(
+            Project.status == 'published',
+            db.and_(Project.status == 'draft', Project.is_featured == True),
+        ))
+        .first_or_404()
+    )
+    project.increment_views()
+    db.session.commit()
+
+    related = (
+        Project.public_for_tenant(TENANT, include_featured_drafts=True)
+        .filter(Project.id != project.id)
+        .filter(Project.category == project.category)
+        .limit(3)
+        .all()
+    )
+
+    return render_template(
+        'main/project.html',
+        project=project,
+        profile=profile,
+        related=related,
+        tenant_slug=TENANT,
+        is_root_domain=True,
     )
 
 

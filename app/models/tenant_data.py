@@ -397,8 +397,28 @@ class Project(db.Model):
     ]
 
     @classmethod
-    def published_for_tenant(cls, tenant):
-        q = cls.query.filter_by(status='published')
+    def public_for_tenant(cls, tenant, *, include_featured_drafts: bool = False):
+        """Return projects that may be shown on a public portfolio.
+
+        Normal tenant portfolios only expose ``status='published'`` projects.
+        The platform-owner/default portfolio may opt in to featured drafts so
+        existing administrator showcase cards marked Featured do not disappear
+        just because the status dropdown was left on Draft.
+
+        The lookup intentionally matches by tenant_slug OR tenant_id for string
+        slugs. Older/admin-created rows can have the correct tenant_slug while
+        tenant_id is missing or stale after tenant bootstrap/redeploy; matching
+        both keeps public rendering aligned with the Admin Projects page without
+        weakening tenant isolation because the slug is still explicit.
+        """
+        status_filter = (cls.status == 'published')
+        if include_featured_drafts:
+            status_filter = db.or_(
+                cls.status == 'published',
+                db.and_(cls.status == 'draft', cls.is_featured == True),
+            )
+
+        q = cls.query.filter(status_filter)
 
         if isinstance(tenant, int):
             return q.filter_by(tenant_id=tenant).order_by(
@@ -421,17 +441,25 @@ class Project(db.Model):
 
             from app.models.core import Tenant
 
-            tenant_record = Tenant.query.filter_by(slug=t, status='active').first()
-            if not tenant_record:
+            tenant_record = Tenant.query.filter_by(slug=t).first()
+            if t != 'default' and (not tenant_record or (tenant_record.status or '').lower() != 'active'):
                 return cls.query.filter(False)
 
-            return q.filter_by(tenant_id=tenant_record.id).order_by(
+            tenant_filters = [cls.tenant_slug == t]
+            if tenant_record and (tenant_record.status or '').lower() == 'active':
+                tenant_filters.append(cls.tenant_id == tenant_record.id)
+
+            return q.filter(db.or_(*tenant_filters)).order_by(
                 cls.is_featured.desc(),
                 cls.order.asc(),
                 cls.created_at.desc(),
             )
 
         return cls.query.filter(False)
+
+    @classmethod
+    def published_for_tenant(cls, tenant):
+        return cls.public_for_tenant(tenant, include_featured_drafts=False)
 
     @property
     def is_published(self) -> bool:

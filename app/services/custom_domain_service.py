@@ -323,7 +323,7 @@ def tenant_portfolio_public_url(tenant_slug: str | None, *, external: bool = Fal
         return f"{_custom_domain_public_scheme()}://{record.normalized_domain}/"
 
     if slug == "default":
-        return url_for("public.creator_link", tenant_slug="default", _external=external)
+        return url_for("public.administrator_portfolio", _external=external)
     return url_for("tenant.portfolio", tenant_slug=slug, _external=external)
 
 
@@ -339,6 +339,9 @@ def tenant_project_public_url(tenant_slug: str | None, project_slug: str | None,
     current = _current_verified_custom_domain()
     if current is not None and current.tenant_slug == slug:
         return url_for("custom_domain_project_detail", slug=project, _external=external)
+
+    if slug == "default":
+        return url_for("public.administrator_project_detail", slug=project, _external=external)
 
     record = primary_custom_domain_for_tenant(slug)
     if record is not None:

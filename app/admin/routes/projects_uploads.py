@@ -16,7 +16,7 @@ from flask import (session, Blueprint, render_template, redirect, url_for,
                    flash, request, jsonify, current_app, Response)
 from flask_login import login_required, current_user
 
-from app import db
+from app import db, cache
 from app.repositories import (
     project_repository,
     profile_repository,
@@ -104,6 +104,34 @@ def _asset_public_url(filename: str, folder: str) -> str:
         logger.exception('Could not build upload URL for folder=%s filename=%s', folder, filename)
     return ''
 
+
+
+def _active_tenant_id() -> int | None:
+    """Return the core Tenant.id for the active admin tenant.
+
+    Using current_user.tenant_id alone is fragile for the protected default
+    administrator portfolio after imports/redeploys. The active slug is the
+    source of truth in this blueprint, so resolve the core Tenant row by slug
+    before falling back to the user field.
+    """
+    tenant_slug = _active_tenant_slug()
+    try:
+        tenant = tenant_repository.get_by_slug(tenant_slug)
+        if tenant is not None:
+            return tenant.id
+    except Exception:
+        logger.exception('Could not resolve tenant id for slug=%s', tenant_slug)
+    return getattr(current_user, 'tenant_id', None)
+
+
+def _clear_portfolio_cache(tenant_slug: str | None = None) -> None:
+    """Clear cached public portfolio pages after project changes."""
+    slug = (tenant_slug or _active_tenant_slug() or 'default').strip().lower()
+    try:
+        cache.delete(f'portfolio_page:{slug}')
+    except Exception:
+        logger.debug('Could not clear portfolio cache for slug=%s', slug, exc_info=True)
+
 def _format_filesize(size: int | None) -> str:
     if size is None:
         return 'n/a'
@@ -159,10 +187,21 @@ def new_project():
         return redirect(url_for('admin.projects'))
 
     form = ProjectForm()
+    if request.method == 'GET' and not form.status.data:
+        # Public portfolio renders Published projects. Default new projects to
+        # Published so owners do not accidentally create invisible Draft cards.
+        form.status.data = 'published'
+
     if form.validate_on_submit():
+        tenant_slug = _active_tenant_slug()
+        tenant_id = _active_tenant_id()
+        if tenant_id is None:
+            flash('Cannot save project because the active tenant record was not found.', 'danger')
+            return redirect(url_for('admin.projects'))
+
         project = Project(
-            tenant_id=current_user.tenant_id,   # cross-DB: must be set explicitly
-            tenant_slug=_active_tenant_slug(),
+            tenant_id=tenant_id,   # cross-DB: must be set explicitly
+            tenant_slug=tenant_slug,
             title=form.title.data,
             description=form.description.data or '',
             description_short=form.description_short.data or '',
@@ -203,6 +242,7 @@ def new_project():
 
         db.session.add(project)
         db.session.commit()
+        _clear_portfolio_cache(project.tenant_slug)
         log_activity('create', 'project', project.title)
         flash(f'Project "{project.title}" created!', 'success')
         return redirect(url_for('admin.projects'))
@@ -222,6 +262,11 @@ def edit_project(id: int):
         form.tags.data = ', '.join(project.tags or [])
 
     if form.validate_on_submit():
+        tenant_id = _active_tenant_id()
+        if tenant_id is not None:
+            project.tenant_id = tenant_id
+        project.tenant_slug = _active_tenant_slug()
+
         project.title             = form.title.data
         project.description       = form.description.data or ''
         project.description_short = form.description_short.data or ''
@@ -255,6 +300,7 @@ def edit_project(id: int):
                     flash(upload_error, 'warning')
 
         db.session.commit()
+        _clear_portfolio_cache(project.tenant_slug)
         log_activity('update', 'project', project.title)
         flash(f'Project "{project.title}" updated!', 'success')
         return redirect(url_for('admin.projects'))
@@ -272,8 +318,10 @@ def delete_project(id: int):
     title = project.title
     if project.image:
         delete_image(project.image, 'projects')
+    tenant_slug = project.tenant_slug
     db.session.delete(project)
     db.session.commit()
+    _clear_portfolio_cache(tenant_slug)
     log_activity('delete', 'project', title)
     flash(f'Project "{title}" deleted.', 'success')
     return redirect(url_for('admin.projects'))
@@ -463,6 +511,7 @@ def toggle_project(id: int):
         return jsonify(error='Not found'), 404
     project.status = 'published' if project.status != 'published' else 'draft'
     db.session.commit()
+    _clear_portfolio_cache(project.tenant_slug)
     action = 'publish' if project.status == 'published' else 'unpublish'
     log_activity(action, 'project', project.title)
     return jsonify(status=project.status, title=project.title)
@@ -475,6 +524,7 @@ def toggle_featured(id: int):
         return jsonify(error='Not found'), 404
     project.is_featured = not project.is_featured
     db.session.commit()
+    _clear_portfolio_cache(project.tenant_slug)
     return jsonify(featured=project.is_featured)
 
 @admin.route('/projects/reorder', methods=['POST'])
@@ -486,4 +536,5 @@ def reorder_projects():
         if p:
             p.order = item.get('order', 0)
     db.session.commit()
+    _clear_portfolio_cache()
     return jsonify(status='ok')

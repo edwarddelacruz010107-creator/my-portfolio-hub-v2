@@ -1,0 +1,87 @@
+{% extends "admin/base.html" %}
+{% block title %}Work Experience{% endblock %}
+{% block page_title %}Work Experience{% endblock %}
+
+{% block content %}
+<div class="list-page">
+  <div class="page-hd">
+    <div class="page-hd-left">
+      <h1>Work Experience <span style="font-size:0.6em;color:var(--text-muted);font-weight:600;vertical-align:middle;">({{ experiences|length }})</span></h1>
+      <p>Manage the timeline shown on your portfolio themes.</p>
+    </div>
+    <div class="page-hd-right">
+      <a href="{{ url_for('admin.new_experience') }}" class="btn btn-primary">
+        <iconify-icon icon="lucide:plus" width="15"></iconify-icon> Add Experience
+      </a>
+    </div>
+  </div>
+
+  {% if experiences %}
+  <div class="skill-list" id="experiencesList">
+    {% for exp in experiences %}
+    <div class="skill-row" data-id="{{ exp.id }}">
+      <div class="skill-drag">⠿</div>
+      <div class="skill-icon-col">
+        <span class="skill-icon" style="font-size:1.3rem;">
+          <iconify-icon icon="{{ exp.icon or 'lucide:briefcase-business' }}" width="22"></iconify-icon>
+        </span>
+      </div>
+      <div class="skill-info" style="flex:1;">
+        <div class="skill-title-row">
+          <strong>{{ exp.role }}</strong>
+          <span class="skill-cat-badge">order {{ exp.display_order }}</span>
+        </div>
+        <span class="skill-subtitle">
+          {{ exp.company }}{% if exp.employment_type %} · {{ exp.employment_type }}{% endif %}{% if exp.location %} · {{ exp.location }}{% endif %}
+        </span>
+        <span class="skill-subtitle" style="margin-top:2px;">
+          {{ exp.date_range or 'Date range not set' }}{% if exp.achievements_list %} · {{ exp.achievements_list|length }} bullet{{ 's' if exp.achievements_list|length != 1 else '' }}{% endif %}
+        </span>
+      </div>
+      <div class="skill-actions">
+        {% if exp.is_current %}<span class="visibility-badge visible">Current</span>{% endif %}
+        <span class="visibility-badge {% if exp.is_visible %}visible{% else %}hidden{% endif %}">
+          {% if exp.is_visible %}Visible{% else %}Hidden{% endif %}
+        </span>
+        <a href="{{ url_for('admin.edit_experience', id=exp.id) }}" class="icon-btn">✎</a>
+        <button class="icon-btn icon-btn--danger"
+                onclick="confirmDelete('{{ url_for('admin.delete_experience', id=exp.id) }}',
+                'Delete experience &quot;{{ exp.role }} at {{ exp.company }}&quot;?')">✕</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <script>
+  (function () {
+    const list = document.getElementById('experiencesList');
+    if (!list || typeof Sortable === 'undefined') return;
+    Sortable.create(list, {
+      handle: '.skill-drag',
+      animation: 150,
+      onEnd() {
+        const order = [...list.querySelectorAll('[data-id]')].map((el, i) => ({
+          id: parseInt(el.dataset.id), order: i
+        }));
+        fetch('{{ url_for("admin.reorder_experiences") }}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order })
+        });
+      }
+    });
+  })();
+  </script>
+
+  {% else %}
+  <div class="empty-page">
+    <div class="empty-icon">
+      <iconify-icon icon="lucide:route" width="48"></iconify-icon>
+    </div>
+    <h2>No experience timeline yet</h2>
+    <p>Add your first role, internship, freelance work, project milestone, or certification timeline item.</p>
+    <a href="{{ url_for('admin.new_experience') }}" class="btn btn-primary">Add your first experience</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

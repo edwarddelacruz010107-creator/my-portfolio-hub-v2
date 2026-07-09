@@ -229,7 +229,7 @@ def preview_theme(theme_id):
     from types import SimpleNamespace
     from app.theme_engine import get_theme_engine, is_valid_theme_id
     from app.theme_context import build_portfolio_view
-    from app.models.portfolio import Project, Skill, Testimonial, Service
+    from app.models.portfolio import Project, Skill, Testimonial, Service, Certificate, WorkExperience
 
     if not is_valid_theme_id(theme_id):
         abort(404)
@@ -246,6 +246,18 @@ def preview_theme(theme_id):
     skills = _tenant_slug_filter(skill_repository.query).order_by(Skill.category.asc(), Skill.order.asc()).all()
     testimonials = _tenant_slug_filter(testimonial_repository.query).filter_by(is_visible=True).all()
     services = _tenant_slug_filter(service_repository.query).filter_by(is_visible=True).all()
+    certificates = (
+        _tenant_slug_filter(Certificate.query)
+        .filter_by(is_visible=True)
+        .order_by(Certificate.display_order.asc(), Certificate.id.asc())
+        .all()
+    )
+    experiences = (
+        _tenant_slug_filter(WorkExperience.query)
+        .filter_by(is_visible=True)
+        .order_by(WorkExperience.display_order.asc(), WorkExperience.start_date.desc(), WorkExperience.id.desc())
+        .all()
+    )
 
     skills_by_category = {}
     for skill in skills:
@@ -263,6 +275,8 @@ def preview_theme(theme_id):
         skills_by_category=skills_by_category,
         services=services,
         testimonials=testimonials,
+        certificates=certificates,
+        experiences=experiences,
         stats=stats,
         tenant_slug=tenant_slug,
         contact_url='#',
@@ -281,7 +295,7 @@ def preview_theme(theme_id):
         flash('Upgrade your plan to preview this theme.', 'warning')
         return redirect(url_for('admin.themes_index'))
 
-    return engine.render(
+    rendered_preview = engine.render(
         preview_profile,
         'index.html',
         profile=profile,
@@ -292,7 +306,9 @@ def preview_theme(theme_id):
         skills=skills,
         skills_by_category=skills_by_category,
         testimonials=testimonials,
+        certificates=certificates,
         services=services,
+        experiences=experiences,
         stats=stats,
         categories=categories,
         tenant_slug=tenant_slug,
@@ -300,3 +316,15 @@ def preview_theme(theme_id):
         is_root_domain=False,
         preview_mode=True,
     )
+    if not rendered_preview or not str(rendered_preview).strip():
+        current_app.logger.error('Theme preview returned empty HTML for theme_id=%s tenant=%s', theme_id, tenant_slug)
+        return Response(
+            '<!doctype html><html><head><title>Theme preview unavailable</title>'
+            '<style>body{margin:0;background:#090b12;color:#eef2ff;font-family:system-ui;display:grid;place-items:center;min-height:100vh}'
+            '.card{max-width:560px;padding:32px;border:1px solid rgba(255,255,255,.14);border-radius:20px;background:#101421}'
+            'a{color:#8b7bff}</style></head><body><div class="card"><h1>Theme preview unavailable</h1>'
+            '<p>The selected theme returned an empty preview. Try applying another theme or refresh after saving your profile content.</p>'
+            '<p><a href="' + url_for('admin.themes_index') + '">Back to Themes</a></p></div></body></html>',
+            mimetype='text/html',
+        )
+    return rendered_preview

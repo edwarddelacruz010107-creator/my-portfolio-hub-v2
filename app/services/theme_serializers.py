@@ -90,6 +90,9 @@ def _list(obj: Any, *names: str) -> list:
                 return parsed if isinstance(parsed, list) else []
             except json.JSONDecodeError:
                 pass
+        # Timeline achievements are stored one item per line, while tags use CSV.
+        if '\n' in val or '\r' in val:
+            return [s.strip() for s in val.splitlines() if s.strip()]
         return [s.strip() for s in val.split(',') if s.strip()]
     return []
 
@@ -233,18 +236,37 @@ def serialize_social_links(social: Any) -> dict:
 
 
 def serialize_experience(e: Any) -> dict:
-    """No `Experience` model exists yet in app/models. Schema defined
-    now so themes can render an experience timeline without crashing
-    the moment the model lands -- no theme-boundary change needed
-    when that migration ships."""
+    """Normalize WorkExperience timeline rows for all portfolio themes."""
+    role = _str(e, 'role', 'title', 'position')
+    company = _str(e, 'company', 'organization')
+    is_current = _bool(e, 'is_current')
+    start_date = _date_iso(e, 'start_date')
+    end_date = _date_iso(e, 'end_date')
+    date_range = _str(e, 'date_range')
+    year = _str(e, 'year')
+    if not year and start_date:
+        year = start_date[:4]
     return {
-        'role': _str(e, 'role', 'title', 'position'),
-        'company': _str(e, 'company', 'organization'),
-        'start_date': _date_iso(e, 'start_date'),
-        'end_date': _date_iso(e, 'end_date'),
-        'is_current': _bool(e, 'is_current'),
+        'role': role,
+        'title': role,
+        'position': role,
+        'company': company,
+        'organization': company,
+        'type': _str(e, 'employment_type', 'type', default='Work'),
+        'employment_type': _str(e, 'employment_type', 'type', default='Work'),
+        'location': _str(e, 'location'),
+        'start_date': start_date,
+        'end_date': end_date,
+        'is_current': is_current,
+        'date_range': date_range or ' – '.join([v for v in [start_date or '', 'Present' if is_current else (end_date or '')] if v]),
+        'year': year,
         'description': _str(e, 'description'),
-        'order': _int(e, 'order'),
+        'achievements': _list(e, 'achievements_list', 'achievements'),
+        'technologies': _list(e, 'technologies_list', 'technologies', 'tech_stack'),
+        'tech_stack': _list(e, 'technologies_list', 'technologies', 'tech_stack'),
+        'icon': _str(e, 'icon', default='lucide:briefcase-business'),
+        'order': _int(e, 'display_order', 'order'),
+        'is_visible': _bool(e, 'is_visible', default=True),
     }
 
 

@@ -46,7 +46,7 @@
           {% else %}
             {{ stats.published_projects }} project{{ 's' if stats.published_projects != 1 else '' }} live,
             {{ stats.total_skills }} skill{{ 's' if stats.total_skills != 1 else '' }} showcased,
-            {{ stats.total_testimonials }} testimonial{{ 's' if stats.total_testimonials != 1 else '' }} collected.
+            {{ stats.total_testimonials }} testimonial{{ 's' if stats.total_testimonials != 1 else '' }} collected, and {{ stats.total_experiences }} timeline item{{ 's' if stats.total_experiences != 1 else '' }} added.
           {% endif %}
         </p>
       </div>
@@ -105,6 +105,19 @@
         <span class="stat-sub">social proof</span>
       </div>
     </div>
+
+    <a href="{{ url_for('admin.experiences') }}" class="stat-card-v2" style="text-decoration:none;cursor:pointer;">
+      <div class="stat-header">
+        <div class="stat-icon-wrap info">
+          <iconify-icon icon="lucide:route" width="18"></iconify-icon>
+        </div>
+      </div>
+      <div class="stat-big">{{ stats.total_experiences }}</div>
+      <div class="stat-name">Experience</div>
+      <div class="stat-footer">
+        <span class="stat-sub">timeline entries</span>
+      </div>
+    </a>
 
     <div class="stat-card-v2" style="border-color:rgba(99,102,241,0.25);background:linear-gradient(135deg,var(--bg-2),rgba(99,102,241,0.05))">
       <div class="stat-header">
@@ -341,6 +354,12 @@
           <iconify-icon icon="lucide:folder-plus" width="22"></iconify-icon>
         </span>
         <span>Add Project</span>
+      </a>
+      <a href="{{ url_for('admin.new_experience') }}" class="action-card">
+        <span class="action-icon">
+          <iconify-icon icon="lucide:route" width="22"></iconify-icon>
+        </span>
+        <span>Add Experience</span>
       </a>
       <a href="{{ url_for('admin.new_skill') }}" class="action-card">
         <span class="action-icon">

@@ -119,8 +119,11 @@
           <div class="hero-meta">
             <div class="avatar-stack" aria-hidden="true">
               {% for creator in community.avatars %}
-                {% if creator.image %}
-                <img src="{{ creator.image }}" alt="">
+                {% set creator_avatar_url = creator.image|default('', true)|upload_url('profiles') %}
+                {% if creator_avatar_url %}
+                <img src="{{ creator_avatar_url }}" alt="" loading="lazy"
+                     onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+                <span class="avatar-fallback" hidden>{{ creator.initial }}</span>
                 {% else %}
                 <span class="avatar-fallback">{{ creator.initial }}</span>
                 {% endif %}

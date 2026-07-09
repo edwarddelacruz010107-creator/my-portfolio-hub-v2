@@ -192,6 +192,7 @@
                 <li><a href="#about" class="nav-link" data-section="about">About</a></li>
                 <li><a href="#projects" class="nav-link" data-section="projects">Projects</a></li>
                 {% if services %}<li><a href="#services" class="nav-link" data-section="services">Services</a></li>{% endif %}
+                    {% if experiences %}<li><a href="#experience" class="nav-link" data-section="experience">Experience</a></li>{% endif %}
                 {% if testimonials %}<li><a href="#testimonials" class="nav-link" data-section="testimonials">Testimonials</a></li>{% endif %}
                 <li><a href="#contact" class="nav-link" data-section="contact">Contact</a></li>
                 {% if profile and profile.tenant_slug == 'default' %}
@@ -223,6 +224,7 @@
                 <li><a href="#about" class="mobile-nav-link" data-section="about">About</a></li>
                 <li><a href="#projects" class="mobile-nav-link" data-section="projects">Projects</a></li>
                 {% if services %}<li><a href="#services" class="mobile-nav-link" data-section="services">Services</a></li>{% endif %}
+                    {% if experiences %}<li><a href="#experience" class="mobile-nav-link" data-section="experience">Experience</a></li>{% endif %}
                 {% if testimonials %}<li><a href="#testimonials" class="mobile-nav-link" data-section="testimonials">Testimonials</a></li>{% endif %}
                 <li><a href="#contact" class="mobile-nav-link" data-section="contact">Contact</a></li>
                 {% if profile and profile.tenant_slug == 'default' %}
@@ -706,6 +708,50 @@
                         </button>
                     </div>
                     {% endif %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+
+        {% if experiences %}
+        <!-- ===================== EXPERIENCE TIMELINE SECTION ===================== -->
+        <section id="experience" class="section experience-timeline">
+            <div class="container">
+                <div class="section-header reveal-up">
+                    <span class="section-tag">Career Journey</span>
+                    <h2 class="section-title">Experience <span class="gradient-text">Timeline</span></h2>
+                    <p class="section-subtitle">Work history, internships, freelance roles, milestones, and career highlights.</p>
+                </div>
+
+                <div class="experience-timeline-list">
+                    {% for exp in experiences %}
+                    <article class="experience-timeline-item reveal-up" style="--delay: {{ loop.index0 * 0.08 }}s">
+                        <div class="experience-timeline-marker">
+                            <iconify-icon icon="{{ exp.icon or 'lucide:briefcase-business' }}" width="18"></iconify-icon>
+                        </div>
+                        <div class="experience-timeline-card">
+                            <div class="experience-timeline-meta">
+                                <span>{{ exp.date_range or exp.year }}</span>
+                                {% if exp.employment_type %}<span>{{ exp.employment_type }}</span>{% endif %}
+                                {% if exp.is_current %}<span class="experience-current">Current</span>{% endif %}
+                            </div>
+                            <h3 class="experience-role">{{ exp.role }}</h3>
+                            <p class="experience-company">{{ exp.company }}{% if exp.location %} · {{ exp.location }}{% endif %}</p>
+                            {% if exp.description %}<p class="experience-desc">{{ exp.description }}</p>{% endif %}
+                            {% if exp.achievements_list %}
+                            <ul class="experience-achievements">
+                                {% for item in exp.achievements_list %}<li>{{ item }}</li>{% endfor %}
+                            </ul>
+                            {% endif %}
+                            {% if exp.technologies_list %}
+                            <div class="experience-tech">
+                                {% for tech in exp.technologies_list %}<span>{{ tech }}</span>{% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </article>
+                    {% endfor %}
                 </div>
             </div>
         </section>

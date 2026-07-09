@@ -618,6 +618,36 @@ class ServiceForm(FlaskForm):
     submit      = SubmitField('Save Service')
 
 
+# ── Work Experience ──────────────────────────────────────────────────────────
+
+class WorkExperienceForm(FlaskForm):
+    role = StringField('Role / Position', validators=[DataRequired(), Length(max=160)])
+    company = StringField('Company / Organization', validators=[DataRequired(), Length(max=160)])
+    employment_type = SelectField('Type', choices=[
+        ('Full-time', 'Full-time'),
+        ('Part-time', 'Part-time'),
+        ('Contract', 'Contract'),
+        ('Freelance', 'Freelance'),
+        ('Internship', 'Internship'),
+        ('Self-employed', 'Self-employed'),
+        ('Project', 'Project'),
+        ('Volunteer', 'Volunteer'),
+        ('Certification', 'Certification'),
+        ('Other', 'Other'),
+    ], default='Full-time')
+    location = StringField('Location', validators=[Optional(), Length(max=160)])
+    start_date = DateField('Start Date', validators=[Optional()])
+    end_date = DateField('End Date', validators=[Optional()])
+    is_current = BooleanField('I currently work here')
+    description = TextAreaField('Description', validators=[Optional()])
+    achievements = TextAreaField('Key Achievements / Responsibilities', validators=[Optional()])
+    technologies = StringField('Technologies / Skills (comma-separated)', validators=[Optional()])
+    icon = StringField('Iconify Icon', validators=[Optional(), Length(max=100)], description='e.g. lucide:briefcase-business')
+    display_order = IntegerField('Display Order', validators=[Optional(), NumberRange(min=0)], default=0)
+    is_visible = BooleanField('Visible on Portfolio', default=True)
+    submit = SubmitField('Save Experience')
+
+
 # ── Utilities ─────────────────────────────────────────────────────────────────
 
 class ReorderForm(FlaskForm):

@@ -61,7 +61,7 @@ from app import create_app, db  # noqa: E402
 # Import ALL models so SQLAlchemy metadata is fully populated.
 # Alembic compares this metadata against the live DB to generate diffs.
 from app.models.portfolio import (        # noqa: F401
-    Profile, Skill, Project,
+    Profile, Skill, Project, WorkExperience,
     Testimonial, ActivityLog, Inquiry,
     Subscription, PaymentMethod, PaymentInstruction,
     PaymentSubmission, WebhookEvent, PlatformSetting,

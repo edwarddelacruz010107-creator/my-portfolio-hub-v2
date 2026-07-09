@@ -871,6 +871,51 @@
         }
 
         /* ============================================
+           CMS FEATURE SECTIONS: SERVICES / TESTIMONIALS / CERTIFICATES
+           ============================================ */
+        .cms-grid {
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+            gap:1.25rem;
+            margin-top:3rem;
+        }
+        .cms-card {
+            position:relative;
+            min-height:100%;
+            padding:1.35rem;
+            background:rgba(255,255,255,0.035);
+            border:1px solid var(--border);
+            border-radius:14px;
+            overflow:hidden;
+            transition:transform .28s ease,border-color .28s ease,box-shadow .28s ease,background .28s ease;
+        }
+        .cms-card::before {
+            content:'';position:absolute;inset:0 0 auto 0;height:2px;
+            background:linear-gradient(90deg,var(--green),var(--cyan),var(--purple));
+            opacity:.75;
+        }
+        .cms-card:hover { transform:translateY(-5px); border-color:rgba(0,255,65,.26); box-shadow:0 18px 42px rgba(0,0,0,.25); background:rgba(255,255,255,.055); }
+        .cms-icon {
+            width:46px;height:46px;border-radius:12px;margin-bottom:1rem;
+            display:flex;align-items:center;justify-content:center;
+            color:var(--green);border:1px solid rgba(0,255,65,.18);background:rgba(0,255,65,.055);
+            font-size:18px;
+        }
+        .cms-title {font-size:1rem;font-weight:700;margin-bottom:.5rem;color:#fff;}
+        .cms-text {font-size:.9rem;color:var(--text2);line-height:1.75;}
+        .cms-list {display:flex;flex-wrap:wrap;gap:.45rem;margin-top:1rem;}
+        .cms-pill {font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--cyan);border:1px solid rgba(0,240,255,.16);background:rgba(0,240,255,.045);border-radius:999px;padding:.26rem .56rem;}
+        .testimonial-stars {color:#fbbf24;font-size:.78rem;letter-spacing:2px;margin-bottom:.85rem;}
+        .testimonial-author {display:flex;align-items:center;gap:.8rem;margin-top:1.1rem;}
+        .testimonial-avatar {width:42px;height:42px;border-radius:50%;object-fit:cover;border:1px solid rgba(0,255,65,.28);}
+        .testimonial-initial {width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1px solid rgba(0,255,65,.28);background:rgba(0,255,65,.08);font-family:'JetBrains Mono',monospace;color:var(--green);}
+        .testimonial-name {font-size:.9rem;font-weight:700;color:#fff;}
+        .testimonial-role {font-size:.75rem;color:var(--text3);}
+        .certificate-media {width:100%;height:150px;border-radius:12px;object-fit:cover;border:1px solid var(--border);background:rgba(255,255,255,.04);margin-bottom:1rem;}
+        .certificate-meta {font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--cyan);margin-bottom:.35rem;}
+        .certificate-link {display:inline-flex;align-items:center;gap:.4rem;margin-top:1rem;color:var(--green);font-family:'JetBrains Mono',monospace;font-size:.76rem;}
+
+        /* ============================================
            CONTACT SECTION
            ============================================ */
         #contact {
@@ -1174,13 +1219,15 @@
 
         <!-- NAVIGATION -->
         <nav id="navbar" role="navigation" aria-label="Main navigation">
-            <div class="nav-logo neon-flicker">&lt;<span>JC</span>/&gt;</div>
+            <div class="nav-logo neon-flicker">&lt;<span>{{ portfolio.initials or 'ME' }}</span>/&gt;</div>
             <ul class="nav-links">
                 <li><a href="#hero" class="active">Home</a></li>
                 <li><a href="#about">About</a></li>
                 <li><a href="#skills">Skills</a></li>
                 <li><a href="#projects">Projects</a></li>
-                <li><a href="#experience">Experience</a></li>
+                {% if portfolio.services %}<li><a href="#services">Services</a></li>{% endif %}
+                {% if portfolio.testimonials %}<li><a href="#testimonials">Testimonials</a></li>{% endif %}
+                {% if portfolio.certificates %}<li><a href="#certificates">Certificates</a></li>{% endif %}
                 <li><a href="#contact">Contact</a></li>
             </ul>
             <button class="nav-hamburger" id="navHamburger" aria-label="Toggle menu" aria-expanded="false">
@@ -1194,7 +1241,9 @@
             <a href="#about">About</a>
             <a href="#skills">Skills</a>
             <a href="#projects">Projects</a>
-            <a href="#experience">Experience</a>
+            {% if portfolio.services %}<a href="#services">Services</a>{% endif %}
+            {% if portfolio.testimonials %}<a href="#testimonials">Testimonials</a>{% endif %}
+            {% if portfolio.certificates %}<a href="#certificates">Certificates</a>{% endif %}
             <a href="#contact">Contact</a>
         </div>
 
@@ -1284,7 +1333,7 @@
                 <div class="about-grid">
                     <div class="reveal">
                         <p class="about-bio">
-                            I'm <strong>Jian Cody {{ name_parts[1] }}</strong>, a software developer who builds robust systems, automations, and digital experiences. I operate across the full stack — from designing database schemas and writing backend APIs, to crafting responsive frontends and deploying containerized applications.
+                            I'm <strong>{{ portfolio.name }}</strong>, {{ portfolio.bio_plain or 'a creator building robust systems, automations, and digital experiences.' }}
                         </p>
                         <p class="about-bio">
                             {{ portfolio.bio_extended | safe if portfolio.bio_extended else '' }}
@@ -1376,19 +1425,105 @@
             </div>
         </section>
 
+        {% if portfolio.services %}
+        <!-- SERVICES -->
+        <section id="services">
+            <div class="section-container">
+                <div class="reveal">
+                    <p class="section-label">// service_catalog</p>
+                    <h2 class="section-title">Services</h2>
+                    <p class="section-subtitle">Editable service cards from the Admin dashboard.</p>
+                </div>
+                <div class="cms-grid">
+                    {% for service in portfolio.services %}
+                    <article class="cms-card reveal">
+                        <div class="cms-icon"><i class="fas fa-briefcase"></i></div>
+                        <h3 class="cms-title">{{ service.name }}</h3>
+                        <p class="cms-text">{{ service.description }}</p>
+                        {% if service.features %}
+                        <div class="cms-list">
+                            {% for feature in service.features %}<span class="cms-pill">{{ feature }}</span>{% endfor %}
+                        </div>
+                        {% endif %}
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if portfolio.testimonials %}
+        <!-- TESTIMONIALS -->
+        <section id="testimonials">
+            <div class="section-container">
+                <div class="reveal">
+                    <p class="section-label">// client_feedback</p>
+                    <h2 class="section-title">Testimonials</h2>
+                    <p class="section-subtitle">Reviews and feedback managed from the Admin dashboard.</p>
+                </div>
+                <div class="cms-grid">
+                    {% for t in portfolio.testimonials %}
+                    <article class="cms-card reveal">
+                        <div class="testimonial-stars" aria-label="{{ t.rating }} out of 5 stars">{% for _ in range(t.rating or 5) %}★{% endfor %}</div>
+                        <p class="cms-text">“{{ t.message }}”</p>
+                        <div class="testimonial-author">
+                            {% if t.avatar_url %}
+                            <img class="testimonial-avatar" src="{{ t.avatar_url }}" alt="{{ t.name }}" loading="lazy">
+                            {% else %}
+                            <div class="testimonial-initial">{{ (t.name or 'C')[:1] }}</div>
+                            {% endif %}
+                            <div>
+                                <div class="testimonial-name">{{ t.name }}</div>
+                                <div class="testimonial-role">{{ t.role_display }}</div>
+                            </div>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if portfolio.certificates %}
+        <!-- CERTIFICATES -->
+        <section id="certificates">
+            <div class="section-container">
+                <div class="reveal">
+                    <p class="section-label">// credentials</p>
+                    <h2 class="section-title">Certificates & Badges</h2>
+                    <p class="section-subtitle">Credentials, certificates, and badges edited from the Admin dashboard.</p>
+                </div>
+                <div class="cms-grid">
+                    {% for c in portfolio.certificates %}
+                    <article class="cms-card reveal">
+                        {% set cert_image = c.badge_url or c.image_url %}
+                        {% if cert_image %}<img class="certificate-media" src="{{ cert_image }}" alt="{{ c.title }}" loading="lazy">{% endif %}
+                        <div class="certificate-meta">{{ c.issuer }}{% if c.issue_date %} · {{ c.issue_date }}{% endif %}</div>
+                        <h3 class="cms-title">{{ c.title }}</h3>
+                        <p class="cms-text">{{ c.description }}</p>
+                        {% if c.skills %}<div class="cms-list">{% for skill in c.skills %}<span class="cms-pill">{{ skill }}</span>{% endfor %}</div>{% endif %}
+                        {% if c.verification_url %}<a class="certificate-link" href="{{ c.verification_url }}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Verify</a>{% endif %}
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+
+        {% if portfolio.experiences %}
         <!-- EXPERIENCE -->
         <section id="experience">
             <div class="section-container">
                 <div class="reveal">
                     <p class="section-label">// mission_log</p>
                     <h2 class="section-title">Experience Timeline</h2>
-                    <p class="section-subtitle">A chronological record of career milestones, projects, and achievements.</p>
+                    <p class="section-subtitle">Work history, milestones, and career highlights edited from the Admin dashboard.</p>
                 </div>
-                <div class="timeline" id="timeline">
-                    <!-- Populated by JS -->
-                </div>
+                <div class="timeline" id="timeline"></div>
             </div>
         </section>
+        {% endif %}
 
         <!-- CONTACT -->
         <section id="contact">
@@ -1425,7 +1560,7 @@
                             <a href="{{ portfolio.github_url or '#' }}" class="social-btn" aria-label="GitHub"{% if not portfolio.github_url %} style="display:none"{% endif %}><i class="fab fa-github"></i></a>
                             <a href="{{ portfolio.linkedin_url or '#' }}" class="social-btn" aria-label="LinkedIn"{% if not portfolio.linkedin_url %} style="display:none"{% endif %}><i class="fab fa-linkedin-in"></i></a>
                             <a href="{{ portfolio.facebook_url or '#' }}" class="social-btn" aria-label="Facebook"{% if not portfolio.facebook_url %} style="display:none"{% endif %}><i class="fab fa-facebook-f"></i></a>
-                            <a href="#" class="social-btn" aria-label="Email"><i class="fas fa-envelope"></i></a>
+                            <a href="mailto:{{ portfolio.email }}" class="social-btn" aria-label="Email"{% if not portfolio.email %} style="display:none"{% endif %}><i class="fas fa-envelope"></i></a>
                         </div>
                     </div>
                     <div class="contact-form-wrapper reveal">
@@ -1439,15 +1574,15 @@
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
                             <div class="form-group">
                                 <label class="form-label" for="formName">Identifier</label>
-                                <input class="form-input" type="text" id="formName" placeholder="Your name" required autocomplete="name">
+                                <input class="form-input" type="text" id="formName" name="name" placeholder="Your name" required autocomplete="name">
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="formEmail">Comm Channel</label>
-                                <input class="form-input" type="email" id="formEmail" placeholder="your@email.com" required autocomplete="email">
+                                <input class="form-input" type="email" id="formEmail" name="email" placeholder="your@email.com" required autocomplete="email">
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="formMessage">Payload</label>
-                                <textarea class="form-textarea" id="formMessage" placeholder="Your message..." required></textarea>
+                                <textarea class="form-textarea" id="formMessage" name="message" placeholder="Your message..." required></textarea>
                             </div>
                             <div class="form-submit-wrapper">
                                 <button type="submit" class="btn-send" id="btnSend">
@@ -1467,7 +1602,7 @@
             <div class="section-container">
                 <div class="footer-content">
                     <div class="footer-text">
-                        &copy; 2024 <span class="green">Jian Cody {{ name_parts[1] }}</span> — All systems operational
+                        &copy; {{ current_year if current_year is defined else 2026 }} <span class="green">{{ portfolio.name }}</span> — All systems operational
                     </div>
                     <div class="footer-terminal">
                         <span class="green">$</span> echo "Built with precision"<span class="cursor-blink"></span>
@@ -1557,48 +1692,16 @@
         ];
 
         const experiences = [
+            {% for exp in portfolio.experiences %}
             {
-                year: '2024', title: 'Software Developer',
-                company: 'Freelance / Independent',
-                description: 'Building full-stack applications, AI integrations, and automated systems for diverse clients across multiple industries.',
-                type: 'Work', nodeColor: 'green'
-            },
-            {
-                year: '2024', title: 'CyberSec Portfolio',
-                company: 'Personal Project',
-                description: 'Designed and developed this immersive hacker-themed portfolio website with custom animations and interactive effects.',
-                type: 'Project', nodeColor: 'cyan'
-            },
-            {
-                year: '2023', title: 'AI Automation Developer',
-                company: 'Independent Research',
-                description: 'Developed AI-powered automation tools and orchestration dashboards for workflow optimization and productivity.',
-                type: 'Project', nodeColor: 'purple'
-            },
-            {
-                year: '2023', title: 'NOVA POS System',
-                company: 'Full Stack Build',
-                description: 'Architected and shipped a complete point-of-sale system with inventory management, analytics, and multi-branch support.',
-                type: 'Project', nodeColor: 'cyan'
-            },
-            {
-                year: '2022', title: 'Cybersecurity Fundamentals',
-                company: 'Certification',
-                description: 'Completed comprehensive training covering network security, ethical hacking methodologies, and system defense strategies.',
-                type: 'Certification', nodeColor: 'red'
-            },
-            {
-                year: '2022', title: 'Backend Developer',
-                company: 'Freelance Projects',
-                description: 'Built RESTful APIs, admin panels, and database architectures for multiple clients in e-commerce and SaaS.',
-                type: 'Work', nodeColor: 'green'
-            },
-            {
-                year: '2021', title: 'Started Coding Journey',
-                company: 'Self-Taught',
-                description: 'Began learning Python, web development fundamentals, and Linux system administration. The origin point.',
-                type: 'Milestone', nodeColor: 'purple'
-            }
+                year: {{ (exp.year or exp.date_range or '') | tojson }},
+                title: {{ exp.title | tojson }},
+                company: {{ exp.company | tojson }},
+                description: {{ exp.description | tojson }},
+                type: {{ (exp.type or 'Work') | tojson }},
+                nodeColor: ['green','cyan','purple','red'][{{ loop.index0 }} % 4]
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
         ];
 
         const heroLogMessages = [
@@ -2124,45 +2227,24 @@
             if (!form) return;
 
             form.addEventListener('submit', (e) => {
-                e.preventDefault();
                 const name = document.getElementById('formName').value.trim();
                 const email = document.getElementById('formEmail').value.trim();
                 const message = document.getElementById('formMessage').value.trim();
 
                 if (!name || !email || !message) {
+                    e.preventDefault();
                     status.textContent = '[ERR] All fields required';
                     status.className = 'form-status active';
                     status.style.color = 'var(--red)';
                     return;
                 }
 
-                // Simulate transmission
                 btn.classList.add('sending');
-                btnText.textContent = 'Encrypting...';
-                status.textContent = '[...] Establishing secure channel';
+                btn.disabled = true;
+                btnText.textContent = 'Transmitting...';
+                status.textContent = '[...] Sending payload';
                 status.className = 'form-status active';
                 status.style.color = '';
-
-                setTimeout(() => {
-                    btnText.textContent = 'Transmitting...';
-                    status.textContent = '[...] Sending payload';
-                }, 1200);
-
-                setTimeout(() => {
-                    btn.classList.remove('sending');
-                    btn.classList.add('sent');
-                    btnText.textContent = 'Sent';
-                    status.textContent = '[OK] Transmission complete';
-                    status.className = 'form-status done';
-                    status.style.color = '';
-
-                    form.reset();
-                    setTimeout(() => {
-                        btn.classList.remove('sent');
-                        btnText.textContent = 'Transmit';
-                        status.textContent = '';
-                    }, 3000);
-                }, 2800);
             });
         }
 

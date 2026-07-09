@@ -36,12 +36,15 @@ falls back from getattr to getitem, and all 3 installed themes
 -- verified before making this change.
 """
 
+from flask import url_for
+
 from app.services.theme_serializers import (
     serialize_project,
     serialize_skill,
     serialize_service,
     serialize_testimonial,
     serialize_certificate,
+    serialize_experience,
     serialize_social_links,
 )
 
@@ -55,6 +58,29 @@ def _initials(name: str) -> str:
     return (parts[0][0] + parts[-1][0]).upper()
 
 
+def _upload_url(value: str, subfolder: str) -> str:
+    """Return a safe public URL for uploaded media passed to theme templates.
+
+    Existing default templates can use the `upload_url` Jinja filter, but
+    swappable dynamic themes receive normalized plain dicts through
+    `portfolio`. Centralizing URL resolution here keeps Developer Pro and all
+    new themes from accidentally rendering raw filenames as broken image srcs.
+    """
+    value = (value or '').strip() if isinstance(value, str) else ''
+    if not value or value.lower() in {'none', 'null', 'undefined'}:
+        return ''
+    if value.startswith(('http://', 'https://', 'data:')):
+        return value
+    if value.startswith('/static/') or value.startswith('/uploads/'):
+        return value
+    if value.startswith(('/', '\\')) or '..' in value.replace('\\', '/') or any(ch in value for ch in ('\x00', '\r', '\n')):
+        return ''
+    try:
+        return url_for('static', filename=f'uploads/{subfolder}/{value}')
+    except Exception:
+        return f'/static/uploads/{subfolder}/{value}'
+
+
 def build_portfolio_view(
     profile,
     projects=None,
@@ -62,6 +88,7 @@ def build_portfolio_view(
     services=None,
     testimonials=None,
     certificates=None,
+    experiences=None,
     stats=None,
     tenant_slug='default',
     contact_url='#',
@@ -83,6 +110,7 @@ def build_portfolio_view(
     services = services or []
     testimonials = testimonials or []
     certificates = certificates or []
+    experiences = experiences or []
     skills_by_category = skills_by_category or {}
     stats = stats or {}
 
@@ -112,15 +140,19 @@ def build_portfolio_view(
         else:
             view['case_study_url'] = ''
             view['url'] = ''
+        view['image_raw'] = view.get('image_url', '')
+        view['image_url'] = _upload_url(view.get('image_url', ''), 'projects')
         project_views.append(view)
 
-    skills_grouped = [
-        {
+    skills_grouped = []
+    for category, skill_list in skills_by_category.items():
+        items = [serialize_skill(s) for s in skill_list]
+        skills_grouped.append({
             'category': category,
-            'skills': [serialize_skill(s) for s in skill_list],
-        }
-        for category, skill_list in skills_by_category.items()
-    ]
+            'name': category,      # compatibility alias for Futuristic Cyber-style templates
+            'skills': items,
+            'items': items,        # compatibility alias for Futuristic Cyber-style templates
+        })
 
     stats_list = [
         {'label': 'Projects', 'value': stats.get('projects_count', 0) or 0},
@@ -130,7 +162,18 @@ def build_portfolio_view(
 
     service_views = [serialize_service(s) for s in services]
     testimonial_views = [serialize_testimonial(t) for t in testimonials]
+    for testimonial in testimonial_views:
+        testimonial['avatar_raw'] = testimonial.get('avatar_url', '')
+        testimonial['avatar_url'] = _upload_url(testimonial.get('avatar_url', ''), 'profiles')
+
+    experience_views = [serialize_experience(e) for e in experiences]
+
     certificate_views = [serialize_certificate(c) for c in certificates]
+    for certificate in certificate_views:
+        certificate['image_raw'] = certificate.get('image_path', '')
+        certificate['badge_raw'] = certificate.get('badge_path', '')
+        certificate['image_url'] = _upload_url(certificate.get('image_path', ''), 'certificates')
+        certificate['badge_url'] = _upload_url(certificate.get('badge_path', ''), 'certificates')
 
     bio = getattr(profile, 'bio', '') or '' if profile else ''
     bio_short = getattr(profile, 'bio_short', '') or '' if profile else ''
@@ -141,7 +184,11 @@ def build_portfolio_view(
         'bio': bio,
         'bio_plain': bio_short or bio,
         'bio_extended': bio,
-        'avatar_url': getattr(profile, 'profile_image', '') or '' if profile else '',
+        'avatar_url': _upload_url(getattr(profile, 'profile_image', '') or '', 'profiles') if profile else '',
+        'avatar_raw': getattr(profile, 'profile_image', '') or '' if profile else '',
+        'phone': getattr(profile, 'phone', '') or '' if profile else '',
+        'subtitle': getattr(profile, 'subtitle', '') or '' if profile else '',
+        'hero_tagline': getattr(profile, 'hero_tagline', '') or '' if profile else '',
         'slug': tenant_slug,
         'public_url': tenant_portfolio_public_url(tenant_slug) if 'tenant_portfolio_public_url' in locals() and tenant_portfolio_public_url else '',
         'email': getattr(profile, 'email', '') or '' if profile else '',
@@ -151,13 +198,18 @@ def build_portfolio_view(
         'linkedin_url': social['linkedin'],
         'twitter_url': social['twitter'],
         'facebook_url': social['facebook'],
+        'instagram_url': social.get('instagram'),
+        'youtube_url': social.get('youtube'),
+        'dribbble_url': social.get('dribbble'),
+        'behance_url': social.get('behance'),
+        'social_links': social,
         'resume_url': getattr(profile, 'resume_url', '') or '' if profile else '',
         'available_for_work': bool(getattr(profile, 'is_available', False)) if profile else False,
         'availability_text': getattr(profile, 'availability_status', '') or '' if profile else '',
         'stats': stats_list,
         'skills': skills_grouped,
         'projects': project_views,
-        'experiences': [],  # no Experience model yet -- see theme_serializers.serialize_experience
+        'experiences': experience_views,
         'services': service_views,
         'testimonials': testimonial_views,
         'certificates': certificate_views,

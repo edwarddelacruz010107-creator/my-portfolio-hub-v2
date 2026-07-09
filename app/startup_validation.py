@@ -222,6 +222,7 @@ def ensure_tenant_schema(app, engine) -> None:
     """Auto-heal tenant schema for project reaction support on startup."""
     from app.models.tenant_data import (
         Certificate,
+        WorkExperience,
         Profile,
         Project,
         ProjectReaction,
@@ -234,7 +235,7 @@ def ensure_tenant_schema(app, engine) -> None:
         app.logger.warning(
             '[SCHEMA] Tenant schema incomplete: projects table missing on TENANT_DATABASE_URL. Creating tenant tables.'
         )
-        for model in (Profile, Skill, Project, ProjectReaction, Testimonial, Service, Certificate):
+        for model in (Profile, Skill, Project, ProjectReaction, Testimonial, Service, Certificate, WorkExperience):
             model.__table__.create(bind=engine, checkfirst=True)
         return
 
@@ -252,7 +253,12 @@ def ensure_tenant_schema(app, engine) -> None:
     if not _has_table(engine, 'project_reactions'):
         ProjectReaction.__table__.create(bind=engine, checkfirst=True)
         app.logger.info('[SCHEMA] Created missing table project_reactions')
-    else:
+
+    if not _has_table(engine, 'work_experiences'):
+        WorkExperience.__table__.create(bind=engine, checkfirst=True)
+        app.logger.info('[SCHEMA] Created missing table work_experiences')
+
+    if _has_table(engine, 'project_reactions'):
         if 'tenant_id' not in reaction_columns:
             _execute_ddl(engine, 'ALTER TABLE project_reactions ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 0')
             app.logger.info('[SCHEMA] Added missing column project_reactions.tenant_id')

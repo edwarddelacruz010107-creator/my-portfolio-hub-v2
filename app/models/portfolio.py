@@ -31,7 +31,7 @@ Canonical owners:
     SubscriptionNotification, ActivityLog
     → app/models/core.py
 
-  • Profile, Skill, Project, Testimonial, Service, Certificate, TenantFormSettings
+  • Profile, Skill, Project, ProjectReaction, Testimonial, Service, Certificate, WorkExperience, TenantFormSettings
     → app/models/tenant_data.py
 """
 
@@ -73,9 +73,11 @@ from app.models.tenant_data import (
     Profile,
     Skill,
     Project,
+    ProjectReaction,
     Testimonial,
     Service,
     Certificate,
+    WorkExperience,
 )
 
 # ── Form settings (core_db canonical source) ──────────────────────────────────
@@ -140,7 +142,10 @@ __all__ = [
     'Profile',
     'Skill',
     'Project',
+    'ProjectReaction',
     'Testimonial',
     'Service',
+    'Certificate',
+    'WorkExperience',
     'TenantFormSettings',
 ]

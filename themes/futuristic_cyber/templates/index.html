@@ -273,6 +273,17 @@
         .project-link { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 5px; transition: color 0.3s; letter-spacing: 0.5px; }
         .project-link:hover { color: var(--green); }
 
+        /* ── Testimonials & Certificates ── */
+        #testimonials, #certificates { position: relative; z-index: 2; padding: 8rem 0; }
+        .cms-card-body { padding: 20px; }
+        .cms-card-body h3 { font-size: 17px; font-weight: 600; color: #fff; margin-bottom: 8px; }
+        .cms-card-body p { font-size: 13px; color: var(--text2); line-height: 1.7; margin-bottom: 14px; }
+        .testimonial-stars { color: #fbbf24; letter-spacing: 2px; font-size: 12px; margin-bottom: 14px; }
+        .testimonial-author { display: flex; gap: 12px; align-items: center; margin-top: 16px; }
+        .testimonial-author img, .testimonial-author .initial { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(0,255,65,0.25); }
+        .testimonial-author .initial { display: grid; place-items: center; color: var(--green); background: rgba(0,255,65,0.08); font-family: 'JetBrains Mono', monospace; }
+        .certificate-img { width: 100%; height: 180px; object-fit: cover; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); }
+
         /* ── Experience/Timeline ── */
         #experience { position: relative; z-index: 2; padding: 8rem 0; }
         .timeline { position: relative; margin-top: 3rem; padding-left: 40px; }
@@ -405,6 +416,8 @@
                 <li><a href="#about">About</a></li>
                 {% if portfolio.skills %}<li><a href="#skills">Skills</a></li>{% endif %}
                 {% if portfolio.projects %}<li><a href="#projects">Projects</a></li>{% endif %}
+                {% if portfolio.testimonials %}<li><a href="#testimonials">Testimonials</a></li>{% endif %}
+                {% if portfolio.certificates %}<li><a href="#certificates">Certificates</a></li>{% endif %}
                 {% if portfolio.experiences %}<li><a href="#experience">Experience</a></li>{% endif %}
                 <li><a href="#contact">Contact</a></li>
             </ul>
@@ -419,6 +432,8 @@
             <a href="#about">About</a>
             {% if portfolio.skills %}<a href="#skills">Skills</a>{% endif %}
             {% if portfolio.projects %}<a href="#projects">Projects</a>{% endif %}
+            {% if portfolio.testimonials %}<a href="#testimonials">Testimonials</a>{% endif %}
+            {% if portfolio.certificates %}<a href="#certificates">Certificates</a>{% endif %}
             {% if portfolio.experiences %}<a href="#experience">Experience</a>{% endif %}
             <a href="#contact">Contact</a>
         </div>
@@ -653,6 +668,64 @@
         </section>
         {% endif %}
 
+        <!-- ── TESTIMONIALS ── -->
+        {% if portfolio.testimonials %}
+        <section id="testimonials">
+            <div class="section-container">
+                <div class="reveal">
+                    <p class="section-label">// client_feedback</p>
+                    <h2 class="section-title">Testimonials</h2>
+                    <p class="section-subtitle">Reviews and social proof edited from the Admin dashboard.</p>
+                </div>
+                <div class="projects-grid">
+                    {% for t in portfolio.testimonials %}
+                    <article class="project-card reveal">
+                        <div class="cms-card-body">
+                            <div class="testimonial-stars">{% for _ in range(t.rating or 5) %}★{% endfor %}</div>
+                            <p>“{{ t.message }}”</p>
+                            <div class="testimonial-author">
+                                {% if t.avatar_url %}<img src="{{ t.avatar_url }}" alt="{{ t.name }}" loading="lazy">{% else %}<div class="initial">{{ (t.name or 'C')[:1] }}</div>{% endif %}
+                                <div>
+                                    <h3 style="margin:0;font-size:14px">{{ t.name }}</h3>
+                                    <span style="color:var(--text3);font-size:12px">{{ t.role_display }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- ── CERTIFICATES ── -->
+        {% if portfolio.certificates %}
+        <section id="certificates">
+            <div class="section-container">
+                <div class="reveal">
+                    <p class="section-label">// credentials</p>
+                    <h2 class="section-title">Certificates & Badges</h2>
+                    <p class="section-subtitle">Certificates and achievements edited from the Admin dashboard.</p>
+                </div>
+                <div class="projects-grid">
+                    {% for c in portfolio.certificates %}
+                    <article class="project-card reveal">
+                        {% set cert_img = c.badge_url or c.image_url %}
+                        {% if cert_img %}<img class="certificate-img" src="{{ cert_img }}" alt="{{ c.title }}" loading="lazy">{% endif %}
+                        <div class="cms-card-body">
+                            <div class="project-tech"><span>{{ c.issuer }}</span>{% if c.issue_date %}<span>{{ c.issue_date }}</span>{% endif %}</div>
+                            <h3>{{ c.title }}</h3>
+                            <p>{{ c.description }}</p>
+                            {% if c.skills %}<div class="project-tech">{% for skill in c.skills %}<span>{{ skill }}</span>{% endfor %}</div>{% endif %}
+                            {% if c.verification_url %}<a href="{{ c.verification_url }}" class="project-link" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> Verify</a>{% endif %}
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
         <!-- ── EXPERIENCE ── -->
         {% if portfolio.experiences %}
         <section id="experience">
@@ -754,7 +827,7 @@
                         <form id="contactForm"
                               action="{{ portfolio.contact_form_action or url_for('portfolio.contact', slug=portfolio.slug) }}"
                               method="POST" novalidate>
-                            {{ csrf_token() if csrf_token is defined }}
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
                             <div class="form-group">
                                 <label class="form-label" for="formName">Identifier</label>
                                 <input class="form-input" type="text" id="formName" name="name"

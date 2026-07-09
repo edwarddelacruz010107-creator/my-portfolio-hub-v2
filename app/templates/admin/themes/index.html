@@ -4,6 +4,7 @@
 {% block title %}Themes · Appearance{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
 <style>
 /* ══════════════════════════════════════════════════════
    THEMES PAGE — Premium SaaS UI
@@ -490,6 +491,23 @@
   background: var(--accent-bg);
   transform: scale(1.05);
 }
+.btn-preview-icon svg {
+  width: 17px;
+  height: 17px;
+  display: block;
+  stroke: currentColor;
+}
+.btn-preview-icon .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 /* ── Upsell notice ────────────────────────────────── */
 .upsell-notice {
@@ -786,8 +804,13 @@
           <a href="{{ url_for('admin.preview_theme', theme_id=theme.id) }}"
              class="btn-preview-icon"
              target="_blank" rel="noopener"
+             aria-label="Preview {{ theme.name }}"
              title="Preview {{ theme.name }}">
-            <i class="fas fa-eye"></i>
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M2.25 12s3.5-6.75 9.75-6.75S21.75 12 21.75 12 18.25 18.75 12 18.75 2.25 12 2.25 12Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M12 15.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="sr-only">Preview {{ theme.name }}</span>
           </a>
         </div>
       </div>

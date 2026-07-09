@@ -1,0 +1,18 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="800" fill="#0a0b0d"/>
+  <path d="M0 80H1200M0 160H1200M0 240H1200M0 320H1200M0 400H1200M0 480H1200M0 560H1200M0 640H1200M0 720H1200M100 0V800M200 0V800M300 0V800M400 0V800M500 0V800M600 0V800M700 0V800M800 0V800M900 0V800M1000 0V800M1100 0V800" stroke="#eef0f2" stroke-opacity="0.06"/>
+  <rect x="72" y="72" width="1056" height="656" rx="8" fill="#111316" stroke="#eef0f2" stroke-opacity="0.18"/>
+  <rect x="112" y="128" width="420" height="44" rx="2" fill="#ff8a3d" fill-opacity="0.16" stroke="#ff8a3d"/>
+  <rect x="112" y="204" width="520" height="22" rx="2" fill="#eef0f2" fill-opacity="0.9"/>
+  <rect x="112" y="248" width="460" height="18" rx="2" fill="#9ca2ab" fill-opacity="0.7"/>
+  <rect x="112" y="292" width="170" height="48" rx="2" fill="#ff8a3d"/>
+  <rect x="304" y="292" width="170" height="48" rx="2" fill="#15181c" stroke="#eef0f2" stroke-opacity="0.2"/>
+  <circle cx="870" cy="244" r="120" fill="#15181c" stroke="#5c8dff" stroke-width="3"/>
+  <path d="M750 244H990M870 124V364" stroke="#5c8dff" stroke-opacity="0.35"/>
+  <rect x="112" y="440" width="210" height="136" rx="4" fill="#15181c" stroke="#eef0f2" stroke-opacity="0.15"/>
+  <rect x="352" y="440" width="210" height="136" rx="4" fill="#15181c" stroke="#eef0f2" stroke-opacity="0.15"/>
+  <rect x="592" y="440" width="210" height="136" rx="4" fill="#15181c" stroke="#eef0f2" stroke-opacity="0.15"/>
+  <rect x="832" y="440" width="210" height="136" rx="4" fill="#15181c" stroke="#eef0f2" stroke-opacity="0.15"/>
+  <text x="112" y="645" fill="#ff8a3d" font-family="monospace" font-size="28" font-weight="700">SCHEMATIC PRO</text>
+  <text x="112" y="682" fill="#9ca2ab" font-family="monospace" font-size="18">dynamic portfolio theme</text>
+</svg>

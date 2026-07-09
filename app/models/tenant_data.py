@@ -15,7 +15,7 @@ Any violation of this rule is a cross-tenant data leak (IDOR).
 """
 
 import re
-from datetime import date as date_type
+from datetime import date as date_type, datetime
 
 from app import db
 from app.utils.datetime_utils import ensure_utc_aware, utc_now
@@ -623,6 +623,88 @@ class Certificate(db.Model):
 
     def __repr__(self):
         return f'<Certificate {self.title!r} issuer={self.issuer!r}>'
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Work Experience Timeline
+# ═════════════════════════════════════════════════════════════════════════════
+
+class WorkExperience(db.Model):
+    """Tenant-owned work experience / timeline item displayed on portfolio themes."""
+    __bind_key__ = 'tenant'
+    __tablename__ = 'work_experiences'
+    __table_args__ = (
+        db.Index('ix_work_experiences_tenant_id', 'tenant_id'),
+        db.Index('ix_work_experiences_tenant_visible', 'tenant_id', 'is_visible'),
+        db.Index('ix_work_experiences_tenant_order', 'tenant_id', 'display_order'),
+        db.Index('ix_work_experiences_tenant_current', 'tenant_id', 'is_current'),
+    )
+
+    id              = db.Column(db.Integer, primary_key=True)
+    tenant_id       = db.Column(db.Integer, nullable=False)
+    tenant_slug     = db.Column(db.String(120), nullable=False, default='default')
+
+    role            = db.Column(db.String(160), nullable=False)
+    company         = db.Column(db.String(160), nullable=False)
+    employment_type = db.Column(db.String(80), default='Full-time')
+    location        = db.Column(db.String(160), default='')
+
+    start_date      = db.Column(db.Date, nullable=True)
+    end_date        = db.Column(db.Date, nullable=True)
+    is_current      = db.Column(db.Boolean, default=False)
+
+    description     = db.Column(db.Text, default='')
+    achievements    = db.Column(db.Text, default='')  # one bullet per line
+    technologies    = db.Column(db.Text, default='')  # comma-separated tags
+    icon            = db.Column(db.String(100), default='lucide:briefcase-business')
+
+    display_order   = db.Column(db.Integer, default=0)
+    is_visible      = db.Column(db.Boolean, default=True)
+
+    created_at      = db.Column(db.DateTime(timezone=True), default=_utcnow)
+    updated_at      = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    @property
+    def achievements_list(self) -> list[str]:
+        return [line.strip() for line in (self.achievements or '').splitlines() if line.strip()]
+
+    @property
+    def technologies_list(self) -> list[str]:
+        return [item.strip() for item in (self.technologies or '').split(',') if item.strip()]
+
+    @property
+    def date_range(self) -> str:
+        def fmt(value):
+            return value.strftime('%b %Y') if value else ''
+        start = fmt(self.start_date)
+        end = 'Present' if self.is_current else fmt(self.end_date)
+        if start and end:
+            return f'{start} – {end}'
+        return start or end or ''
+
+    @property
+    def year(self) -> str:
+        if self.start_date:
+            return str(self.start_date.year)
+        if self.end_date:
+            return str(self.end_date.year)
+        return ''
+
+    def to_dict(self) -> dict:
+        d = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        for k, v in d.items():
+            if isinstance(v, datetime):
+                d[k] = v.isoformat()
+            elif isinstance(v, date_type):
+                d[k] = v.isoformat()
+        d['achievements_list'] = self.achievements_list
+        d['technologies_list'] = self.technologies_list
+        d['date_range'] = self.date_range
+        d['year'] = self.year
+        return d
+
+    def __repr__(self):
+        return f'<WorkExperience {self.role!r} at {self.company!r}>'
 
 
 # ═════════════════════════════════════════════════════════════════════════════

@@ -5,7 +5,7 @@ from flask import abort, g, jsonify, render_template, request, url_for
 from sqlalchemy import or_
 
 from app import db
-from app.models.tenant_data import Profile, Project, Skill, Testimonial, Service, Certificate
+from app.models.tenant_data import Profile, Project, Skill, Testimonial, Service, Certificate, WorkExperience
 from app.services.billing import subscription_access_status, is_in_grace_period
 from app.utils import log_activity
 
@@ -67,6 +67,12 @@ def render_custom_domain_portfolio(domain_record):
         .order_by(Service.display_order.asc())
         .all()
     )
+    experiences = (
+        WorkExperience.query
+        .filter_by(is_visible=True, tenant_slug=tenant)
+        .order_by(WorkExperience.display_order.asc(), WorkExperience.start_date.desc(), WorkExperience.id.desc())
+        .all()
+    )
 
     skills_by_category = {}
     for skill in skills:
@@ -89,6 +95,7 @@ def render_custom_domain_portfolio(domain_record):
         services=services,
         testimonials=testimonials,
         certificates=certificates,
+        experiences=experiences,
         stats=stats,
         tenant_slug=tenant,
         contact_url=url_for('public.contact'),
@@ -107,6 +114,7 @@ def render_custom_domain_portfolio(domain_record):
         testimonials=testimonials,
         certificates=certificates,
         services=services,
+        experiences=experiences,
         stats=stats,
         categories=categories,
         tenant_slug=tenant,

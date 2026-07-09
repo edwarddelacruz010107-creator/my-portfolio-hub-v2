@@ -29,7 +29,7 @@ from app.repositories import (
     activity_log_repository,
     subscription_repository,
 )
-from app.models.portfolio import (Tenant, Profile, Skill, Project, Testimonial, Service,
+from app.models.portfolio import (Tenant, Profile, Skill, Project, Testimonial, Service, WorkExperience,
                                    ActivityLog, Inquiry, InquiryReply, normalize_plan_name,
                                    get_plan_features)
 from sqlalchemy import func
@@ -127,6 +127,7 @@ def dashboard():
         'published_projects': project_query.filter_by(status='published').count(),
         'total_skills':       skill_query.filter_by(is_visible=True).count(),
         'total_testimonials': testimonial_query.count(),
+        'total_experiences': _tenant_slug_filter(WorkExperience.query).count(),
         'profile_completion': get_profile_completion(profile) if profile else 0,
         'featured_projects':  project_query.filter_by(is_featured=True).count(),
         # Message counters — use explicit COUNT() to avoid selecting missing columns

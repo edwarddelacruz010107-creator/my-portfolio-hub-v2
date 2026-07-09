@@ -174,6 +174,39 @@ def _sample_certificates() -> list[SimpleNamespace]:
     ]
 
 
+def _sample_experiences() -> list[SimpleNamespace]:
+    """Preview data for the editable Work Experience Timeline CMS section."""
+    data = [
+        ("Senior Full Stack Developer", "Nova Digital Studio", "Full-time", "Remote", "2024-01-01", None, True,
+         "Building production SaaS dashboards, portfolio systems, and automation tooling.",
+         "Designed multi-tenant Flask architecture\nImplemented payments, email, and theme engine\nImproved admin dashboard UX", "Python, Flask, PostgreSQL, Docker"),
+        ("Frontend/UI Engineer", "Freelance Projects", "Freelance", "Philippines", "2022-06-01", "2023-12-01", False,
+         "Delivered modern animated portfolio, POS, and dashboard interfaces for clients.",
+         "Created responsive UI systems\nBuilt reusable component patterns", "JavaScript, HTML, CSS, Figma"),
+    ]
+    from datetime import date
+    def parse(value):
+        return date.fromisoformat(value) if value else None
+    return [
+        SimpleNamespace(
+            role=role,
+            company=company,
+            employment_type=kind,
+            location=location,
+            start_date=parse(start),
+            end_date=parse(end),
+            is_current=current,
+            description=description,
+            achievements=achievements,
+            technologies=tech,
+            icon="lucide:briefcase-business",
+            display_order=i,
+            is_visible=True,
+        )
+        for i, (role, company, kind, location, start, end, current, description, achievements, tech) in enumerate(data)
+    ]
+
+
 def build_sample_context(tenant_slug: str = "preview", contact_url: str = "#") -> dict:
     """
     Returns kwargs ready to pass straight into ThemeEngine.render(), using
@@ -187,6 +220,7 @@ def build_sample_context(tenant_slug: str = "preview", contact_url: str = "#") -
     services = _sample_services()
     testimonials = _sample_testimonials()
     certificates = _sample_certificates()
+    experiences = _sample_experiences()
 
     stats = {
         "projects_count": len(projects),
@@ -201,6 +235,7 @@ def build_sample_context(tenant_slug: str = "preview", contact_url: str = "#") -
         services=services,
         testimonials=testimonials,
         certificates=certificates,
+        experiences=experiences,
         stats=stats,
         tenant_slug=tenant_slug,
         contact_url=contact_url,
@@ -217,6 +252,7 @@ def build_sample_context(tenant_slug: str = "preview", contact_url: str = "#") -
         "testimonials": testimonials,
         "certificates": certificates,
         "services": services,
+        "experiences": experiences,
         "stats": stats,
         "categories": categories,
         "tenant_slug": tenant_slug,

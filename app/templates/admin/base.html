@@ -143,6 +143,12 @@
         <span class="nav-icon"><iconify-icon icon="lucide:briefcase" width="17"></iconify-icon></span>
         Services
       </a>
+      <a href="{{ url_for('admin.experiences') }}"
+         class="nav-item {% if 'experience' in (request.endpoint or '') %}active{% endif %}"
+         {% if 'experience' in (request.endpoint or '') %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:route" width="17"></iconify-icon></span>
+        Experience Timeline
+      </a>
       <a href="{{ url_for('admin.messages') }}"
          class="nav-item {% if 'message' in (request.endpoint or '') %}active{% endif %}"
          {% if 'message' in (request.endpoint or '') %}aria-current="page"{% endif %}>

@@ -36,7 +36,7 @@ from app import db, csrf, limiter, cache
 from app.forms import PlanSelectionForm
 from app.security import FileUploadPolicy, log_security_event
 from app.models.portfolio import (
-    Profile, Project, Skill, Testimonial, Service, Certificate,
+    Profile, Project, Skill, Testimonial, Service, Certificate, WorkExperience,
     Inquiry, Subscription, TenantCommunicationSettings,
     normalize_plan_name,
 )
@@ -227,6 +227,12 @@ def portfolio():
         .order_by(Service.display_order.asc(), Service.id.asc())
         .all()
     )
+    experiences = (
+        WorkExperience.query
+        .filter_by(is_visible=True, tenant_slug=tenant)
+        .order_by(WorkExperience.display_order.asc(), WorkExperience.start_date.desc(), WorkExperience.id.desc())
+        .all()
+    )
 
     skills_by_category = {}
     for skill in skills:
@@ -253,6 +259,7 @@ def portfolio():
         services=services,
         testimonials=testimonials,
         certificates=certificates,
+        experiences=experiences,
         stats=stats,
         tenant_slug=tenant,
         contact_url=url_for('tenant.contact', tenant_slug=tenant),
@@ -271,6 +278,7 @@ def portfolio():
         testimonials=testimonials,
         certificates=certificates,
         services=services,
+        experiences=experiences,
         stats=stats,
         categories=categories,
         tenant_slug=tenant,

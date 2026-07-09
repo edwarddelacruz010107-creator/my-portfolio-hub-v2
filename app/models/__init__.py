@@ -62,6 +62,7 @@ from app.models.tenant_data import (
     Testimonial,
     Service,
     Certificate,
+    WorkExperience,
 )
 
 # ── Form settings (core_db — canonical owner: app/models/tenant_form_settings.py) ──
@@ -83,7 +84,7 @@ __all__ = [
     'ThemeCatalogEntry', 'VALID_REQUIRED_PLANS',
     'DiscountCampaign', 'DiscountRedemption', 'Invoice',
     # tenant_data_db
-    'Profile', 'Skill', 'Project', 'ProjectReaction', 'Testimonial', 'Service', 'Certificate', 'TenantFormSettings',
+    'Profile', 'Skill', 'Project', 'ProjectReaction', 'Testimonial', 'Service', 'Certificate', 'WorkExperience', 'TenantFormSettings',
     # helpers
     'encrypt_secret', 'decrypt_secret',
     'normalize_plan_name', 'get_plan_features',

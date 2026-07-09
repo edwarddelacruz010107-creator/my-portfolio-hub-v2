@@ -2,7 +2,7 @@
   "id": "developer_pro",
   "name": "Developer Pro",
   "version": "1.0.0",
-  "description": "A hacker-aesthetic cyberpunk portfolio with glitch effects, matrix animations, interactive terminal easter egg, animated skill bars, and a live boot sequence preloader. Built for developers who want their portfolio to feel like a sci-fi product.",
+  "description": "A hacker-aesthetic cyberpunk portfolio with matrix animations, terminal interactions, and full Portfolio CMS feature support: profile, projects, skills, services, testimonials, certificates/badges, social links, resume, uploaded media, and contact form, and editable work experience timeline.",
   "author": "Portfolio CMS",
   "premium": true,
   "preview_image": "/static/themes/developer_pro/preview.svg",
@@ -11,13 +11,26 @@
   "supports_animation": true,
   "supports_custom_colors": false,
   "supports_blog": false,
-  "supports_testimonials": false,
-  "supports_services": false,
+  "supports_testimonials": true,
+  "supports_services": true,
   "supports_projects": true,
   "supports_skills": true,
   "supports_contact_form": true,
   "compatibility_version": "6.3",
-  "tags": ["dark", "cyberpunk", "hacker", "developer", "animated", "terminal"],
+  "tags": [
+    "certificates",
+    "services",
+    "testimonials",
+    "dark",
+    "hacker",
+    "animated",
+    "terminal",
+    "full-cms",
+    "cyberpunk",
+    "developer",
+    "experience",
+    "timeline"
+  ],
   "color_scheme": {
     "primary": "#00ff41",
     "secondary": "#00f0ff",
@@ -25,5 +38,8 @@
     "danger": "#ff0040",
     "background": "#050505",
     "text": "#e0e0e0"
-  }
+  },
+  "supports_certificates": true,
+  "supports_experience_timeline": true,
+  "supports_work_experience": true
 }

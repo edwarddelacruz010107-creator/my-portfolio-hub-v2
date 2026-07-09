@@ -1476,7 +1476,7 @@ def _render_default_portfolio():
     """
     from flask import render_template
     from sqlalchemy import or_
-    from app.models.portfolio import Profile, Project, Skill, Testimonial, Service, Certificate
+    from app.models.portfolio import Profile, Project, Skill, Testimonial, Service, Certificate, WorkExperience
 
     TENANT = 'default'
     g.tenant_slug = TENANT
@@ -1516,6 +1516,12 @@ def _render_default_portfolio():
         .order_by(Service.display_order.asc(), Service.id.asc())
         .all()
     )
+    experiences = (
+        WorkExperience.query
+        .filter_by(is_visible=True, tenant_slug=TENANT)
+        .order_by(WorkExperience.display_order.asc(), WorkExperience.start_date.desc(), WorkExperience.id.desc())
+        .all()
+    )
 
     skills_by_category = {}
     for skill in skills:
@@ -1542,6 +1548,7 @@ def _render_default_portfolio():
         services=services,
         testimonials=testimonials,
         certificates=certificates,
+        experiences=experiences,
         stats=stats,
         tenant_slug=TENANT,
         contact_url=contact_url,
@@ -1560,6 +1567,7 @@ def _render_default_portfolio():
         testimonials=testimonials,
         certificates=certificates,
         services=services,
+        experiences=experiences,
         stats=stats,
         categories=categories,
         tenant_slug=TENANT,
@@ -2285,7 +2293,8 @@ def register_cli_commands(app):
             ProjectReaction,
             Testimonial,
             Service,
-            Certificate
+            Certificate,
+            WorkExperience
         )
 
         # Get the tenant database engine using Flask-SQLAlchemy 3.x compatible API
@@ -2322,6 +2331,11 @@ def register_cli_commands(app):
         )
 
         Certificate.__table__.create(
+            bind=tenant_engine,
+            checkfirst=True
+        )
+
+        WorkExperience.__table__.create(
             bind=tenant_engine,
             checkfirst=True
         )

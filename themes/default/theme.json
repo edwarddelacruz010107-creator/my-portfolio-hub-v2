@@ -2,7 +2,7 @@
   "id": "default",
   "name": "Default Clean",
   "version": "1.0.0",
-  "description": "A clean, minimal portfolio theme with light and dark mode support. Professional and accessible, works for all industries.",
+  "description": "A clean, minimal portfolio theme with light and dark mode support. Professional and accessible, works for all industries, and editable work experience timeline.",
   "author": "Portfolio CMS",
   "premium": false,
   "preview_image": "/static/themes/default/preview.svg",
@@ -17,12 +17,22 @@
   "supports_skills": true,
   "supports_contact_form": true,
   "compatibility_version": "6.3",
-  "tags": ["minimal", "clean", "professional", "light", "dark"],
+  "tags": [
+    "minimal",
+    "clean",
+    "professional",
+    "light",
+    "dark",
+    "experience",
+    "timeline"
+  ],
   "color_scheme": {
     "primary": "#3b82f6",
     "secondary": "#8b5cf6",
     "accent": "#10b981",
     "background": "#ffffff",
     "text": "#1f2937"
-  }
+  },
+  "supports_experience_timeline": true,
+  "supports_work_experience": true
 }

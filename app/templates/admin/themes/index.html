@@ -4,7 +4,6 @@
 {% block title %}Themes · Appearance{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
 <style>
 /* ══════════════════════════════════════════════════════
    THEMES PAGE — Premium SaaS UI
@@ -16,6 +15,21 @@
   margin: 0 auto;
   padding: 2rem 1.75rem 4rem;
 }
+
+
+.ui-icon {
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -0.12em;
+}
+.ui-icon-fill { fill: currentColor; stroke: none; }
 
 /* ── Page header ───────────────────────────────────── */
 .themes-header {
@@ -190,7 +204,7 @@
   border-color: var(--border-accent);
   box-shadow: 0 0 0 3px var(--accent-bg);
 }
-.themes-search i {
+.themes-search > .theme-search-icon {
   position: absolute;
   left: 12px; top: 50%;
   transform: translateY(-50%);
@@ -696,6 +710,66 @@
   font-weight: 500;
 }
 
+
+/* ── Production-safe interaction and responsive toolbar ───── */
+.themes-toolbar {
+  display: grid;
+  grid-template-columns: max-content minmax(220px, 1fr) max-content;
+  width: 100%;
+}
+.themes-filters {
+  margin-bottom: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.filter-tab { white-space: nowrap; min-height: 38px; }
+.themes-search { min-width: 0; max-width: none; width: 100%; }
+.themes-category-select { min-height: 40px; max-width: 100%; }
+.toast-close-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  pointer-events: auto;
+  position: relative;
+  z-index: 2;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+.theme-toast-icon { font-size: 1.05rem; font-weight: 800; }
+
+@media (max-width: 900px) {
+  .themes-toolbar { grid-template-columns: 1fr; align-items: stretch; }
+  .themes-filters { width: 100%; }
+  .themes-search, .themes-category-select { width: 100%; max-width: none; }
+  .active-banner { align-items: flex-start; flex-wrap: wrap; }
+  .active-banner-link { margin-left: 54px; }
+}
+
+@media (max-width: 640px) {
+  .themes-page { padding: 1.1rem .85rem 3rem; }
+  .themes-filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible;
+  }
+  .filter-tab { width: 100%; padding-inline: 8px; }
+  .themes-grid { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .theme-card { min-width: 0; }
+  .active-banner-link { width: 100%; margin-left: 0; justify-content: center; }
+  #themeToast {
+    left: .85rem;
+    right: .85rem;
+    bottom: 1rem;
+    min-width: 0;
+    max-width: none;
+  }
+}
+
 @media (max-width: 640px) {
   .themes-grid { grid-template-columns: 1fr; }
   .themes-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
@@ -706,20 +780,20 @@
 {% endblock %}
 
 {% block content %}
-<div class="themes-page">
+<div class="themes-page" data-theme-picker>
 
   {# ── Page header ──────────────────────────────── #}
   <div class="themes-header">
     <div class="themes-header-left">
       <h1>
-        <span class="h1-icon"><i class="fas fa-palette"></i></span>
+        <span class="h1-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.2a1.8 1.8 0 0 0 0-3.6h-.7a1.5 1.5 0 0 1 0-3h2.2A6.3 6.3 0 0 0 21 8.1C21 5.3 17 3 12 3Z"/><circle cx="7.5" cy="9" r="1" class="ui-icon-fill"/><circle cx="10.5" cy="6.5" r="1" class="ui-icon-fill"/><circle cx="15" cy="6.8" r="1" class="ui-icon-fill"/><circle cx="17.5" cy="10" r="1" class="ui-icon-fill"/></svg></span>
         Themes
       </h1>
       <p>Choose a theme for your public portfolio. Changes apply instantly.</p>
     </div>
     {% if plan_name %}
     <span class="themes-plan-pill">
-      <i class="fas fa-crown" style="font-size:10px;"></i>
+      <span aria-hidden="true">♛</span>
       {{ plan_name }} Plan
     </span>
     {% endif %}
@@ -729,7 +803,7 @@
   {% for theme in themes if theme._is_active %}
   <div class="active-banner">
     <div class="active-banner-icon">
-      <i class="fas fa-check-circle"></i>
+      <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>
     </div>
     <div class="active-banner-text">
       <strong>Active: {{ theme.name }}</strong>
@@ -737,7 +811,7 @@
     </div>
     <a href="{{ url_for('admin.preview_theme', theme_id=theme.id) }}"
        class="active-banner-link" target="_blank" rel="noopener">
-      <i class="fas fa-external-link-alt"></i> View Live
+      <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5"/><path d="m19 5-8 8"/><path d="M17 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h5"/></svg> View Live
     </a>
   </div>
   {% endfor %}
@@ -745,12 +819,12 @@
   {# ── Filter tabs ──────────────────────────────── #}
   <div class="themes-toolbar">
     <div class="themes-filters">
-      <button class="filter-tab active" data-filter="all">All Themes</button>
-      <button class="filter-tab" data-filter="free">Free</button>
-      <button class="filter-tab" data-filter="premium">PRO</button>
+      <button type="button" class="filter-tab active" data-filter="all" aria-pressed="true">All Themes</button>
+      <button type="button" class="filter-tab" data-filter="free" aria-pressed="false">Free</button>
+      <button type="button" class="filter-tab" data-filter="premium" aria-pressed="false">PRO</button>
     </div>
     <div class="themes-search">
-      <i class="fas fa-search"></i>
+      <svg class="ui-icon theme-search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
       <input type="text" id="themeSearchInput" placeholder="Search themes…" autocomplete="off">
     </div>
     {% if theme_categories %}
@@ -779,28 +853,27 @@
       <div class="tc-preview">
         <span class="tc-theme-icon" aria-label="{{ theme.icon_label|default(theme.name ~ ' icon', true) }}">{{ theme.icon|default('✨', true) }}</span>
         {% if theme.preview_image %}
-          <img src="{{ theme.preview_image }}" alt="{{ theme.name }} preview" loading="lazy"
-               onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+          <img src="{{ theme.preview_image }}" alt="{{ theme.name }} preview" loading="lazy" data-theme-preview-image>
           <div class="tc-preview-placeholder" hidden>
-            <span class="ph-icon"><i class="fas fa-palette"></i></span>
+            <span class="ph-icon" aria-hidden="true">◈</span>
             <span>No Preview</span>
           </div>
         {% else %}
           <div class="tc-preview-placeholder">
-            <span class="ph-icon"><i class="fas fa-palette"></i></span>
+            <span class="ph-icon" aria-hidden="true">◈</span>
             <span>No Preview</span>
           </div>
         {% endif %}
 
         {% if theme._is_active %}
         <span class="tc-badge-active">
-          <i class="fas fa-check"></i> Active
+          <span aria-hidden="true">✓</span> Active
         </span>
         {% endif %}
 
         {% if theme.premium %}
           <span class="tc-badge-pro">
-            <i class="fas fa-crown"></i> {{ theme.required_plan|capitalize if theme.required_plan else 'PRO' }}
+            <span aria-hidden="true">♛</span> {{ theme.required_plan|capitalize if theme.required_plan else 'PRO' }}
           </span>
         {% else %}
           <span class="tc-badge-free">Free</span>
@@ -808,7 +881,7 @@
 
         {% if not theme._can_use %}
         <div class="tc-lock-overlay">
-          <i class="fas fa-lock"></i>
+          <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
           <p>{{ theme.required_plan|capitalize if theme.required_plan else 'PRO' }} Plan Required</p>
         </div>
         {% endif %}
@@ -830,7 +903,7 @@
         <div class="tc-actions">
           {% if theme._is_active %}
             <button class="btn-apply st-active" disabled>
-              <i class="fas fa-check"></i> Currently Active
+              <span aria-hidden="true">✓</span> Currently Active
             </button>
           {% elif theme._can_use %}
             <form class="theme-apply-form"
@@ -849,7 +922,7 @@
           {% else %}
             <button class="btn-apply st-locked" disabled
                     title="Upgrade to PRO to unlock this theme">
-              <i class="fas fa-lock"></i> PRO Required
+              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg> PRO Required
             </button>
           {% endif %}
 
@@ -869,7 +942,7 @@
     </div>
     {% else %}
     <div class="themes-empty-state">
-      <i class="fas fa-palette" style="font-size:2rem; margin-bottom:0.75rem; display:block; opacity:0.3;"></i>
+      <span aria-hidden="true" style="font-size:2rem;margin-bottom:.75rem;display:block;opacity:.35;">◈</span>
       No themes found. Check your <code>themes/</code> directory.
     </div>
     {% endfor %}
@@ -878,7 +951,7 @@
   {# ── PRO upsell ────────────────────────────────── #}
   {% if plan_name and plan_name.lower() not in ('pro', 'premium', 'enterprise', 'agency') %}
   <div class="upsell-notice">
-    <div class="upsell-icon"><i class="fas fa-crown"></i></div>
+    <div class="upsell-icon" aria-hidden="true">♛</div>
     <div class="upsell-text">
       <strong>Unlock Premium Themes</strong>
       <p>Upgrade to PRO and get access to all premium themes, advanced designs, and future marketplace themes.</p>
@@ -892,7 +965,7 @@
 </div>{# /themes-page #}
 
 {# ── Apply loading overlay ──────────────────────── #}
-<div class="apply-overlay" id="applyOverlay">
+<div class="apply-overlay" id="applyOverlay" aria-hidden="true">
   <div class="apply-overlay-card">
     <div class="ao-spinner"></div>
     <p>Applying theme…</p>
@@ -901,184 +974,16 @@
 </div>
 
 {# ── Toast ─────────────────────────────────────── #}
-<div id="themeToast">
-  <i class="fas fa-check-circle" id="toastIcon"></i>
+<div id="themeToast" role="status" aria-live="polite" aria-atomic="true">
+  <span id="toastIcon" class="theme-toast-icon" aria-hidden="true">✓</span>
   <span id="themeToastMsg"></span>
-  <button class="toast-close-btn" onclick="dismissToast()">
-    <i class="fas fa-times"></i>
+  <button type="button" class="toast-close-btn" data-theme-toast-close aria-label="Dismiss notification">
+    <span aria-hidden="true">×</span>
   </button>
 </div>
 
 {% endblock %}
 
 {% block extra_js %}
-<script>
-(function () {
-  'use strict';
-
-  /* ── Filter tabs + search + category (combined) ──── */
-  const filterBtns   = document.querySelectorAll('.filter-tab');
-  const cards        = document.querySelectorAll('.theme-card');
-  const searchInput  = document.getElementById('themeSearchInput');
-  const categorySel  = document.getElementById('themeCategorySelect');
-
-  let activeTier = 'all';
-
-  function applyFilters () {
-    const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
-    const cat   = categorySel ? categorySel.value : 'all';
-    let visibleCount = 0;
-
-    cards.forEach(card => {
-      const tier    = card.dataset.tier;
-      const cardCat = card.dataset.category || '';
-      const search  = card.dataset.search || '';
-
-      const tierOk  = activeTier === 'all' || tier === activeTier;
-      const catOk   = cat === 'all' || cardCat === cat;
-      const queryOk = !query || search.indexOf(query) !== -1;
-
-      const show = tierOk && catOk && queryOk;
-      card.classList.toggle('tc-hidden', !show);
-      if (show) visibleCount++;
-    });
-
-    let emptyEl = document.getElementById('themesNoResults');
-    const grid = document.getElementById('themesGrid');
-    if (visibleCount === 0) {
-      if (!emptyEl) {
-        emptyEl = document.createElement('div');
-        emptyEl.id = 'themesNoResults';
-        emptyEl.className = 'themes-empty-state';
-        emptyEl.innerHTML = '<i class="fas fa-search" style="font-size:2rem;margin-bottom:0.75rem;display:block;opacity:0.3;"></i>No themes match your search.';
-        grid.appendChild(emptyEl);
-      }
-    } else if (emptyEl) {
-      emptyEl.remove();
-    }
-  }
-
-  filterBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      filterBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      activeTier = btn.dataset.filter;
-      applyFilters();
-    });
-  });
-  if (searchInput) searchInput.addEventListener('input', applyFilters);
-  if (categorySel) categorySel.addEventListener('change', applyFilters);
-
-  /* ── Mouse-tracked hover glow ─────────────────── */
-  cards.forEach(card => {
-    card.addEventListener('mousemove', e => {
-      const rect = card.getBoundingClientRect();
-      card.style.setProperty('--glow-x', `${e.clientX - rect.left}px`);
-      card.style.setProperty('--glow-y', `${e.clientY - rect.top}px`);
-    });
-  });
-
-  /* ── Apply theme ─────────────────────────── */
-  window.applyTheme = async function (btn, form) {
-    const themeId   = btn.dataset.themeId;
-    const themeName = btn.dataset.themeName;
-
-    // Show overlay
-    document.getElementById('applyOverlayName').textContent = themeName;
-    document.getElementById('applyOverlay').classList.add('show');
-
-    // Disable & animate btn
-    btn.disabled = true;
-    btn.className = 'btn-apply st-loading';
-    btn.innerHTML = '<span class="spin"><i class="fas fa-circle-notch"></i></span> Applying…';
-
-    try {
-      const formData = form ? new FormData(form) : new FormData();
-      if (!formData.get('theme_id')) formData.append('theme_id', themeId);
-      if (!formData.get('csrf_token')) {
-        const csrfInput = document.querySelector('input[name="csrf_token"]') ||
-                          document.querySelector('meta[name="csrf-token"]');
-        if (csrfInput) {
-          const val = csrfInput.value || csrfInput.getAttribute('content');
-          if (val) formData.append('csrf_token', val);
-        }
-      }
-
-      const res = await fetch("{{ url_for('admin.apply_theme') }}", {
-        method: 'POST',
-        body: formData,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-      });
-
-      let data = {};
-      try { data = await res.json(); } catch (_) {}
-
-      if (res.ok && data.success === true) {
-        showToast(`"${themeName}" applied — refreshing…`, 'success');
-        setTimeout(() => window.location.reload(), 1600);
-      } else {
-        hideOverlay();
-        const msg = data.error || `HTTP ${res.status} — could not apply theme.`;
-        showToast(msg, 'error');
-        btn.disabled = false;
-        btn.className = 'btn-apply st-available';
-        btn.innerHTML = '<i class="fas fa-paint-brush"></i> Apply Theme';
-      }
-    } catch (err) {
-      hideOverlay();
-      showToast('Network error — please try again.', 'error');
-      btn.disabled = false;
-      btn.className = 'btn-apply st-available';
-      btn.innerHTML = '<i class="fas fa-paint-brush"></i> Apply Theme';
-    }
-  };
-
-  document.querySelectorAll('.theme-apply-form').forEach(form => {
-    form.addEventListener('submit', event => {
-      // JavaScript gives instant feedback. Without JavaScript, the same form
-      // still submits normally, so theme switching never depends on JS/CSP.
-      event.preventDefault();
-      const btn = form.querySelector('button[type="submit"]');
-      if (btn && !btn.disabled) window.applyTheme(btn, form);
-    });
-  });
-
-  function hideOverlay () {
-    document.getElementById('applyOverlay').classList.remove('show');
-  }
-
-  /* ── Toast ────────────────────────────────── */
-  let _toastTimer = null;
-
-  function showToast (msg, type) {
-    clearTimeout(_toastTimer);
-    const toast  = document.getElementById('themeToast');
-    const msgEl  = document.getElementById('themeToastMsg');
-    const icon   = document.getElementById('toastIcon');
-    toast.className = 'show t-' + type;
-    msgEl.textContent = msg;
-    icon.className = type === 'success'
-      ? 'fas fa-check-circle'
-      : 'fas fa-exclamation-circle';
-    _toastTimer = setTimeout(() => dismissToast(), 5000);
-  }
-
-  window.dismissToast = function () {
-    clearTimeout(_toastTimer);
-    const toast = document.getElementById('themeToast');
-    toast.classList.remove('show');
-  };
-
-  /* ── Card click → preview on locked, apply on available ── */
-  cards.forEach(card => {
-    card.addEventListener('click', e => {
-      // Don't intercept button/link clicks
-      if (e.target.closest('.tc-actions')) return;
-      const previewLink = card.querySelector('.btn-preview-icon');
-      if (previewLink) previewLink.click();
-    });
-  });
-
-})();
-</script>
+<script src="{{ url_for('static', filename='js/admin-theme-picker.js', v='20260710-production-fix') }}" defer></script>
 {% endblock %}

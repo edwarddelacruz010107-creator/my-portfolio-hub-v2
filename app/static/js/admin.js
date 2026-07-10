@@ -8,6 +8,38 @@
 //  PORTFOLIO CMS — ADMIN JS
 // ═══════════════════════════════════════════════
 
+
+
+// ── CSP-safe toast dismissal ────────────────────────────────
+// Inline onclick handlers are blocked by the production CSP.  Keep all
+// server-rendered and programmatic toast close buttons functional through
+// one delegated listener instead.
+function dismissToastElement(toast) {
+  if (!toast) return;
+  toast.classList.add('hiding');
+  window.setTimeout(() => toast.remove(), 360);
+}
+
+window.dismissToast = function dismissToast(toast) {
+  dismissToastElement(toast);
+};
+
+document.addEventListener('click', (event) => {
+  const closeButton = event.target.closest('[data-toast-close], .toast-close, .flash-close');
+  if (!closeButton) return;
+  const toast = closeButton.closest('.toast, .flash, .toast-flash');
+  if (!toast) return;
+  event.preventDefault();
+  event.stopPropagation();
+  dismissToastElement(toast);
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  const visibleToast = document.querySelector('.toast:not(.hiding), .flash:not(.hiding), .toast-flash:not(.hiding)');
+  if (visibleToast) dismissToastElement(visibleToast);
+});
+
 // ── CSRF token helper ────────────────────────
 function getCsrf() {
   return document.querySelector('input[name="csrf_token"]')?.value
@@ -23,7 +55,7 @@ function showToast(msg, type = 'success') {
   t.innerHTML = `
     <span class="toast-icon">${icons[type] || '•'}</span>
     <span class="toast-msg">${msg}</span>
-    <button class="toast-close" onclick="this.parentElement.remove()">✕</button>
+    <button type="button" class="toast-close" data-toast-close>✕</button>
   `;
   // Append to flash container or create one
   let container = document.querySelector('.flash-container');
@@ -277,7 +309,7 @@ function showToast(message, type = 'info', duration = 4500) {
   toast.innerHTML = `
     <span class="toast-icon"><iconify-icon icon="${icons[type] || icons.info}" width="15"></iconify-icon></span>
     <span class="toast-msg">${message}</span>
-    <button class="toast-close" onclick="this.parentElement.remove()">
+    <button type="button" class="toast-close" data-toast-close>
       <iconify-icon icon="lucide:x" width="13"></iconify-icon>
     </button>`;
   container.appendChild(toast);

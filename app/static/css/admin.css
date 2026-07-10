@@ -3316,3 +3316,25 @@ html[data-theme="light"] .upload-filename {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* CSP-safe, touch-friendly flash dismiss controls */
+.flash-container { pointer-events: none; }
+.flash-container .toast,
+.flash-container .flash { pointer-events: auto; }
+.toast-close,
+.flash-close,
+[data-toast-close] {
+  min-width: 30px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
+  border-radius: 999px;
+}
+.toast-close:hover,
+.flash-close:hover,
+[data-toast-close]:hover { background: rgba(129, 140, 248, .12); }

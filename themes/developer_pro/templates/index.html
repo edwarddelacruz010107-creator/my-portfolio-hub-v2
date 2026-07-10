@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/brand/favicon.png') }}">
+<link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='img/brand/favicon-16.png') }}">
+<link rel="shortcut icon" href="{{ url_for('static', filename='img/brand/icon.ico') }}" type="image/x-icon">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='img/brand/apply-touch-icon.png') }}">
+<meta name="theme-color" content="#0b0d14">
     {% set page_title = portfolio.meta_title or (portfolio.name ~ ' — ' ~ (portfolio.title or 'Portfolio')) %}
     {% set meta_desc = portfolio.meta_description or portfolio.bio_plain or portfolio.hero_tagline or 'Professional portfolio built with MyPortfolioHub.' %}
     <title>{{ page_title }}</title>

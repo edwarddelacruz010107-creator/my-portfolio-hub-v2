@@ -30,6 +30,10 @@ _PUBLISHED_LANDING_KEYS = {
     'hero_cta_secondary_text': 'landing_hero_cta_secondary_text',
     'hero_cta_secondary_url': 'landing_hero_cta_secondary_url',
     'hero_image_url': 'landing_hero_image_url',
+    'hero_image_fit': 'landing_hero_image_fit',
+    'hero_image_position_x': 'landing_hero_image_position_x',
+    'hero_image_position_y': 'landing_hero_image_position_y',
+    'hero_image_zoom': 'landing_hero_image_zoom',
     'hero_preview_name': 'landing_hero_preview_name',
     'hero_preview_role': 'landing_hero_preview_role',
     'hero_preview_url_text': 'landing_hero_preview_url_text',
@@ -117,21 +121,30 @@ def _load_landing_settings_internal(draft_first: bool = False, fallback_to_publi
         else:
             values[field] = PlatformSetting.get_bool(published_key, default=True)
 
-    founder_crop_defaults = {
+    image_editor_defaults = {
+        'hero_image_fit': 'cover',
+        'hero_image_position_x': '50',
+        'hero_image_position_y': '50',
+        'hero_image_zoom': '100',
         'founder_photo_fit': 'cover',
         'founder_photo_position_x': '50',
         'founder_photo_position_y': '50',
         'founder_photo_zoom': '100',
     }
-    for field, default_value in founder_crop_defaults.items():
+    for field, default_value in image_editor_defaults.items():
         if values.get(field) in (None, ''):
             values[field] = default_value
     return values
 
 
+def _setting_text(value) -> str:
+    """Serialize form values without losing valid numeric zero values."""
+    return '' if value is None else str(value)
+
+
 def _save_landing_settings(form, publish: bool = False) -> None:
     for field, published_key in _PUBLISHED_LANDING_KEYS.items():
-        value = getattr(form, field).data or ''
+        value = _setting_text(getattr(form, field).data)
         PlatformSetting.set_string(_draft_key(published_key), value)
         if publish:
             PlatformSetting.set_string(published_key, value)
@@ -184,7 +197,7 @@ def landing_autosave():
         if is_bool_field:
             PlatformSetting.set_bool(_draft_key(published_key), bool(bound_field.data))
         else:
-            PlatformSetting.set_string(_draft_key(published_key), bound_field.data or '')
+            PlatformSetting.set_string(_draft_key(published_key), _setting_text(bound_field.data))
         db.session.commit()
     except Exception as exc:
         logger.exception('Autosave failed for landing field %s: %s', field, exc)

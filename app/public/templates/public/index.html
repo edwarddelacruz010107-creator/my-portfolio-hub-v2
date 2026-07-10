@@ -161,8 +161,20 @@
             </div>
             <div class="browser-body">
               {% if hero_has_image %}
+              {% set hero_image_fit = landing_content.hero_image_fit if landing_content.hero_image_fit in ['cover', 'contain'] else 'cover' %}
+              {% set hero_image_x = landing_content.hero_image_position_x|default('50')|int %}
+              {% set hero_image_y = landing_content.hero_image_position_y|default('50')|int %}
+              {% set hero_image_zoom = landing_content.hero_image_zoom|default('100')|int %}
+              {% if hero_image_x < 0 %}{% set hero_image_x = 0 %}{% elif hero_image_x > 100 %}{% set hero_image_x = 100 %}{% endif %}
+              {% if hero_image_y < 0 %}{% set hero_image_y = 0 %}{% elif hero_image_y > 100 %}{% set hero_image_y = 100 %}{% endif %}
+              {% if hero_image_zoom < 100 %}{% set hero_image_zoom = 100 %}{% elif hero_image_zoom > 180 %}{% set hero_image_zoom = 180 %}{% endif %}
               <div class="hero-preview-image">
-                <img src="{{ landing_content.hero_image_url }}" alt="{{ landing_content.hero_preview_name or 'Live portfolio preview' }}" loading="lazy" />
+                <img
+                  src="{{ landing_content.hero_image_url }}"
+                  alt="{{ landing_content.hero_preview_name or 'Live portfolio preview' }}"
+                  loading="lazy"
+                  style="object-fit: {{ hero_image_fit }}; object-position: {{ hero_image_x }}% {{ hero_image_y }}%; transform: scale({{ '%.2f'|format(hero_image_zoom / 100) }}); transform-origin: {{ hero_image_x }}% {{ hero_image_y }}%;"
+                />
                 {% if landing_content.hero_preview_name or landing_content.hero_preview_role %}
                 <div class="hero-preview-image-caption">
                   {% if landing_content.hero_preview_name %}<span class="mock-name">{{ landing_content.hero_preview_name }}</span>{% endif %}

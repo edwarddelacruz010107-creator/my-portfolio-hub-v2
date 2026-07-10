@@ -215,6 +215,30 @@ class LandingPageSettingsForm(FlaskForm):
     hero_cta_secondary_text = StringField('Secondary CTA Label', validators=[Optional(), Length(max=80)], render_kw={'maxlength': 80})
     hero_cta_secondary_url = StringField('Secondary CTA URL', validators=[Optional(), Length(max=255)], render_kw={'maxlength': 255})
     hero_image_url = StringField('Hero Visual URL', validators=[Optional(), Length(max=500)], render_kw={'maxlength': 500})
+    hero_image_fit = SelectField(
+        'Hero Image Fit',
+        choices=[('cover', 'Crop to fill frame'), ('contain', 'Fit full image')],
+        default='cover',
+        validators=[Optional()],
+    )
+    hero_image_position_x = IntegerField(
+        'Horizontal Focus',
+        validators=[Optional(), NumberRange(min=0, max=100)],
+        default=50,
+        description='0 = left, 50 = center, 100 = right',
+    )
+    hero_image_position_y = IntegerField(
+        'Vertical Focus',
+        validators=[Optional(), NumberRange(min=0, max=100)],
+        default=50,
+        description='0 = top, 50 = center, 100 = bottom',
+    )
+    hero_image_zoom = IntegerField(
+        'Hero Image Zoom',
+        validators=[Optional(), NumberRange(min=100, max=180)],
+        default=100,
+        description='100 = normal, 180 = closer crop',
+    )
     hero_preview_name = StringField('Preview Profile Name', validators=[Optional(), Length(max=80)], render_kw={'maxlength': 80})
     hero_preview_role = StringField('Preview Profile Role', validators=[Optional(), Length(max=100)], render_kw={'maxlength': 100})
     hero_preview_url_text = StringField('Preview Browser URL Text', validators=[Optional(), Length(max=80)], render_kw={'maxlength': 80})

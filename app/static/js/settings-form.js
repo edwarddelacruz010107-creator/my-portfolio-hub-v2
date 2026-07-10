@@ -306,6 +306,119 @@
 
 
 
+  function initHeroImageEditor() {
+    const editor = document.querySelector('[data-hero-image-editor]');
+    if (!editor) return;
+
+    const imageInput = document.getElementById('hero_image_url');
+    const browserTextInput = document.getElementById('hero_preview_url_text');
+    const fitInput = editor.querySelector('[data-hero-control="fit"]');
+    const xInput = editor.querySelector('[data-hero-control="x"]');
+    const yInput = editor.querySelector('[data-hero-control="y"]');
+    const zoomInput = editor.querySelector('[data-hero-control="zoom"]');
+    const resetBtn = editor.querySelector('[data-hero-reset-frame]');
+    const openLink = editor.querySelector('[data-hero-open-image]');
+    const previewBox = editor.querySelector('[data-hero-preview-box]');
+    const browserText = editor.querySelector('.hero-image-editor-browser-bar > div');
+
+    function clamp(value, min, max, fallback) {
+      const n = parseInt(value, 10);
+      if (Number.isNaN(n)) return fallback;
+      return Math.max(min, Math.min(max, n));
+    }
+
+    function showEmpty() {
+      const img = editor.querySelector('[data-hero-preview-img]');
+      if (img) img.remove();
+      if (previewBox && !editor.querySelector('[data-hero-preview-empty]')) {
+        const empty = document.createElement('div');
+        empty.className = 'hero-image-editor-empty';
+        empty.dataset.heroPreviewEmpty = 'true';
+        empty.innerHTML = '<iconify-icon icon="lucide:image" width="24"></iconify-icon><span>Upload or paste a hero image to preview its exact 16:9 frame.</span>';
+        previewBox.appendChild(empty);
+      }
+    }
+
+    function ensurePreviewImage() {
+      const url = imageInput ? imageInput.value.trim() : '';
+      let img = editor.querySelector('[data-hero-preview-img]');
+      if (!url) {
+        showEmpty();
+        return null;
+      }
+      if (!img && previewBox) {
+        const empty = editor.querySelector('[data-hero-preview-empty]');
+        if (empty) empty.remove();
+        img = document.createElement('img');
+        img.alt = 'Landing hero frame preview';
+        img.dataset.heroPreviewImg = 'true';
+        previewBox.appendChild(img);
+      }
+      if (img && img.getAttribute('src') !== url) img.setAttribute('src', url);
+      if (openLink) {
+        openLink.href = url;
+        openLink.removeAttribute('aria-disabled');
+        openLink.removeAttribute('tabindex');
+      }
+      return img;
+    }
+
+    function updateOutputs(x, y, zoom) {
+      const outX = editor.querySelector('[data-hero-output="x"]');
+      const outY = editor.querySelector('[data-hero-output="y"]');
+      const outZoom = editor.querySelector('[data-hero-output="zoom"]');
+      if (outX) outX.textContent = x;
+      if (outY) outY.textContent = y;
+      if (outZoom) outZoom.textContent = zoom;
+    }
+
+    function applyPreview() {
+      const url = imageInput ? imageInput.value.trim() : '';
+      if (!url && openLink) {
+        openLink.href = '#';
+        openLink.setAttribute('aria-disabled', 'true');
+        openLink.setAttribute('tabindex', '-1');
+      }
+      const img = ensurePreviewImage();
+      const fit = fitInput && fitInput.value === 'contain' ? 'contain' : 'cover';
+      const x = clamp(xInput && xInput.value, 0, 100, 50);
+      const y = clamp(yInput && yInput.value, 0, 100, 50);
+      const zoom = clamp(zoomInput && zoomInput.value, 100, 180, 100);
+      if (img) {
+        img.style.objectFit = fit;
+        img.style.objectPosition = x + '% ' + y + '%';
+        img.style.transformOrigin = x + '% ' + y + '%';
+        img.style.transform = 'scale(' + (zoom / 100).toFixed(2) + ')';
+      }
+      if (browserText) {
+        browserText.textContent = (browserTextInput && browserTextInput.value.trim()) || 'myportfoliohub.online/you';
+      }
+      updateOutputs(x, y, zoom);
+    }
+
+    [imageInput, browserTextInput, fitInput, xInput, yInput, zoomInput].filter(Boolean).forEach((input) => {
+      input.addEventListener('input', applyPreview);
+      input.addEventListener('change', applyPreview);
+    });
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (fitInput) fitInput.value = 'cover';
+        if (xInput) xInput.value = 50;
+        if (yInput) yInput.value = 50;
+        if (zoomInput) zoomInput.value = 100;
+        [fitInput, xInput, yInput, zoomInput].filter(Boolean).forEach((input) => {
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        applyPreview();
+      });
+    }
+
+    applyPreview();
+  }
+
+
   function initFounderPhotoEditor() {
     const editor = document.querySelector('[data-founder-photo-editor]');
     if (!editor) return;
@@ -327,7 +440,17 @@
     function ensurePreviewImage() {
       let img = editor.querySelector('[data-founder-preview-img]');
       const url = photoInput ? photoInput.value.trim() : '';
-      if (!url) return img;
+      if (!url) {
+        if (img) img.remove();
+        if (previewBox && !editor.querySelector('[data-founder-preview-empty]')) {
+          const empty = document.createElement('div');
+          empty.className = 'founder-photo-editor-empty';
+          empty.dataset.founderPreviewEmpty = 'true';
+          empty.innerHTML = '<iconify-icon icon="lucide:image" width="22"></iconify-icon><span>Upload or paste a founder photo to preview the crop.</span>';
+          previewBox.appendChild(empty);
+        }
+        return null;
+      }
       if (!img && previewBox) {
         const empty = editor.querySelector('[data-founder-preview-empty]');
         if (empty) empty.remove();
@@ -389,6 +512,7 @@
     initSettingsForm();
     initSectionNav();
     initScrollSpy();
+    initHeroImageEditor();
     initFounderPhotoEditor();
   });
 })();

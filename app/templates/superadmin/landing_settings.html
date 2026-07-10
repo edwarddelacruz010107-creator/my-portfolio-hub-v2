@@ -124,6 +124,70 @@
             {% include 'superadmin/_media_uploader.html' with context %}
             <div class="field-hint">When an image is uploaded it becomes the single hero preview shown on the landing page — the old sample profile card is not shown alongside it.</div>
           </div>
+
+          <div class="hero-image-editor" data-hero-image-editor>
+            <div class="hero-image-editor-browser" aria-label="Landing hero image frame preview">
+              <div class="hero-image-editor-browser-bar" aria-hidden="true">
+                <span></span><span></span><span></span>
+                <div>{{ form.hero_preview_url_text.data or 'myportfoliohub.online/you' }}</div>
+              </div>
+              <div class="hero-image-editor-preview" data-hero-preview-box>
+                {% if form.hero_image_url.data %}
+                  <img
+                    src="{{ form.hero_image_url.data }}"
+                    alt="Landing hero frame preview"
+                    data-hero-preview-img
+                  />
+                {% else %}
+                  <div class="hero-image-editor-empty" data-hero-preview-empty>
+                    <iconify-icon icon="lucide:image" width="24"></iconify-icon>
+                    <span>Upload or paste a hero image to preview its exact 16:9 frame.</span>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="hero-image-editor-controls">
+              <div class="form-field">
+                {{ form.hero_image_fit.label(class='field-label') }}
+                {{ form.hero_image_fit(class='field-input', data_hero_control='fit') }}
+                <div class="field-hint">Crop to fill is best for screenshots. Fit full image keeps every edge visible.</div>
+              </div>
+              <div class="form-grid-3 hero-crop-grid">
+                <div class="form-field">
+                  {{ form.hero_image_position_x.label(class='field-label') }}
+                  {{ form.hero_image_position_x(class='field-input', type='range', min='0', max='100', step='1', data_hero_control='x') }}
+                  <div class="field-hint"><span data-hero-output="x">{{ form.hero_image_position_x.data or 50 }}</span>% · left ↔ right</div>
+                </div>
+                <div class="form-field">
+                  {{ form.hero_image_position_y.label(class='field-label') }}
+                  {{ form.hero_image_position_y(class='field-input', type='range', min='0', max='100', step='1', data_hero_control='y') }}
+                  <div class="field-hint"><span data-hero-output="y">{{ form.hero_image_position_y.data or 50 }}</span>% · top ↔ bottom</div>
+                </div>
+                <div class="form-field">
+                  {{ form.hero_image_zoom.label(class='field-label') }}
+                  {{ form.hero_image_zoom(class='field-input', type='range', min='100', max='180', step='1', data_hero_control='zoom') }}
+                  <div class="field-hint"><span data-hero-output="zoom">{{ form.hero_image_zoom.data or 100 }}</span>% zoom</div>
+                </div>
+              </div>
+              <div class="hero-image-editor-actions">
+                <button type="button" class="btn btn-ghost btn-sm" data-hero-reset-frame>
+                  <iconify-icon icon="lucide:rotate-ccw" width="14"></iconify-icon> Reset frame
+                </button>
+                <a
+                  class="btn btn-ghost btn-sm"
+                  href="{{ form.hero_image_url.data or '#' }}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-hero-open-image
+                  {% if not form.hero_image_url.data %}aria-disabled="true" tabindex="-1"{% endif %}
+                >
+                  <iconify-icon icon="lucide:external-link" width="14"></iconify-icon> Open image
+                </a>
+              </div>
+            </div>
+          </div>
+
           <div class="form-grid-2">
             <div class="form-field">
               {{ form.hero_preview_url_text.label(class='field-label') }}

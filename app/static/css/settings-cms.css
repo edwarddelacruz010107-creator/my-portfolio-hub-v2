@@ -846,6 +846,148 @@
   }
 }
 
+/* ── Landing hero image frame editor ───────────────────────────────── */
+.hero-image-editor {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.25fr) minmax(260px, 0.75fr);
+  gap: var(--space-5);
+  align-items: stretch;
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-3) 70%, transparent);
+}
+
+.hero-image-editor-browser {
+  align-self: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--bg-2);
+  box-shadow: var(--shadow-md);
+}
+
+.hero-image-editor-browser-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-3);
+}
+
+.hero-image-editor-browser-bar > span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  opacity: 0.7;
+}
+
+.hero-image-editor-browser-bar > span:nth-child(1) { background: #fb7185; }
+.hero-image-editor-browser-bar > span:nth-child(2) { background: #fbbf24; }
+.hero-image-editor-browser-bar > span:nth-child(3) { background: #34d399; }
+
+.hero-image-editor-browser-bar > div {
+  min-width: 0;
+  margin-left: 6px;
+  padding: 4px 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-2);
+  color: var(--text-dim);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.hero-image-editor-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background:
+    linear-gradient(45deg, rgba(148, 163, 184, 0.08) 25%, transparent 25%) 0 0 / 20px 20px,
+    linear-gradient(-45deg, rgba(148, 163, 184, 0.08) 25%, transparent 25%) 0 10px / 20px 20px,
+    var(--bg-2);
+}
+
+.hero-image-editor-preview img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: 50% 50%;
+  transform: scale(1);
+  transform-origin: 50% 50%;
+  transition: object-position 180ms ease, transform 180ms ease;
+}
+
+.hero-image-editor-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.84rem;
+}
+
+.hero-image-editor-empty iconify-icon {
+  color: var(--accent-light);
+  width: 48px;
+  height: 48px;
+  padding: var(--space-3);
+  border-radius: 16px;
+  background: var(--accent-bg);
+}
+
+.hero-image-editor-controls {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.hero-crop-grid { margin-bottom: 0; }
+
+.hero-crop-grid input[type="range"].field-input {
+  height: 42px;
+  padding: 0;
+  accent-color: var(--accent-light);
+  cursor: pointer;
+}
+
+.hero-image-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.hero-image-editor-actions [aria-disabled="true"] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+@media (max-width: 900px) {
+  .hero-image-editor { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 560px) {
+  .hero-image-editor { padding: var(--space-3); }
+  .hero-image-editor-actions .btn { width: 100%; justify-content: center; }
+}
+
 /* ── Founder portrait crop/focus editor ─────────────────────────────── */
 .founder-photo-editor {
   display: grid;

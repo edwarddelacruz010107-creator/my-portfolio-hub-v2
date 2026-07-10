@@ -125,29 +125,82 @@
             <div class="field-hint">When an image is uploaded it becomes the single hero preview shown on the landing page — the old sample profile card is not shown alongside it.</div>
           </div>
 
+          {% set hero_editor_fit = form.hero_image_fit.data if form.hero_image_fit.data in ['cover', 'contain'] else 'cover' %}
+          {% set hero_editor_x = form.hero_image_position_x.data if form.hero_image_position_x.data is not none else 50 %}
+          {% set hero_editor_y = form.hero_image_position_y.data if form.hero_image_position_y.data is not none else 50 %}
+          {% set hero_editor_zoom = form.hero_image_zoom.data if form.hero_image_zoom.data is not none else 100 %}
           <div class="hero-image-editor" data-hero-image-editor>
-            <div class="hero-image-editor-browser" aria-label="Landing hero image frame preview">
-              <div class="hero-image-editor-browser-bar" aria-hidden="true">
-                <span></span><span></span><span></span>
-                <div>{{ form.hero_preview_url_text.data or 'myportfoliohub.online/you' }}</div>
-              </div>
-              <div class="hero-image-editor-preview" data-hero-preview-box>
-                {% if form.hero_image_url.data %}
-                  <img
-                    src="{{ form.hero_image_url.data }}"
-                    alt="Landing hero frame preview"
-                    data-hero-preview-img
-                  />
-                {% else %}
-                  <div class="hero-image-editor-empty" data-hero-preview-empty>
-                    <iconify-icon icon="lucide:image" width="24"></iconify-icon>
-                    <span>Upload or paste a hero image to preview its exact 16:9 frame.</span>
+            <div class="hero-image-editor-live" data-hero-live-preview>
+              <div class="hero-live-stage">
+                <div class="hero-live-browser{% if not form.hero_enable_animation.data %} no-animate{% endif %}" data-hero-live-browser>
+                  <div class="hero-live-browser-bar" aria-hidden="true">
+                    <span></span><span></span><span></span>
+                    <div data-hero-browser-text>{{ form.hero_preview_url_text.data or 'myportfoliohub.online/you' }}</div>
                   </div>
-                {% endif %}
+                  <div class="hero-live-browser-body">
+                    <div
+                      class="hero-image-editor-preview"
+                      data-hero-preview-box
+                      tabindex="0"
+                      role="application"
+                      aria-label="Interactive landing hero crop. Drag to reposition, use the mouse wheel to zoom, or use arrow keys to move the image."
+                    >
+                      {% if form.hero_image_url.data %}
+                        <img
+                          src="{{ form.hero_image_url.data }}"
+                          alt="Landing hero frame preview"
+                          data-hero-preview-img
+                          draggable="false"
+                          style="object-fit: {{ hero_editor_fit }}; object-position: {{ hero_editor_x }}% {{ hero_editor_y }}%; transform: scale({{ '%.2f'|format((hero_editor_zoom|int) / 100) }}); transform-origin: {{ hero_editor_x }}% {{ hero_editor_y }}%;"
+                        />
+                      {% else %}
+                        <div class="hero-image-editor-empty" data-hero-preview-empty>
+                          <iconify-icon icon="lucide:image" width="24"></iconify-icon>
+                          <span>Upload or paste a hero image to start the live editor.</span>
+                        </div>
+                      {% endif %}
+                      <div class="hero-live-caption" data-hero-caption {% if not form.hero_preview_name.data and not form.hero_preview_role.data %}hidden{% endif %}>
+                        <strong data-hero-caption-name>{{ form.hero_preview_name.data or '' }}</strong>
+                        <span data-hero-caption-role>{{ form.hero_preview_role.data or '' }}</span>
+                      </div>
+                      <div class="hero-live-editor-grid" aria-hidden="true"></div>
+                      <div class="hero-live-drag-hint" data-hero-drag-hint>
+                        <iconify-icon icon="lucide:move" width="14"></iconify-icon>
+                        Drag to reposition · scroll to zoom
+                      </div>
+                    </div>
+
+                    <div class="hero-live-engage{% if not form.hero_enable_widgets.data %} is-hidden{% endif %}" data-hero-engage>
+                      <span><iconify-icon icon="lucide:heart" width="13"></iconify-icon> <strong data-hero-like-count>{{ form.hero_stat_likes.data or '128' }}</strong></span>
+                      <span><iconify-icon icon="lucide:eye" width="13"></iconify-icon> <strong data-hero-view-count>{{ form.hero_stat_views.data or '214' }}</strong> views</span>
+                      <span><iconify-icon icon="lucide:message-circle" width="13"></iconify-icon> <strong data-hero-comment-count>{{ form.hero_stat_comments.data or '12' }}</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="hero-live-floating hero-live-floating-published{% if not form.hero_enable_widgets.data %} is-hidden{% endif %}" data-hero-floating-published>
+                  <span><iconify-icon icon="lucide:badge-check" width="15"></iconify-icon></span>
+                  <strong data-hero-badge-text>{{ form.hero_stat_badge_text.data or 'Portfolio published' }}</strong>
+                </div>
+                <div class="hero-live-floating hero-live-floating-liked{% if not form.hero_enable_widgets.data %} is-hidden{% endif %}" data-hero-floating-liked>
+                  <span><iconify-icon icon="lucide:heart" width="15"></iconify-icon></span>
+                  Liked by <strong data-hero-liked-text>{{ form.hero_stat_likes.data or '128' }}</strong> people
+                </div>
+              </div>
+              <div class="hero-live-status" aria-live="polite">
+                <span class="hero-live-status-dot"></span>
+                <span data-hero-editor-status>Live landing preview — drag the image inside the frame to reposition it.</span>
               </div>
             </div>
 
             <div class="hero-image-editor-controls">
+              <div class="hero-image-editor-heading">
+                <div>
+                  <span class="field-label">Live image editor</span>
+                  <p class="field-hint">This preview mirrors the public landing-page browser card, including the caption, statistics, and floating widgets.</p>
+                </div>
+                <span class="hero-live-badge"><iconify-icon icon="lucide:radio" width="13"></iconify-icon> Live</span>
+              </div>
               <div class="form-field">
                 {{ form.hero_image_fit.label(class='field-label') }}
                 {{ form.hero_image_fit(class='field-input', data_hero_control='fit') }}
@@ -157,22 +210,31 @@
                 <div class="form-field">
                   {{ form.hero_image_position_x.label(class='field-label') }}
                   {{ form.hero_image_position_x(class='field-input', type='range', min='0', max='100', step='1', data_hero_control='x') }}
-                  <div class="field-hint"><span data-hero-output="x">{{ form.hero_image_position_x.data or 50 }}</span>% · left ↔ right</div>
+                  <div class="field-hint"><span data-hero-output="x">{{ form.hero_image_position_x.data if form.hero_image_position_x.data is not none else 50 }}</span>% · left ↔ right</div>
                 </div>
                 <div class="form-field">
                   {{ form.hero_image_position_y.label(class='field-label') }}
                   {{ form.hero_image_position_y(class='field-input', type='range', min='0', max='100', step='1', data_hero_control='y') }}
-                  <div class="field-hint"><span data-hero-output="y">{{ form.hero_image_position_y.data or 50 }}</span>% · top ↔ bottom</div>
+                  <div class="field-hint"><span data-hero-output="y">{{ form.hero_image_position_y.data if form.hero_image_position_y.data is not none else 50 }}</span>% · top ↔ bottom</div>
                 </div>
                 <div class="form-field">
                   {{ form.hero_image_zoom.label(class='field-label') }}
                   {{ form.hero_image_zoom(class='field-input', type='range', min='100', max='180', step='1', data_hero_control='zoom') }}
-                  <div class="field-hint"><span data-hero-output="zoom">{{ form.hero_image_zoom.data or 100 }}</span>% zoom</div>
+                  <div class="field-hint"><span data-hero-output="zoom">{{ form.hero_image_zoom.data if form.hero_image_zoom.data is not none else 100 }}</span>% zoom</div>
                 </div>
               </div>
               <div class="hero-image-editor-actions">
+                <button type="button" class="btn btn-ghost btn-sm" data-hero-zoom-out title="Zoom out">
+                  <iconify-icon icon="lucide:zoom-out" width="14"></iconify-icon> Zoom out
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm" data-hero-zoom-in title="Zoom in">
+                  <iconify-icon icon="lucide:zoom-in" width="14"></iconify-icon> Zoom in
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm" data-hero-center-frame title="Center image">
+                  <iconify-icon icon="lucide:crosshair" width="14"></iconify-icon> Center
+                </button>
                 <button type="button" class="btn btn-ghost btn-sm" data-hero-reset-frame>
-                  <iconify-icon icon="lucide:rotate-ccw" width="14"></iconify-icon> Reset frame
+                  <iconify-icon icon="lucide:rotate-ccw" width="14"></iconify-icon> Reset
                 </button>
                 <a
                   class="btn btn-ghost btn-sm"
@@ -182,8 +244,14 @@
                   data-hero-open-image
                   {% if not form.hero_image_url.data %}aria-disabled="true" tabindex="-1"{% endif %}
                 >
-                  <iconify-icon icon="lucide:external-link" width="14"></iconify-icon> Open image
+                  <iconify-icon icon="lucide:external-link" width="14"></iconify-icon> Original
                 </a>
+              </div>
+              <div class="hero-image-editor-help">
+                <span><kbd>Drag</kbd> reposition</span>
+                <span><kbd>Wheel</kbd> zoom</span>
+                <span><kbd>Arrow keys</kbd> fine-tune</span>
+                <span><kbd>Shift + arrows</kbd> move faster</span>
               </div>
             </div>
           </div>

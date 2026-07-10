@@ -312,49 +312,160 @@
 
     const imageInput = document.getElementById('hero_image_url');
     const browserTextInput = document.getElementById('hero_preview_url_text');
+    const nameInput = document.getElementById('hero_preview_name');
+    const roleInput = document.getElementById('hero_preview_role');
+    const badgeInput = document.getElementById('hero_stat_badge_text');
+    const likesInput = document.getElementById('hero_stat_likes');
+    const viewsInput = document.getElementById('hero_stat_views');
+    const commentsInput = document.getElementById('hero_stat_comments');
+    const widgetsInput = document.getElementById('hero_enable_widgets');
+    const animationInput = document.getElementById('hero_enable_animation');
+
     const fitInput = editor.querySelector('[data-hero-control="fit"]');
     const xInput = editor.querySelector('[data-hero-control="x"]');
     const yInput = editor.querySelector('[data-hero-control="y"]');
     const zoomInput = editor.querySelector('[data-hero-control="zoom"]');
     const resetBtn = editor.querySelector('[data-hero-reset-frame]');
+    const centerBtn = editor.querySelector('[data-hero-center-frame]');
+    const zoomInBtn = editor.querySelector('[data-hero-zoom-in]');
+    const zoomOutBtn = editor.querySelector('[data-hero-zoom-out]');
     const openLink = editor.querySelector('[data-hero-open-image]');
     const previewBox = editor.querySelector('[data-hero-preview-box]');
-    const browserText = editor.querySelector('.hero-image-editor-browser-bar > div');
+    const browser = editor.querySelector('[data-hero-live-browser]');
+    const browserText = editor.querySelector('[data-hero-browser-text]');
+    const caption = editor.querySelector('[data-hero-caption]');
+    const captionName = editor.querySelector('[data-hero-caption-name]');
+    const captionRole = editor.querySelector('[data-hero-caption-role]');
+    const engage = editor.querySelector('[data-hero-engage]');
+    const publishedWidget = editor.querySelector('[data-hero-floating-published]');
+    const likedWidget = editor.querySelector('[data-hero-floating-liked]');
+    const badgeText = editor.querySelector('[data-hero-badge-text]');
+    const likeCount = editor.querySelector('[data-hero-like-count]');
+    const likedText = editor.querySelector('[data-hero-liked-text]');
+    const viewCount = editor.querySelector('[data-hero-view-count]');
+    const commentCount = editor.querySelector('[data-hero-comment-count]');
+    const statusText = editor.querySelector('[data-hero-editor-status]');
+
+    let dragState = null;
+    let wheelCommitTimer = null;
 
     function clamp(value, min, max, fallback) {
-      const n = parseInt(value, 10);
+      const n = Number.parseFloat(value);
       if (Number.isNaN(n)) return fallback;
       return Math.max(min, Math.min(max, n));
     }
 
-    function showEmpty() {
+    function valueOr(input, fallback) {
+      if (!input) return fallback;
+      const value = String(input.value || '').trim();
+      return value || fallback;
+    }
+
+    function setStatus(message, state) {
+      if (statusText) statusText.textContent = message;
+      if (!editor) return;
+      editor.dataset.heroEditorState = state || 'ready';
+    }
+
+    function dispatchControl(input, eventName) {
+      if (!input) return;
+      input.dispatchEvent(new Event(eventName || 'input', { bubbles: true }));
+    }
+
+    function commitControls(inputs) {
+      inputs.filter(Boolean).forEach((input) => dispatchControl(input, 'change'));
+    }
+
+    function removeEmptyState() {
+      const empty = editor.querySelector('[data-hero-preview-empty]');
+      if (empty) empty.remove();
+    }
+
+    function showEmpty(message, options) {
+      const settings = options || {};
       const img = editor.querySelector('[data-hero-preview-img]');
-      if (img) img.remove();
-      if (previewBox && !editor.querySelector('[data-hero-preview-empty]')) {
-        const empty = document.createElement('div');
+      if (settings.removeImage !== false && img) img.remove();
+      if (!previewBox) return;
+
+      let empty = editor.querySelector('[data-hero-preview-empty]');
+      if (!empty) {
+        empty = document.createElement('div');
         empty.className = 'hero-image-editor-empty';
         empty.dataset.heroPreviewEmpty = 'true';
-        empty.innerHTML = '<iconify-icon icon="lucide:image" width="24"></iconify-icon><span>Upload or paste a hero image to preview its exact 16:9 frame.</span>';
+        empty.innerHTML = '<iconify-icon icon="lucide:image" width="24"></iconify-icon><span></span>';
         previewBox.appendChild(empty);
       }
+      const label = empty.querySelector('span');
+      if (label) label.textContent = message || 'Upload or paste a hero image to start the live editor.';
+    }
+
+    function bindImageEvents(img) {
+      if (!img || img.dataset.heroEventsBound === 'true') return;
+      img.dataset.heroEventsBound = 'true';
+      img.addEventListener('load', () => {
+        if (previewBox) {
+          previewBox.classList.remove('is-loading', 'has-error');
+          previewBox.classList.add('has-image');
+        }
+        removeEmptyState();
+        setStatus('Image loaded — drag inside the frame to reposition it.', 'ready');
+      });
+      img.addEventListener('error', () => {
+        if (previewBox) {
+          previewBox.classList.remove('is-loading', 'has-image');
+          previewBox.classList.add('has-error');
+        }
+        showEmpty('The image URL could not be loaded. Replace it or verify that it is publicly accessible.', { removeImage: false });
+        setStatus('Image failed to load. Check the image URL or upload it again.', 'error');
+      });
     }
 
     function ensurePreviewImage() {
       const url = imageInput ? imageInput.value.trim() : '';
       let img = editor.querySelector('[data-hero-preview-img]');
+
       if (!url) {
-        showEmpty();
+        if (previewBox) previewBox.classList.remove('is-loading', 'has-error', 'has-image');
+        showEmpty('Upload or paste a hero image to start the live editor.');
+        setStatus('Waiting for a hero image.', 'empty');
         return null;
       }
+
       if (!img && previewBox) {
-        const empty = editor.querySelector('[data-hero-preview-empty]');
-        if (empty) empty.remove();
+        removeEmptyState();
         img = document.createElement('img');
         img.alt = 'Landing hero frame preview';
         img.dataset.heroPreviewImg = 'true';
-        previewBox.appendChild(img);
+        img.draggable = false;
+        previewBox.insertBefore(img, previewBox.firstChild);
       }
-      if (img && img.getAttribute('src') !== url) img.setAttribute('src', url);
+
+      if (img) {
+        bindImageEvents(img);
+        if (img.getAttribute('src') !== url) {
+          if (previewBox) {
+            previewBox.classList.add('is-loading');
+            previewBox.classList.remove('has-error');
+          }
+          removeEmptyState();
+          img.setAttribute('src', url);
+          setStatus('Loading hero image…', 'loading');
+        } else if (img.complete) {
+          if (img.naturalWidth > 0) {
+            if (previewBox) {
+              previewBox.classList.remove('is-loading', 'has-error');
+              previewBox.classList.add('has-image');
+            }
+            removeEmptyState();
+            setStatus('Image loaded — drag inside the frame to reposition it.', 'ready');
+          } else if (img.getAttribute('src')) {
+            if (previewBox) previewBox.classList.add('has-error');
+            showEmpty('The image URL could not be loaded. Replace it or verify that it is publicly accessible.', { removeImage: false });
+            setStatus('Image failed to load. Check the image URL or upload it again.', 'error');
+          }
+        }
+      }
+
       if (openLink) {
         openLink.href = url;
         openLink.removeAttribute('aria-disabled');
@@ -367,9 +478,35 @@
       const outX = editor.querySelector('[data-hero-output="x"]');
       const outY = editor.querySelector('[data-hero-output="y"]');
       const outZoom = editor.querySelector('[data-hero-output="zoom"]');
-      if (outX) outX.textContent = x;
-      if (outY) outY.textContent = y;
-      if (outZoom) outZoom.textContent = zoom;
+      if (outX) outX.textContent = Math.round(x);
+      if (outY) outY.textContent = Math.round(y);
+      if (outZoom) outZoom.textContent = Math.round(zoom);
+    }
+
+    function updateLiveContent() {
+      const name = valueOr(nameInput, '');
+      const role = valueOr(roleInput, '');
+      const likes = valueOr(likesInput, '128');
+      const views = valueOr(viewsInput, '214');
+      const comments = valueOr(commentsInput, '12');
+      const badge = valueOr(badgeInput, 'Portfolio published');
+      const widgetsEnabled = widgetsInput ? widgetsInput.checked : true;
+      const animationEnabled = animationInput ? animationInput.checked : true;
+
+      if (browserText) browserText.textContent = valueOr(browserTextInput, 'myportfoliohub.online/you');
+      if (captionName) captionName.textContent = name;
+      if (captionRole) captionRole.textContent = role;
+      if (caption) caption.hidden = !name && !role;
+      if (badgeText) badgeText.textContent = badge;
+      if (likeCount) likeCount.textContent = likes;
+      if (likedText) likedText.textContent = likes;
+      if (viewCount) viewCount.textContent = views;
+      if (commentCount) commentCount.textContent = comments;
+
+      [engage, publishedWidget, likedWidget].filter(Boolean).forEach((element) => {
+        element.classList.toggle('is-hidden', !widgetsEnabled);
+      });
+      if (browser) browser.classList.toggle('no-animate', !animationEnabled);
     }
 
     function applyPreview() {
@@ -379,26 +516,167 @@
         openLink.setAttribute('aria-disabled', 'true');
         openLink.setAttribute('tabindex', '-1');
       }
+
       const img = ensurePreviewImage();
       const fit = fitInput && fitInput.value === 'contain' ? 'contain' : 'cover';
       const x = clamp(xInput && xInput.value, 0, 100, 50);
       const y = clamp(yInput && yInput.value, 0, 100, 50);
       const zoom = clamp(zoomInput && zoomInput.value, 100, 180, 100);
+
       if (img) {
         img.style.objectFit = fit;
         img.style.objectPosition = x + '% ' + y + '%';
         img.style.transformOrigin = x + '% ' + y + '%';
         img.style.transform = 'scale(' + (zoom / 100).toFixed(2) + ')';
       }
-      if (browserText) {
-        browserText.textContent = (browserTextInput && browserTextInput.value.trim()) || 'myportfoliohub.online/you';
-      }
+
       updateOutputs(x, y, zoom);
+      updateLiveContent();
     }
 
-    [imageInput, browserTextInput, fitInput, xInput, yInput, zoomInput].filter(Boolean).forEach((input) => {
+    function setPosition(x, y, commit) {
+      if (xInput) xInput.value = Math.round(clamp(x, 0, 100, 50));
+      if (yInput) yInput.value = Math.round(clamp(y, 0, 100, 50));
+      if (xInput) dispatchControl(xInput, 'input');
+      if (yInput) dispatchControl(yInput, 'input');
+      if (commit) commitControls([xInput, yInput]);
+    }
+
+    function setZoom(value, commit) {
+      if (!zoomInput) return;
+      zoomInput.value = Math.round(clamp(value, 100, 180, 100));
+      dispatchControl(zoomInput, 'input');
+      if (commit) dispatchControl(zoomInput, 'change');
+    }
+
+    [
+      imageInput,
+      browserTextInput,
+      nameInput,
+      roleInput,
+      badgeInput,
+      likesInput,
+      viewsInput,
+      commentsInput,
+      widgetsInput,
+      animationInput,
+      fitInput,
+      xInput,
+      yInput,
+      zoomInput,
+    ].filter(Boolean).forEach((input) => {
       input.addEventListener('input', applyPreview);
       input.addEventListener('change', applyPreview);
+    });
+
+    if (previewBox) {
+      previewBox.addEventListener('pointerdown', (event) => {
+        const img = editor.querySelector('[data-hero-preview-img]');
+        if (!img || previewBox.classList.contains('has-error') || event.button !== 0) return;
+        event.preventDefault();
+        previewBox.focus({ preventScroll: true });
+        if (fitInput && fitInput.value !== 'contain' && clamp(zoomInput && zoomInput.value, 100, 180, 100) <= 100) {
+          // A 16:9 screenshot at 100% has no overflow to drag. Add a small,
+          // predictable zoom as soon as the user starts repositioning it.
+          setZoom(105, false);
+        }
+        previewBox.setPointerCapture(event.pointerId);
+        dragState = {
+          pointerId: event.pointerId,
+          startClientX: event.clientX,
+          startClientY: event.clientY,
+          startX: clamp(xInput && xInput.value, 0, 100, 50),
+          startY: clamp(yInput && yInput.value, 0, 100, 50),
+          moved: false,
+        };
+        previewBox.classList.add('is-dragging', 'has-interacted');
+        setStatus('Repositioning image… release to save the new frame.', 'editing');
+      });
+
+      previewBox.addEventListener('pointermove', (event) => {
+        if (!dragState || event.pointerId !== dragState.pointerId) return;
+        const rect = previewBox.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        const zoomFactor = clamp(zoomInput && zoomInput.value, 100, 180, 100) / 100;
+        const dx = event.clientX - dragState.startClientX;
+        const dy = event.clientY - dragState.startClientY;
+        const nextX = dragState.startX - ((dx / rect.width) * 100) / zoomFactor;
+        const nextY = dragState.startY - ((dy / rect.height) * 100) / zoomFactor;
+        dragState.moved = dragState.moved || Math.abs(dx) > 1 || Math.abs(dy) > 1;
+        setPosition(nextX, nextY, false);
+      });
+
+      const finishDrag = (event) => {
+        if (!dragState || (event && event.pointerId !== dragState.pointerId)) return;
+        const moved = dragState.moved;
+        dragState = null;
+        previewBox.classList.remove('is-dragging');
+        if (moved) {
+          commitControls([xInput, yInput]);
+          setStatus('Frame updated. The saved landing page will use this exact position.', 'ready');
+        } else {
+          setStatus('Drag the image to reposition it, or scroll to zoom.', 'ready');
+        }
+      };
+
+      previewBox.addEventListener('pointerup', finishDrag);
+      previewBox.addEventListener('pointercancel', finishDrag);
+      previewBox.addEventListener('lostpointercapture', finishDrag);
+
+      previewBox.addEventListener('wheel', (event) => {
+        const img = editor.querySelector('[data-hero-preview-img]');
+        if (!img || previewBox.classList.contains('has-error')) return;
+        event.preventDefault();
+        previewBox.classList.add('has-interacted');
+        const current = clamp(zoomInput && zoomInput.value, 100, 180, 100);
+        const step = event.deltaY < 0 ? 4 : -4;
+        setZoom(current + step, false);
+        setStatus('Zooming image…', 'editing');
+        window.clearTimeout(wheelCommitTimer);
+        wheelCommitTimer = window.setTimeout(() => {
+          commitControls([zoomInput]);
+          setStatus('Zoom updated. The public landing preview will match this frame.', 'ready');
+        }, 220);
+      }, { passive: false });
+
+      previewBox.addEventListener('keydown', (event) => {
+        const key = event.key;
+        const moveStep = event.shiftKey ? 5 : 1;
+        const x = clamp(xInput && xInput.value, 0, 100, 50);
+        const y = clamp(yInput && yInput.value, 0, 100, 50);
+        const zoom = clamp(zoomInput && zoomInput.value, 100, 180, 100);
+        let handled = true;
+
+        if (key === 'ArrowLeft') setPosition(x - moveStep, y, true);
+        else if (key === 'ArrowRight') setPosition(x + moveStep, y, true);
+        else if (key === 'ArrowUp') setPosition(x, y - moveStep, true);
+        else if (key === 'ArrowDown') setPosition(x, y + moveStep, true);
+        else if (key === '+' || key === '=') setZoom(zoom + 5, true);
+        else if (key === '-' || key === '_') setZoom(zoom - 5, true);
+        else if (key === 'Home') setPosition(50, 50, true);
+        else handled = false;
+
+        if (handled) {
+          event.preventDefault();
+          previewBox.classList.add('has-interacted');
+          setStatus('Frame fine-tuned with the keyboard.', 'ready');
+        }
+      });
+    }
+
+    if (zoomInBtn) zoomInBtn.addEventListener('click', () => {
+      setZoom(clamp(zoomInput && zoomInput.value, 100, 180, 100) + 5, true);
+      setStatus('Zoom increased.', 'ready');
+    });
+
+    if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => {
+      setZoom(clamp(zoomInput && zoomInput.value, 100, 180, 100) - 5, true);
+      setStatus('Zoom decreased.', 'ready');
+    });
+
+    if (centerBtn) centerBtn.addEventListener('click', () => {
+      setPosition(50, 50, true);
+      setStatus('Image centered in the landing frame.', 'ready');
     });
 
     if (resetBtn) {
@@ -407,11 +685,10 @@
         if (xInput) xInput.value = 50;
         if (yInput) yInput.value = 50;
         if (zoomInput) zoomInput.value = 100;
-        [fitInput, xInput, yInput, zoomInput].filter(Boolean).forEach((input) => {
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-        applyPreview();
+        [fitInput, xInput, yInput, zoomInput].filter(Boolean).forEach((input) => dispatchControl(input, 'input'));
+        commitControls([fitInput, xInput, yInput, zoomInput]);
+        if (previewBox) previewBox.classList.remove('has-interacted');
+        setStatus('Frame reset to the recommended center crop.', 'ready');
       });
     }
 

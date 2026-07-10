@@ -231,6 +231,9 @@ def register_context_processors(app) -> None:
 
     app.add_template_global(tenant_portfolio_public_url, 'tenant_portfolio_url')
     app.add_template_global(tenant_project_public_url, 'tenant_project_url')
+    from app.services.billing.currency import currency_context, format_money
+    app.add_template_global(currency_context, 'billing_currency_context')
+    app.add_template_global(format_money, 'billing_money')
 
     @app.context_processor
     def inject_globals() -> dict:

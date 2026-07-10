@@ -139,7 +139,7 @@ def run_renewal_check(app=None):
     with _app.app_context():
         try:
             from app import db
-            from app.models.portfolio import Subscription, Tenant
+            from app.models.portfolio import Subscription, Tenant, Profile
             from app.models.portfolio import SubscriptionNotification
 
             now = utc_now()
@@ -147,17 +147,48 @@ def run_renewal_check(app=None):
 
             active_subs = (
                 Subscription.query
-                .filter(Subscription.status == 'active')
-                .filter(Subscription.expires_at.isnot(None))
+                .filter(Subscription.status.in_(['active', 'scheduled']))
                 .all()
             )
 
-            processed = expired_count = reminder_7d_count = reminder_30d_count = 0
+            processed = expired_count = reminder_7d_count = reminder_30d_count = activated_count = 0
 
             for sub in active_subs:
                 try:
+                    previous_status = sub.status
+                    sub.refresh_status(commit=False)
+                    tenant = sub.tenant
+
+                    if previous_status == 'scheduled' and sub.status == 'active':
+                        is_trial = str(sub.plan or '').strip().lower() == 'trial'
+                        tenant.subscription_state = 'trial' if is_trial else 'active'
+                        tenant.plan = sub.plan
+                        tenant.plan_name = sub.plan
+                        tenant.subscription_started_at = sub.started_at
+                        tenant.subscription_expires_at = sub.expires_at
+                        tenant.trial_status = 'active' if is_trial else 'ended'
+                        tenant.trial_ends_at = sub.expires_at if is_trial else None
+                        if tenant.status != 'active':
+                            tenant.status = 'active'
+                        profile = Profile.query.filter_by(tenant_id=sub.tenant_id).first()
+                        if profile is not None:
+                            profile.plan = sub.plan
+                            if is_trial:
+                                expires = ensure_utc_aware(sub.expires_at)
+                                profile.free_trial_days = max(0, ((expires - utc_now()).days + 1) if expires else 0)
+                                profile.free_trial_ends = sub.expires_at
+                            else:
+                                profile.free_trial_days = 0
+                                profile.free_trial_ends = None
+                            if hasattr(profile, '_current_subscription_cache'):
+                                del profile._current_subscription_cache
+                        on_subscription_activated(sub, db)
+                        activated_count += 1
+                        logger.info('[RenewalScheduler] Activated scheduled sub id=%s tenant=%s', sub.id, tenant.slug)
+
                     days_left = _days_until_expiry(sub)
                     if days_left is None:
+                        processed += 1
                         continue
 
                     tenant = sub.tenant
@@ -257,8 +288,8 @@ def run_renewal_check(app=None):
 
             db.session.commit()
             logger.info(
-                '[RenewalScheduler] Done. Processed=%d Expired=%d 7dReminders=%d 30dReminders=%d',
-                processed, expired_count, reminder_7d_count, reminder_30d_count,
+                '[RenewalScheduler] Done. Processed=%d Activated=%d Expired=%d 7dReminders=%d 30dReminders=%d',
+                processed, activated_count, expired_count, reminder_7d_count, reminder_30d_count,
             )
 
         except Exception as exc:

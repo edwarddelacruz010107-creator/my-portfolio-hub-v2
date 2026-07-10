@@ -57,6 +57,14 @@
   </div>
 </div>
 
+<div class="currency-rate-note">
+  <iconify-icon icon="lucide:badge-dollar-sign" width="15"></iconify-icon>
+  Base prices are set in USD. Displayed totals are converted automatically to
+  <strong>{{ currency.display_currency }}</strong>
+  {% if currency.fx.rate %}at 1 USD = {{ '%.6g'|format(currency.fx.rate) }} {{ currency.display_currency }}{% endif %}.
+  {% if currency.fx.stale %}<span class="text-warning">Using the last available rate.</span>{% endif %}
+</div>
+
 {# ── Promo banner: plan-agnostic "sale ends in..." with live countdown ── #}
 {% if promo_campaign %}
 <div class="promo-banner" id="promoBanner"
@@ -66,7 +74,7 @@
       {% if promo_campaign.discount_type == 'percent' %}
         {{ '%.0f'|format(promo_campaign.value) }}% OFF
       {% else %}
-        ₱{{ '%.2f'|format(promo_campaign.value) }} OFF
+        {{ currency.symbol }}{{ '%.2f'|format(promo_campaign.value) }} OFF
       {% endif %}
     </span>
     <span class="promo-banner-name">{{ promo_campaign.name }}</span>
@@ -99,20 +107,20 @@
       {% if promo_campaign and key in promo_eligible_plans %}
       <div class="plan-badge-sale" title="{{ promo_campaign.name }} applies to this plan">
         <iconify-icon icon="lucide:tag" width="11"></iconify-icon>
-        {% if promo_campaign.discount_type == 'percent' %}{{ '%.0f'|format(promo_campaign.value) }}% OFF{% else %}₱{{ '%.2f'|format(promo_campaign.value) }} OFF{% endif %}
+        {% if promo_campaign.discount_type == 'percent' %}{{ '%.0f'|format(promo_campaign.value) }}% OFF{% else %}{{ currency.symbol }}{{ '%.2f'|format(promo_campaign.value) }} OFF{% endif %}
       </div>
       {% endif %}
       <div class="plan-name">{{ key }}</div>
       <div class="plan-price">
         <span class="amount price-display"
-              data-monthly="{{ details.currency_symbol|default('₱') }}{{ '%.2f'|format(details.price_monthly) }}/mo"
-              data-yearly="{{ details.currency_symbol|default('₱') }}{{ '%.2f'|format(details.price_yearly) }}/yr">
-          {{ details.currency_symbol|default('₱') }}{{ '%.2f'|format(details.price_monthly) }}/mo
+              data-monthly="{{ details.currency_symbol|default('$') }}{{ '%.2f'|format(details.price_monthly) }}/mo"
+              data-yearly="{{ details.currency_symbol|default('$') }}{{ '%.2f'|format(details.price_yearly) }}/yr">
+          {{ details.currency_symbol|default('$') }}{{ '%.2f'|format(details.price_monthly) }}/mo
         </span>
       </div>
       <div class="plan-yearly-note" style="display:none">
         <iconify-icon icon="lucide:tag" width="12"></iconify-icon>
-        Save {{ details.currency_symbol|default('₱') }}{{ '%.2f'|format(details.price_monthly * 12 - details.price_yearly) }} vs monthly
+        Save {{ details.currency_symbol|default('$') }}{{ '%.2f'|format(details.price_monthly * 12 - details.price_yearly) }} vs monthly
       </div>
       <div class="plan-desc">{{ details.description }}</div>
       <ul class="plan-features">
@@ -301,6 +309,10 @@
 }
 </style>
 
+<style>
+.currency-rate-note{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin:-.5rem 0 1.25rem;padding:.65rem .85rem;border:1px solid rgba(99,102,241,.2);border-radius:10px;background:rgba(99,102,241,.06);font-size:.82rem;color:var(--text-muted)}
+.currency-rate-note strong{color:var(--text-primary,#e0e7ff)}
+</style>
 <script>
 (function () {
   var planCards   = document.querySelectorAll('.plan-card-v2');

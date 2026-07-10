@@ -190,9 +190,9 @@
       <div class="plan-name">{{ key }}</div>
       <div class="plan-price">
         <span class="amount price-monthly"
-              data-monthly="₱{{ '%.2f'|format(details.price_monthly) }}/mo"
-              data-yearly="₱{{ '%.2f'|format(details.price_yearly) }}/yr">
-          ₱{{ '%.2f'|format(details.price_monthly) }}/mo
+              data-monthly="{{ details.currency_symbol|default('$') }}{{ '%.2f'|format(details.price_monthly) }}/mo"
+              data-yearly="{{ details.currency_symbol|default('$') }}{{ '%.2f'|format(details.price_yearly) }}/yr">
+          {{ details.currency_symbol|default('$') }}{{ '%.2f'|format(details.price_monthly) }}/mo
         </span>
       </div>
       <div class="plan-desc">{{ details.description }}</div>

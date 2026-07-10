@@ -41,6 +41,7 @@ from app.models.portfolio import (
     normalize_plan_name,
 )
 from app.utils import BILLING_PLANS, get_public_billing_plans, is_paymongo_enabled, log_activity
+from app.services.billing.currency import get_currency_settings
 from app.services.billing import subscription_access_status, is_in_grace_period
 from app.services.billing_handlers import (
     billing_payment_context,
@@ -376,7 +377,7 @@ def billing():
         plans=get_public_billing_plans(),
         is_administrator_plan=is_admin_plan,
         tenant_slug=tenant,
-        paymongo_enabled=is_paymongo_enabled(),
+        paymongo_enabled=(is_paymongo_enabled() and get_currency_settings().get('display_currency') == 'PHP'),
         billing_routes={
             'overview': 'tenant.billing',
             'plans': 'tenant.billing_plans',
@@ -414,7 +415,7 @@ def billing_plans():
         'history': 'tenant.billing_history',
         'payment': 'tenant.billing_payment',
     }
-    paymongo_enabled = is_paymongo_enabled()
+    paymongo_enabled = is_paymongo_enabled() and get_currency_settings().get('display_currency') == 'PHP'
 
     if request.method == 'POST':
         response, exc = handle_billing_plans_post(

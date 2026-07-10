@@ -207,6 +207,61 @@ def save_image(file: FileStorage, folder: str = "uploads") -> Optional[str]:
             pass
 
 
+
+def save_billing_proof(file: FileStorage, folder: str = "billing") -> Optional[str]:
+    """Upload a validated billing proof to persistent Cloudinary storage.
+
+    Image proofs use the normal optimized image pipeline. PDF proofs are
+    uploaded as authenticated server-side raw assets. The caller is still
+    responsible for applying ``FileUploadPolicy.validate_billing_proof_upload``
+    before this function is called.
+    """
+    if not file or not getattr(file, "filename", None):
+        return None
+
+    extension = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if extension in {"png", "jpg", "jpeg", "webp"}:
+        return save_image(file, folder=folder)
+    if extension != "pdf":
+        return None
+
+    try:
+        raw_data = _read_file_bytes(file)
+        if not raw_data:
+            return None
+        _configure_cloudinary()
+        import cloudinary.uploader
+
+        public_id = f"{uuid.uuid4().hex}.pdf"
+        result = cloudinary.uploader.upload(
+            io.BytesIO(raw_data),
+            resource_type="raw",
+            folder=_folder_path(folder),
+            public_id=public_id,
+            overwrite=False,
+            unique_filename=False,
+            use_filename=False,
+            invalidate=True,
+            context={
+                "app": "myportfoliohub",
+                "category": "billing-proof",
+                "content_type": "application/pdf",
+            },
+        )
+        secure_url = str(result.get("secure_url") or "").strip()
+        if secure_url.startswith("https://"):
+            logger.info("Uploaded billing proof PDF to Cloudinary public_id=%s", result.get("public_id"))
+            return secure_url
+        return None
+    except Exception:
+        logger.exception("Cloudinary billing proof upload failed")
+        return None
+    finally:
+        try:
+            file.stream.seek(0)
+        except Exception:
+            pass
+
 def is_cloudinary_url(url: str | None) -> bool:
     if not isinstance(url, str):
         return False

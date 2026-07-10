@@ -8,6 +8,11 @@
 .badge-administrator{display:inline-flex;align-items:center;gap:.35rem;background:linear-gradient(135deg,rgba(124,58,237,.18),rgba(245,158,11,.16));border:1px solid rgba(167,139,250,.45);color:#c4b5fd;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
 .system-plan-card{border-color:rgba(167,139,250,.38);box-shadow:0 14px 40px rgba(88,28,135,.14)}
 .system-plan-grid{grid-template-columns:minmax(260px,420px)}
+
+.currency-config-card{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:1rem;margin:1.25rem 0 1.75rem;padding:1.2rem;border:1px solid var(--border-color,rgba(148,163,184,.18));border-radius:18px;background:var(--card-bg,#111827)}
+.currency-config-copy h2{display:flex;align-items:center;gap:.5rem;margin:0 0 .45rem;font-size:1rem}.currency-config-copy p{margin:0;color:var(--text-muted);font-size:.86rem;line-height:1.55}.currency-rate-box{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;margin-top:1rem}.currency-rate-stat{padding:.8rem;border:1px solid rgba(99,102,241,.2);border-radius:12px;background:rgba(99,102,241,.06)}.currency-rate-stat span{display:block;color:var(--text-muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em}.currency-rate-stat strong{display:block;margin-top:.25rem;font-size:.95rem}.currency-config-form{display:grid;gap:.75rem}.currency-config-actions{display:flex;gap:.6rem;flex-wrap:wrap}.billing-usd-base{display:block;margin-top:.3rem;color:var(--text-muted);font-size:.74rem}.tenant-manage-link{display:inline-flex;align-items:center;gap:.35rem}
+@media(max-width:900px){.currency-config-card{grid-template-columns:1fr}.currency-rate-box{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.currency-rate-box{grid-template-columns:1fr}.currency-config-actions .btn{width:100%}}
 </style>
 {% endblock %}
 
@@ -68,14 +73,51 @@
     {% if _sorted_by_price %}
     <div class="billing-summary-item">
       <div class="billing-summary-label">Lowest Price</div>
-      <div class="billing-summary-value">{{ _sorted_by_price[0][1].get('currency_symbol', '₱') }}{{ '%.2f'|format(_sorted_by_price[0][1].get('price', 0)) }}</div>
+      <div class="billing-summary-value">{{ _sorted_by_price[0][1].get('currency_symbol', '$') }}{{ '%.2f'|format(_sorted_by_price[0][1].get('price', 0)) }}</div>
     </div>
     <div class="billing-summary-item">
       <div class="billing-summary-label">Highest Price</div>
-      <div class="billing-summary-value">{{ _sorted_by_price[-1][1].get('currency_symbol', '₱') }}{{ '%.2f'|format(_sorted_by_price[-1][1].get('price', 0)) }}</div>
+      <div class="billing-summary-value">{{ _sorted_by_price[-1][1].get('currency_symbol', '$') }}{{ '%.2f'|format(_sorted_by_price[-1][1].get('price', 0)) }}</div>
     </div>
     {% endif %}
   </div>
+
+  <section class="currency-config-card" aria-labelledby="billing-currency-heading">
+    <div class="currency-config-copy">
+      <h2 id="billing-currency-heading"><iconify-icon icon="lucide:circle-dollar-sign" width="18"></iconify-icon> Billing Currency</h2>
+      <p>All plan prices are stored in <strong>USD</strong>. The selected display currency is calculated automatically from the latest available exchange rate. Manual-payment totals are locked on the server and cannot be edited by tenants.</p>
+      <div class="currency-rate-box">
+        <div class="currency-rate-stat"><span>Base currency</span><strong>$ USD</strong></div>
+        <div class="currency-rate-stat"><span>Display currency</span><strong>{{ currency.symbol }} {{ currency.display_currency }}</strong></div>
+        <div class="currency-rate-stat"><span>Current rate</span><strong>1 USD = {{ '%.6g'|format(currency.fx.rate) }} {{ currency.display_currency }}</strong></div>
+        <div class="currency-rate-stat"><span>Provider</span><strong>{{ currency.fx.provider|default(currency.settings.provider)|replace('-', ' ')|title }}{% if currency.fx.stale %} · cached{% endif %}</strong></div>
+      </div>
+    </div>
+    <form method="post" class="currency-config-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <label class="form-field"><span class="field-label">Display / payment currency</span>
+        <select class="field-input" name="display_currency">
+          {% for code, meta in supported_currencies.items() %}
+          <option value="{{ code }}" {% if code == currency.display_currency %}selected{% endif %}>{{ meta.symbol }} {{ code }} — {{ meta.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="form-field"><span class="field-label">Rate provider</span>
+        <select class="field-input" name="fx_provider">
+          <option value="frankfurter" {% if currency.settings.provider == 'frankfurter' %}selected{% endif %}>Frankfurter — no API key, daily institutional rates</option>
+          <option value="currencyapi" {% if currency.settings.provider == 'currencyapi' %}selected{% endif %}>CurrencyAPI — API key from environment</option>
+        </select>
+      </label>
+      <label class="form-field"><span class="field-label">Refresh interval (minutes)</span>
+        <input class="field-input" type="number" name="fx_refresh_minutes" min="5" max="1440" value="{{ currency.settings.refresh_minutes }}" />
+      </label>
+      <div class="currency-config-actions">
+        <button class="btn btn-primary" type="submit" name="action" value="update_currency"><iconify-icon icon="lucide:save" width="15"></iconify-icon> Save Currency</button>
+        <button class="btn btn-ghost" type="submit" name="action" value="refresh_fx"><iconify-icon icon="lucide:refresh-cw" width="15"></iconify-icon> Refresh Rate</button>
+      </div>
+      <small class="form-card-note">For CurrencyAPI, set <code>CURRENCYAPI_KEY</code> in production. If unavailable, the system falls back to Frankfurter or the last cached rate.</small>
+    </form>
+  </section>
 
   <!-- ── PLAN LIMITS EDITOR ────────────────────────── -->
   <div class="subscription-section-intro trial-limits-intro plan-limits-intro">
@@ -164,7 +206,7 @@
           </div>
         </form>
 
-        <form method="post" class="trial-reset-form plan-reset-form" onsubmit="return confirm('Reset {{ plan_name }} limits to defaults?');">
+        <form method="post" class="trial-reset-form plan-reset-form js-confirm-form" data-confirm="Reset {{ plan_name }} limits to defaults?">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <input type="hidden" name="action" value="reset_plan_limits" />
           <input type="hidden" name="plan_name" value="{{ plan_name }}" />
@@ -233,10 +275,11 @@
           </div>
 
           <div class="billing-price-row">
-            <span class="billing-price-amount">{{ plan_data.get('currency_symbol', '₱') }}{{ '%.2f'|format(plan_data.get('price', 0)) }}</span>
-            <span class="billing-price-period">/ mo</span>
+            <span class="billing-price-amount">{{ plan_data.get('currency_symbol', '$') }}{{ '%.2f'|format(plan_data.get('price_monthly', 0)) }}</span>
+            <span class="billing-price-period">/ mo · {{ plan_data.get('currency_code', 'USD') }}</span>
           </div>
 
+          <span class="billing-usd-base">Base: ${{ '%.2f'|format(plan_data.get('base_price_usd', plan_data.get('price', 0))) }} USD/month</span>
           <div class="billing-plan-desc">{{ plan_data.get('description', '') }}</div>
 
           {% set _features = plan_data.get('features', []) %}
@@ -280,31 +323,26 @@
                 />
               </div>
               <div class="form-field">
-                <label for="plan_price_{{ plan_name }}" class="field-label">Price</label>
+                <label for="plan_price_usd_{{ plan_name }}" class="field-label">Base Monthly Price (USD)</label>
                 <input
-                  id="plan_price_{{ plan_name }}"
-                  name="plan_price_{{ plan_name }}"
+                  id="plan_price_usd_{{ plan_name }}"
+                  name="plan_price_usd_{{ plan_name }}"
                   type="number"
                   step="0.01"
                   min="0"
                   class="field-input"
-                  value="{{ plan_data.get('price', 0) }}"
+                  value="{{ plan_data.get('base_price_usd', plan_data.get('price', 0)) }}"
                 />
-                <div class="field-hint">Monthly amount shown to tenants.</div>
+                <div class="field-hint">Authoritative USD amount. Display prices are converted automatically.</div>
               </div>
             </div>
 
             <div class="form-grid-2">
               <div class="form-field">
-                <label for="plan_currency_{{ plan_name }}" class="field-label">Currency</label>
-                <input
-                  id="plan_currency_{{ plan_name }}"
-                  name="plan_currency_{{ plan_name }}"
-                  type="text"
-                  class="field-input"
-                  maxlength="3"
-                  value="{{ plan_data.get('currency_symbol', '₱') }}"
-                />
+                <span class="field-label">Current Converted Price</span>
+                <div class="field-input" style="display:flex;align-items:center;min-height:44px;background:rgba(99,102,241,.06)">
+                  {{ plan_data.get('currency_symbol', '$') }}{{ '%.2f'|format(plan_data.get('price_monthly', 0)) }} {{ plan_data.get('currency_code', 'USD') }} / month
+                </div>
               </div>
               <div class="form-field">
                 <label for="plan_duration_{{ plan_name }}" class="field-label">Duration (days)</label>
@@ -432,7 +470,7 @@
               {{ tenant.payment_method or '—' }}
             </td>
             <td class="small" data-label="Amount Paid">
-              {{ '₱' if tenant.amount_paid else '' }}{{ "%.2f"|format(tenant.amount_paid) if tenant.amount_paid else '0.00' }}
+              {{ tenant.amount_paid_label }}
             </td>
             <td data-label="Action">
               {% if tenant.is_system_plan %}
@@ -441,7 +479,10 @@
                 Protected
               </span>
               {% else %}
-              <form method="post" style="display: inline;" onsubmit="return confirm('Reset subscription for {{ tenant.tenant_slug }}?');">
+              <a href="{{ url_for('superadmin.subscription_manage', profile_id=tenant.id) }}" class="btn btn-sm btn-primary tenant-manage-link">
+                <iconify-icon icon="lucide:calendar-cog" width="14"></iconify-icon> Manage
+              </a>
+              <form method="post" style="display: inline;" class="js-confirm-form" data-confirm="Reset subscription for {{ tenant.tenant_slug }}?">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                 <input type="hidden" name="action" value="reset_subscription" />
                 <input type="hidden" name="tenant_id" value="{{ tenant.id }}" />

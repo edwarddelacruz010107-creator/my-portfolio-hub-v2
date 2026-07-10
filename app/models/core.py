@@ -722,17 +722,26 @@ class Subscription(db.Model):
     def refresh_status(self, commit: bool = False):
         if self.status in ('expired', 'cancelled'):
             return self
-        if self.expires_at is None:
-            return self
+        now = utc_now()
+        started = ensure_utc_aware(self.started_at)
         expires = ensure_utc_aware(self.expires_at)
-        if expires is not None and expires <= utc_now():
+
+        # A scheduled subscription becomes active as soon as its UTC start
+        # timestamp is reached. This transition also happens lazily when the
+        # tenant/profile reads the current subscription, so activation does
+        # not depend solely on a background scheduler being enabled.
+        if self.status == 'scheduled' and started is not None and started <= now:
+            self.status = 'active'
+
+        if expires is not None and expires <= now:
             self.status = 'expired'
-            if commit:
-                db.session.add(self)
-                try:
-                    db.session.commit()
-                except Exception:
-                    db.session.rollback()
+
+        if commit:
+            db.session.add(self)
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
         return self
 
     @property
@@ -743,12 +752,17 @@ class Subscription(db.Model):
         return False if expires is None else expires <= utc_now()
 
     def is_active(self) -> bool:
-        if self.status != 'active':
+        now = utc_now()
+        started = ensure_utc_aware(self.started_at)
+        if self.status == 'scheduled':
+            if started is None or started > now:
+                return False
+        elif self.status != 'active':
             return False
         if self.expires_at is None:
             return True
         expires = ensure_utc_aware(self.expires_at)
-        return False if expires is None else expires > utc_now()
+        return False if expires is None else expires > now
 
     @property
     def normalized_plan(self) -> str:
@@ -758,6 +772,7 @@ class Subscription(db.Model):
     def status_label(self) -> str:
         _MAP = {
             'pending':   'Pending Payment',
+            'scheduled': 'Scheduled',
             'active':    'Active',
             'expired':   'Expired',
             'cancelled': 'Cancelled',
@@ -766,7 +781,7 @@ class Subscription(db.Model):
 
     @property
     def next_billing_date(self):
-        return self.expires_at if self.status == 'active' else None
+        return self.expires_at if self.status in ('active', 'scheduled') else None
 
     def to_dict(self) -> dict:
         d = {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -981,7 +996,7 @@ class Invoice(db.Model):
     amount_tax       = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     amount_total     = db.Column(db.Numeric(10, 2), nullable=False)
 
-    currency = db.Column(db.String(10), nullable=False, default='PHP')
+    currency = db.Column(db.String(10), nullable=False, default='USD')
     coupon_code = db.Column(db.String(100), nullable=True)
 
     payment_method   = db.Column(db.String(100), nullable=False, default='')

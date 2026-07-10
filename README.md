@@ -639,3 +639,33 @@ flask db upgrade
 ```
 
 The production startup schema validator also adds the new fields idempotently for existing deployments, but Alembic remains the source of truth.
+
+## Subscription scheduling and currency conversion
+
+MyPortfolioHub stores subscription plan prices in **USD** as the authoritative
+base currency. Superadmins can choose a display/payment currency in
+**Superadmin → Subscription Settings**. Converted prices are recalculated from
+the USD amount using a cached exchange-rate provider.
+
+- Default provider: Frankfurter (no API key; latest daily reference rates)
+- Optional provider: CurrencyAPI (`CURRENCYAPI_KEY` required)
+- The server recomputes every manual-payment total; the browser cannot alter it.
+- Transaction reference and payment proof are required for manual submissions.
+- Cloudinary-backed deployments persist payment proof images/PDFs across deploys.
+- PayMongo checkout is shown only when the selected billing currency is PHP;
+  manual methods remain available for other currencies.
+
+Superadmins can open a tenant from **All Tenants** or **Subscription Settings**
+to activate, schedule, expire, cancel, or reset a Trial/Basic/Pro/Enterprise
+subscription. Start and expiration timestamps are stored in UTC. Scheduled
+subscriptions activate through the renewal scheduler and also lazily on the
+first authenticated request after the start time.
+
+Optional production variable:
+
+```env
+CURRENCYAPI_KEY=
+```
+
+No new database table or migration is required for currency settings; plan
+prices, provider settings, and the last valid FX rate use `PlatformSetting`.

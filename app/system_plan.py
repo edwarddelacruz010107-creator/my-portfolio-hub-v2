@@ -18,8 +18,8 @@ SYSTEM_OWNER_EMAILS = frozenset({"delacruzedward735@gmail.com"})
 ADMINISTRATOR_PLAN: dict[str, Any] = {
     "label": ADMINISTRATOR_PLAN_NAME,
     "slug": ADMINISTRATOR_PLAN_SLUG,
-    "currency_symbol": "₱",
-    "currency": "PHP",
+    "currency_symbol": "$",
+    "currency": "USD",
     "price_monthly": 0.0,
     "price_yearly": 0.0,
     "duration_days": None,

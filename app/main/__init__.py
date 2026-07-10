@@ -38,6 +38,7 @@ from app.models.portfolio import (
 )
 from app.security import FileUploadPolicy, log_security_event
 from app.utils import BILLING_PLANS, is_paymongo_enabled, log_activity
+from app.services.billing.currency import get_currency_settings
 
 logger = logging.getLogger(__name__)
 main   = Blueprint('main', __name__)
@@ -357,7 +358,7 @@ def billing_plans():
         db.session.commit()
 
         # If PayMongo is enabled, initiate payment
-        if is_paymongo_enabled() and action == 'save_local':
+        if is_paymongo_enabled() and get_currency_settings().get('display_currency') == 'PHP' and action == 'save_local':
             from app.utils.paymongo import create_payment_source
             
             payment_info = create_payment_source(

@@ -229,7 +229,7 @@ def dashboard():
 
     # Read currency symbol from BILLING_PLANS (set in Plan Settings by superadmin)
     _any_plan = next(iter(BILLING_PLANS.values()), {})
-    currency_symbol = _any_plan.get('currency_symbol', '₱') or '₱'
+    currency_symbol = _any_plan.get('currency_symbol', '$') or '$'
 
     stats = {
         'total_tenants':    total_tenants,

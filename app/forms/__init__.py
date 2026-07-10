@@ -7,7 +7,7 @@ URL fields gracefully handle empty strings (Optional + URL validators).
 Security v3.1: Password policy validation integrated into forms.
 """
 from flask_wtf import FlaskForm
-from flask_wtf.file import FileField, FileAllowed
+from flask_wtf.file import FileField, FileAllowed, FileRequired
 from flask_login import current_user
 from wtforms import (
     StringField, TextAreaField, IntegerField, BooleanField,
@@ -396,11 +396,14 @@ class PaymentUploadForm(FlaskForm):
         'Transaction Reference / ID',
         validators=[DataRequired(message='Please enter your transaction reference or ID.'), Length(max=255)],
     )
-    amount_paid = StringField('Amount Paid (₱)', validators=[DataRequired(message='Please enter the amount paid.'), Length(max=32)])
+    amount_paid = HiddenField('Amount Paid', validators=[DataRequired(message='The payable amount could not be determined. Please reload the page.')])
     payment_note = TextAreaField('Note (Optional)', validators=[Optional(), Length(max=500)])
     payment_proof = FileField(
         'Upload Proof (Image or PDF)',
-        validators=[FileAllowed(['png', 'jpg', 'jpeg', 'webp', 'pdf'], 'Images and PDF files only.')],
+        validators=[
+            FileRequired(message='Please upload proof of payment before submitting.'),
+            FileAllowed(['png', 'jpg', 'jpeg', 'webp', 'pdf'], 'Images and PDF files only.'),
+        ],
     )
     submit = SubmitField('Submit Payment')
 
@@ -470,7 +473,7 @@ class DiscountCampaignForm(FlaskForm):
 
     discount_type = SelectField(
         'Discount Type',
-        choices=[('percent', 'Percentage (%)'), ('fixed', 'Fixed Amount (₱)')],
+        choices=[('percent', 'Percentage (%)'), ('fixed', 'Fixed Amount (billing currency)')],
         default='percent',
         validators=[DataRequired()],
     )

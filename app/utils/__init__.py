@@ -47,15 +47,17 @@ YEARLY_DISCOUNT = 0.83   # ~17 % off when paying annually
 BILLING_PLANS: dict[str, dict] = {
     "Basic": {
         "label":           "Basic",
-        "currency_symbol": "₱",
+        "currency_symbol": "$",
+        "currency_code":   "USD",
+        "base_price_usd":  1.00,
         "price_monthly":   1.00,
         "price_yearly":    round(1.00  * 12 * YEARLY_DISCOUNT, 2),
         "duration_days":   30,
         "price":           1.00,          # legacy compat key
-        "price_label":     "₱1.00/mo",
+        "price_label":     "$1.00/mo",
         "description":     "Essential portfolio support with basic billing and updates.",
         "features": [
-            "Up to 5 portfolio projects",
+            "Up to 25 portfolio projects",
             "Email-based support",
             "PayMongo checkout billing",
             "Standard portfolio analytics",
@@ -63,12 +65,14 @@ BILLING_PLANS: dict[str, dict] = {
     },
     "Pro": {
         "label":           "Pro",
-        "currency_symbol": "₱",
+        "currency_symbol": "$",
+        "currency_code":   "USD",
+        "base_price_usd":  49.00,
         "price_monthly":   49.00,
         "price_yearly":    round(49.00 * 12 * YEARLY_DISCOUNT, 2),
         "duration_days":   30,
         "price":           49.00,
-        "price_label":     "₱49.00/mo",
+        "price_label":     "$49.00/mo",
         "description":     "Priority billing, subscription history, and automated renewals.",
         "features": [
             "Unlimited portfolio projects",
@@ -80,12 +84,14 @@ BILLING_PLANS: dict[str, dict] = {
     },
     "Enterprise": {
         "label":           "Enterprise",
-        "currency_symbol": "₱",
+        "currency_symbol": "$",
+        "currency_code":   "USD",
+        "base_price_usd":  99.00,
         "price_monthly":   99.00,
         "price_yearly":    round(99.00 * 12 * YEARLY_DISCOUNT, 2),
         "duration_days":   30,
         "price":           99.00,
-        "price_label":     "₱99.00/mo",
+        "price_label":     "$99.00/mo",
         "description":     "Advanced enterprise billing with dedicated support.",
         "features": [
             "Dedicated account manager",
@@ -193,6 +199,11 @@ def get_plan_price(plan: str, billing_cycle: str = "monthly") -> float:
     norm = normalize_plan_name(plan)
     if is_administrator_plan(norm):
         return 0.0
+    try:
+        from app.services.billing.currency import apply_currency_pricing
+        apply_currency_pricing(BILLING_PLANS)
+    except Exception:
+        logger.debug("Unable to refresh converted billing prices", exc_info=True)
     data = BILLING_PLANS.get(norm, BILLING_PLANS["Basic"])
     if billing_cycle == "yearly":
         return float(data.get("price_yearly", data["price"] * 12 * YEARLY_DISCOUNT))
@@ -211,7 +222,7 @@ def get_plan_price_label(plan: str, billing_cycle: str = "monthly") -> str:
     if is_administrator_plan(norm):
         return ADMINISTRATOR_PLAN["price_label"]
     data = BILLING_PLANS.get(norm, BILLING_PLANS["Basic"])
-    symbol = data.get("currency_symbol", "₱")
+    symbol = data.get("currency_symbol", "$")
     price = get_plan_price(plan, billing_cycle)
     if billing_cycle == "yearly":
         pct = get_yearly_discount_percent(plan)
@@ -337,7 +348,12 @@ def clear_yearly_discount_override(plan: str) -> None:
 
 
 def get_public_billing_plans() -> dict[str, dict]:
-    """Tenant-visible/purchasable billing plans only."""
+    """Tenant-visible plans with persisted USD base prices converted to the selected display currency."""
+    try:
+        from app.services.billing.currency import apply_currency_pricing
+        apply_currency_pricing(BILLING_PLANS)
+    except Exception:
+        logger.debug("Unable to apply billing currency conversion", exc_info=True)
     return public_billing_plans(BILLING_PLANS)
 
 
@@ -355,6 +371,12 @@ def refresh_yearly_pricing() -> None:
     prices, so a superadmin edit takes effect immediately across all workers
     on their next request without an app restart.
     """
+    try:
+        from app.services.billing.currency import apply_currency_pricing
+        apply_currency_pricing(BILLING_PLANS)
+        return
+    except Exception:
+        logger.debug("Unable to apply converted yearly pricing", exc_info=True)
     for key, data in BILLING_PLANS.items():
         monthly = data.get("price_monthly", data.get("price", 0))
         data["price_yearly"] = round(monthly * 12 * get_yearly_discount(key), 2)
@@ -366,7 +388,7 @@ def get_yearly_savings_label(plan: str) -> str:
     if is_administrator_plan(norm):
         return ADMINISTRATOR_PLAN["price_label"]
     data = BILLING_PLANS.get(norm, BILLING_PLANS["Basic"])
-    symbol = data.get("currency_symbol", "₱")
+    symbol = data.get("currency_symbol", "$")
     savings = get_plan_price(plan, "monthly") * 12 - get_plan_price(plan, "yearly")
     return f"Save {symbol}{savings:,.2f}/yr"
 
@@ -909,67 +931,126 @@ def send_subscription_activated_notification(profile, subscription) -> None:
 
 
 def refresh_current_subscription() -> None:
-    """
-    before_request hook: auto-expire subscriptions that have passed their
-    expires_at without a renewal.  Only runs for authenticated non-superadmin
-    users on non-static routes.
+    """Synchronize scheduled/expired subscriptions on authenticated requests.
 
-    Safe to call on every request — does a single cheap DB read and only
-    commits if the status actually changes.
+    This lazy transition is a production fallback for deployments where the
+    background scheduler is disabled. Paid subscriptions are evaluated before
+    trial expiration so a subscription scheduled for the current moment cannot
+    be incorrectly blocked by an expiring trial.
     """
-    from flask import request as _req, g as _g
+    from flask import request as _req
     from flask_login import current_user as _cu
 
-    # Skip static files, health checks, and webhooks
     endpoint = _req.endpoint or ''
     if endpoint.startswith('static') or endpoint in ('heartbeat.ping', 'webhooks.paymongo_webhook'):
         return
-
     if not _cu.is_authenticated or _cu.is_superadmin:
         return
 
     try:
-        from app.models.portfolio import Profile, Subscription
+        from app.models.portfolio import Profile, Subscription, normalize_plan_name
         from app.models.core import Tenant
         from app import db as _db
-        from app.utils.datetime_utils import ensure_utc_aware, utc_now
         from app.services.billing.billing import expire_trial_if_needed
 
         tenant_slug = getattr(_cu, 'tenant_slug', None) or 'default'
         profile = Profile.query.filter_by(tenant_slug=tenant_slug).first()
         if profile is None:
             return
-
         tenant = Tenant.query.get(profile.tenant_id)
-        if tenant is not None:
+
+        # Query directly rather than through Profile.current_subscription();
+        # that helper refreshes status before returning and would hide whether
+        # this request performed the scheduled -> active transition.
+        sub = (
+            Subscription.query
+            .filter(
+                Subscription.tenant_id == profile.tenant_id,
+                Subscription.status.notin_(['cancelled']),
+            )
+            .order_by(Subscription.created_at.desc())
+            .first()
+        )
+        changed = False
+        if sub is not None:
+            previous_status = sub.status
+            sub.refresh_status(commit=False)
+
+            if sub.status == 'active':
+                normalized_plan = normalize_plan_name(sub.plan)
+                is_trial = normalized_plan == 'Trial'
+                if is_trial:
+                    from app.utils.datetime_utils import ensure_utc_aware, utc_now
+                    expires = ensure_utc_aware(sub.expires_at)
+                    remaining = max(0, ((expires - utc_now()).days + 1) if expires else 0)
+                    if profile.plan != 'Trial' or profile.free_trial_ends != sub.expires_at or profile.free_trial_days != remaining:
+                        profile.plan = 'Trial'
+                        profile.free_trial_days = remaining
+                        profile.free_trial_ends = sub.expires_at
+                        changed = True
+                elif profile.plan != normalized_plan or profile.free_trial_ends is not None or profile.free_trial_days:
+                    profile.plan = normalized_plan
+                    profile.free_trial_days = 0
+                    profile.free_trial_ends = None
+                    changed = True
+                if tenant is not None:
+                    desired = {
+                        'status': 'active',
+                        'plan': normalized_plan,
+                        'plan_name': normalized_plan,
+                        'subscription_state': 'trial' if is_trial else 'active',
+                        'subscription_started_at': sub.started_at,
+                        'subscription_expires_at': sub.expires_at,
+                    }
+                    for attr, value in desired.items():
+                        if getattr(tenant, attr, None) != value:
+                            setattr(tenant, attr, value)
+                            changed = True
+                    desired_trial_end = sub.expires_at if is_trial else None
+                    desired_trial_status = 'active' if is_trial else 'ended'
+                    if getattr(tenant, 'trial_ends_at', None) != desired_trial_end:
+                        tenant.trial_ends_at = desired_trial_end
+                        changed = True
+                    if getattr(tenant, 'trial_status', None) != desired_trial_status:
+                        tenant.trial_status = desired_trial_status
+                        changed = True
+                if previous_status == 'scheduled':
+                    logger.info('Activated scheduled subscription %s for tenant %s', sub.id, tenant_slug)
+                    changed = True
+
+            elif sub.status == 'expired':
+                if tenant is not None:
+                    if tenant.subscription_state != 'expired':
+                        tenant.subscription_state = 'expired'
+                        changed = True
+                    if tenant.subscription_expires_at != sub.expires_at:
+                        tenant.subscription_expires_at = sub.expires_at
+                        changed = True
+                    if tenant.status != 'suspended':
+                        tenant.status = 'suspended'
+                        changed = True
+                if previous_status != 'expired':
+                    logger.info('Auto-expired subscription %s for tenant %s', sub.id, tenant_slug)
+                    changed = True
+
+            if sub.status != previous_status:
+                changed = True
+
+        # A live paid subscription always wins over trial state. For future
+        # scheduled/pending subscriptions, normal trial expiry still applies.
+        if tenant is not None and not (sub is not None and sub.status == 'active'):
+            before_trial_state = (tenant.subscription_state, tenant.status, tenant.trial_status)
             expire_trial_if_needed(tenant)
-            if tenant.subscription_status == 'expired':
-                _db.session.commit()
-                logger.info("Auto-expired trial for tenant %s", tenant_slug)
-                return
+            after_trial_state = (tenant.subscription_state, tenant.status, tenant.trial_status)
+            if after_trial_state != before_trial_state:
+                changed = True
 
-        sub = profile.current_subscription()
-        if sub is None:
-            return
-
-        now = utc_now()
-        expires = ensure_utc_aware(sub.expires_at)
-
-        if sub.status == 'active' and expires and expires < now:
-            sub.status = 'expired'
-            sub.is_active = False
-            if profile.tenant:
-                profile.tenant.status = 'suspended'
-            # Bust in-process cache
+        if changed:
             if hasattr(profile, '_current_subscription_cache'):
                 del profile._current_subscription_cache
             _db.session.commit()
-            logger.info(
-                "Auto-expired subscription %s for tenant %s (expired %s)",
-                sub.id, tenant_slug, expires.isoformat(),
-            )
     except Exception:
-        logger.exception("refresh_current_subscription hook failed")
+        logger.exception('refresh_current_subscription hook failed')
         try:
             from app import db as _db
             _db.session.rollback()

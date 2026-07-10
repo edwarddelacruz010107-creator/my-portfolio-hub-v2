@@ -43,7 +43,7 @@
   >
     <div style="display:flex;justify-content:space-between;margin-bottom:.25rem">
       <span>Original</span>
-      <span>₱{{ '%.2f'|format(discount_quote.amount_before) }}</span>
+      <span>{{ discount_quote.amount_before|billing_money }}</span>
     </div>
     <div style="display:flex;justify-content:space-between;margin-bottom:.25rem;color:var(--success,#1a7f37)">
       <span>
@@ -57,12 +57,12 @@
         <small>&middot; {{ '%.0f'|format((discount_quote.amount_discounted / discount_quote.amount_before) * 100) }}% off</small>
         {% endif %}
       </span>
-      <span>− ₱{{ '%.2f'|format(discount_quote.amount_discounted) }}</span>
+      <span>− {{ discount_quote.amount_discounted|billing_money }}</span>
     </div>
     <div style="display:flex;justify-content:space-between;font-weight:600;border-top:1px solid var(--success-border,#b7ebc6);padding-top:.4rem;margin-top:.4rem">
       <span>Total</span>
       <span>
-        ₱{{ '%.2f'|format(discount_quote.amount_after) }}{% if discount_quote.billing_cycle %}<small style="font-weight:400;opacity:.75">/{{ 'yr' if discount_quote.billing_cycle == 'yearly' else 'mo' }}</small>{% endif %}
+        {{ discount_quote.amount_after|billing_money }}{% if discount_quote.billing_cycle %}<small style="font-weight:400;opacity:.75">/{{ 'yr' if discount_quote.billing_cycle == 'yearly' else 'mo' }}</small>{% endif %}
       </span>
     </div>
     {% if discount_quote.campaign and discount_quote.campaign.applies_to != 'one_time' %}

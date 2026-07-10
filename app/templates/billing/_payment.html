@@ -28,7 +28,7 @@
 <div class="coupon-summary" style="border:1px solid var(--success-border,#b7ebc6);background:var(--success-bg,#f0fbf3);padding:.75rem 1rem;border-radius:.5rem;margin-bottom:1.25rem">
   <div style="display:flex;justify-content:space-between;margin-bottom:.25rem">
     <span>Original</span>
-    <span>₱{{ '%.2f'|format(discount_quote.amount_before) }}</span>
+    <span>{{ currency.symbol }}{{ '%.2f'|format(discount_quote.amount_before) }} {{ currency.display_currency }}</span>
   </div>
   <div style="display:flex;justify-content:space-between;margin-bottom:.25rem;color:var(--success,#1a7f37)">
     <span>
@@ -42,11 +42,11 @@
       <small>&middot; {{ '%.0f'|format((discount_quote.amount_discounted / discount_quote.amount_before) * 100) }}% off</small>
       {% endif %}
     </span>
-    <span>− ₱{{ '%.2f'|format(discount_quote.amount_discounted) }}</span>
+    <span>− {{ currency.symbol }}{{ '%.2f'|format(discount_quote.amount_discounted) }}</span>
   </div>
   <div style="display:flex;justify-content:space-between;font-weight:600;border-top:1px solid var(--success-border,#b7ebc6);padding-top:.4rem;margin-top:.4rem">
     <span>Amount to Pay</span>
-    <span>₱{{ '%.2f'|format(discount_quote.amount_after) }}</span>
+    <span>{{ currency.symbol }}{{ '%.2f'|format(discount_quote.amount_after) }} {{ currency.display_currency }}</span>
   </div>
 </div>
 {% endif %}
@@ -80,7 +80,7 @@
         {% if payment_method.qr_image %}Scan QR Code or Transfer{% else %}Make the Transfer{% endif %}
       </h3>
       <p class="payment-card-subtitle">
-        Send <strong>₱{{ suggested_amount | default('') }}</strong>
+        Send <strong>{{ suggested_amount_label }}</strong>
         to the account below, then continue to step 2.
       </p>
 
@@ -116,8 +116,7 @@
           <span class="key">Number</span>
           <span class="val">
             {{ payment_method.account_number }}
-            <button type="button" class="copy-btn"
-                    onclick="copyText('{{ payment_method.account_number }}', this)">Copy</button>
+            <button type="button" class="copy-btn js-copy-payment" data-copy="{{ payment_method.account_number|e }}">Copy</button>
           </span>
         </div>
         {% endif %}
@@ -126,8 +125,7 @@
           <span class="key">Mobile</span>
           <span class="val">
             {{ payment_method.mobile_number }}
-            <button type="button" class="copy-btn"
-                    onclick="copyText('{{ payment_method.mobile_number }}', this)">Copy</button>
+            <button type="button" class="copy-btn js-copy-payment" data-copy="{{ payment_method.mobile_number|e }}">Copy</button>
           </span>
         </div>
         {% endif %}
@@ -162,11 +160,17 @@
           {% endfor %}
         </div>
         <div class="form-group">
-          <label class="field-label" for="amount_paid">
-            Amount Paid (₱) <span class="required">*</span>
+          <label class="field-label" for="amount_paid_display">
+            Fixed Amount to Pay
           </label>
-          {{ form.amount_paid(class="field-input", id="amount_paid",
-             placeholder=suggested_amount|default('')) }}
+          {{ form.amount_paid(id="amount_paid") }}
+          <div class="fixed-amount-field" id="amount_paid_display" aria-label="Fixed payable amount">
+            <span>{{ currency.symbol }}</span>
+            <strong>{{ '%.2f'|format(suggested_amount) }}</strong>
+            <small>{{ currency.display_currency }}</small>
+            <iconify-icon icon="lucide:lock-keyhole" width="16" aria-hidden="true"></iconify-icon>
+          </div>
+          <div class="field-hint">Calculated by the system from your plan, billing cycle, and valid discount. It cannot be edited.</div>
           {% for e in form.amount_paid.errors %}
             <span class="field-error">{{ e }}</span>
           {% endfor %}
@@ -184,13 +188,13 @@
     <div class="payment-form-card">
       <h3><span class="step-num">3</span> Upload Payment Screenshot</h3>
       <p class="payment-card-subtitle">
-        Attach a screenshot of the successful transaction from your {{ payment_method.name }} app.
+        Attach proof of the successful transaction from your {{ payment_method.name }} app. This file is required before submission.
         <br><small style="color:var(--text-muted)">JPG · PNG · WebP · PDF — max 10 MB</small>
       </p>
 
       <div class="form-group">
         <div class="upload-zone" id="uploadZone">
-          {{ form.payment_proof(id="paymentProofInput", accept="image/*,.pdf") }}
+          {{ form.payment_proof(id="paymentProofInput", accept="image/png,image/jpeg,image/webp,application/pdf", required=true) }}
           <div class="upload-zone-content" id="uploadZoneContent">
             <div class="upload-zone-icon">
               <iconify-icon icon="lucide:upload-cloud" width="36"></iconify-icon>
@@ -294,6 +298,9 @@
 .upload-zone-sub{font-size:0.78rem;color:var(--text-muted)}
 .upload-preview{display:flex;align-items:center;justify-content:center;gap:0.6rem;font-size:0.9rem;color:#6ee7b7;font-weight:600;padding:0.5rem 0}
 
+.fixed-amount-field{min-height:48px;display:flex;align-items:center;gap:.45rem;padding:.75rem 1rem;border:1px solid rgba(99,102,241,.35);border-radius:10px;background:rgba(99,102,241,.08);color:var(--text-primary,#e0e7ff)}
+.fixed-amount-field strong{font-size:1.05rem;letter-spacing:.01em}.fixed-amount-field small{color:var(--text-muted);font-weight:700}.fixed-amount-field iconify-icon{margin-left:auto;color:#a5b4fc}
+
 /* ── Submit button ── */
 .btn-submit-pay{padding:0.85rem 1.75rem;font-size:1rem;min-width:220px}
 
@@ -313,7 +320,7 @@
 @media(max-width:600px){.payment-qr-showcase{padding:1.1rem}.payment-qr-frame{padding:12px;width:100%}.btn-submit-pay{width:100%}}
 </style>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 /* ── Copy with feedback ── */
 function copyText(txt, btn) {
   navigator.clipboard.writeText(txt).then(function () {
@@ -324,6 +331,11 @@ function copyText(txt, btn) {
     setTimeout(function () { btn.textContent = orig; btn.style.color = ''; }, 1600);
   });
 }
+document.querySelectorAll('.js-copy-payment').forEach(function (button) {
+  button.addEventListener('click', function () {
+    copyText(button.dataset.copy || '', button);
+  });
+});
 
 /* ── Upload zone: drag highlight + filename preview ── */
 (function () {
@@ -372,6 +384,19 @@ document.getElementById('paymentForm').addEventListener('submit', function (e) {
     ref.focus();
     ref.style.outline = '2px solid rgba(239,68,68,0.7)';
     setTimeout(function () { ref.style.outline = ''; }, 3000);
+    return;
+  }
+
+  var proof = document.getElementById('paymentProofInput');
+  if (!proof || !proof.files || !proof.files.length) {
+    e.preventDefault();
+    if (proof) proof.focus();
+    var zone = document.getElementById('uploadZone');
+    if (zone) {
+      zone.style.borderColor = 'rgba(239,68,68,.85)';
+      zone.scrollIntoView({behavior:'smooth', block:'center'});
+      setTimeout(function(){ zone.style.borderColor = ''; }, 3500);
+    }
     return;
   }
 

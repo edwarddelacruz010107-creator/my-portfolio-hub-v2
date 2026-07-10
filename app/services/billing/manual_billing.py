@@ -163,9 +163,26 @@ def save_billing_upload(file_storage, *, image_only: bool = False) -> tuple[str 
     if not ok:
         return None, err
 
+    # Keep payment evidence on the selected persistent storage provider.
+    # A database filename that points at Render's ephemeral app directory will
+    # break after the next deploy, so Cloudinary is preferred when configured.
+    provider = str(current_app.config.get('STORAGE_PROVIDER') or '').strip().lower()
+    if provider == 'cloudinary':
+        try:
+            from app.utils.cloudinary_storage import is_configured, save_billing_proof
+            if not is_configured():
+                return None, 'Cloudinary is selected but its credentials are incomplete.'
+            remote_url = save_billing_proof(file_storage, folder='billing')
+            if not remote_url:
+                return None, 'The payment proof could not be stored. Please try again.'
+            return remote_url, None
+        except Exception:
+            logger.exception('Cloudinary billing proof upload failed')
+            return None, 'The payment proof could not be stored. Please try again.'
+
     unique_name = f'{secrets.token_hex(12)}_{filename}'
-    upload_dir = Path(current_app.static_folder) / 'uploads' / 'billing'
-    upload_dir.mkdir(parents=True, exist_ok=True)
+    from app.services.media.upload_storage import ensure_upload_folder
+    upload_dir = ensure_upload_folder('billing')
     file_storage.save(upload_dir / unique_name)
     return unique_name, None
 

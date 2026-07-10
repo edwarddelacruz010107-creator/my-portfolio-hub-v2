@@ -26,6 +26,7 @@ from typing import Optional
 from app.extensions import db
 from app.models.core import Invoice
 from app.utils import get_plan_price, normalize_plan_name
+from app.services.billing.currency import get_currency_settings
 
 import logging
 
@@ -139,6 +140,7 @@ def record_invoice(
             amount_tax=amount_tax,
             amount_total=amount_total,
             coupon_code=coupon_code,
+            currency=get_currency_settings().get('display_currency', 'USD'),
             payment_method=payment_method or '',
             payment_provider=payment_provider or '',
             payment_reference=payment_reference,

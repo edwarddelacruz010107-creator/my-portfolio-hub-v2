@@ -72,9 +72,9 @@
         <span>Amount</span>
         <strong>
           {% if subscription and subscription.amount_paid %}
-            ₱{{ "%.2f"|format(subscription.amount_paid) }}
+            {{ subscription.amount_paid|billing_money }}
           {% else %}
-            ₱{{ plan_details.price }} / {{ plan_details.duration_days }} days
+            {{ plan_details.price|billing_money(plan_details.currency_code|default(None)) }} / {{ plan_details.duration_days }} days
           {% endif %}
         </strong>
       </div>

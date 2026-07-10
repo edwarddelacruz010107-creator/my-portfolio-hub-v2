@@ -1,0 +1,138 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Manage Subscription{% endblock %}
+{% block page_title %}Manage Tenant Subscription{% endblock %}
+
+{% block extra_css %}
+<style>
+.sub-manage-shell{max-width:1080px;margin:0 auto;padding:1.25rem 0 3rem}.sub-breadcrumb{display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;color:var(--text-muted);font-size:.82rem}.sub-breadcrumb a{color:#a5b4fc}.sub-manage-head{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;margin-bottom:1.25rem}.sub-manage-head h1{margin:0;font-size:1.7rem}.sub-manage-head p{margin:.35rem 0 0;color:var(--text-muted)}.sub-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr);gap:1rem}.sub-card{border:1px solid rgba(148,163,184,.18);border-radius:18px;background:var(--card-bg,#111827);padding:1.2rem}.sub-card h2{display:flex;align-items:center;gap:.5rem;margin:0 0 1rem;font-size:1rem}.sub-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}.sub-form-grid .full{grid-column:1/-1}.sub-field{display:grid;gap:.4rem}.sub-field label{font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:800}.sub-field input,.sub-field select{width:100%;min-height:46px;padding:.7rem .8rem;border:1px solid rgba(148,163,184,.22);border-radius:10px;background:rgba(15,23,42,.54);color:var(--text-primary,#f8fafc)}.sub-field small{color:var(--text-muted);line-height:1.45}.sub-actions{display:flex;gap:.65rem;flex-wrap:wrap;margin-top:1rem}.sub-summary{display:grid;gap:.8rem}.sub-summary-row{display:flex;justify-content:space-between;gap:1rem;padding-bottom:.7rem;border-bottom:1px solid rgba(148,163,184,.12)}.sub-summary-row:last-child{border-bottom:0}.sub-summary-row span{color:var(--text-muted);font-size:.82rem}.sub-summary-row strong{text-align:right}.sub-price-preview{padding:1rem;border-radius:14px;border:1px solid rgba(99,102,241,.25);background:rgba(99,102,241,.08)}.sub-price-preview .display{font-size:1.35rem;font-weight:850}.sub-price-preview small{display:block;margin-top:.3rem;color:var(--text-muted)}.sub-warning{display:flex;gap:.55rem;padding:.8rem;border-radius:12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.22);color:#fbbf24;font-size:.82rem;line-height:1.45;margin-top:1rem}.status-help{display:none;padding:.7rem;border-radius:10px;background:rgba(148,163,184,.06);color:var(--text-muted);font-size:.8rem}.status-help.active{display:block}@media(max-width:850px){.sub-grid{grid-template-columns:1fr}}@media(max-width:620px){.sub-form-grid{grid-template-columns:1fr}.sub-form-grid .full{grid-column:auto}.sub-actions .btn{width:100%}.sub-manage-head{flex-direction:column}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sub-manage-shell">
+  <div class="sub-breadcrumb">
+    <a href="{{ url_for('superadmin.subscription_settings') }}">Subscription Settings</a>
+    <iconify-icon icon="lucide:chevron-right" width="14"></iconify-icon>
+    <span>{{ profile.tenant_slug }}</span>
+  </div>
+
+  <div class="sub-manage-head">
+    <div>
+      <h1>Manage {{ profile.name or profile.tenant_slug }}</h1>
+      <p>Change the plan, activate immediately, or schedule access using UTC timestamps.</p>
+    </div>
+    <a class="btn btn-ghost" href="{{ url_for('superadmin.subscription_settings') }}"><iconify-icon icon="lucide:arrow-left" width="15"></iconify-icon> Back</a>
+  </div>
+
+  <div class="sub-grid">
+    <form method="post" action="{{ url_for('superadmin.subscription_settings') }}" class="sub-card" id="subscriptionManageForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="manage_subscription">
+      <input type="hidden" name="tenant_id" value="{{ profile.id }}">
+      <h2><iconify-icon icon="lucide:calendar-cog" width="18"></iconify-icon> Subscription Schedule</h2>
+
+      <div class="sub-form-grid">
+        <div class="sub-field">
+          <label for="managedPlan">Plan</label>
+          <select id="managedPlan" name="plan" required>
+            {% for key, details in billing_plans.items() %}
+            <option value="{{ key }}" data-price="{{ details.price_monthly }}" data-usd="{{ details.base_price_usd }}" {% if subscription and subscription.plan == key %}selected{% elif not subscription and profile.plan == key %}selected{% endif %}>{{ details.label or key }} — {{ details.currency_symbol }}{{ '%.2f'|format(details.price_monthly) }} {{ details.currency_code }}/mo</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="sub-field">
+          <label for="subscriptionStatus">Status / activation mode</label>
+          <select id="subscriptionStatus" name="subscription_status" required>
+            {% set current_status = subscription.status if subscription else 'pending' %}
+            {% for value, label in [('active','Active now'),('scheduled','Scheduled'),('pending','Pending payment'),('expired','Expired'),('cancelled','Cancelled')] %}
+            <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="sub-field">
+          <label for="billingCycle">Billing cycle</label>
+          <select id="billingCycle" name="billing_cycle">
+            <option value="monthly" {% if not subscription or subscription.billing_cycle == 'monthly' %}selected{% endif %}>Monthly</option>
+            <option value="yearly" {% if subscription and subscription.billing_cycle == 'yearly' %}selected{% endif %}>Yearly</option>
+            <option value="custom" {% if subscription and subscription.billing_cycle == 'custom' %}selected{% endif %}>Custom dates</option>
+          </select>
+        </div>
+
+        <div class="sub-field">
+          <label>Timezone</label>
+          <input value="UTC" readonly aria-readonly="true">
+          <small>Dates are saved in UTC so deployment location and daylight-saving changes cannot shift the schedule.</small>
+        </div>
+
+        <div class="sub-field">
+          <label for="startsAt">Start date and time</label>
+          <input id="startsAt" type="datetime-local" name="starts_at" value="{{ subscription.started_at.strftime('%Y-%m-%dT%H:%M') if subscription and subscription.started_at else '' }}">
+          <small>Required for scheduled access. Leave blank for immediate activation.</small>
+        </div>
+
+        <div class="sub-field">
+          <label for="expiresAt">Expiration date and time</label>
+          <input id="expiresAt" type="datetime-local" name="expires_at" value="{{ subscription.expires_at.strftime('%Y-%m-%dT%H:%M') if subscription and subscription.expires_at else '' }}">
+          <small>When blank for Active/Scheduled, the plan duration is used automatically.</small>
+        </div>
+
+        <div class="full status-help" data-status-help="scheduled"><strong>Scheduled:</strong> the tenant keeps any currently valid trial until this paid plan starts. The plan becomes active automatically when its UTC start time is reached.</div>
+        <div class="full status-help" data-status-help="active"><strong>Active now:</strong> trial access is cleared and the selected paid plan takes effect immediately.</div>
+        <div class="full status-help" data-status-help="pending"><strong>Pending:</strong> stores the selected plan without enabling paid access.</div>
+        <div class="full status-help" data-status-help="expired"><strong>Expired:</strong> ends paid access and suspends the tenant until renewed.</div>
+        <div class="full status-help" data-status-help="cancelled"><strong>Cancelled:</strong> cancels the subscription and suspends paid access.</div>
+      </div>
+
+      <div class="sub-actions">
+        <button class="btn btn-primary" type="submit"><iconify-icon icon="lucide:save" width="16"></iconify-icon> Save Subscription</button>
+        <a class="btn btn-ghost" href="{{ tenant_portfolio_url(profile.tenant_slug) }}" target="_blank"><iconify-icon icon="lucide:external-link" width="15"></iconify-icon> View Portfolio</a>
+      </div>
+    </form>
+
+    <aside class="sub-card">
+      <h2><iconify-icon icon="lucide:receipt-text" width="18"></iconify-icon> Current Summary</h2>
+      <div class="sub-price-preview">
+        <div class="display" id="managedPricePreview">—</div>
+        <small id="managedUsdPreview">USD base price</small>
+      </div>
+      <div class="sub-summary" style="margin-top:1rem">
+        <div class="sub-summary-row"><span>Tenant slug</span><strong>{{ profile.tenant_slug }}</strong></div>
+        <div class="sub-summary-row"><span>Current plan</span><strong>{{ subscription.plan if subscription else profile.plan or 'Trial' }}</strong></div>
+        <div class="sub-summary-row"><span>Current status</span><strong>{{ subscription.status_label if subscription else 'No subscription' }}</strong></div>
+        <div class="sub-summary-row"><span>Started</span><strong>{{ subscription.started_at.strftime('%Y-%m-%d %H:%M UTC') if subscription and subscription.started_at else '—' }}</strong></div>
+        <div class="sub-summary-row"><span>Expires</span><strong>{{ subscription.expires_at.strftime('%Y-%m-%d %H:%M UTC') if subscription and subscription.expires_at else '—' }}</strong></div>
+        <div class="sub-summary-row"><span>Display currency</span><strong>{{ currency.symbol }} {{ currency.display_currency }}</strong></div>
+        <div class="sub-summary-row"><span>FX rate</span><strong>1 USD = {{ '%.6g'|format(currency.fx.rate) }} {{ currency.display_currency }}</strong></div>
+      </div>
+      <div class="sub-warning"><iconify-icon icon="lucide:triangle-alert" width="17"></iconify-icon><span>Changing a tenant subscription immediately affects feature gates. Expired and cancelled states suspend paid access.</span></div>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
+(function(){
+  var plan = document.getElementById('managedPlan');
+  var status = document.getElementById('subscriptionStatus');
+  var price = document.getElementById('managedPricePreview');
+  var usd = document.getElementById('managedUsdPreview');
+  var symbol = {{ currency.symbol|tojson }};
+  var code = {{ currency.display_currency|tojson }};
+  function updatePrice(){
+    var opt = plan && plan.options[plan.selectedIndex];
+    if (!opt) return;
+    price.textContent = symbol + Number(opt.dataset.price || 0).toFixed(2) + ' ' + code + ' / month';
+    usd.textContent = '$' + Number(opt.dataset.usd || 0).toFixed(2) + ' USD base / month';
+  }
+  function updateHelp(){
+    document.querySelectorAll('[data-status-help]').forEach(function(el){el.classList.toggle('active', el.dataset.statusHelp === status.value);});
+  }
+  if(plan) plan.addEventListener('change', updatePrice);
+  if(status) status.addEventListener('change', updateHelp);
+  updatePrice(); updateHelp();
+})();
+</script>
+{% endblock %}

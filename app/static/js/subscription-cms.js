@@ -10,6 +10,12 @@
   'use strict';
 
   function init() {
+    document.querySelectorAll('.js-confirm-form').forEach(function (confirmForm) {
+      confirmForm.addEventListener('submit', function (event) {
+        if (!window.confirm(confirmForm.dataset.confirm || 'Continue?')) event.preventDefault();
+      });
+    });
+
     const form = document.getElementById('subscriptionPlansForm');
     const note = document.getElementById('billingActionBarNote');
     if (!form || !note) return;

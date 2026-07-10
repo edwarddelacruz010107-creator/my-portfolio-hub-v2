@@ -32,6 +32,7 @@ from app.forms import PaymentUploadForm, PlanSelectionForm
 from app.models.portfolio import normalize_plan_name
 from app.services.billing import get_or_create_pending_subscription, initiate_checkout
 from app.services.billing import discount_checkout, discount_service
+from app.services.billing.currency import currency_context, format_money, get_currency_settings
 from app.utils import get_plan_price, get_public_billing_plans
 from app.services.manual_billing import (
     get_active_payment_methods_for_tenant,
@@ -119,6 +120,7 @@ def billing_plans_context(profile, *, tenant_slug: str | None, billing_routes: d
         promo_campaign=promo_campaign,
         promo_eligible_plans=promo_eligible_plans,
         promo_scope_label=promo_scope_label,
+        currency=currency_context(),
     )
 
 
@@ -259,6 +261,7 @@ def billing_payment_context(
     )
     suggested_amount = float(quote.amount_after)
     form.amount_paid.data = f'{suggested_amount:.2f}'
+    currency = currency_context()
 
     return dict(
         profile=profile,
@@ -274,6 +277,8 @@ def billing_payment_context(
         show_billing_tabs=False,
         discount_quote=quote,
         coupon_code=stashed or '',
+        currency=currency,
+        suggested_amount_label=format_money(suggested_amount, currency['display_currency'], include_code=True),
     )
 
 
@@ -285,25 +290,27 @@ def handle_billing_payment_post(profile, method, *, billing_cycle: str = 'monthl
                 flash(f'{field}: {err}', 'danger')
         return None
 
-    amount_raw = (form.amount_paid.data or '').replace(',', '').strip()
-    try:
-        amount_paid = float(amount_raw)
-    except ValueError:
-        flash('Please enter a valid amount paid.', 'danger')
-        return None
-
-    proof_filename = None
-    if form.payment_proof.data:
-        proof_filename, err = save_billing_upload(form.payment_proof.data, image_only=False)
-        if err:
-            flash(err, 'danger')
-            return None
-
+    # Never trust a browser-submitted amount. Recompute the exact payable
+    # total from the selected plan, billing cycle, and validated coupon.
     plan = normalize_plan_name(
         profile.current_subscription().plan
         if profile.current_subscription()
         else profile.plan or 'Basic'
     )
+    stashed = discount_checkout.peek_coupon(profile.tenant_id)
+    quote = discount_checkout.quote_for_context(
+        tenant_id=profile.tenant_id, plan=plan, billing_cycle=billing_cycle, code=stashed,
+    )
+    amount_paid = float(quote.amount_after)
+
+    # Proof is mandatory in both WTForms and server-side business logic.
+    if not form.payment_proof.data:
+        flash('Please upload proof of payment before submitting.', 'danger')
+        return None
+    proof_filename, err = save_billing_upload(form.payment_proof.data, image_only=False)
+    if err:
+        flash(err, 'danger')
+        return None
     submission = submit_manual_payment(
         profile,
         method=method,

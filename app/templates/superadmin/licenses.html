@@ -18,7 +18,7 @@
             <p class="plan-label">{{ plan_name }}</p>
             <span class="badge {{ plan_data.badge_class }}">{{ plan_data.label }}</span>
           </div>
-          <p class="plan-price">{{ plan_data.currency_symbol or '₱' }}{{ plan_data.price }}</p>
+          <p class="plan-price">{{ plan_data.currency_symbol or '$' }}{{ plan_data.price }}</p>
         </div>
 
         <div class="plan-edit-row">
@@ -27,7 +27,7 @@
         </div>
         <div class="plan-edit-row">
           <label for="currency_{{ plan_name }}">Currency Symbol</label>
-          <input id="currency_{{ plan_name }}" name="currency_{{ plan_name }}" type="text" class="form-input" maxlength="3" value="{{ plan_data.currency_symbol or '₱' }}" />
+          <input id="currency_{{ plan_name }}" name="currency_{{ plan_name }}" type="text" class="form-input" maxlength="3" value="{{ plan_data.currency_symbol or '$' }}" />
         </div>
         <div class="plan-edit-row">
           <label for="price_{{ plan_name }}">Price</label>
@@ -79,7 +79,7 @@
             <div class="muted small">{{ t.license_duration }} days</div>
           </div>
         </td>
-        <td>{{ t.license_currency_symbol or '₱' }}{{ t.license_price }}</td>
+        <td>{{ t.license_currency_symbol or '$' }}{{ t.license_price }}</td>
         <td>
           <span class="status-pill {% if t.license_active %}active{% else %}inactive{% endif %}">
             {{ t.license_status }}
@@ -106,7 +106,7 @@
             <select name="plan" class="form-select">
               {% for plan_name, plan_data in license_plans.items() %}
               <option value="{{ plan_name }}" {% if plan_name == t.plan %}selected{% endif %}>
-                {{ plan_name }} • {{ plan_data.currency_symbol or '₱' }}{{ plan_data.price }} / {{ plan_data.duration_days }}d
+                {{ plan_name }} • {{ plan_data.currency_symbol or '$' }}{{ plan_data.price }} / {{ plan_data.duration_days }}d
               </option>
               {% endfor %}
             </select>

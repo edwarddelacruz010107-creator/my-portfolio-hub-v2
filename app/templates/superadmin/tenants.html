@@ -215,6 +215,13 @@
                title="Edit Tenant">
               <iconify-icon icon="lucide:pencil" width="15"></iconify-icon>
             </a>
+            {% if plan_label != 'Administrator' %}
+            <a href="{{ url_for('superadmin.subscription_manage', profile_id=t.id) }}"
+               class="action-btn action-btn-secondary"
+               title="Manage Plan & Schedule">
+              <iconify-icon icon="lucide:calendar-cog" width="15"></iconify-icon>
+            </a>
+            {% endif %}
             <a href="{{ url_for('tenant.admin_root', tenant_slug=t.tenant_slug) }}"
                target="_blank"
                class="action-btn action-btn-ghost"

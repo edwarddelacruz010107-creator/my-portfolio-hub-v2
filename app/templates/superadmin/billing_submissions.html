@@ -297,15 +297,15 @@
            to the tenant's self-reported figure so a mismatch is visible without
            the reviewer manually recomputing list_price - coupon per row. #}
         <td>
-          {% if submission.amount_paid %}₱{{ "%.2f"|format(submission.amount_paid) }}{% else %}—{% endif %}
+          {% if submission.amount_paid %}{{ submission.amount_paid|billing_money }}{% else %}—{% endif %}
           {% if submission.expected_amount is not none %}
             {% set diff = (submission.amount_paid or 0) - submission.expected_amount %}
             {% if diff < -0.01 %}
-              <span class="badge bg-danger" title="Expected ₱{{ '%.2f'|format(submission.expected_amount) }} — short by ₱{{ '%.2f'|format(-diff) }}">⚠ under expected</span>
+              <span class="badge bg-danger" title="Expected {{ submission.expected_amount|billing_money }} — short by {{ (-diff)|billing_money }}">⚠ under expected</span>
             {% elif diff > 0.01 %}
-              <span class="badge bg-warning text-dark" title="Expected ₱{{ '%.2f'|format(submission.expected_amount) }} — over by ₱{{ '%.2f'|format(diff) }}">over expected</span>
+              <span class="badge bg-warning text-dark" title="Expected {{ submission.expected_amount|billing_money }} — over by {{ diff|billing_money }}">over expected</span>
             {% else %}
-              <span class="badge bg-success" title="Matches expected ₱{{ '%.2f'|format(submission.expected_amount) }}">✓ matches</span>
+              <span class="badge bg-success" title="Matches expected {{ submission.expected_amount|billing_money }}">✓ matches</span>
             {% endif %}
           {% else %}
             <span class="text-muted small" title="No reference price captured for this submission (pre-fix record or quote failed)">no reference</span>
@@ -350,13 +350,13 @@
                     data-proof-type="image"
                     data-proof-ref="{{ submission.payment_reference or '' }}"
                     data-proof-tenant="{{ submission.tenant.slug if submission.tenant else '' }}"
-                    data-proof-amount="₱{{ '%.2f'|format(submission.amount_paid) if submission.amount_paid else '—' }}"
+                    data-proof-amount="{{ (submission.amount_paid|billing_money) if submission.amount_paid else '—' }}"
                     data-proof-method="{{ submission.payment_method or '' }}"
                     data-proof-date="{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') if submission.submitted_at else '' }}"
                     title="Click to verify proof">
               <img src="{{ proof|upload_url('billing') }}"
                    alt="proof"
-                   onerror="this.style.display='none'"/>
+                   class="js-proof-thumb-image"/>
               <iconify-icon icon="lucide:zoom-in" width="13"></iconify-icon>
             </button>
             {% else %}
@@ -366,7 +366,7 @@
                     data-proof-type="document"
                     data-proof-ref="{{ submission.payment_reference or '' }}"
                     data-proof-tenant="{{ submission.tenant.slug if submission.tenant else '' }}"
-                    data-proof-amount="₱{{ '%.2f'|format(submission.amount_paid) if submission.amount_paid else '—' }}"
+                    data-proof-amount="{{ (submission.amount_paid|billing_money) if submission.amount_paid else '—' }}"
                     data-proof-method="{{ submission.payment_method or '' }}"
                     data-proof-date="{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') if submission.submitted_at else '' }}"
                     title="Open proof document">
@@ -401,8 +401,8 @@
                     data-submission-id="{{ submission.id }}"
                     data-submission-tenant="{{ submission.tenant.slug if submission.tenant else '?' }}"
                     data-submission-plan="{{ submission.plan }}"
-                    data-submission-amount="₱{{ '%.2f'|format(submission.amount_paid) if submission.amount_paid else '0.00' }}"
-                    data-submission-expected="{{ '₱%.2f'|format(submission.expected_amount) if submission.expected_amount is not none else '' }}"
+                    data-submission-amount="{{ submission.amount_paid|billing_money }}"
+                    data-submission-expected="{{ (submission.expected_amount|billing_money) if submission.expected_amount is not none else '' }}"
                     data-review-url="{{ url_for('superadmin.billing_submission_review', submission_id=submission.id) }}"
                     title="Approve — activates subscription">
               <iconify-icon icon="lucide:check" width="14"></iconify-icon>
@@ -414,8 +414,8 @@
                     data-submission-id="{{ submission.id }}"
                     data-submission-tenant="{{ submission.tenant.slug if submission.tenant else '?' }}"
                     data-submission-plan="{{ submission.plan }}"
-                    data-submission-amount="₱{{ '%.2f'|format(submission.amount_paid) if submission.amount_paid else '0.00' }}"
-                    data-submission-expected="{{ '₱%.2f'|format(submission.expected_amount) if submission.expected_amount is not none else '' }}"
+                    data-submission-amount="{{ submission.amount_paid|billing_money }}"
+                    data-submission-expected="{{ (submission.expected_amount|billing_money) if submission.expected_amount is not none else '' }}"
                     data-review-url="{{ url_for('superadmin.billing_submission_review', submission_id=submission.id) }}"
                     title="Reject payment submission">
               <iconify-icon icon="lucide:x" width="14"></iconify-icon>
@@ -527,8 +527,12 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 (function () {
+  document.querySelectorAll('.js-proof-thumb-image').forEach(function (image) {
+    image.addEventListener('error', function () { image.style.display = 'none'; });
+  });
+
   // ── Proof viewer modal ──────────────────────────────────────────────────────
   const proofOverlay = document.getElementById('proof-modal');
   const proofCloseBtn  = document.getElementById('proof-close-btn');
@@ -597,6 +601,7 @@
   function openReviewModal(btn) {
     const action  = btn.dataset.reviewAction;   // 'approve' | 'reject'
     const url     = btn.dataset.reviewUrl;
+    const billingSymbol = {{ billing_currency_context().symbol|tojson }};
     const tenant  = btn.dataset.submissionTenant;
     const plan    = btn.dataset.submissionPlan;
     const amount  = btn.dataset.submissionAmount;
@@ -631,9 +636,9 @@
       const diff = paidNum - expNum;
       let flag = '';
       if (diff < -0.01) {
-        flag = `<span style="color:#dc3545;font-weight:600"> ⚠ short by ₱${Math.abs(diff).toFixed(2)}</span>`;
+        flag = `<span style="color:#dc3545;font-weight:600"> ⚠ short by ${billingSymbol}${Math.abs(diff).toFixed(2)}</span>`;
       } else if (diff > 0.01) {
-        flag = `<span style="color:#b58900;font-weight:600"> (over by ₱${diff.toFixed(2)})</span>`;
+        flag = `<span style="color:#b58900;font-weight:600"> (over by ${billingSymbol}${diff.toFixed(2)})</span>`;
       } else {
         flag = `<span style="color:#198754"> ✓ matches</span>`;
       }

@@ -769,6 +769,11 @@ def create_app(config_name: str = 'default') -> Flask:
         from app.services.media.upload_storage import resolve_upload_file
         return resolve_upload_file(folder, filename) is not None
 
+    @app.template_filter('billing_money')
+    def billing_money_filter(value, currency_code=None) -> str:
+        from app.services.billing.currency import format_money
+        return format_money(value, currency_code)
+
     @app.template_filter('upload_url')
     def upload_url_filter(value: str | None, subfolder: str) -> str:
         """Normalize uploaded media values into safe public URLs.

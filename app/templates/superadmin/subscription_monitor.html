@@ -74,7 +74,7 @@
         <iconify-icon icon="lucide:wallet" width="18"></iconify-icon>
       </div>
     </div>
-    <div class="stat-big" style="font-size:1.35rem;">₱{{ '{:,.0f}'.format(metrics.total_revenue) }}</div>
+    <div class="stat-big" style="font-size:1.35rem;">{{ metrics.total_revenue|billing_money }}</div>
     <div class="stat-name">Total Revenue</div>
     <div class="stat-footer"><span class="stat-sub">All time collected</span></div>
   </div>
@@ -85,7 +85,7 @@
         <iconify-icon icon="lucide:trending-up" width="18"></iconify-icon>
       </div>
     </div>
-    <div class="stat-big" style="font-size:1.35rem;">₱{{ '{:,.0f}'.format(metrics.get('mrr', 0)) }}</div>
+    <div class="stat-big" style="font-size:1.35rem;">{{ metrics.get('mrr', 0)|billing_money }}</div>
     <div class="stat-name">MRR</div>
     <div class="stat-footer"><span class="stat-sub">Monthly recurring</span></div>
   </div>
@@ -96,7 +96,7 @@
         <iconify-icon icon="lucide:badge-dollar-sign" width="18"></iconify-icon>
       </div>
     </div>
-    <div class="stat-big" style="font-size:1.35rem;">₱{{ '{:,.0f}'.format(metrics.get('arr', 0)) }}</div>
+    <div class="stat-big" style="font-size:1.35rem;">{{ metrics.get('arr', 0)|billing_money }}</div>
     <div class="stat-name">ARR</div>
     <div class="stat-footer"><span class="stat-sub">Annual run rate</span></div>
   </div>

@@ -268,9 +268,20 @@ class BaseConfig:
             if not os.path.isabs(upload_base):
                 upload_base = os.path.abspath(os.path.join(basedir, upload_base))
         else:
-            upload_base = os.path.join(app.static_folder, 'uploads')
+            # Auto-detect common production persistent-disk locations. This
+            # prevents new uploads from being written into app/static/uploads on
+            # redeploy-based hosts when a mounted disk is available but the env
+            # variable was forgotten. If no persistent mount exists, local dev
+            # still uses app/static/uploads.
+            railway_mount = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '').strip()
+            if railway_mount:
+                upload_base = os.path.join(railway_mount, 'uploads')
+            elif os.path.isdir('/var/data'):
+                upload_base = '/var/data/uploads'
+            else:
+                upload_base = os.path.join(app.static_folder, 'uploads')
 
-        for sub in ('profiles', 'projects', 'avatars', 'billing', 'certificates'):
+        for sub in ('profiles', 'projects', 'avatars', 'billing', 'certificates', 'landing', 'themes'):
             os.makedirs(os.path.join(upload_base, sub), exist_ok=True)
         os.makedirs(BaseConfig.LOG_DIR, exist_ok=True)
 

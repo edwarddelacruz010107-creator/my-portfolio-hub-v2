@@ -16,6 +16,20 @@ from .serializers import serialize_creator_card
 logger = logging.getLogger(__name__)
 
 
+def _visible_project_filter(Project):
+    """Match public project visibility used by the landing showcase."""
+    from sqlalchemy import and_, or_
+
+    return or_(
+        Project.status == "published",
+        and_(
+            Project.tenant_slug == "default",
+            Project.status == "draft",
+            Project.is_featured.is_(True),
+        ),
+    )
+
+
 def _active_tenant_slugs() -> set[str]:
     """
     core_db tenants with status='active'. Suspended/cancelled tenants must
@@ -37,7 +51,7 @@ def _project_counts(tenant_slugs: list[str]) -> dict[str, int]:
 
     rows = (
         Project.query.with_entities(Project.tenant_slug, func.count(Project.id))
-        .filter(Project.tenant_slug.in_(tenant_slugs), Project.status == "published")
+        .filter(Project.tenant_slug.in_(tenant_slugs), _visible_project_filter(Project))
         .group_by(Project.tenant_slug)
         .all()
     )

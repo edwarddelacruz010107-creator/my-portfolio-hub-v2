@@ -200,10 +200,8 @@ def landing_autosave():
 
 
 def _landing_upload_dir() -> Path:
-    static_folder = current_app.static_folder or Path(current_app.root_path) / 'static'
-    upload_dir = Path(static_folder) / 'uploads' / 'landing'
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    return upload_dir
+    from app.services.media.upload_storage import ensure_upload_folder
+    return ensure_upload_folder('landing')
 
 
 def _allowed_image(filename: str) -> bool:
@@ -249,7 +247,8 @@ def landing_upload_image():
         logger.exception('Failed to save landing upload: %s', exc)
         return jsonify({'success': False, 'error': 'Unable to save uploaded file.'}), 500
 
-    url = url_for('static', filename=f'uploads/landing/{filename}', _external=False)
+    from app.services.media.upload_storage import build_upload_url
+    url = build_upload_url(filename, 'landing')
     PlatformSetting.set_string(_draft_key(_IMAGE_UPLOAD_KEYS[category]), url)
     db.session.commit()
     log_activity('update', 'landing_page', 'landing_image', f'Uploaded {category} image')

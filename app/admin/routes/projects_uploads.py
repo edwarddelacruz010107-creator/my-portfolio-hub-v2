@@ -80,29 +80,23 @@ logger = logging.getLogger(__name__)
 
 
 def _get_asset_size(filename: str, folder: str) -> int | None:
-    if not filename or str(filename).startswith(('http://', 'https://')):
-        return None
-    upload_folder = current_app.config.get('UPLOAD_FOLDER') or os.path.join(current_app.static_folder, 'uploads')
-    path = os.path.join(upload_folder, folder, filename)
-    try:
-        return os.path.getsize(path)
-    except OSError:
-        return None
+    from app.services.media.upload_storage import upload_size
+    return upload_size(filename, folder)
 
 
 def _asset_public_url(filename: str, folder: str) -> str:
     """Return the same resilient upload URL used by public themes."""
-    if not filename:
-        return ''
-    if isinstance(filename, str) and filename.startswith(('http://', 'https://')):
-        return filename
+    from app.services.media.upload_storage import build_upload_url
     try:
-        upload_filter = current_app.jinja_env.filters.get('upload_url')
-        if upload_filter:
-            return upload_filter(filename, folder)
+        return build_upload_url(filename, folder)
     except Exception:
         logger.exception('Could not build upload URL for folder=%s filename=%s', folder, filename)
-    return ''
+        return ''
+
+
+def _asset_exists(filename: str, folder: str) -> bool:
+    from app.services.media.upload_storage import upload_exists
+    return upload_exists(filename, folder)
 
 
 
@@ -408,6 +402,7 @@ def uploads():
         size = _get_asset_size(asset['filename'], asset['folder'])
         asset['size_bytes'] = size
         asset['size_text']  = _format_filesize(size)
+        asset['exists']     = _asset_exists(asset['filename'], asset['folder'])
 
     filtered_assets = [a for a in assets if a['type'] == asset_type] if asset_type != 'all' else assets
     counts = {

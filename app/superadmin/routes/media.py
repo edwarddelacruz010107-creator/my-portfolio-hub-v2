@@ -77,6 +77,20 @@ from app.superadmin.blueprint import superadmin, superadmin_required
 
 logger = logging.getLogger(__name__)
 
+def _sa_asset_url(filename: str, folder: str) -> str:
+    from app.services.media.upload_storage import build_upload_url
+    return build_upload_url(filename, folder)
+
+
+def _sa_asset_size(filename: str, folder: str) -> int | None:
+    from app.services.media.upload_storage import upload_size
+    return upload_size(filename, folder)
+
+
+def _sa_asset_exists(filename: str, folder: str) -> bool:
+    from app.services.media.upload_storage import upload_exists
+    return upload_exists(filename, folder)
+
 
 def _sa_format_filesize(size) -> str:
     """Human-readable filesize for the superadmin media manager."""
@@ -133,7 +147,7 @@ def media():
                 'tenant': p.tenant_slug,
                 'filename': p.profile_image, 'folder': 'profiles',
                 'description': p.name or p.tenant_slug,
-                'url': url_for('static', filename=f'uploads/profiles/{p.profile_image}'),
+                'url': _sa_asset_url(p.profile_image, 'profiles'),
             })
 
     for proj in all_projects:
@@ -142,7 +156,7 @@ def media():
             'tenant': proj.tenant_slug,
             'filename': proj.image, 'folder': 'projects',
             'description': proj.title,
-            'url': url_for('static', filename=f'uploads/projects/{proj.image}'),
+            'url': _sa_asset_url(proj.image, 'projects'),
         })
 
     for t in all_testimonials:
@@ -151,7 +165,7 @@ def media():
             'tenant': t.tenant_slug,
             'filename': t.author_avatar, 'folder': 'profiles',
             'description': t.author_name,
-            'url': url_for('static', filename=f'uploads/profiles/{t.author_avatar}'),
+            'url': _sa_asset_url(t.author_avatar, 'profiles'),
         })
 
     for cert in all_certificates:
@@ -161,7 +175,7 @@ def media():
                 'tenant': cert.tenant_slug,
                 'filename': cert.image_path, 'folder': 'certificates',
                 'description': f'{cert.title} — {cert.issuer}' if cert.issuer else cert.title,
-                'url': url_for('static', filename=f'uploads/certificates/{cert.image_path}'),
+                'url': _sa_asset_url(cert.image_path, 'certificates'),
             })
         if cert.badge_path:
             assets.append({
@@ -169,7 +183,7 @@ def media():
                 'tenant': cert.tenant_slug,
                 'filename': cert.badge_path, 'folder': 'certificates',
                 'description': f'{cert.title} — {cert.issuer}' if cert.issuer else cert.title,
-                'url': url_for('static', filename=f'uploads/certificates/{cert.badge_path}'),
+                'url': _sa_asset_url(cert.badge_path, 'certificates'),
             })
 
     for pm in all_billing:
@@ -178,7 +192,7 @@ def media():
             'tenant': '(superadmin)',
             'filename': pm.qr_image, 'folder': 'billing',
             'description': pm.name,
-            'url': url_for('static', filename=f'uploads/billing/{pm.qr_image}'),
+            'url': _sa_asset_url(pm.qr_image, 'billing'),
         })
 
     # ── Payment submission proof images ───────────────────────────────
@@ -194,17 +208,13 @@ def media():
             'tenant': tenant_slug,
             'filename': sub.payment_proof, 'folder': 'billing',
             'description': f'{sub.payment_method} — {sub.plan} — {sub.status}',
-            'url': url_for('static', filename=f'uploads/billing/{sub.payment_proof}'),
+            'url': _sa_asset_url(sub.payment_proof, 'billing'),
         })
 
     for asset in assets:
-        path = os.path.join(current_app.static_folder, 'uploads', asset['folder'], asset['filename'])
-        try:
-            asset['size_bytes'] = os.path.getsize(path)
-        except OSError:
-            asset['size_bytes'] = None
+        asset['size_bytes'] = _sa_asset_size(asset['filename'], asset['folder'])
         asset['size_text'] = _sa_format_filesize(asset['size_bytes'])
-        asset['exists']    = asset['size_bytes'] is not None
+        asset['exists']    = _sa_asset_exists(asset['filename'], asset['folder'])
 
     all_tenant_slugs = sorted({a['tenant'] for a in assets})
 
@@ -256,11 +266,8 @@ def media_delete():
     def _rm(folder: str, filename: str) -> None:
         if not filename:
             return
-        path = os.path.join(current_app.static_folder, 'uploads', folder, filename)
-        try:
-            os.remove(path)
-        except OSError:
-            pass
+        from app.services.media.upload_storage import delete_upload_file
+        delete_upload_file(filename, folder)
 
     if asset_type == 'profile':
         p = db.session.get(Profile, asset_id)
@@ -355,20 +362,13 @@ def media_compress():
         flash('Invalid compress request.', 'danger')
         return redirect(url_for('superadmin.media'))
 
-    upload_root = Path(current_app.static_folder) / 'uploads'
-    candidate   = (upload_root / folder / filename).resolve()
-
-    # Containment check: resolved path must remain inside upload_root
-    try:
-        candidate.relative_to(upload_root.resolve())
-    except ValueError:
-        flash('Path traversal detected — request rejected.', 'danger')
+    from app.services.media.upload_storage import resolve_upload_file
+    candidate = resolve_upload_file(folder, filename)
+    if not candidate:
+        flash('File not found on disk.', 'warning')
         return redirect(url_for('superadmin.media'))
 
     path = str(candidate)
-    if not os.path.exists(path):
-        flash('File not found on disk.', 'warning')
-        return redirect(url_for('superadmin.media'))
 
     try:
         before = os.path.getsize(path)
@@ -402,7 +402,8 @@ def media_delete_orphans():
     import os
     from app.models.portfolio import Testimonial, Certificate
 
-    upload_root = os.path.join(current_app.static_folder, 'uploads')
+    from app.services.media.upload_storage import primary_upload_root
+    upload_root = str(primary_upload_root())
     known = {'profiles': set(), 'projects': set(), 'certificates': set(), 'billing': set()}
 
     for p in profile_repository.query.all():

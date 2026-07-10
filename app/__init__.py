@@ -681,27 +681,21 @@ def create_app(config_name: str = 'default') -> Flask:
     def uploaded_media(subfolder: str, filename: str):
         """Serve uploaded media from the configured upload storage root.
 
-        This route is intentionally separate from Flask's /static route so
-        production deployments can set UPLOAD_FOLDER to a mounted persistent
-        disk path (for example /var/data/uploads). Files written to app/static
-        are often lost after redeploys on PaaS hosts.
+        Uses the configured UPLOAD_FOLDER first, then legacy fallback upload
+        roots. This keeps old profile/project photos visible after storage
+        path changes and supports mounted persistent disks in production.
         """
-        allowed_folders = {'profiles', 'projects', 'avatars', 'billing', 'certificates'}
+        from app.services.media.upload_storage import resolve_upload_file, ALLOWED_UPLOAD_FOLDERS
+
         safe_folder = (subfolder or '').strip().replace('\\', '/')
         safe_name = (filename or '').strip().replace('\\', '/')
-        if safe_folder not in allowed_folders or not safe_name or '..' in safe_name or safe_name.startswith('/'):
+        if safe_folder not in ALLOWED_UPLOAD_FOLDERS or not safe_name or '..' in safe_name or safe_name.startswith('/') or '/' in safe_name:
             abort(404)
 
-        upload_root = Path(app.config.get('UPLOAD_FOLDER') or (Path(app.static_folder) / 'uploads')).resolve()
-        directory = (upload_root / safe_folder).resolve()
-        target = (directory / safe_name).resolve()
-        try:
-            target.relative_to(directory)
-        except ValueError:
+        target = resolve_upload_file(safe_folder, safe_name)
+        if not target:
             abort(404)
-        if not target.is_file():
-            abort(404)
-        return send_from_directory(str(directory), safe_name, conditional=True)
+        return send_from_directory(str(target.parent), target.name, conditional=True)
 
     # ── Custom Jinja2 filters (v3.8) ─────────────────────────────────────────
     from markupsafe import Markup, escape as _escape
@@ -744,59 +738,14 @@ def create_app(config_name: str = 'default') -> Flask:
         return True
 
     def _normalize_upload_reference(value: str | None, subfolder: str) -> tuple[str, str] | None:
-        """Return (folder, filename) for safe local-upload references."""
-        if not isinstance(value, str):
-            return None
-        raw = value.strip()
-        if not raw or raw.lower() in {'none', 'null', 'undefined'}:
-            return None
-        if any(ch in raw for ch in ('\x00', '\r', '\n')):
-            return None
-        normalized = raw.replace('\\', '/')
-        if normalized.startswith('/static/uploads/'):
-            normalized = normalized[len('/static/uploads/'):]
-        elif normalized.startswith('static/uploads/'):
-            normalized = normalized[len('static/uploads/'):]
-        elif normalized.startswith('/uploads/'):
-            normalized = normalized[len('/uploads/'):]
-        elif normalized.startswith('uploads/'):
-            normalized = normalized[len('uploads/'):]
-        else:
-            if normalized.startswith('/') or '..' in normalized:
-                return None
-            prefix = f'{subfolder}/'
-            if normalized.startswith(prefix):
-                normalized = normalized[len(prefix):]
-            normalized = f'{subfolder}/{normalized}'
-
-        parts = normalized.split('/', 1)
-        if len(parts) != 2:
-            return None
-        folder, filename = parts[0], parts[1]
-        allowed_folders = {'profiles', 'projects', 'avatars', 'billing', 'certificates'}
-        if folder not in allowed_folders or not filename or '..' in filename or filename.startswith('/'):
-            return None
-        return folder, filename
+        """Compatibility wrapper around the central upload storage helper."""
+        from app.services.media.upload_storage import normalize_upload_reference
+        return normalize_upload_reference(value, subfolder)
 
     def _upload_exists(folder: str, filename: str) -> bool:
-        """Return True when an upload exists in the configured storage root.
-
-        Checks UPLOAD_FOLDER, not only app/static/uploads, so mounted persistent
-        disk deployments work correctly.
-        """
-        if app.config.get('SKIP_UPLOAD_EXISTENCE_CHECK'):
-            return True
-        try:
-            upload_root = Path(app.config.get('UPLOAD_FOLDER') or (Path(app.static_folder) / 'uploads')).resolve()
-            target = (upload_root / folder / filename).resolve()
-            try:
-                target.relative_to((upload_root / folder).resolve())
-            except ValueError:
-                return False
-            return target.is_file()
-        except Exception:
-            # Fail open so external/object-storage deployments can still render.
-            return True
+        """Return True when an upload exists in any known upload root."""
+        from app.services.media.upload_storage import resolve_upload_file
+        return resolve_upload_file(folder, filename) is not None
 
     @app.template_filter('upload_url')
     def upload_url_filter(value: str | None, subfolder: str) -> str:
@@ -804,30 +753,11 @@ def create_app(config_name: str = 'default') -> Flask:
 
         Accepts plain filenames, subfolder-prefixed filenames, /uploads paths,
         /static/uploads paths, and remote HTTP(S) URLs. Local filenames are
-        served through /uploads/... so a production persistent disk can be used.
+        served through /uploads/... so production persistent disks and legacy
+        fallback roots both work.
         """
-        if not isinstance(value, str):
-            return ''
-        raw = value.strip()
-        if not raw or raw.lower() in {'none', 'null', 'undefined'}:
-            return ''
-        if any(ch in raw for ch in ('\x00', '\r', '\n')):
-            return ''
-        if raw.startswith(('http://', 'https://')):
-            return raw
-
-        normalized = _normalize_upload_reference(raw, subfolder)
-        if not normalized:
-            return ''
-        folder, filename = normalized
-
-        public_base = (app.config.get('UPLOAD_PUBLIC_BASE_URL') or '').rstrip('/')
-        if public_base:
-            return f'{public_base}/{folder}/{filename}'
-
-        if not _upload_exists(folder, filename):
-            return ''
-        return url_for('uploaded_media', subfolder=folder, filename=filename)
+        from app.services.media.upload_storage import build_upload_url
+        return build_upload_url(value, subfolder)
 
     from app.heartbeat import init_heartbeat
     init_heartbeat(app)

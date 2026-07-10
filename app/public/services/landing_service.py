@@ -25,6 +25,25 @@ from .serializers import serialize_creator_card
 logger = logging.getLogger(__name__)
 
 
+def _visible_project_filter(Project):
+    """Public project visibility for landing counters/cards.
+
+    Normal tenants expose only Published projects. The protected default
+    administrator portfolio also exposes Featured Draft projects, matching
+    /administrator-portfolio and avoiding mismatched landing counts.
+    """
+    from sqlalchemy import and_, or_
+
+    return or_(
+        Project.status == "published",
+        and_(
+            Project.tenant_slug == "default",
+            Project.status == "draft",
+            Project.is_featured.is_(True),
+        ),
+    )
+
+
 def _active_slugs() -> list[str]:
     return [
         t.slug
@@ -49,7 +68,7 @@ def get_landing_stats() -> dict:
         projects = (
             Project.query.filter(
                 Project.tenant_slug.in_(slugs),
-                Project.status == "published",
+                _visible_project_filter(Project),
             ).count()
         )
         # Skills / certificates: totals across public profiles.
@@ -154,7 +173,7 @@ def get_administrator_card() -> Optional[dict]:
         project_count = (
             Project.query.filter(
                 Project.tenant_slug == "default",
-                Project.status == "published",
+                _visible_project_filter(Project),
             ).count()
         )
         return serialize_creator_card(profile, project_count=project_count)

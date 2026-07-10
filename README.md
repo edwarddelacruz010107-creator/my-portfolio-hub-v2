@@ -335,7 +335,16 @@ UPLOAD_FOLDER=/var/data/uploads
 UPLOAD_PUBLIC_BASE_URL=
 ```
 
-After changing storage settings, upload the profile photo again once. Old local files that were already deleted by a redeploy cannot be restored from the database filename alone.
+After changing storage settings, upload the profile/project photo again once. Old local files that were already deleted by a redeploy cannot be restored from the database filename alone.
+
+To audit and repair files that still exist in a legacy upload folder, run:
+
+```bash
+python scripts/repair_upload_storage.py --dry-run
+python scripts/repair_upload_storage.py --copy
+```
+
+The script copies files found in old local upload roots into the configured `UPLOAD_FOLDER` and reports records whose physical files are missing.
 
 ---
 

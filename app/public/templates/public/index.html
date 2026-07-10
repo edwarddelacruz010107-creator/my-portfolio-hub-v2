@@ -545,8 +545,8 @@
         {% else %}
           <div class="case-study-empty" data-reveal>
             <i class="bi bi-window-plus" aria-hidden="true"></i>
-            <h3>No published projects yet</h3>
-            <p>Case studies from creators will appear here as soon as projects are published.</p>
+            <h3>No live projects yet</h3>
+            <p>Case studies from creators will appear here as soon as projects are ready to share.</p>
             <a href="{{ url_for('auth.portal', tab='signup') }}" class="btn-mph btn-outline">Create a portfolio</a>
           </div>
         {% endif %}
@@ -665,7 +665,7 @@
           <div class="community-update-body activity-text">
             <div class="community-update-meta">
               <strong>{{ update_creator }}</strong>
-              <span>published</span>
+              <span>shared</span>
               <span class="community-update-badge">{{ update_category }}</span>
             </div>
             <a
@@ -694,7 +694,7 @@
         <div class="community-empty" data-reveal>
           <i class="bi bi-megaphone" aria-hidden="true"></i>
           <h3>No community updates yet</h3>
-          <p>When creators publish projects, updates will appear here.</p>
+          <p>When creators share projects, updates will appear here.</p>
         </div>
         {% endfor %}
       </div>

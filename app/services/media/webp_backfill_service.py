@@ -45,8 +45,8 @@ class WebPBackfillItem:
 
 
 def _upload_root() -> Path:
-    upload_folder = current_app.config.get("UPLOAD_FOLDER", "static/uploads")
-    return Path(upload_folder).resolve()
+    from app.services.media.upload_storage import primary_upload_root
+    return primary_upload_root()
 
 
 def _safe_upload_path(folder: str, filename: str) -> Path | None:

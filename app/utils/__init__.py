@@ -561,13 +561,14 @@ def save_image(
         return None, validation_error or "Uploaded image failed validation."
 
     try:
-        upload_folder = current_app.config.get("UPLOAD_FOLDER", "static/uploads")
-        dest_dir = os.path.abspath(os.path.join(upload_folder, subfolder))
+        from app.services.media.upload_storage import ensure_upload_folder, primary_upload_root
+
+        upload_folder = str(primary_upload_root())
+        dest_dir = str(ensure_upload_folder(subfolder))
         root_dir = os.path.abspath(upload_folder)
-        if not (dest_dir == root_dir or dest_dir.startswith(root_dir + os.sep)):
+        if not (os.path.abspath(dest_dir) == root_dir or os.path.abspath(dest_dir).startswith(root_dir + os.sep)):
             logger.warning("save_image blocked unsafe upload subfolder=%s", subfolder)
             return None, "Invalid upload destination."
-        os.makedirs(dest_dir, exist_ok=True)
 
         convert_to_webp = _convert_uploads_to_webp_enabled()
         final_bytes = file_bytes
@@ -652,10 +653,8 @@ def delete_image(filename: str | None, subfolder: str) -> None:
                     logger.exception("delete_image failed for Supabase URL")
             return
 
-        upload_folder = current_app.config.get("UPLOAD_FOLDER", "static/uploads")
-        path = os.path.join(upload_folder, subfolder, filename)
-        if os.path.isfile(path):
-            os.remove(path)
+        from app.services.media.upload_storage import delete_upload_file
+        delete_upload_file(filename, subfolder)
     except Exception:
         logger.exception("delete_image failed: subfolder=%s filename=%s", subfolder, filename)
 

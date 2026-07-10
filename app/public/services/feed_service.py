@@ -15,6 +15,28 @@ from .serializers import serialize_project_card
 logger = logging.getLogger(__name__)
 
 
+def _visible_project_filter(Project):
+    """Public project visibility used by landing/project discovery.
+
+    Normal tenants only expose Published projects. The protected owner/default
+    portfolio is special: its portfolio route intentionally allows Featured
+    Draft projects so the platform owner can showcase selected in-progress
+    work. Landing showcase, community updates, project browser, and creator
+    counts must use the same rule or the homepage will say `0 projects` while
+    /administrator-portfolio shows a project.
+    """
+    from sqlalchemy import and_, or_
+
+    return or_(
+        Project.status == "published",
+        and_(
+            Project.tenant_slug == "default",
+            Project.status == "draft",
+            Project.is_featured.is_(True),
+        ),
+    )
+
+
 def _active_tenant_slugs() -> set[str]:
     from app.models.core import Tenant
 
@@ -48,7 +70,7 @@ def _creator_names(tenant_slugs: list[str]) -> dict[str, str]:
 
 def get_trending_projects(limit: int = 8, current_user_id: int | None = None) -> list[dict]:
     """
-    "Trending" = published + featured, ranked by view_count then recency.
+    "Trending" = public-visible projects ranked by featured, views, then recency.
     No time-decay/velocity model yet (that needs a views-over-time table —
     Phase 12 social-foundation scope, not this phase). view_count is a
     monotonic counter today, so this is "most-viewed", not "trending this
@@ -63,7 +85,7 @@ def get_trending_projects(limit: int = 8, current_user_id: int | None = None) ->
     projects = (
         Project.query.filter(
             Project.tenant_slug.in_(active_slugs),
-            Project.status == "published",
+            _visible_project_filter(Project),
         )
         .order_by(Project.is_featured.desc(), Project.view_count.desc(), Project.created_at.desc())
         .limit(limit)
@@ -98,14 +120,14 @@ def get_trending_projects(limit: int = 8, current_user_id: int | None = None) ->
 
 
 def get_latest_projects(limit: int = 12, offset: int = 0, category: str | None = None, current_user_id: int | None = None) -> tuple[list[dict], int]:
-    """Newest published projects across all active tenants, for /feed."""
+    """Newest public-visible projects across all active tenants, for /feed."""
     from app.models.tenant_data import Project, ProjectReaction
 
     active_slugs = _active_tenant_slugs()
     if not active_slugs:
         return [], 0
 
-    base = Project.query.filter(Project.tenant_slug.in_(active_slugs), Project.status == "published")
+    base = Project.query.filter(Project.tenant_slug.in_(active_slugs), _visible_project_filter(Project))
     if category:
         base = base.filter(Project.category == category)
 
@@ -151,7 +173,7 @@ def browse_projects(
 ) -> tuple[list[dict], int]:
     """Searchable/sortable public project browser for /projects.
 
-    Keeps queries public-safe: only active tenants and published projects are
+    Keeps queries public-safe: only active tenants and public-visible projects are
     returned, then model instances are converted through serialize_project_card.
     """
     from sqlalchemy import or_
@@ -163,7 +185,7 @@ def browse_projects(
 
     base = Project.query.filter(
         Project.tenant_slug.in_(active_slugs),
-        Project.status == 'published',
+        _visible_project_filter(Project),
     )
 
     q = (query or '').strip()
@@ -224,7 +246,7 @@ def browse_projects(
 
 
 def get_categories() -> list[str]:
-    """Distinct categories across published projects, for /explore + /feed filters."""
+    """Distinct categories across public-visible projects, for /explore + /feed filters."""
     from app.models.tenant_data import Project
 
     active_slugs = _active_tenant_slugs()
@@ -232,7 +254,7 @@ def get_categories() -> list[str]:
         return []
     rows = (
         Project.query.with_entities(Project.category)
-        .filter(Project.tenant_slug.in_(active_slugs), Project.status == "published", Project.category.isnot(None))
+        .filter(Project.tenant_slug.in_(active_slugs), _visible_project_filter(Project), Project.category.isnot(None))
         .distinct()
         .all()
     )

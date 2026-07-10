@@ -119,18 +119,18 @@
             {% for asset in assets %}
             <tr class="upload-row">
               <td data-label="Preview">
-                <div class="upload-preview{% if not asset.url %} is-missing{% endif %}">
+                <div class="upload-preview{% if not asset.exists %} is-missing{% endif %}" title="{% if not asset.exists %}Database record exists, but the physical file is missing from upload storage.{% endif %}">
                   {% if asset.url %}
                     <img src="{{ asset.url }}"
                          alt="Preview of {{ asset.label }}"
                          class="upload-thumb"
                          loading="lazy"
                          decoding="async"
-                         onerror="this.closest('.upload-preview').classList.add('is-missing'); this.remove();"/>
+                         data-upload-preview-image/>
                   {% endif %}
                   <span class="upload-preview-fallback" aria-hidden="true">
                     <iconify-icon icon="lucide:image-off" width="20"></iconify-icon>
-                    <small>No preview</small>
+                    <small>{% if asset.exists %}No preview{% else %}Missing file{% endif %}</small>
                   </span>
                 </div>
               </td>
@@ -178,4 +178,17 @@
     {% endif %}
   </section>
 </div>
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('[data-upload-preview-image]').forEach(function(img){
+  img.addEventListener('error', function(){
+    var wrap = img.closest('.upload-preview');
+    if (wrap) wrap.classList.add('is-missing');
+    img.remove();
+  }, { once: true });
+});
+</script>
 {% endblock %}

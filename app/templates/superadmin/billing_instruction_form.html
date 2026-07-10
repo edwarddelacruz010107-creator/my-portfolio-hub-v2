@@ -64,7 +64,7 @@
   {% if instruction and instruction.qr_image %}
   <div class="instruction-preview" style="margin-top:2rem">
     <h3>Current QR Code</h3>
-    <img src="{{ url_for('static', filename='uploads/billing/' ~ instruction.qr_image) }}"
+    <img src="{{ instruction.qr_image|upload_url('billing') }}"
          alt="PayMongo QR code" class="billing-qr-image"
          style="max-width:220px;border-radius:10px;border:1px solid rgba(255,255,255,0.1)" />
   </div>

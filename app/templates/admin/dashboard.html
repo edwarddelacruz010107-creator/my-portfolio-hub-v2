@@ -236,7 +236,7 @@
           <div class="project-row">
             <div class="project-row-img">
               {% if p.image %}
-                <img src="{{ url_for('static', filename='uploads/projects/' + p.image) }}" alt="{{ p.title }}"/>
+                {% set dashboard_project_image_url = p.image|upload_url('projects') if p.image else '' %}{% if dashboard_project_image_url %}<img src="{{ dashboard_project_image_url }}" alt="{{ p.title }}" loading="lazy"/>{% else %}<div class="project-thumb-placeholder">◈</div>{% endif %}
               {% else %}
                 <div class="img-placeholder">
                   <iconify-icon icon="lucide:image" width="16"></iconify-icon>

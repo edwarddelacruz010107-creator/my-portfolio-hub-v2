@@ -78,7 +78,7 @@
   {% if method and method.qr_image %}
   <div style="margin-top:2rem">
     <h3>Current QR Code</h3>
-    <img src="{{ url_for('static', filename='uploads/billing/' ~ method.qr_image) }}"
+    <img src="{{ method.qr_image|upload_url('billing') }}"
          alt="QR code" style="max-width:220px;border-radius:10px" />
   </div>
   {% endif %}

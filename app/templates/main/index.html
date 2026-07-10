@@ -33,13 +33,13 @@
         {% if profile.og_image.startswith('http') %}
           {% set og_image_url = profile.og_image %}
         {% else %}
-          {% set og_image_url = url_for('static', filename='uploads/profiles/' ~ profile.og_image, _external=True) %}
+          {% set og_image_url = profile.og_image|upload_url('profiles') %}
         {% endif %}
       {% elif profile.profile_image %}
         {% if profile.profile_image.startswith('http') %}
           {% set og_image_url = profile.profile_image %}
         {% else %}
-          {% set og_image_url = url_for('static', filename='uploads/profiles/' ~ profile.profile_image, _external=True) %}
+          {% set og_image_url = profile.profile_image|upload_url('profiles') %}
         {% endif %}
       {% endif %}
     {% endif %}
@@ -129,7 +129,7 @@
             "description": "{{ (project.description_short or project.description or '') | striptags | truncate(150) | e }}",
             "url": "{{ tenant_project_url(tenant_slug, project.slug, external=True) }}"
             {% if project.image %},
-            "image": "{{ url_for('static', filename='uploads/projects/' ~ project.image, _external=True) }}"
+            "image": "{{ project.image|upload_url('projects') }}"
             {% endif %}
           }
         }{% if not loop.last %},{% endif %}

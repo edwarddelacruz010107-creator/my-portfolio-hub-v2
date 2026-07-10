@@ -11,7 +11,8 @@
 {% set _og_project_image = project.image if project.image is defined else '' %}
 {% set _og_profile_image = profile.profile_image if profile and profile.profile_image is defined else '' %}
 {% if _og_project_image | safe_media_value %}
-<meta property="og:image" content="{{ url_for('static', filename='uploads/projects/' ~ _og_project_image, _external=True) }}">
+{% set _og_project_url = _og_project_image|upload_url('projects') %}
+{% if _og_project_url %}<meta property="og:image" content="{{ _og_project_url }}">{% endif %}
 <meta property="og:image:width"  content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt"    content="{{ project.title or 'Untitled Project' }}">
@@ -19,7 +20,8 @@
 {% if _og_profile_image.startswith('http') %}
 <meta property="og:image" content="{{ _og_profile_image }}">
 {% else %}
-<meta property="og:image" content="{{ url_for('static', filename='uploads/profiles/' ~ _og_profile_image, _external=True) }}">
+{% set _og_profile_url = _og_profile_image|upload_url('profiles') %}
+{% if _og_profile_url %}<meta property="og:image" content="{{ _og_profile_url }}">{% endif %}
 {% endif %}
 {% endif %}
 {% if project.date_completed %}
@@ -44,7 +46,7 @@
     {% set project_image_external = request.host_url.rstrip('/') ~ project.image_url %}
   {% endif %}
 {% elif project_image_value | safe_media_value %}
-  {% set project_image_external = url_for('static', filename='uploads/projects/' ~ project_image_value, _external=True) %}
+  {% set project_image_external = (project_image_value|upload_url('projects')) %}
 {% endif %}
 {# ── JSON-LD: CreativeWork ── #}
 <script type="application/ld+json">
@@ -125,7 +127,7 @@
 {% if project.image_url is defined and (project.image_url | safe_media_value) %}
   {% set project_image_url = project.image_url %}
 {% elif project.image is defined and (project.image | safe_media_value) %}
-  {% set project_image_url = url_for('static', filename='uploads/projects/' ~ project.image) %}
+  {% set project_image_url = project.image|upload_url('projects') %}
 {% endif %}
 {% set profile_image_value = profile.profile_image if profile and profile.profile_image is defined else '' %}
 {% set profile_avatar_url = '' %}
@@ -133,7 +135,7 @@
   {% if profile_image_value.startswith(('http://', 'https://')) or profile_image_value.startswith('/') %}
     {% set profile_avatar_url = profile_image_value %}
   {% else %}
-    {% set profile_avatar_url = url_for('static', filename='uploads/profiles/' ~ profile_image_value) %}
+    {% set profile_avatar_url = profile_image_value|upload_url('profiles') %}
   {% endif %}
 {% endif %}
 {% set profile_display_name = profile.name if profile and profile.name else 'Creator' %}
@@ -396,7 +398,7 @@
         <a href="{{ tenant_project_url(_tenant_slug, p.slug) }}" class="project-related-card">
           <div class="project-related-media {{ 'has-image' if p.image is defined and (p.image | safe_media_value) else 'is-placeholder' }}">
             {% if p.image is defined and (p.image | safe_media_value) %}
-            <img src="{{ url_for('static', filename='uploads/projects/' ~ p.image) }}"
+            <img src="{{ p.image|upload_url('projects') }}"
                  alt="Project preview for {{ related_title }}"
                  loading="lazy"
                  onerror="this.closest('.project-related-media').classList.add('image-failed','is-placeholder'); this.remove();">

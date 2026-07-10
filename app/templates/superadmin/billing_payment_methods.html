@@ -93,7 +93,7 @@
     </div>
 
     {% if method.qr_image %}
-    <img src="{{ url_for('static', filename='uploads/billing/' ~ method.qr_image) }}"
+    <img src="{{ method.qr_image|upload_url('billing') }}"
          alt="QR for {{ method.name }}" style="max-width:120px;border-radius:8px;margin-top:0.5rem" />
     {% endif %}
 

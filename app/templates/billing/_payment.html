@@ -88,7 +88,7 @@
       {% if payment_method.qr_image %}
       <div class="payment-qr-inline">
         <div class="payment-qr-frame">
-          <img src="{{ url_for('static', filename='uploads/billing/' ~ payment_method.qr_image) }}"
+          <img src="{{ payment_method.qr_image|upload_url('billing') }}"
                alt="QR code for {{ payment_method.name }}" class="payment-qr-img" />
         </div>
         <p class="payment-qr-caption">Scan with your {{ payment_method.name }} app</p>
@@ -231,7 +231,7 @@
         <span>Scan to Pay via {{ payment_method.name }}</span>
       </div>
       <div class="payment-qr-frame">
-        <img src="{{ url_for('static', filename='uploads/billing/' ~ payment_method.qr_image) }}"
+        <img src="{{ payment_method.qr_image|upload_url('billing') }}"
              alt="QR code for {{ payment_method.name }}" class="payment-qr-img" />
       </div>
       {% if payment_method.account_number %}

@@ -22,7 +22,7 @@
     <div class="avatar-upload-card avatar-upload-row">
       <div class="avatar-preview" id="avatarPreview">
         {% if testimonial and testimonial.author_avatar %}
-          <img src="{{ url_for('static', filename='uploads/profiles/' + testimonial.author_avatar) }}"
+          <img src="{{ testimonial.author_avatar|upload_url('profiles') }}"
                alt="{{ testimonial.author_name }}" id="avatarImg"/>
         {% else %}
           <div class="avatar-placeholder" id="avatarPlaceholder"><span>◉</span></div>

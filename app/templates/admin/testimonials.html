@@ -22,7 +22,7 @@
     <div class="testimonial-admin-row">
       <div class="t-avatar">
         {% if t.author_avatar %}
-          <img src="{{ url_for('static', filename='uploads/profiles/' + t.author_avatar) }}" alt="{{ t.author_name }}"/>
+          <img src="{{ t.author_avatar|upload_url('profiles') }}" alt="{{ t.author_name }}"/>
         {% else %}
           <div class="t-avatar-ph">{{ t.author_name[0] }}</div>
         {% endif %}

@@ -191,7 +191,7 @@
       </div>
       {% if method.qr_image %}
       <div class="method-qr-wrap">
-        <img src="{{ url_for('static', filename='uploads/billing/' ~ method.qr_image) }}"
+        <img src="{{ method.qr_image|upload_url('billing') }}"
              alt="QR for {{ method.name }}" class="method-qr-img" loading="lazy">
         <span class="method-qr-hint">Scan to pay</span>
       </div>

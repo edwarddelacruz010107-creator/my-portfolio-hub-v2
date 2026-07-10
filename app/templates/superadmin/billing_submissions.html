@@ -346,7 +346,7 @@
             {% if is_image %}
             <button type="button" class="proof-thumb-btn"
                     data-modal="proof-modal"
-                    data-proof-url="{{ url_for('static', filename='uploads/billing/' ~ proof) }}"
+                    data-proof-url="{{ proof|upload_url('billing') }}"
                     data-proof-type="image"
                     data-proof-ref="{{ submission.payment_reference or '' }}"
                     data-proof-tenant="{{ submission.tenant.slug if submission.tenant else '' }}"
@@ -354,7 +354,7 @@
                     data-proof-method="{{ submission.payment_method or '' }}"
                     data-proof-date="{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') if submission.submitted_at else '' }}"
                     title="Click to verify proof">
-              <img src="{{ url_for('static', filename='uploads/billing/' ~ proof) }}"
+              <img src="{{ proof|upload_url('billing') }}"
                    alt="proof"
                    onerror="this.style.display='none'"/>
               <iconify-icon icon="lucide:zoom-in" width="13"></iconify-icon>
@@ -362,7 +362,7 @@
             {% else %}
             <button type="button" class="proof-thumb-btn"
                     data-modal="proof-modal"
-                    data-proof-url="{{ url_for('static', filename='uploads/billing/' ~ proof) }}"
+                    data-proof-url="{{ proof|upload_url('billing') }}"
                     data-proof-type="document"
                     data-proof-ref="{{ submission.payment_reference or '' }}"
                     data-proof-tenant="{{ submission.tenant.slug if submission.tenant else '' }}"

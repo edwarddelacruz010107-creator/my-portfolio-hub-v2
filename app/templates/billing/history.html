@@ -43,7 +43,7 @@
         </td>
         <td>
           {% if s.payment_proof %}
-          <a href="{{ url_for('static', filename='uploads/billing/' ~ s.payment_proof) }}"
+          <a href="{{ s.payment_proof|upload_url('billing') }}"
              target="_blank"
              class="btn btn-ghost btn-sm"
              style="padding:0.2rem 0.6rem;font-size:0.75rem">

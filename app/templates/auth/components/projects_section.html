@@ -16,9 +16,11 @@
                 {% for project in featured_projects %}
                 <article class="project-card reveal-up" style="--delay: {{ loop.index0 * 0.1 }}s">
                     <div class="project-image">
+                        {% set auth_project_image_url = project.image|upload_url('projects') if project.image else '' %}
                         <img 
-                            src="{% if project.image %}{{ url_for('static', filename='uploads/projects/' + project.image) }}{% else %}{{ url_for('static', filename='image/project_placeholder.svg') }}{% endif %}" 
+                            src="{% if auth_project_image_url %}{{ auth_project_image_url }}{% else %}{{ url_for('static', filename='image/project_placeholder.svg') }}{% endif %}" 
                             alt="{{ project.title }}"
+                            loading="lazy"
                         >
                         <div class="project-overlay">
                             <div class="project-overlay-actions">

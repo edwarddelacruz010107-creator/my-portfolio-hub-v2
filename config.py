@@ -197,6 +197,16 @@ class BaseConfig:
     SUPABASE_BUCKET     = os.environ.get('SUPABASE_BUCKET', 'portfolio-media')
     USE_SUPABASE_STORAGE = os.environ.get('USE_SUPABASE_STORAGE', 'false').lower() == 'true'
 
+    # Unified media provider. Preferred values: cloudinary, supabase, local.
+    # Legacy USE_* flags remain supported for backwards compatibility.
+    STORAGE_PROVIDER = os.environ.get('STORAGE_PROVIDER', '').strip().lower()
+    USE_CLOUDINARY_STORAGE = os.environ.get('USE_CLOUDINARY_STORAGE', 'false').lower() == 'true'
+    CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL', '')
+    CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', '')
+    CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY', '')
+    CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', '')
+    CLOUDINARY_FOLDER_ROOT = os.environ.get('CLOUDINARY_FOLDER_ROOT', 'myportfoliohub')
+
     # New portfolio photo uploads are converted to WebP for faster public pages.
     CONVERT_UPLOADS_TO_WEBP = os.environ.get('CONVERT_UPLOADS_TO_WEBP', 'true').lower() == 'true'
     UPLOAD_WEBP_QUALITY = int(os.environ.get('UPLOAD_WEBP_QUALITY', '82'))
@@ -395,6 +405,38 @@ class ProductionConfig(BaseConfig):
             billing_required = ['PAYMONGO_SECRET_KEY', 'PAYMONGO_WEBHOOK_SECRET']
             missing += [v for v in billing_required if not os.environ.get(v)]
 
+        # Fail fast when an object-storage provider is explicitly selected.
+        # This prevents a successful deploy that silently writes new uploads to
+        # an ephemeral local filesystem.
+        storage_provider = (os.environ.get('STORAGE_PROVIDER') or '').strip().lower()
+        if not storage_provider:
+            if os.environ.get('USE_CLOUDINARY_STORAGE', 'false').lower() == 'true':
+                storage_provider = 'cloudinary'
+            elif os.environ.get('USE_SUPABASE_STORAGE', 'false').lower() == 'true':
+                storage_provider = 'supabase'
+
+        if storage_provider == 'cloudinary' and not os.environ.get('CLOUDINARY_URL'):
+            missing += [
+                name for name in (
+                    'CLOUDINARY_CLOUD_NAME',
+                    'CLOUDINARY_API_KEY',
+                    'CLOUDINARY_API_SECRET',
+                )
+                if not os.environ.get(name)
+            ]
+        elif storage_provider == 'supabase':
+            missing += [
+                name for name in ('SUPABASE_URL', 'SUPABASE_SERVICE_KEY')
+                if not os.environ.get(name)
+            ]
+        elif storage_provider and storage_provider not in {'cloudinary', 'supabase', 'local'}:
+            raise ValueError(
+                f"Unsupported STORAGE_PROVIDER={storage_provider!r}. "
+                "Use cloudinary, supabase, or local."
+            )
+
+        # Preserve order while removing duplicates from combined validation.
+        missing = list(dict.fromkeys(missing))
         if missing:
             raise ValueError(
                 f"Production environment missing required variables: {', '.join(missing)}\n"

@@ -512,21 +512,45 @@ def save_image(
     if not is_upload_file(file_storage):
         return None, "No file provided."
 
-    # Production-safe object storage path. When enabled, store the public URL in
-    # the model instead of a local filename so uploaded photos survive redeploys
-    # on ephemeral filesystems. Supabase helper performs the same validation and
-    # WebP optimization before upload.
-    try:
-        if bool(current_app.config.get("USE_SUPABASE_STORAGE", False)):
+    # Production-safe object storage path. Store the public HTTPS URL in the
+    # model so media survives application redeploys. STORAGE_PROVIDER is the
+    # source of truth; legacy USE_* flags are supported for existing installs.
+    provider = str(current_app.config.get("STORAGE_PROVIDER") or "").strip().lower()
+    if not provider:
+        if bool(current_app.config.get("USE_CLOUDINARY_STORAGE", False)):
+            provider = "cloudinary"
+        elif bool(current_app.config.get("USE_SUPABASE_STORAGE", False)):
+            provider = "supabase"
+        else:
+            provider = "local"
+
+    if provider == "cloudinary":
+        try:
+            from app.utils.cloudinary_storage import save_image as _save_cloudinary_image
+
+            remote_url = _save_cloudinary_image(file_storage, subfolder)
+            if remote_url:
+                return remote_url, None
+            return None, "Failed to upload image to Cloudinary. Check the Cloudinary credentials and deployment logs."
+        except Exception:
+            logger.exception("save_image: Cloudinary storage upload failed")
+            return None, "Failed to upload image to Cloudinary. Check the persistent storage settings."
+
+    if provider == "supabase":
+        try:
             from app.utils.supabase_storage import save_image as _save_supabase_image
 
             remote_url = _save_supabase_image(file_storage, subfolder)
             if remote_url:
                 return remote_url, None
             return None, "Failed to upload image to Supabase Storage. Please check storage credentials and bucket permissions."
-    except Exception:
-        logger.exception("save_image: Supabase storage upload failed")
-        return None, "Failed to upload image to persistent storage. Please check storage settings."
+        except Exception:
+            logger.exception("save_image: Supabase storage upload failed")
+            return None, "Failed to upload image to Supabase Storage. Please check storage settings."
+
+    if provider not in {"", "local"}:
+        logger.error("Unsupported STORAGE_PROVIDER=%s", provider)
+        return None, f"Unsupported storage provider: {provider}."
 
     allowed = {ext.lower().lstrip('.') for ext in (allowed_extensions or _ALLOWED_IMAGE_EXTENSIONS)}
     original_name = secure_filename(file_storage.filename or "")
@@ -638,14 +662,24 @@ def save_image(
 
 def delete_image(filename: str | None, subfolder: str) -> None:
     """
-    Delete an image from the active storage backend. Silently ignores missing
-    local files. Remote Supabase URLs are deleted when Supabase storage is active.
+    Delete an image from the matching storage backend. Silently ignores
+    missing local files and supports both Cloudinary and Supabase URLs even
+    after the configured provider changes.
     """
     if not filename:
         return
     try:
-        if isinstance(filename, str) and filename.startswith(('http://', 'https://')):
-            if bool(current_app.config.get("USE_SUPABASE_STORAGE", False)):
+        if isinstance(filename, str) and filename.startswith(("http://", "https://")):
+            try:
+                from app.utils.cloudinary_storage import is_cloudinary_url, delete_image as _delete_cloudinary_image
+                if is_cloudinary_url(filename):
+                    _delete_cloudinary_image(filename)
+                    return
+            except Exception:
+                logger.exception("delete_image failed for Cloudinary URL")
+                return
+
+            if "supabase" in filename.lower() or bool(current_app.config.get("USE_SUPABASE_STORAGE", False)):
                 try:
                     from app.utils.supabase_storage import delete_image as _delete_supabase_image
                     _delete_supabase_image(filename)

@@ -98,7 +98,7 @@ The platform supports both filesystem-based themes and Superadmin-managed theme 
 
 - MailerSend, SMTP, and Resend-style email provider support
 - PayMongo-ready billing configuration
-- Optional Supabase media storage
+- Cloudinary, Supabase, or persistent local media storage
 - Redis support for rate limiting/cache storage
 - Sentry-ready error monitoring
 
@@ -140,7 +140,7 @@ The Superadmin media/uploads view was also updated to support broader cross-tena
 | Authentication | Flask-Login, Flask-WTF, OTP, OAuth via Authlib |
 | Email | MailerSend, SMTP, provider abstraction |
 | Payments | PayMongo-ready service layer |
-| Storage | Local uploads, optional Supabase storage |
+| Storage | Cloudinary, Supabase, or persistent local uploads |
 | Security | CSRF, rate limiting, encrypted provider credentials, secure cookies |
 | Deployment | Gunicorn, Docker, Render-ready config |
 | Testing | Pytest-compatible test structure |
@@ -306,7 +306,12 @@ Important environment variables include:
 | `PAYMONGO_WEBHOOK_SECRET` | PayMongo webhook secret. Required when PayMongo is enabled. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Enables Google OAuth when both are present. |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Enables GitHub OAuth when both are present. |
-| `USE_SUPABASE_STORAGE` | Enables Supabase-backed media storage when set to `true`. Best option for uploads that must survive redeploys. |
+| `STORAGE_PROVIDER` | Selects `cloudinary`, `supabase`, or `local`. Cloudinary is recommended while Supabase Storage is unavailable. |
+| `USE_CLOUDINARY_STORAGE` | Backwards-compatible Cloudinary toggle. Prefer `STORAGE_PROVIDER=cloudinary`. |
+| `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | Cloudinary server-side credentials. Never commit the API secret. |
+| `CLOUDINARY_FOLDER_ROOT` | Root asset folder in Cloudinary. Defaults to `myportfoliohub`. |
+| `CLOUDINARY_URL` | Optional single-variable credential form: `cloudinary://API_KEY:API_SECRET@CLOUD_NAME`. |
+| `USE_SUPABASE_STORAGE` | Legacy Supabase toggle. Prefer `STORAGE_PROVIDER=supabase`. |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` / `SUPABASE_BUCKET` | Supabase storage configuration. |
 | `UPLOAD_FOLDER` | Optional persistent local upload directory, for example `/var/data/uploads` on a mounted disk. Use this if not using Supabase. |
 | `UPLOAD_PUBLIC_BASE_URL` | Optional public CDN/base URL for files stored under `UPLOAD_FOLDER`. Usually leave blank when Flask serves `/uploads/...`. |
@@ -323,17 +328,26 @@ Profile, project, testimonial, certificate, and badge photos must use persistent
 Use one of these production options:
 
 ```env
-# Recommended: object storage
-USE_SUPABASE_STORAGE=true
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_KEY=your-service-role-key
-SUPABASE_BUCKET=portfolio-media
+# Recommended while Supabase Storage is unavailable: Cloudinary
+STORAGE_PROVIDER=cloudinary
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+CLOUDINARY_FOLDER_ROOT=myportfoliohub
 
-# Alternative: mounted persistent disk
-UPLOAD_FOLDER=/var/data/uploads
-# Optional, only if served through a CDN/proxy
-UPLOAD_PUBLIC_BASE_URL=
+# Optional alternative: Supabase
+# STORAGE_PROVIDER=supabase
+# SUPABASE_URL=https://your-project.supabase.co
+# SUPABASE_SERVICE_KEY=your-service-role-key
+# SUPABASE_BUCKET=portfolio-media
+
+# Local alternative: mounted persistent disk
+# STORAGE_PROVIDER=local
+# UPLOAD_FOLDER=/var/data/uploads
+# UPLOAD_PUBLIC_BASE_URL=
 ```
+
+With Cloudinary enabled, the application stores the returned HTTPS CDN URL in the database. Profile, project, testimonial, certificate, badge, landing-page, and theme-catalog images therefore remain available after redeploys. Existing local filenames are not automatically uploaded; re-upload those images once or migrate them while the old files still exist.
 
 After changing storage settings, upload the profile/project photo again once. Old local files that were already deleted by a redeploy cannot be restored from the database filename alone.
 

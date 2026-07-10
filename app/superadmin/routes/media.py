@@ -266,8 +266,10 @@ def media_delete():
     def _rm(folder: str, filename: str) -> None:
         if not filename:
             return
-        from app.services.media.upload_storage import delete_upload_file
-        delete_upload_file(filename, folder)
+        # Use the unified deletion helper so Cloudinary/Supabase URLs and local
+        # files are removed from the correct backend.
+        from app.utils import delete_image
+        delete_image(filename, folder)
 
     if asset_type == 'profile':
         p = db.session.get(Profile, asset_id)

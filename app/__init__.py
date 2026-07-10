@@ -159,6 +159,7 @@ csp = {
         "data:",
         "blob:",
         "https://*.supabase.co",
+        "https://res.cloudinary.com",
     ],
     "connect-src": [
         "'self'",

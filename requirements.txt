@@ -67,6 +67,7 @@ MarkupSafe==3.0.3
 # STORAGE & FILE HANDLING
 # ─────────────────────────────────────────────────────────────────────
 supabase==2.31.0
+cloudinary==1.45.0
 python-multipart==0.0.32
 pillow==12.3.0
 

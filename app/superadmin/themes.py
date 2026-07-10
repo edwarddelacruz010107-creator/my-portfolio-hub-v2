@@ -25,7 +25,6 @@ catalog rows and reading the new extended columns added by migration 0035.
 import json
 import logging
 import os
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -82,27 +81,18 @@ def _normalize_theme_media_url(value: str) -> tuple[str | None, str | None]:
     return None, 'Use a full https:// image URL or upload an image from this page.'
 
 def _save_uploaded_image(file_storage, prefix: str) -> str | None:
-    """Validate, sanitize, and save an uploaded image. Returns public URL or None."""
+    """Validate, optimize, and save a theme image through the active provider."""
     if not file_storage or not file_storage.filename:
         return None
     if not _allowed_image(file_storage.filename):
         return None
-    data = file_storage.read()
-    if len(data) > _MAX_IMAGE_SIZE:
-        return None
-    from app.security import FileUploadPolicy
-    ok, err = FileUploadPolicy.validate_image_upload(
-        file_storage.filename, len(data), file_bytes=data, declared_mime=getattr(file_storage, 'mimetype', None)
-    )
-    if not ok:
-        logger.warning('Rejected theme image upload %s: %s', file_storage.filename, err)
-        return None
-    ext = file_storage.filename.rsplit('.', 1)[1].lower()
-    fname = f'{prefix}_{uuid.uuid4().hex[:12]}.{ext}'
-    dest = _theme_upload_dir() / fname
-    dest.write_bytes(data)
-    from app.services.media.upload_storage import build_upload_url
-    return build_upload_url(fname, 'themes')
+    # The shared helper performs MIME/magic/Pillow validation, converts to
+    # WebP, and uploads to Cloudinary/Supabase/local storage as configured.
+    from app.utils import save_image
+    url, error = save_image(file_storage, 'themes')
+    if not url:
+        logger.warning('Theme image upload failed prefix=%s error=%s', prefix, error)
+    return url
 
 
 # ── Theme list ────────────────────────────────────────────────────────────────
@@ -398,7 +388,11 @@ def theme_upload_thumbnail(entry_id):
 @limiter.limit('30 per minute')
 def theme_clear_thumbnail(entry_id):
     entry = _get_entry_or_404(entry_id)
+    old_url = entry.thumbnail_url
     entry.thumbnail_url = None
+    if old_url:
+        from app.utils import delete_image
+        delete_image(old_url, 'themes')
     try:
         db.session.commit()
     except Exception as exc:
@@ -438,7 +432,11 @@ def theme_upload_banner(entry_id):
 @limiter.limit('30 per minute')
 def theme_clear_banner(entry_id):
     entry = _get_entry_or_404(entry_id)
+    old_url = entry.banner_url
     entry.banner_url = None
+    if old_url:
+        from app.utils import delete_image
+        delete_image(old_url, 'themes')
     try:
         db.session.commit()
     except Exception as exc:
@@ -485,6 +483,9 @@ def theme_delete_preview(entry_id):
     url_to_remove = (request.form.get('url') or '').strip()
     existing = [u for u in entry.get_preview_images() if u != url_to_remove]
     entry.set_preview_images(existing)
+    if url_to_remove:
+        from app.utils import delete_image
+        delete_image(url_to_remove, 'themes')
     try:
         db.session.commit()
     except Exception as exc:

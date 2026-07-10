@@ -3,9 +3,7 @@ app/superadmin/routes/landing_settings.py — Superadmin landing page content ed
 """
 
 import logging
-import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
 from flask import render_template, redirect, url_for, flash, request, abort, jsonify, current_app
 from flask_wtf.csrf import validate_csrf
@@ -238,17 +236,17 @@ def landing_upload_image():
     if not ok:
         return jsonify({'success': False, 'error': err}), 422
 
-    ext = f.filename.rsplit('.', 1)[1].lower()
-    filename = f'{category}_{uuid.uuid4().hex[:12]}.{ext}'
-    dest = _landing_upload_dir() / filename
+    # Rewind after validation, then use the unified image-storage provider.
+    # This makes landing images survive redeploys on Cloudinary/Supabase and
+    # applies the same WebP optimization used by portfolio media.
     try:
-        dest.write_bytes(file_bytes)
-    except Exception as exc:
-        logger.exception('Failed to save landing upload: %s', exc)
-        return jsonify({'success': False, 'error': 'Unable to save uploaded file.'}), 500
-
-    from app.services.media.upload_storage import build_upload_url
-    url = build_upload_url(filename, 'landing')
+        f.stream.seek(0)
+    except Exception:
+        pass
+    from app.utils import save_image
+    url, upload_error = save_image(f, 'landing')
+    if not url:
+        return jsonify({'success': False, 'error': upload_error or 'Unable to save uploaded file.'}), 500
     PlatformSetting.set_string(_draft_key(_IMAGE_UPLOAD_KEYS[category]), url)
     db.session.commit()
     log_activity('update', 'landing_page', 'landing_image', f'Uploaded {category} image')

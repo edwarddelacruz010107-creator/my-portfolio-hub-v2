@@ -12,3 +12,21 @@ GOOGLE_OAUTH_REDIRECT_URI=https://myportfoliohub.online/auth/google/callback
 # Optional compatibility URIs if needed in Google Console:
 # https://myportfoliohub.online/auth/google/signin/callback
 # https://myportfoliohub.online/auth/google/signup/callback
+
+# ─── Cloudinary persistent image storage ───────────────────────
+# Recommended while Supabase Storage is unavailable. Never commit real secrets.
+STORAGE_PROVIDER=cloudinary
+USE_CLOUDINARY_STORAGE=true
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+CLOUDINARY_FOLDER_ROOT=myportfoliohub
+
+# Alternative single-variable configuration supported by the app:
+# CLOUDINARY_URL=cloudinary://API_KEY:API_SECRET@CLOUD_NAME
+
+# Keep the existing WebP optimizer enabled before Cloudinary upload.
+CONVERT_UPLOADS_TO_WEBP=true
+UPLOAD_WEBP_QUALITY=82
+UPLOAD_IMAGE_MAX_DIMENSION=2048
+

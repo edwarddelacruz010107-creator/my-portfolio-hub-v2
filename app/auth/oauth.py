@@ -125,6 +125,33 @@ def _log_oauth_redirect_uri(flow: str, redirect_uri: str) -> None:
 
 
 
+
+
+def _google_redirect_uri(flow: str) -> str:
+    """Return the exact redirect URI used for Google OAuth.
+
+    Production-safe behavior:
+    * Prefer explicit env/config overrides when set. This lets deployment use
+      the exact URI already registered in Google Cloud Console.
+    * Otherwise use one shared callback, /auth/google/callback, for BOTH sign
+      in and create-account. The session flag `_oauth_flow` decides what the
+      callback should do after Google returns.
+
+    Recommended Google Cloud Console URI:
+      https://myportfoliohub.online/auth/google/callback
+    """
+    flow = (flow or '').strip().lower()
+    specific_key = 'GOOGLE_SIGNUP_REDIRECT_URI' if flow == 'signup' else 'GOOGLE_SIGNIN_REDIRECT_URI'
+    explicit = (
+        current_app.config.get(specific_key)
+        or current_app.config.get('GOOGLE_OAUTH_REDIRECT_URI')
+        or ''
+    )
+    explicit = str(explicit).strip()
+    if explicit:
+        return explicit
+    return _oauth_external_url('auth.google_callback')
+
 def _oauth_client():
     """Return the registered Authlib google client, or None if disabled."""
     if not current_app.config.get('GOOGLE_OAUTH_ENABLED'):
@@ -227,17 +254,29 @@ def google_login():
     # alias, but always send Google the stable /auth/google/signin/callback
     # URL so production OAuth configuration does not drift between the
     # Sign In and Create Account buttons.
-    redirect_uri = _oauth_external_url('auth.google_signin_callback')
+    redirect_uri = _google_redirect_uri('signin')
     _log_oauth_redirect_uri('signin', redirect_uri)
     session['_oauth_flow'] = 'signin'
     return client.authorize_redirect(redirect_uri)
 
 
+@auth.route('/google/callback', endpoint='google_callback')
 @auth.route('/google/signin/callback', endpoint='google_signin_callback')
-@auth.route('/google/callback')
+@auth.route('/google/signup/callback', endpoint='google_signup_callback')
 @limiter.limit('20 per minute')
 @limiter.limit('100 per hour')
 def google_callback():
+    # One shared callback can safely serve both Google Sign In and Google
+    # Create Account. Google only cares that the exact redirect_uri sent in the
+    # first request is listed in Google Cloud Console. The app decides the flow
+    # from the session flag created in google_login()/google_signup().
+    flow = (session.get('_oauth_flow') or '').strip().lower()
+    if flow == 'signup' or request.path.endswith('/signup/callback'):
+        return _google_signup_callback_impl()
+    return _google_signin_callback_impl()
+
+
+def _google_signin_callback_impl():
     ip = _get_ip()
     client = _oauth_client()
     if client is None:
@@ -382,17 +421,14 @@ def google_signup():
     else:
         session.pop('_oauth_signup_next', None)
 
-    redirect_uri = _oauth_external_url('auth.google_signup_callback')
+    redirect_uri = _google_redirect_uri('signup')
     _log_oauth_redirect_uri('signup', redirect_uri)
     session['_oauth_flow'] = 'signup'
     return client.authorize_redirect(redirect_uri)
 
 
-# ── /auth/google/signup/callback ─────────────────────────────────────────────
-@auth.route('/google/signup/callback')
-@limiter.limit('20 per minute')
-@limiter.limit('100 per hour')
-def google_signup_callback():
+# ── Google signup callback implementation ───────────────────────────────────
+def _google_signup_callback_impl():
     ip = _get_ip()
     client = _oauth_client()
     if client is None:

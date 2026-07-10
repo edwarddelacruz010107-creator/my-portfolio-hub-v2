@@ -143,6 +143,13 @@ class BaseConfig:
     GOOGLE_OAUTH_ENABLED = bool(
         os.environ.get('GOOGLE_CLIENT_ID') and os.environ.get('GOOGLE_CLIENT_SECRET')
     )
+    # Optional exact redirect URI override. Usually leave these blank and use:
+    #   https://myportfoliohub.online/auth/google/callback
+    # in Google Cloud Console Authorized redirect URIs. Set only if production
+    # must match an already-registered URI.
+    GOOGLE_OAUTH_REDIRECT_URI = os.environ.get('GOOGLE_OAUTH_REDIRECT_URI', '')
+    GOOGLE_SIGNIN_REDIRECT_URI = os.environ.get('GOOGLE_SIGNIN_REDIRECT_URI', '')
+    GOOGLE_SIGNUP_REDIRECT_URI = os.environ.get('GOOGLE_SIGNUP_REDIRECT_URI', '')
 
     # GitHub OAuth (Sign in + Create account). Uses minimal scopes only:
     # read:user for profile identity and user:email for the primary verified email.

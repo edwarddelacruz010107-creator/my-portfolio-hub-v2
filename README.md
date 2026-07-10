@@ -589,3 +589,28 @@ https://myportfoliohub.online/auth/google/callback
 ```
 
 The app logs the exact OAuth redirect URI it sends to Google as `Google OAuth signin redirect_uri=...` or `Google OAuth signup redirect_uri=...`. If Google still blocks access, copy the logged URL exactly into the Authorized redirect URIs list.
+
+## Google OAuth Production Redirect Fix
+
+Google requires the `redirect_uri` sent by the application to match an Authorized redirect URI in Google Cloud Console exactly. In production, this build uses one shared callback for both Sign In and Create Account:
+
+```env
+APP_BASE_URL=https://myportfoliohub.online
+GOOGLE_OAUTH_REDIRECT_URI=https://myportfoliohub.online/auth/google/callback
+```
+
+Add this exact URI in Google Cloud Console:
+
+```text
+https://myportfoliohub.online/auth/google/callback
+```
+
+Compatibility callback routes remain available if already registered:
+
+```text
+https://myportfoliohub.online/auth/google/signin/callback
+https://myportfoliohub.online/auth/google/signup/callback
+```
+
+Never commit real `GOOGLE_CLIENT_SECRET` values into the repository. Set them only in the production hosting environment.
+

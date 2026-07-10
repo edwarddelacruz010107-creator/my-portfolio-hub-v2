@@ -148,11 +148,13 @@ csp = {
         "'unsafe-inline'",
         "https://fonts.googleapis.com",
         "https://cdnjs.cloudflare.com",
+        "https://cdn.jsdelivr.net",
     ],
     "font-src": [
         "'self'",
         "data:",
         "https://fonts.gstatic.com",
+        "https://cdn.jsdelivr.net",
     ],
     "img-src": [
         "'self'",

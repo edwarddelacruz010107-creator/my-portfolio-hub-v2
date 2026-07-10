@@ -56,9 +56,9 @@
   {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    "name": "{{ profile.name | e }}",
-    "url": "{{ request.host_url }}",
-    "description": "{{ (profile.bio_short or '') | e }}"
+    "name": {{ (profile.name or 'Portfolio') | tojson }},
+    "url": {{ request.host_url | tojson }},
+    "description": {{ (profile.bio_short or '') | tojson }}
   }
   </script>
   {% endif %}

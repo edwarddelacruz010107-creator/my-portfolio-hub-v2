@@ -104,8 +104,9 @@
       </label>
       <label class="form-field"><span class="field-label">Rate provider</span>
         <select class="field-input" name="fx_provider">
-          <option value="frankfurter" {% if currency.settings.provider == 'frankfurter' %}selected{% endif %}>Frankfurter — no API key, daily institutional rates</option>
-          <option value="currencyapi" {% if currency.settings.provider == 'currencyapi' %}selected{% endif %}>CurrencyAPI — API key from environment</option>
+          <option value="freecurrencyapi" {% if currency.settings.provider == 'freecurrencyapi' %}selected{% endif %}>FreecurrencyAPI — daily rates{% if not currency.providers_configured.freecurrencyapi %} · key required{% endif %}</option>
+          <option value="frankfurter" {% if currency.settings.provider == 'frankfurter' %}selected{% endif %}>Frankfurter — no API key, daily reference rates</option>
+          <option value="currencyapi" {% if currency.settings.provider == 'currencyapi' %}selected{% endif %}>CurrencyAPI — commercial provider{% if not currency.providers_configured.currencyapi %} · key required{% endif %}</option>
         </select>
       </label>
       <label class="form-field"><span class="field-label">Refresh interval (minutes)</span>
@@ -115,7 +116,7 @@
         <button class="btn btn-primary" type="submit" name="action" value="update_currency"><iconify-icon icon="lucide:save" width="15"></iconify-icon> Save Currency</button>
         <button class="btn btn-ghost" type="submit" name="action" value="refresh_fx"><iconify-icon icon="lucide:refresh-cw" width="15"></iconify-icon> Refresh Rate</button>
       </div>
-      <small class="form-card-note">For CurrencyAPI, set <code>CURRENCYAPI_KEY</code> in production. If unavailable, the system falls back to Frankfurter or the last cached rate.</small>
+      <small class="form-card-note">For FreecurrencyAPI, set <code>FREECURRENCYAPI_KEY</code> and optionally <code>CURRENCY_PROVIDER=freecurrencyapi</code> in production. Keys are read only from the server environment and are never shown in the browser. If a provider fails or reaches its quota, the system falls back to Frankfurter or the last valid cached rate.</small>
     </form>
   </section>
 

@@ -8,7 +8,7 @@
 - Lazy scheduled activation on tenant requests plus renewal-scheduler activation.
 - USD as the authoritative plan-price currency.
 - Selectable converted display/payment currency.
-- Frankfurter no-key rate provider and optional CurrencyAPI provider.
+- FreecurrencyAPI integration using header-based authentication, Frankfurter no-key fallback, and optional CurrencyAPI provider.
 - Database and in-process FX caching with stale-rate fallback.
 - Server-computed, non-editable manual-payment amount.
 - Required transaction reference and payment proof.
@@ -20,10 +20,11 @@
 No new billing table is required. Currency and plan pricing settings are stored in
 `platform_settings`. Existing Subscription fields are used for scheduling.
 
-Optional environment variable:
+Recommended environment variables:
 
 ```env
-CURRENCYAPI_KEY=
+CURRENCY_PROVIDER=freecurrencyapi
+FREECURRENCYAPI_KEY=your-regenerated-key
 ```
 
-When left blank, use the Frankfurter provider from Superadmin Subscription Settings.
+The application sends the key in the `apikey` request header. If the provider is unavailable or returns HTTP 429, billing uses Frankfurter and then the last valid cached rate. CurrencyAPI remains available through `CURRENCYAPI_KEY`.

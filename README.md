@@ -647,8 +647,9 @@ base currency. Superadmins can choose a display/payment currency in
 **Superadmin → Subscription Settings**. Converted prices are recalculated from
 the USD amount using a cached exchange-rate provider.
 
-- Default provider: Frankfurter (no API key; latest daily reference rates)
-- Optional provider: CurrencyAPI (`CURRENCYAPI_KEY` required)
+- Recommended provider: FreecurrencyAPI (`FREECURRENCYAPI_KEY` required; daily end-of-day rates)
+- No-key fallback: Frankfurter (daily reference rates)
+- Optional commercial provider: CurrencyAPI (`CURRENCYAPI_KEY` required)
 - The server recomputes every manual-payment total; the browser cannot alter it.
 - Transaction reference and payment proof are required for manual submissions.
 - Cloudinary-backed deployments persist payment proof images/PDFs across deploys.
@@ -661,7 +662,20 @@ subscription. Start and expiration timestamps are stored in UTC. Scheduled
 subscriptions activate through the renewal scheduler and also lazily on the
 first authenticated request after the start time.
 
-Optional production variable:
+Recommended production variables:
+
+```env
+CURRENCY_PROVIDER=freecurrencyapi
+FREECURRENCYAPI_KEY=your-regenerated-key
+```
+
+The key is sent in the `apikey` HTTP header, never placed in the request URL or stored in the database. Confirm that your FreecurrencyAPI plan permits commercial SaaS usage before enabling it in production. Test the provider with:
+
+```bash
+python scripts/test_freecurrencyapi_rates.py
+```
+
+Optional commercial provider:
 
 ```env
 CURRENCYAPI_KEY=

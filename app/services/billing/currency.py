@@ -5,7 +5,8 @@ presentation/payment currency; plan amounts are converted from the saved USD
 base price using a cached exchange rate.
 
 Providers:
-* ``frankfurter`` (default, no API key, daily institutional reference rates)
+* ``freecurrencyapi`` (recommended when ``FREECURRENCYAPI_KEY`` is configured)
+* ``frankfurter`` (no API key, daily institutional reference rates)
 * ``currencyapi`` (optional ``CURRENCYAPI_KEY``; update frequency depends on plan)
 
 The server always recomputes payable amounts. Browser-submitted amounts are not
@@ -25,6 +26,22 @@ logger = logging.getLogger(__name__)
 
 BASE_CURRENCY = "USD"
 DEFAULT_DISPLAY_CURRENCY = "USD"
+SUPPORTED_PROVIDERS = {"freecurrencyapi", "frankfurter", "currencyapi"}
+
+
+def _configured_default_provider() -> str:
+    """Choose a safe default without hardcoding any secret.
+
+    An explicit CURRENCY_PROVIDER wins. Otherwise FreecurrencyAPI is selected
+    only when its key exists; installations with no key keep Frankfurter.
+    """
+    requested = (os.getenv("CURRENCY_PROVIDER") or "").strip().lower()
+    if requested in SUPPORTED_PROVIDERS:
+        return requested
+    if (os.getenv("FREECURRENCYAPI_KEY") or "").strip():
+        return "freecurrencyapi"
+    return "frankfurter"
+
 SETTINGS_KEY = "billing_currency_settings_v1"
 FX_CACHE_KEY = "billing_fx_cache_v1"
 PLAN_USD_KEY = "billing_plan_usd_prices_v1"
@@ -48,7 +65,7 @@ _MEMORY_CACHE: dict[str, dict[str, Any]] = {}
 DEFAULT_SETTINGS = {
     "base_currency": BASE_CURRENCY,
     "display_currency": DEFAULT_DISPLAY_CURRENCY,
-    "provider": "frankfurter",
+    "provider": _configured_default_provider(),
     "refresh_minutes": 60,
 }
 
@@ -76,9 +93,9 @@ def get_currency_settings() -> dict[str, Any]:
     settings.update({k: v for k, v in raw.items() if k in settings})
     settings["base_currency"] = BASE_CURRENCY
     settings["display_currency"] = _safe_currency(settings.get("display_currency"))
-    settings["provider"] = str(settings.get("provider") or "frankfurter").lower()
-    if settings["provider"] not in {"frankfurter", "currencyapi"}:
-        settings["provider"] = "frankfurter"
+    settings["provider"] = str(settings.get("provider") or _configured_default_provider()).lower()
+    if settings["provider"] not in SUPPORTED_PROVIDERS:
+        settings["provider"] = _configured_default_provider()
     try:
         settings["refresh_minutes"] = max(5, min(1440, int(settings.get("refresh_minutes", 60))))
     except (TypeError, ValueError):
@@ -90,11 +107,20 @@ def save_currency_settings(*, display_currency: str, provider: str, refresh_minu
     settings = {
         "base_currency": BASE_CURRENCY,
         "display_currency": _safe_currency(display_currency),
-        "provider": provider if provider in {"frankfurter", "currencyapi"} else "frankfurter",
+        "provider": provider if provider in SUPPORTED_PROVIDERS else _configured_default_provider(),
         "refresh_minutes": max(5, min(1440, int(refresh_minutes or 60))),
     }
     _setting_model().set_json(SETTINGS_KEY, settings)
     return settings
+
+
+def provider_configuration() -> dict[str, bool]:
+    """Return provider readiness without exposing credential values."""
+    return {
+        "freecurrencyapi": bool((os.getenv("FREECURRENCYAPI_KEY") or "").strip()),
+        "frankfurter": True,
+        "currencyapi": bool((os.getenv("CURRENCYAPI_KEY") or "").strip()),
+    }
 
 
 def currency_symbol(code: str | None = None) -> str:
@@ -207,6 +233,33 @@ def _fetch_frankfurter(target: str) -> tuple[float, str | None]:
     return rate, payload.get("date")
 
 
+
+def _fetch_freecurrencyapi(target: str) -> tuple[float, str | None]:
+    """Fetch an end-of-day USD exchange rate from FreecurrencyAPI.
+
+    The API key is sent in the ``apikey`` request header rather than the URL so
+    it is less likely to be exposed in access logs. No key is ever persisted in
+    PlatformSetting or returned to a template.
+    """
+    api_key = (os.getenv("FREECURRENCYAPI_KEY") or "").strip()
+    if not api_key:
+        raise RuntimeError("FREECURRENCYAPI_KEY is not configured")
+
+    response = requests.get(
+        "https://api.freecurrencyapi.com/v1/latest",
+        headers={"apikey": api_key, "Accept": "application/json"},
+        params={"base_currency": BASE_CURRENCY, "currencies": target},
+        timeout=8,
+    )
+    if response.status_code == 429:
+        raise RuntimeError("FreecurrencyAPI rate limit or monthly quota reached")
+    response.raise_for_status()
+    payload = response.json()
+    rate = float((payload.get("data") or {}).get(target))
+    if rate <= 0:
+        raise ValueError(f"No {target} rate in FreecurrencyAPI response")
+    return rate, (payload.get("meta") or {}).get("last_updated_at")
+
 def _fetch_currencyapi(target: str) -> tuple[float, str | None]:
     api_key = (os.getenv("CURRENCYAPI_KEY") or "").strip()
     if not api_key:
@@ -244,7 +297,9 @@ def get_exchange_rate(*, force: bool = False, target: str | None = None) -> dict
 
     provider = settings["provider"]
     try:
-        if provider == "currencyapi":
+        if provider == "freecurrencyapi":
+            rate, source_date = _fetch_freecurrencyapi(target)
+        elif provider == "currencyapi":
             rate, source_date = _fetch_currencyapi(target)
         else:
             rate, source_date = _fetch_frankfurter(target)
@@ -333,4 +388,5 @@ def currency_context(*, force: bool = False) -> dict[str, Any]:
         "display_currency": settings["display_currency"],
         "symbol": currency_symbol(settings["display_currency"]),
         "supported": SUPPORTED_CURRENCIES,
+        "providers_configured": provider_configuration(),
     }

@@ -21,7 +21,7 @@
         <div class="avatar-preview" id="avatarPreview">
           {% set admin_profile_image_url = profile.profile_image|upload_url('profiles') if profile and profile.profile_image else '' %}
           {% if admin_profile_image_url %}
-            <img src="{{ admin_profile_image_url }}" alt="Profile" id="avatarImg"/>
+            <img src="{{ admin_profile_image_url }}" alt="{{ profile.profile_image_alt or (profile.name ~ ' profile photo') }}" id="avatarImg"/>
           {% else %}
             <div class="avatar-placeholder" id="avatarPlaceholder">
               <span>◎</span>

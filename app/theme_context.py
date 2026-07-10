@@ -31,8 +31,8 @@ silently dropped data in production:
 
 `portfolio` is now a plain dict instead of SimpleNamespace (JSON-safe,
 `tojson`-safe). This is template-transparent: Jinja's `.` operator
-falls back from getattr to getitem, and all 3 installed themes
-(default, developer_pro, futuristic_cyber) use dot-access exclusively
+falls back from getattr to getitem, and all four curated themes
+(default, developer_pro, blockform_brutal, schematic_spec) use dot-access exclusively
 -- verified before making this change.
 """
 
@@ -123,14 +123,18 @@ def build_portfolio_view(
     for p in projects:
         view = serialize_project(p)
         project_slug = view.get('slug') or getattr(p, 'slug', '')
-        if project_slug and tenant_project_public_url:
+        if view.get('case_study_enabled', True) and project_slug and tenant_project_public_url:
             view['case_study_url'] = tenant_project_public_url(tenant_slug, project_slug)
             view['url'] = view['case_study_url']
         else:
             view['case_study_url'] = ''
-            view['url'] = ''
+            view['url'] = view.get('demo_url') or ''
         view['image_raw'] = view.get('image_url', '')
         view['image_url'] = _upload_url(view.get('image_url', ''), 'projects')
+        view['before_image_raw'] = view.get('before_image', '')
+        view['after_image_raw'] = view.get('after_image', '')
+        view['before_image'] = _upload_url(view.get('before_image', ''), 'projects')
+        view['after_image'] = _upload_url(view.get('after_image', ''), 'projects')
         project_views.append(view)
 
     skills_grouped = []
@@ -215,6 +219,9 @@ def build_portfolio_view(
         'meta_title': getattr(profile, 'meta_title', '') or '' if profile else '',
         'meta_description': getattr(profile, 'meta_description', '') or '' if profile else '',
         'og_image': _upload_url(getattr(profile, 'og_image', '') or '', 'profiles') if profile else '',
+        'profile_image_alt': getattr(profile, 'profile_image_alt', '') or '' if profile else '',
+        'seo_keywords': getattr(profile, 'seo_keywords', '') or '' if profile else '',
+        'seo_indexable': bool(getattr(profile, 'seo_indexable', True)) if profile else True,
         'tenant_slug': tenant_slug,
         'skills_flat': [skill for group in skills_grouped for skill in group.get('skills', [])],
         'education': [],

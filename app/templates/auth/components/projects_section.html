@@ -19,7 +19,7 @@
                         {% set auth_project_image_url = project.image|upload_url('projects') if project.image else '' %}
                         <img 
                             src="{% if auth_project_image_url %}{{ auth_project_image_url }}{% else %}{{ url_for('static', filename='image/project_placeholder.svg') }}{% endif %}" 
-                            alt="{{ project.title }}"
+                            alt="{{ project.image_alt or (project.title ~ ' project preview') }}"
                             loading="lazy"
                         >
                         <div class="project-overlay">

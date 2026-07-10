@@ -117,7 +117,8 @@ def load_tenant():
         abort(404)
 
     if not hasattr(g, 'tenant_profile'):
-        profile = Profile.query.filter_by(tenant_slug=slug).first()
+        from app.repositories import profile_repository
+        profile = profile_repository.get_by_tenant_slug(slug)
         # FIX: Admin/auth login routes must work even when the Profile row does
         # not exist yet (e.g. tenant was created by superadmin but admin has not
         # filled in their profile). Only 404 for PUBLIC portfolio routes.
@@ -311,6 +312,7 @@ def project_detail(slug: str):
     project = (
         Project.query
         .filter_by(slug=slug, status='published', tenant_slug=tenant)
+        .filter(Project.case_study_enabled.is_(True))
         .first_or_404()
     )
     project.increment_views()

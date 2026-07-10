@@ -162,6 +162,12 @@
 
     <div class="nav-section">
       <span class="nav-label">Appearance</span>
+      <a href="{{ url_for('admin.seo_settings') }}"
+         class="nav-item {% if request.endpoint == 'admin.seo_settings' %}active{% endif %}"
+         {% if request.endpoint == 'admin.seo_settings' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:search-check" width="17"></iconify-icon></span>
+        SEO & Sharing
+      </a>
       <a href="{{ url_for('admin.themes_index') }}"
          class="nav-item {% if 'theme' in (request.endpoint or '') or 'appearance' in (request.path or '') %}active{% endif %}"
          {% if 'theme' in (request.endpoint or '') %}aria-current="page"{% endif %}>

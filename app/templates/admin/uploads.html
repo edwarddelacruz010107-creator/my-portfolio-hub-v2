@@ -10,6 +10,10 @@
   {% set current_filter_label = 'Profile Image' %}
 {% elif asset_type == 'project' %}
   {% set current_filter_label = 'Project Images' %}
+{% elif asset_type == 'comparison' %}
+  {% set current_filter_label = 'Comparison Images' %}
+{% elif asset_type == 'seo' %}
+  {% set current_filter_label = 'SEO Images' %}
 {% elif asset_type == 'testimonial' %}
   {% set current_filter_label = 'Testimonial Avatars' %}
 {% elif asset_type == 'certificate' %}
@@ -35,7 +39,7 @@
         <span class="section-tag">Media Library</span>
         <h1 id="uploadsPageTitle">Uploaded Photos</h1>
         <p>Manage photos uploaded to your portfolio.</p>
-        <p class="uploads-helper">Review profile, project, testimonial, certificate, and badge images uploaded to your portfolio.</p>
+        <p class="uploads-helper">Review profile, project, before/after comparison, SEO, testimonial, certificate, and badge images uploaded to your portfolio.</p>
       </div>
       <div class="uploads-header-chip" aria-label="Current upload filter">
         <iconify-icon icon="lucide:filter" width="16" aria-hidden="true"></iconify-icon>
@@ -87,7 +91,9 @@
         <select id="assetTypeFilter" name="asset_type" class="form-select uploads-filter-select">
           <option value="all" {% if asset_type == 'all' %}selected{% endif %}>All uploads ({{ counts.all }})</option>
           <option value="profile" {% if asset_type == 'profile' %}selected{% endif %}>Profile Image ({{ counts.profile }})</option>
-          <option value="project" {% if asset_type == 'project' %}selected{% endif %}>Project Images ({{ counts.project }})</option>
+          <option value="project" {% if asset_type == 'project' %}selected{% endif %}>Project Cover Images ({{ counts.project }})</option>
+          <option value="comparison" {% if asset_type == 'comparison' %}selected{% endif %}>Before / After Images ({{ counts.comparison }})</option>
+          <option value="seo" {% if asset_type == 'seo' %}selected{% endif %}>SEO Share Images ({{ counts.seo }})</option>
           <option value="testimonial" {% if asset_type == 'testimonial' %}selected{% endif %}>Testimonial Avatars ({{ counts.testimonial }})</option>
           <option value="certificate" {% if asset_type == 'certificate' %}selected{% endif %}>Certificate Images ({{ counts.certificate }})</option>
           <option value="badge" {% if asset_type == 'badge' %}selected{% endif %}>Certificate Badges ({{ counts.badge }})</option>
@@ -155,6 +161,7 @@
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                   <input type="hidden" name="asset_type" value="{{ asset.type }}"/>
                   <input type="hidden" name="asset_id" value="{{ asset.id }}"/>
+                  <input type="hidden" name="asset_field" value="{{ asset.field or '' }}"/>
                   <button type="submit"
                           class="upload-delete-btn"
                           aria-label="Delete {{ asset.label }} for {{ asset.description or 'this record' }}"
@@ -173,7 +180,7 @@
       <div class="uploads-empty-state">
         <span class="uploads-empty-icon" aria-hidden="true"><iconify-icon icon="lucide:images" width="34"></iconify-icon></span>
         <h2>No uploaded photos yet</h2>
-        <p>Images you add to your profile, projects, testimonials, certificates, or badges will appear here.</p>
+        <p>Images you add to your profile, case studies, SEO settings, testimonials, certificates, or badges will appear here.</p>
       </div>
     {% endif %}
   </section>

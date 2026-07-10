@@ -1,0 +1,134 @@
+{% extends "admin/base.html" %}
+{% block title %}SEO & Sharing{% endblock %}
+{% block page_title %}SEO & Sharing{% endblock %}
+
+{% block content %}
+<div class="page-hd seo-page-head">
+  <div class="page-hd-left">
+    <span class="seo-kicker"><iconify-icon icon="lucide:search-check" width="15"></iconify-icon> Discoverability</span>
+    <h1>SEO & Social Sharing</h1>
+    <p>Control how your portfolio appears in search results, social previews, and assistive technology.</p>
+  </div>
+  <a class="btn btn-ghost btn-sm" href="{{ tenant_portfolio_url(active_tenant_slug or profile.tenant_slug) }}" target="_blank" rel="noopener">
+    <iconify-icon icon="lucide:external-link" width="14"></iconify-icon> View Portfolio
+  </a>
+</div>
+
+<form method="POST" enctype="multipart/form-data" class="admin-form seo-layout" data-loading="true">
+  {{ form.hidden_tag() }}
+
+  <section class="form-main">
+    <div class="form-card">
+      <div class="seo-card-heading">
+        <span class="seo-card-icon"><iconify-icon icon="lucide:search" width="20"></iconify-icon></span>
+        <div><h3>Search result</h3><p>Write a clear title and summary for recruiters and clients.</p></div>
+      </div>
+      <div class="form-group">
+        {{ form.meta_title.label }}
+        {{ form.meta_title(class="form-input", maxlength="200", placeholder=(profile.name ~ ' — ' ~ (profile.title or 'Professional Portfolio'))) }}
+        <div class="seo-field-meta"><span>Recommended: 50–60 characters</span><span data-count-for="meta_title">0 / 200</span></div>
+      </div>
+      <div class="form-group">
+        {{ form.meta_description.label }}
+        {{ form.meta_description(class="form-textarea", rows="4", maxlength="300", placeholder="Describe your expertise, strongest work, and the value you provide.") }}
+        <div class="seo-field-meta"><span>Recommended: 140–160 characters</span><span data-count-for="meta_description">0 / 300</span></div>
+      </div>
+      <div class="form-group">
+        {{ form.seo_keywords.label }}
+        {{ form.seo_keywords(class="form-input", maxlength="300", placeholder="full-stack developer, Flask, SaaS, UI/UX") }}
+        <span class="form-hint">Use natural topics. Search engines value useful content more than keyword repetition.</span>
+      </div>
+      <label class="seo-toggle-card" for="{{ form.seo_indexable.id }}">
+        {{ form.seo_indexable() }}
+        <span><strong>Allow search engine indexing</strong><small>Turn this off only while your portfolio is private or unfinished.</small></span>
+      </label>
+    </div>
+
+    <div class="form-card">
+      <div class="seo-card-heading">
+        <span class="seo-card-icon"><iconify-icon icon="lucide:image" width="20"></iconify-icon></span>
+        <div><h3>Images & accessibility</h3><p>Give images meaningful context and create a professional share card.</p></div>
+      </div>
+      <div class="form-group">
+        {{ form.profile_image_alt.label }}
+        {{ form.profile_image_alt(class="form-input", maxlength="200", placeholder="Portrait of " ~ (profile.name or 'portfolio owner')) }}
+        <span class="form-hint">Describe what is visible; do not start with “image of”.</span>
+      </div>
+      <div class="seo-share-upload">
+        <div class="seo-share-preview" id="seoSharePreview">
+          {% set current_og = profile.og_image|upload_url('profiles') if profile.og_image else '' %}
+          {% if current_og %}
+            <img src="{{ current_og }}" alt="Current social share preview" id="seoShareImg">
+          {% else %}
+            <div class="seo-share-placeholder" id="seoSharePlaceholder">
+              <iconify-icon icon="lucide:panels-top-left" width="28"></iconify-icon>
+              <span>1200 × 630 recommended</span>
+            </div>
+            <img src="" alt="" id="seoShareImg" hidden>
+          {% endif %}
+        </div>
+        <div class="seo-share-controls">
+          {{ form.og_image.label }}
+          {{ form.og_image(class="form-input", accept="image/jpeg,image/png,image/webp", onchange="previewSeoImage(this)") }}
+          {% if profile.og_image %}
+          <label class="seo-remove-check">{{ form.remove_og_image() }} <span>Remove current image</span></label>
+          {% endif %}
+          <span class="form-hint">Used by LinkedIn, Facebook, messaging apps, and other share previews.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      {{ form.submit(class="btn btn-primary btn-lg") }}
+      <a href="{{ url_for('admin.dashboard') }}" class="btn btn-ghost">Cancel</a>
+    </div>
+  </section>
+
+  <aside class="form-sidebar seo-preview-column">
+    <div class="form-card seo-preview-card">
+      <span class="seo-preview-label">Google-style preview</span>
+      <div class="seo-search-preview">
+        <div class="seo-preview-domain">myportfoliohub.online › {{ profile.tenant_slug }}</div>
+        <div class="seo-preview-title" id="seoPreviewTitle">{{ profile.meta_title or (profile.name ~ ' — ' ~ (profile.title or 'Professional Portfolio')) }}</div>
+        <div class="seo-preview-description" id="seoPreviewDescription">{{ profile.meta_description or profile.bio_short or 'Professional portfolio, projects, skills, and experience.' }}</div>
+      </div>
+    </div>
+
+    <div class="form-card seo-checklist-card">
+      <h3>SEO checklist</h3>
+      <ul>
+        <li class="{{ 'is-done' if profile.meta_title else '' }}"><iconify-icon icon="lucide:check-circle-2"></iconify-icon> Custom page title</li>
+        <li class="{{ 'is-done' if profile.meta_description else '' }}"><iconify-icon icon="lucide:check-circle-2"></iconify-icon> Search description</li>
+        <li class="{{ 'is-done' if profile.og_image else '' }}"><iconify-icon icon="lucide:check-circle-2"></iconify-icon> Social share image</li>
+        <li class="{{ 'is-done' if profile.profile_image_alt else '' }}"><iconify-icon icon="lucide:check-circle-2"></iconify-icon> Profile image alt text</li>
+      </ul>
+      <p>Project-specific titles, descriptions, and alt text are available inside each Project editor.</p>
+    </div>
+  </aside>
+</form>
+
+<style>
+.seo-page-head{margin-bottom:1.5rem}.seo-kicker{display:inline-flex;align-items:center;gap:.4rem;color:var(--accent-light);font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.55rem}.seo-layout{align-items:start}.seo-card-heading{display:flex;gap:.8rem;align-items:flex-start;margin-bottom:1.35rem}.seo-card-heading h3{margin:0}.seo-card-heading p{margin:.25rem 0 0;color:var(--text-muted);font-size:.88rem}.seo-card-icon{display:grid;place-items:center;width:42px;height:42px;border:1px solid var(--border);border-radius:12px;background:var(--accent-soft);color:var(--accent-light);flex:none}.seo-field-meta{display:flex;justify-content:space-between;gap:1rem;color:var(--text-muted);font-size:.75rem;margin-top:.4rem}.seo-toggle-card{display:flex;align-items:flex-start;gap:.75rem;padding:1rem;border:1px solid var(--border);border-radius:12px;background:var(--surface-2);cursor:pointer}.seo-toggle-card input{margin-top:.25rem}.seo-toggle-card span{display:flex;flex-direction:column;gap:.2rem}.seo-toggle-card small{color:var(--text-muted)}.seo-share-upload{display:grid;grid-template-columns:minmax(220px,.9fr) minmax(260px,1.1fr);gap:1rem;align-items:center}.seo-share-preview{aspect-ratio:1200/630;border:1px dashed var(--border);border-radius:14px;overflow:hidden;background:var(--surface-2);display:grid;place-items:center}.seo-share-preview img{width:100%;height:100%;object-fit:cover}.seo-share-placeholder{display:flex;flex-direction:column;align-items:center;gap:.55rem;color:var(--text-muted);font-size:.8rem}.seo-share-controls{display:flex;flex-direction:column;gap:.7rem}.seo-remove-check{display:flex;gap:.55rem;align-items:center;color:var(--text-muted);font-size:.86rem}.seo-preview-column{position:sticky;top:92px}.seo-preview-label{display:block;color:var(--text-muted);font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:1rem}.seo-search-preview{background:#fff;color:#202124;border-radius:14px;padding:1.15rem}.seo-preview-domain{font-size:.78rem;color:#4d5156;margin-bottom:.4rem}.seo-preview-title{color:#1a0dab;font-size:1.2rem;line-height:1.25;margin-bottom:.45rem}.seo-preview-description{font-size:.88rem;line-height:1.5;color:#4d5156}.seo-checklist-card ul{list-style:none;padding:0;margin:1rem 0;display:grid;gap:.7rem}.seo-checklist-card li{display:flex;align-items:center;gap:.55rem;color:var(--text-muted)}.seo-checklist-card li.is-done{color:#34d399}.seo-checklist-card p{color:var(--text-muted);font-size:.82rem;line-height:1.5}@media(max-width:900px){.seo-preview-column{position:static}.seo-share-upload{grid-template-columns:1fr}}
+</style>
+<script>
+(function(){
+  var title=document.getElementById('meta_title');
+  var desc=document.getElementById('meta_description');
+  function update(field, previewId){
+    if(!field)return;
+    var count=document.querySelector('[data-count-for="'+field.id+'"]');
+    if(count) count.textContent=(field.value||'').length+' / '+field.maxLength;
+    var preview=document.getElementById(previewId);
+    if(preview && field.value.trim()) preview.textContent=field.value.trim();
+  }
+  [title,desc].forEach(function(field){if(field){field.addEventListener('input',function(){update(field,field===title?'seoPreviewTitle':'seoPreviewDescription')});}});
+  update(title,'seoPreviewTitle'); update(desc,'seoPreviewDescription');
+})();
+function previewSeoImage(input){
+  if(!input.files||!input.files[0]) return;
+  var reader=new FileReader();
+  reader.onload=function(event){var img=document.getElementById('seoShareImg');var ph=document.getElementById('seoSharePlaceholder');img.src=event.target.result;img.hidden=false;if(ph)ph.hidden=true;};
+  reader.readAsDataURL(input.files[0]);
+}
+</script>
+{% endblock %}

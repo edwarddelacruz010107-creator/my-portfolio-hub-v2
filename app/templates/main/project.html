@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
 {# ── SEO overrides ── #}
-{% block title %}{{ project.title or 'Untitled Project' }} — {{ profile.name if profile else 'Portfolio' }}{% endblock %}
-{% block meta_desc %}{{ (project.description_short or project.description or 'View this project case study.')|striptags|truncate(160) }}{% endblock %}
-{% block meta_robots %}index, follow, max-snippet:-1, max-image-preview:large{% endblock %}
+{% block title %}{{ project.meta_title or ((project.title or 'Untitled Project') ~ ' — ' ~ (profile.name if profile else 'Portfolio')) }}{% endblock %}
+{% block meta_desc %}{{ (project.meta_description or project.description_short or project.outcome_summary or project.description or 'View this project case study.')|striptags|truncate(160) }}{% endblock %}
+{% block meta_robots %}{% if profile and profile.seo_indexable is defined and not profile.seo_indexable %}noindex, nofollow{% elif project.status != 'published' %}noindex, nofollow{% else %}index, follow, max-snippet:-1, max-image-preview:large{% endif %}{% endblock %}
 {% block canonical %}{{ request.host_url.rstrip('/') }}{{ request.path }}{% endblock %}
 
 {% block og_type %}article{% endblock %}
@@ -15,7 +15,7 @@
 {% if _og_project_url %}<meta property="og:image" content="{{ _og_project_url }}">{% endif %}
 <meta property="og:image:width"  content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt"    content="{{ project.title or 'Untitled Project' }}">
+<meta property="og:image:alt"    content="{{ project.image_alt or project.title or 'Untitled Project' }}">
 {% elif _og_profile_image | safe_media_value %}
 {% if _og_profile_image.startswith('http') %}
 <meta property="og:image" content="{{ _og_profile_image }}">
@@ -34,7 +34,7 @@
 
 {% block structured_data %}
 {% set project_title = project.title or 'Untitled Project' %}
-{% set project_description = (project.description_short or project.description or '') | striptags | truncate(300) %}
+{% set project_description = (project.meta_description or project.description_short or project.outcome_summary or project.description or '') | striptags | truncate(300) %}
 {% set project_category = project.category or 'Project' %}
 {% set project_keywords = project.tags if project.tags else [] %}
 {% set project_image_value = project.image if project.image is defined else '' %}
@@ -129,6 +129,8 @@
 {% elif project.image is defined and (project.image | safe_media_value) %}
   {% set project_image_url = project.image|upload_url('projects') %}
 {% endif %}
+{% set project_before_url = project.before_image|upload_url('projects') if project.before_image is defined and (project.before_image | safe_media_value) else '' %}
+{% set project_after_url = project.after_image|upload_url('projects') if project.after_image is defined and (project.after_image | safe_media_value) else '' %}
 {% set profile_image_value = profile.profile_image if profile and profile.profile_image is defined else '' %}
 {% set profile_avatar_url = '' %}
 {% if profile_image_value | safe_media_value %}
@@ -186,7 +188,7 @@
         <div class="project-hero-byline">
           <span class="project-author-chip">
             {% if profile_avatar_url %}
-              <img class="project-author-avatar" src="{{ profile_avatar_url }}" alt="Photo of {{ profile_display_name }}" loading="lazy">
+              <img class="project-author-avatar" src="{{ profile_avatar_url }}" alt="{{ profile.profile_image_alt if profile and profile.profile_image_alt else ('Portrait of ' ~ profile_display_name) }}" loading="lazy">
             {% else %}
               <span class="project-author-avatar" aria-hidden="true">{{ profile_initial }}</span>
             {% endif %}
@@ -225,10 +227,10 @@
         <div class="project-cover {{ 'has-image' if project_image_url else 'is-placeholder' }}">
           {% if project_image_url %}
           <img src="{{ project_image_url }}"
-               alt="Project preview for {{ project_title }}"
+               alt="{{ project.image_alt or ('Project preview for ' ~ project_title) }}"
                class="project-cover-image"
                loading="eager"
-               onerror="this.closest('.project-cover').classList.add('image-failed','is-placeholder'); this.remove();">
+               data-image-fallback=".project-cover">
           {% endif %}
           <div class="project-cover-placeholder" aria-hidden="true">
             <div class="project-cover-grid"></div>
@@ -257,12 +259,66 @@
             </div>
           </div>
           <div class="project-card-divider"></div>
-          <div class="project-overview-copy">
-            {{ project_overview }}
+          <div class="project-overview-copy rich-case-copy">
+            {{ project_overview|richtext }}
           </div>
         </article>
 
-        {% if project.framework or project.language or project.tags or project.live_url or project.github_url %}
+        {% if project.problem_statement %}
+        <article class="project-info-card project-case-section" data-reveal="fade-up">
+          <div class="project-card-heading"><span class="project-card-icon"><iconify-icon icon="lucide:circle-alert" width="18"></iconify-icon></span><div><p class="project-eyebrow">The challenge</p><h2>Problem & Constraints</h2></div></div>
+          <div class="project-card-divider"></div>
+          <div class="rich-case-copy">{{ project.problem_statement|richtext }}</div>
+        </article>
+        {% endif %}
+
+        {% if project.solution_overview %}
+        <article class="project-info-card project-case-section" data-reveal="fade-up">
+          <div class="project-card-heading"><span class="project-card-icon"><iconify-icon icon="lucide:workflow" width="18"></iconify-icon></span><div><p class="project-eyebrow">The approach</p><h2>Solution & Process</h2></div></div>
+          <div class="project-card-divider"></div>
+          <div class="rich-case-copy">{{ project.solution_overview|richtext }}</div>
+        </article>
+        {% endif %}
+
+        {% if project_before_url or project_after_url %}
+        <article class="project-info-card project-comparison-card" data-reveal="fade-up">
+          <div class="project-card-heading"><span class="project-card-icon"><iconify-icon icon="lucide:columns-2" width="18"></iconify-icon></span><div><p class="project-eyebrow">Visual evidence</p><h2>Before & After</h2></div></div>
+          <div class="project-card-divider"></div>
+          <div class="project-comparison-grid">
+            {% if project_before_url %}<figure><span>Before</span><img src="{{ project_before_url }}" alt="{{ project.before_image_alt or ('Before view of ' ~ project_title) }}" loading="lazy"><figcaption>{{ project.before_image_alt or 'Original state' }}</figcaption></figure>{% endif %}
+            {% if project_after_url %}<figure><span>After</span><img src="{{ project_after_url }}" alt="{{ project.after_image_alt or ('After view of ' ~ project_title) }}" loading="lazy"><figcaption>{{ project.after_image_alt or 'Improved result' }}</figcaption></figure>{% endif %}
+          </div>
+        </article>
+        {% endif %}
+
+        {% if project.prototype_url %}
+        <article class="project-info-card project-prototype-card" data-reveal="fade-up">
+          <div class="project-card-heading"><span class="project-card-icon"><iconify-icon icon="lucide:mouse-pointer-click" width="18"></iconify-icon></span><div><p class="project-eyebrow">Interactive work</p><h2>Prototype</h2></div></div>
+          <div class="project-card-divider"></div>
+          <div class="project-prototype-frame">
+            <iframe src="{{ project.prototype_url }}" title="Interactive prototype for {{ project_title }}" loading="lazy" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          </div>
+          <a href="{{ project.prototype_url }}" target="_blank" rel="noopener noreferrer" class="project-prototype-open"><iconify-icon icon="lucide:external-link" width="16"></iconify-icon> Open prototype in a new tab</a>
+        </article>
+        {% endif %}
+
+        {% if project.outcome_summary %}
+        <article class="project-info-card project-case-section project-outcome-card" data-reveal="fade-up">
+          <div class="project-card-heading"><span class="project-card-icon"><iconify-icon icon="lucide:chart-no-axes-combined" width="18"></iconify-icon></span><div><p class="project-eyebrow">The result</p><h2>Outcomes & Impact</h2></div></div>
+          <div class="project-card-divider"></div>
+          <div class="rich-case-copy">{{ project.outcome_summary|richtext }}</div>
+        </article>
+        {% endif %}
+
+        {% if project.client_quote %}
+        <article class="project-info-card project-client-proof" data-reveal="fade-up">
+          <iconify-icon icon="lucide:quote" width="28" aria-hidden="true"></iconify-icon>
+          <blockquote>{{ project.client_quote }}</blockquote>
+          {% if project.client_name or project.client_role %}<footer><strong>{{ project.client_name or 'Client' }}</strong>{% if project.client_role %}<span>{{ project.client_role }}</span>{% endif %}</footer>{% endif %}
+        </article>
+        {% endif %}
+
+        {% if project.framework or project.language or project.tags or project.live_url or project.github_url or project.prototype_url %}
         <article class="project-info-card project-stack-card" data-reveal="fade-up">
           <div class="project-card-heading">
             <span class="project-card-icon" aria-hidden="true">
@@ -283,7 +339,7 @@
               {% endfor %}
             {% endif %}
           </div>
-          {% if project.live_url or project.github_url %}
+          {% if project.live_url or project.github_url or project.prototype_url %}
           <div class="project-resource-links">
             {% if project.live_url %}
             <a href="{{ project.live_url }}" target="_blank" rel="noopener" class="project-resource-link">
@@ -294,6 +350,12 @@
             {% if project.github_url %}
             <a href="{{ project.github_url }}" target="_blank" rel="noopener" class="project-resource-link">
               <span><iconify-icon icon="lucide:github" width="16" aria-hidden="true"></iconify-icon> Source code</span>
+              <iconify-icon icon="lucide:arrow-up-right" width="16" aria-hidden="true"></iconify-icon>
+            </a>
+            {% endif %}
+            {% if project.prototype_url %}
+            <a href="{{ project.prototype_url }}" target="_blank" rel="noopener noreferrer" class="project-resource-link">
+              <span><iconify-icon icon="lucide:mouse-pointer-click" width="16" aria-hidden="true"></iconify-icon> Interactive prototype</span>
               <iconify-icon icon="lucide:arrow-up-right" width="16" aria-hidden="true"></iconify-icon>
             </a>
             {% endif %}
@@ -366,7 +428,7 @@
         <article class="project-info-card project-author-card" data-reveal="fade-up">
           <div class="project-author-card__top">
             {% if profile_avatar_url %}
-              <img class="project-author-avatar project-author-avatar--large" src="{{ profile_avatar_url }}" alt="Photo of {{ profile_display_name }}" loading="lazy">
+              <img class="project-author-avatar project-author-avatar--large" src="{{ profile_avatar_url }}" alt="{{ profile.profile_image_alt if profile and profile.profile_image_alt else ('Portrait of ' ~ profile_display_name) }}" loading="lazy">
             {% else %}
               <span class="project-author-avatar project-author-avatar--large" aria-hidden="true">{{ profile_initial }}</span>
             {% endif %}
@@ -399,9 +461,9 @@
           <div class="project-related-media {{ 'has-image' if p.image is defined and (p.image | safe_media_value) else 'is-placeholder' }}">
             {% if p.image is defined and (p.image | safe_media_value) %}
             <img src="{{ p.image|upload_url('projects') }}"
-                 alt="Project preview for {{ related_title }}"
+                 alt="{{ p.image_alt or ('Project preview for ' ~ related_title) }}"
                  loading="lazy"
-                 onerror="this.closest('.project-related-media').classList.add('image-failed','is-placeholder'); this.remove();">
+                 data-image-fallback=".project-related-media">
             {% endif %}
             <div class="project-related-placeholder" aria-hidden="true">
               <iconify-icon icon="lucide:image" width="26"></iconify-icon>
@@ -980,6 +1042,31 @@ img.project-author-avatar {
 .project-detail-footer p { margin: 0; color: var(--text-muted, #98a2b3); font-size: 0.88rem; }
 .project-detail-footer a { color: #a5b4fc; font-weight: 800; text-decoration: none; }
 
+.rich-case-copy { color: var(--text-muted, #b0bac8); line-height: 1.8; font-size: 0.98rem; }
+.rich-case-copy p { margin: 0 0 1rem; }
+.rich-case-copy h2, .rich-case-copy h3, .rich-case-copy h4 { color: var(--text, #f8fafc); margin: 1.3rem 0 .65rem; }
+.rich-case-copy ul, .rich-case-copy ol { padding-left: 1.4rem; margin: .75rem 0 1rem; }
+.rich-case-copy blockquote { margin: 1rem 0; padding: .9rem 1rem; border-left: 3px solid #818cf8; background: rgba(99,102,241,.08); border-radius: 0 12px 12px 0; }
+.rich-case-copy a { color: #a5b4fc; text-decoration: underline; text-underline-offset: 3px; }
+.project-comparison-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; }
+.project-comparison-grid figure { margin: 0; padding: .8rem; border: 1px solid rgba(255,255,255,.09); background: rgba(255,255,255,.025); border-radius: 16px; overflow: hidden; }
+.project-comparison-grid figure > span { display: inline-flex; margin-bottom: .65rem; color: #a5b4fc; font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.project-comparison-grid img { width: 100%; aspect-ratio: 16/10; object-fit: cover; border-radius: 10px; background: #0b1020; }
+.project-comparison-grid figcaption { margin-top: .65rem; color: var(--text-muted,#98a2b3); font-size: .8rem; line-height: 1.45; }
+.project-prototype-frame { aspect-ratio: 16/10; overflow: hidden; border: 1px solid rgba(255,255,255,.09); border-radius: 16px; background: #0a0e18; }
+.project-prototype-frame iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+.project-prototype-open { display: inline-flex; align-items: center; gap: .45rem; margin-top: .9rem; color: #a5b4fc; font-weight: 800; text-decoration: none; }
+.project-client-proof { position: relative; overflow: hidden; border-color: rgba(99,102,241,.28); background: linear-gradient(145deg,rgba(99,102,241,.12),rgba(14,165,233,.05)); }
+.project-client-proof > iconify-icon { color: #818cf8; }
+.project-client-proof blockquote { margin: .9rem 0 1rem; color: var(--text,#f8fafc); font-size: clamp(1.05rem,2vw,1.35rem); line-height: 1.6; font-weight: 650; }
+.project-client-proof footer { display: flex; flex-direction: column; gap: .2rem; color: var(--text,#f8fafc); }
+.project-client-proof footer span { color: var(--text-muted,#98a2b3); font-size: .82rem; }
+.project-outcome-card { border-color: rgba(52,211,153,.22); }
+html[data-theme="light"] .rich-case-copy { color: #475569; }
+html[data-theme="light"] .rich-case-copy h2, html[data-theme="light"] .rich-case-copy h3, html[data-theme="light"] .rich-case-copy h4, html[data-theme="light"] .project-client-proof blockquote, html[data-theme="light"] .project-client-proof footer { color: #0f172a; }
+html[data-theme="light"] .project-comparison-grid figure, html[data-theme="light"] .project-prototype-frame { border-color: rgba(15,23,42,.1); background: rgba(15,23,42,.025); }
+@media (max-width: 680px) { .project-comparison-grid { grid-template-columns: 1fr; } }
+
 @keyframes projectFadeUp {
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: translateY(0); }
@@ -1077,4 +1164,17 @@ html[data-theme="light"] .project-resource-link {
   }
 }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
+document.querySelectorAll('[data-image-fallback]').forEach(function (image) {
+  image.addEventListener('error', function () {
+    var selector = image.getAttribute('data-image-fallback');
+    var target = selector ? image.closest(selector) : null;
+    if (target) target.classList.add('image-failed', 'is-placeholder');
+    image.remove();
+  }, { once: true });
+});
+</script>
 {% endblock %}

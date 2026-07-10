@@ -446,7 +446,7 @@
                         <article class="project-card reveal-up" data-category="{{ project.category }}" style="--delay: {{ loop.index0 * 0.1 }}s">
                             <div class="project-image" style="position:relative;">
                                 <img src="{% if project.image %}{{ project.image|upload_url('projects') }}{% else %}{{ url_for('static', filename='image/project_placeholder.svg') }}{% endif %}"
-                                     alt="{{ project.title }}">
+                                     alt="{{ project.image_alt or (project.title ~ ' project preview') }}">
                                 {% if project.view_count %}<span class="project-view-badge"><iconify-icon icon="lucide:eye" width="12"></iconify-icon> {{ project.view_count }}</span>{% endif %}
                                 <div class="project-overlay">
                                     <div class="project-overlay-actions">
@@ -480,7 +480,7 @@
                                     {% if project.description_short %}
                                         {{ project.description_short }}
                                     {% else %}
-                                        {{ project.description[:150] }}{% if project.description|length > 150 %}...{% endif %}
+                                        {{ project.description | striptags | truncate(150, True, '...') }}
                                     {% endif %}
                                 </p>
                                 <div class="project-links">
@@ -539,7 +539,7 @@
                     <article class="project-card reveal-up" data-category="{{ project.category }}" style="--delay: {{ loop.index0 * 0.1 }}s">
                         <div class="project-image">
                             <img src="{% if project.image %}{{ project.image|upload_url('projects') }}{% else %}{{ url_for('static', filename='image/project_placeholder.svg') }}{% endif %}"
-                                 alt="{{ project.title }}">
+                                 alt="{{ project.image_alt or (project.title ~ ' project preview') }}">
                             <div class="project-overlay">
                                 <div class="project-overlay-actions">
                                     {% if project.live_url %}
@@ -571,7 +571,7 @@
                                 {% if project.description_short %}
                                     {{ project.description_short }}
                                 {% else %}
-                                    {{ project.description[:150] }}{% if project.description|length > 150 %}...{% endif %}
+                                    {{ project.description | striptags | truncate(150, True, '...') }}
                                 {% endif %}
                             </p>
                             <div class="project-links">

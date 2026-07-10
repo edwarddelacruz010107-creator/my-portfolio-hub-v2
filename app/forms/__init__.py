@@ -179,6 +179,37 @@ class ProfileForm(FlaskForm):
     submit = SubmitField('Save Profile')
 
 
+class SEOSettingsForm(FlaskForm):
+    """Tenant-facing SEO controls for the public portfolio."""
+    meta_title = StringField(
+        'Portfolio Meta Title',
+        validators=[Optional(), Length(max=200)],
+        description='Recommended: 50–60 characters.',
+    )
+    meta_description = TextAreaField(
+        'Portfolio Meta Description',
+        validators=[Optional(), Length(max=300)],
+        description='Recommended: 140–160 characters.',
+    )
+    seo_keywords = StringField(
+        'Focus Keywords',
+        validators=[Optional(), Length(max=300)],
+        description='Comma-separated topics that describe your work.',
+    )
+    profile_image_alt = StringField(
+        'Profile Image Alt Text',
+        validators=[Optional(), Length(max=200)],
+        description='Describe the photo for accessibility and image search.',
+    )
+    og_image = FileField(
+        'Social Share Image',
+        validators=[FileAllowed(['jpg', 'jpeg', 'png', 'webp'], 'Images only.')],
+    )
+    remove_og_image = BooleanField('Remove current social share image')
+    seo_indexable = BooleanField('Allow search engines to index this portfolio', default=True)
+    submit = SubmitField('Save SEO Settings')
+
+
 class TenantForm(FlaskForm):
     name = StringField('Client / Portfolio Name', validators=[DataRequired(), Length(max=100)])
     tenant_slug = StringField('Slug (URL identifier)', validators=[DataRequired(), Length(max=120)])
@@ -554,9 +585,30 @@ class ProjectForm(FlaskForm):
         validators=[FileAllowed(['jpg', 'jpeg', 'png', 'webp', 'gif'],
                                  'Images only.')]
     )
+    image_alt = StringField('Project Image Alt Text', validators=[Optional(), Length(max=200)])
+    before_image = FileField(
+        'Before Image',
+        validators=[FileAllowed(['jpg', 'jpeg', 'png', 'webp'], 'Images only.')]
+    )
+    before_image_alt = StringField('Before Image Alt Text', validators=[Optional(), Length(max=200)])
+    after_image = FileField(
+        'After Image',
+        validators=[FileAllowed(['jpg', 'jpeg', 'png', 'webp'], 'Images only.')]
+    )
+    after_image_alt = StringField('After Image Alt Text', validators=[Optional(), Length(max=200)])
     live_url   = URLField('Live Demo URL', validators=[Optional(), URL()])
     github_url = URLField('GitHub URL',   validators=[Optional(), URL()])
+    prototype_url = URLField('Interactive Prototype URL', validators=[Optional(), URL()])
     framework  = StringField('Framework / Stack',   validators=[Optional(), Length(max=120)])
+    problem_statement = TextAreaField('Challenge / Problem', validators=[Optional()])
+    solution_overview = TextAreaField('Solution & Process', validators=[Optional()])
+    outcome_summary = TextAreaField('Results & Impact', validators=[Optional()])
+    client_quote = TextAreaField('Client Testimonial', validators=[Optional(), Length(max=2000)])
+    client_name = StringField('Client Name', validators=[Optional(), Length(max=120)])
+    client_role = StringField('Client Role / Company', validators=[Optional(), Length(max=160)])
+    meta_title = StringField('Project Meta Title', validators=[Optional(), Length(max=200)])
+    meta_description = TextAreaField('Project Meta Description', validators=[Optional(), Length(max=300)])
+    case_study_enabled = BooleanField('Show the full case study page', default=True)
     language   = StringField('Primary Language',    validators=[Optional(), Length(max=120)])
     tags       = StringField('Tags (comma-separated)', validators=[Optional()])
     category   = SelectField('Category', choices=[

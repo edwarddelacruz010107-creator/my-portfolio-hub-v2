@@ -45,7 +45,7 @@
       <div class="project-card-img">
         {% set admin_project_image_url = p.image|upload_url('projects') if p.image else '' %}
         {% if admin_project_image_url %}
-          <img src="{{ admin_project_image_url }}" alt="{{ p.title }}" loading="lazy"/>
+          <img src="{{ admin_project_image_url }}" alt="{{ p.image_alt or (p.title ~ ' project preview') }}" loading="lazy"/>
         {% else %}
           <div class="img-placeholder-lg">◈</div>
         {% endif %}

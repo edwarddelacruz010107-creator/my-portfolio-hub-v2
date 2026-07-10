@@ -35,7 +35,9 @@ from flask import (
 
 from app import db, limiter
 from app.superadmin import superadmin, superadmin_required
-from app.theme_engine import get_theme_engine
+from app.theme_engine import (
+    get_theme_engine, SUPPORTED_THEME_IDS, is_supported_theme_id,
+)
 from app.models.core import ThemeCatalogEntry, VALID_REQUIRED_PLANS
 from app.utils import log_activity
 
@@ -130,12 +132,35 @@ def theme_catalog_sync():
     engine = get_theme_engine()
 
     def _run_sync():
-        """Returns count of newly created entries. Raises OperationalError
-        unchanged if the schema is still out of sync after a repair attempt."""
+        """Sync the curated filesystem set and remove retired catalog rows.
+
+        Returns ``(created, removed, normalized_profiles)``. OperationalError
+        is re-raised so the existing schema-repair path can retry safely.
+        """
         created = 0
+        removed = 0
+        normalized_profiles = 0
+
+        installed = set(SUPPORTED_THEME_IDS)
+        for entry in ThemeCatalogEntry.query.all():
+            if (entry.slug or '').strip().lower() not in installed:
+                db.session.delete(entry)
+                removed += 1
+
+        from app.models.tenant_data import Profile
+        for profile in Profile.query.filter(
+            db.or_(
+                Profile.selected_theme.is_(None),
+                ~Profile.selected_theme.in_(tuple(installed)),
+            )
+        ).all():
+            profile.selected_theme = 'default'
+            db.session.add(profile)
+            normalized_profiles += 1
+
         for meta in engine.registry.all(include_inactive=True):
             slug = meta.get('id')
-            if not slug or ThemeCatalogEntry.get_by_slug(slug):
+            if not slug or not is_supported_theme_id(slug) or ThemeCatalogEntry.get_by_slug(slug):
                 continue
             entry = ThemeCatalogEntry(
                 slug=slug,
@@ -144,15 +169,15 @@ def theme_catalog_sync():
                 category=(meta.get('tags') or [None])[0],
                 is_active=True,
                 is_premium=bool(meta.get('premium', False)),
-                required_plan=None,
-                sort_order=0,
+                required_plan=meta.get('required_plan') or None,
+                sort_order=SUPPORTED_THEME_IDS.index(slug),
             )
             db.session.add(entry)
             created += 1
-        return created
+        return created, removed, normalized_profiles
 
     try:
-        created = _run_sync()
+        created, removed, normalized_profiles = _run_sync()
     except OperationalError as exc:
         # Schema mismatch (e.g. migration 0035 not yet applied) — this is the
         # exact failure this route used to crash on. Roll back the half-built
@@ -162,7 +187,7 @@ def theme_catalog_sync():
         try:
             from app import _ensure_theme_catalog_columns
             _ensure_theme_catalog_columns()
-            created = _run_sync()
+            created, removed, normalized_profiles = _run_sync()
             flash('Database schema mismatch detected and repaired.', 'warning')
         except Exception:
             logger.exception('Theme catalog sync: self-repair failed, schema mismatch persists')
@@ -174,7 +199,7 @@ def theme_catalog_sync():
         flash('Database error while syncing themes.', 'danger')
         return redirect(url_for('superadmin.theme_catalog'))
 
-    if created:
+    if created or removed or normalized_profiles:
         try:
             db.session.commit()
         except Exception as exc:
@@ -183,10 +208,17 @@ def theme_catalog_sync():
             flash('Database error while syncing themes.', 'danger')
             return redirect(url_for('superadmin.theme_catalog'))
         engine.clear_cache()
-        log_activity('create', 'theme_catalog', 'sync', f'Synced {created} theme(s) into the catalog')
-        flash(f'Registered {created} new theme(s).', 'success')
+        log_activity(
+            'update', 'theme_catalog', 'sync',
+            f'Curated themes: created={created}, removed={removed}, profiles_reset={normalized_profiles}',
+        )
+        flash(
+            f'Theme catalog synchronized: {created} added, {removed} retired, '
+            f'{normalized_profiles} portfolio selection(s) reset.',
+            'success',
+        )
     else:
-        flash('Theme catalog already up to date.', 'info')
+        flash('Theme catalog already matches the curated four-theme set.', 'info')
     return redirect(url_for('superadmin.theme_catalog'))
 
 
@@ -195,7 +227,12 @@ def theme_catalog_sync():
 @superadmin.route('/themes/analytics')
 @superadmin_required
 def theme_analytics():
-    entries = ThemeCatalogEntry.query.order_by(ThemeCatalogEntry.install_count.desc()).all()
+    entries = (
+        ThemeCatalogEntry.query
+        .filter(ThemeCatalogEntry.slug.in_(tuple(SUPPORTED_THEME_IDS)))
+        .order_by(ThemeCatalogEntry.install_count.desc())
+        .all()
+    )
     data = [
         {
             'slug': e.slug,
@@ -233,6 +270,9 @@ def theme_catalog_new():
         if not is_valid_theme_id(slug):
             flash('Invalid slug — use only letters, numbers, hyphens, underscores.', 'danger')
             return render_template('superadmin/theme_new.html', page_title='New Theme Entry')
+        if not is_supported_theme_id(slug):
+            flash('Only the curated production themes can be registered.', 'warning')
+            return redirect(url_for('superadmin.theme_catalog'))
 
         if ThemeCatalogEntry.get_by_slug(slug):
             flash(f'A catalog entry for "{slug}" already exists.', 'warning')

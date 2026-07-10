@@ -459,6 +459,14 @@
   gap: 6px;
   margin-top: auto;
 }
+.theme-apply-form {
+  flex: 1;
+  display: flex;
+  margin: 0;
+}
+.theme-apply-form .btn-apply {
+  width: 100%;
+}
 
 /* ── Buttons ──────────────────────────────────────── */
 .btn-apply {
@@ -825,12 +833,19 @@
               <i class="fas fa-check"></i> Currently Active
             </button>
           {% elif theme._can_use %}
-            <button class="btn-apply st-available"
-                    data-theme-id="{{ theme.id }}"
-                    data-theme-name="{{ theme.name }}"
-                    onclick="applyTheme(this)">
-              <i class="fas fa-paint-brush"></i> Apply Theme
-            </button>
+            <form class="theme-apply-form"
+                  method="post"
+                  action="{{ url_for('admin.apply_theme') }}"
+                  data-theme-name="{{ theme.name }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="theme_id" value="{{ theme.id }}">
+              <button type="submit"
+                      class="btn-apply st-available"
+                      data-theme-id="{{ theme.id }}"
+                      data-theme-name="{{ theme.name }}">
+                <span aria-hidden="true">↻</span> Apply Theme
+              </button>
+            </form>
           {% else %}
             <button class="btn-apply st-locked" disabled
                     title="Upgrade to PRO to unlock this theme">
@@ -964,7 +979,7 @@
   });
 
   /* ── Apply theme ─────────────────────────── */
-  window.applyTheme = async function (btn) {
+  window.applyTheme = async function (btn, form) {
     const themeId   = btn.dataset.themeId;
     const themeName = btn.dataset.themeName;
 
@@ -978,13 +993,15 @@
     btn.innerHTML = '<span class="spin"><i class="fas fa-circle-notch"></i></span> Applying…';
 
     try {
-      const formData = new FormData();
-      formData.append('theme_id', themeId);
-      const csrfInput = document.querySelector('input[name="csrf_token"]') ||
-                        document.querySelector('meta[name="csrf-token"]');
-      if (csrfInput) {
-        const val = csrfInput.value || csrfInput.getAttribute('content');
-        if (val) formData.append('csrf_token', val);
+      const formData = form ? new FormData(form) : new FormData();
+      if (!formData.get('theme_id')) formData.append('theme_id', themeId);
+      if (!formData.get('csrf_token')) {
+        const csrfInput = document.querySelector('input[name="csrf_token"]') ||
+                          document.querySelector('meta[name="csrf-token"]');
+        if (csrfInput) {
+          const val = csrfInput.value || csrfInput.getAttribute('content');
+          if (val) formData.append('csrf_token', val);
+        }
       }
 
       const res = await fetch("{{ url_for('admin.apply_theme') }}", {
@@ -996,7 +1013,7 @@
       let data = {};
       try { data = await res.json(); } catch (_) {}
 
-      if (res.ok && (data.success !== false)) {
+      if (res.ok && data.success === true) {
         showToast(`"${themeName}" applied — refreshing…`, 'success');
         setTimeout(() => window.location.reload(), 1600);
       } else {
@@ -1015,6 +1032,16 @@
       btn.innerHTML = '<i class="fas fa-paint-brush"></i> Apply Theme';
     }
   };
+
+  document.querySelectorAll('.theme-apply-form').forEach(form => {
+    form.addEventListener('submit', event => {
+      // JavaScript gives instant feedback. Without JavaScript, the same form
+      // still submits normally, so theme switching never depends on JS/CSP.
+      event.preventDefault();
+      const btn = form.querySelector('button[type="submit"]');
+      if (btn && !btn.disabled) window.applyTheme(btn, form);
+    });
+  });
 
   function hideOverlay () {
     document.getElementById('applyOverlay').classList.remove('show');

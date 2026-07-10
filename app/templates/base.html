@@ -13,8 +13,9 @@
   {% endif %}
 
   {# ── Primary meta ── #}
-  <meta name="description" content="{% block meta_desc %}{{ profile.bio_short if profile else '' }}{% endblock %}"/>
-  <meta name="robots" content="{% block meta_robots %}index, follow{% endblock %}"/>
+  <meta name="description" content="{% block meta_desc %}{{ (profile.meta_description or profile.bio_short) if profile else '' }}{% endblock %}"/>
+  <meta name="robots" content="{% block meta_robots %}{{ 'index, follow, max-image-preview:large' if (not profile or profile.seo_indexable) else 'noindex, nofollow, noarchive' }}{% endblock %}"/>
+  {% if profile and profile.seo_keywords %}<meta name="keywords" content="{{ profile.seo_keywords }}"/>{% endif %}
   {% if profile and profile.name %}
   <meta name="author" content="{{ profile.name }}"/>
   {% endif %}
@@ -31,12 +32,14 @@
   <meta property="og:url"         content="{{ request.url }}"/>
   <meta property="og:site_name"   content="{{ profile.name if profile else 'Portfolio CMS' }}"/>
   {% block og_image %}
-  {% if profile and profile.profile_image %}
-  {% if profile.profile_image.startswith('http') %}
-  <meta property="og:image" content="{{ profile.profile_image }}"/>
+  {% if profile and (profile.og_image or profile.profile_image) %}
+  {% set _share_image = profile.og_image or profile.profile_image %}
+  {% if _share_image.startswith('http') %}
+  <meta property="og:image" content="{{ _share_image }}"/>
   {% else %}
-  <meta property="og:image" content="{{ profile.profile_image|upload_url('profiles') }}"/>
+  <meta property="og:image" content="{{ _share_image|upload_url('profiles') }}"/>
   {% endif %}
+  <meta property="og:image:alt" content="{{ profile.profile_image_alt or (profile.name ~ ' portfolio preview') }}"/>
   <meta property="og:image:width"  content="1200"/>
   <meta property="og:image:height" content="630"/>
   {% endif %}
@@ -58,7 +61,7 @@
     "@type": "WebSite",
     "name": {{ (profile.name or 'Portfolio') | tojson }},
     "url": {{ request.host_url | tojson }},
-    "description": {{ (profile.bio_short or '') | tojson }}
+    "description": {{ (profile.meta_description or profile.bio_short or '') | tojson }}
   }
   </script>
   {% endif %}

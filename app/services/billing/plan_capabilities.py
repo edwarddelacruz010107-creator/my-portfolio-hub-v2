@@ -10,7 +10,7 @@ CAPABILITY MATRIX:
     │ Feature              │ Trial  │ Basic    │ Pro       │ Enterprise │
     ├──────────────────────┼────────┼──────────┼───────────┼────────────┤
     │ Portfolio Pages      │ 3      │ 10       │ Unlimited │ Unlimited  │
-    │ Projects             │ 5      │ 25       │ Unlimited │ Unlimited  │
+    │ Projects             │ 10     │ 25       │ Unlimited │ Unlimited  │
     │ Upload Storage       │ 10 MB  │ 100 MB   │ 1 GB      │ 5 GB       │
     │ Max Upload / File    │ 2 MB   │ 5 MB     │ 25 MB     │ 100 MB     │
     │ Custom Domain        │ ✗      │ ✓        │ ✓         │ ✓          │
@@ -173,7 +173,7 @@ _CAPABILITIES: dict[str, PlanCapability] = {
     'Trial': PlanCapability(
         plan_name               = 'Trial',
         max_pages               = 3,
-        max_projects            = 5,
+        max_projects            = 10,
         storage_limit_bytes     = 10 * _MB,
         max_upload_size_bytes   = 2 * _MB,
         can_use_custom_smtp     = False,

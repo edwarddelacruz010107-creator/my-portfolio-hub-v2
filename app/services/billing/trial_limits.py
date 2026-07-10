@@ -74,7 +74,7 @@ BOOL_FIELDS = {
 DEFAULT_PLAN_LIMITS: dict[str, dict[str, Any]] = {
     "Trial": {
         "trial_duration_days": 7,
-        "max_projects": 5,
+        "max_projects": 10,
         "max_skills": 20,
         "max_media_uploads": 10,
         "max_testimonials": 3,

@@ -54,7 +54,7 @@
     {% for creator in creators %}
     <a class="ph-card" href="{{ creator.url }}">
       {% if creator.profile_image %}
-        <img class="ph-creator-avatar" src="{{ creator.profile_image }}" alt="" loading="lazy">
+        <img class="ph-creator-avatar" src="{{ creator.profile_image }}" alt="{{ project.image_alt or (project.title ~ ' project preview') }}" loading="lazy">
       {% else %}
         <div class="ph-creator-avatar" aria-hidden="true"></div>
       {% endif %}
@@ -97,7 +97,7 @@
     {% for project in projects %}
     <article class="ph-project-card">
       {% if project.image %}
-        <img class="ph-project-thumb" src="{{ project.image }}" alt="" loading="lazy">
+        <img class="ph-project-thumb" src="{{ project.image }}" alt="{{ project.image_alt or (project.title ~ ' project preview') }}" loading="lazy">
       {% else %}
         <div class="ph-project-thumb ph-placeholder" aria-hidden="true"></div>
       {% endif %}

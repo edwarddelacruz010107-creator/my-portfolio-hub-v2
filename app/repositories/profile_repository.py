@@ -31,10 +31,40 @@ class ProfileRepository(BaseRepository[Profile]):
         return self.model.query.filter_by(tenant_slug=tenant_slug).first() is not None
 
     def get_by_tenant_slug(self, tenant_slug: str) -> Optional[Profile]:
-        """Phase 4b — added for context_processors.py / app/main/__init__.py.
-        1:1 wrapper around Profile.query.filter_by(tenant_slug=...).first().
+        """Return the canonical profile for a tenant slug.
+
+        Production databases can contain an older duplicate profile row after
+        bootstrap/import work.  Prefer the row whose ``tenant_id`` matches the
+        live core Tenant record, then fall back to the slug-only lookup.  This
+        keeps Admin writes (including selected_theme) and public rendering on
+        the same profile row.
         """
-        return self.model.query.filter_by(tenant_slug=tenant_slug).first()
+        slug = (tenant_slug or '').strip().lower()
+        if not slug:
+            return None
+
+        try:
+            from app.models.core import Tenant
+            tenant = Tenant.query.filter_by(slug=slug).first()
+        except Exception:
+            tenant = None
+
+        if tenant is not None:
+            profile = (
+                self.model.query
+                .filter_by(tenant_id=tenant.id)
+                .order_by(self.model.id.asc())
+                .first()
+            )
+            if profile is not None:
+                return profile
+
+        return (
+            self.model.query
+            .filter_by(tenant_slug=slug)
+            .order_by(self.model.id.asc())
+            .first()
+        )
 
     def get_first(self) -> Optional[Profile]:
         """Phase 4b — cosmetic-only fallback used on superadmin/unauthenticated

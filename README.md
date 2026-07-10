@@ -178,19 +178,14 @@ The Superadmin media/uploads view was also updated to support broader cross-tena
 
 ## Available Themes
 
+MyPortfolioHub uses a curated set of four distinct production themes. Retired and duplicate variants are intentionally excluded from the registry.
+
 | Theme ID | Display Name | Plan Requirement |
 |---|---|---|
 | `default` | Default Clean | Available by default |
-| `developer_pro` | Developer Pro | Available by default |
-| `futuristic_cyber` | Futuristic Cyber | Available by default |
-| `aurora_dev_pro` | Aurora Dev Pro | Pro |
-| `blockform_pro` | Blockform Pro | Pro |
-| `drafting_table_pro` | Drafting Table Pro | Pro |
-| `executive_pro` | Executive Pro | Pro |
-| `glass_terminal_pro` | Glass Terminal Pro | Pro |
-| `neon_stack_pro` | Neon Stack Pro | Pro |
-| `schematic_grid_pro` | Schematic Grid Pro | Pro |
-| `schematic_pro` | Schematic Pro | Pro |
+| `developer_pro` | Developer Pro | Pro |
+| `blockform_brutal` | Blockform Brutal | Pro |
+| `schematic_spec` | Schematic Spec | Pro |
 
 Theme folders must contain:
 
@@ -612,3 +607,35 @@ https://myportfoliohub.online/auth/google/callback
 ```
 
 The app logs the exact OAuth redirect URI it sends to Google as `Google OAuth signin redirect_uri=...` or `Google OAuth signup redirect_uri=...`. If Google still blocks access, copy the logged URL exactly into the Authorized redirect URIs list.
+
+
+## Professional Credibility and Portfolio Experience Upgrade
+
+This build includes a production-focused credibility and content upgrade:
+
+- Public **About the Company**, **Privacy Policy**, and **Terms of Service** pages.
+- Configurable company name, support email, and company location through environment variables.
+- A tenant **SEO & Sharing** dashboard for portfolio titles, descriptions, keywords, social images, image alt text, and search indexing controls.
+- Project-level SEO titles, descriptions, cover-image alt text, and accessibility metadata.
+- Structured case studies with challenge, solution, outcome, before/after images, prototype links, and client proof.
+- Trial portfolios can publish up to **10 projects**.
+- Curated themes use no more than two font families and include reduced-motion accessibility support.
+- Rich project content is sanitized server-side before being stored or rendered.
+
+### New environment variables
+
+```env
+COMPANY_NAME=MyPortfolioHub
+SUPPORT_EMAIL=hello@myportfoliohub.online
+COMPANY_LOCATION=Philippines
+```
+
+### Database upgrade
+
+Run the migration before serving the upgraded application:
+
+```bash
+flask db upgrade
+```
+
+The production startup schema validator also adds the new fields idempotently for existing deployments, but Alembic remains the source of truth.

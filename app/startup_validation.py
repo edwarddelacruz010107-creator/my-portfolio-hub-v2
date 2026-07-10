@@ -249,6 +249,42 @@ def ensure_tenant_schema(app, engine) -> None:
         _execute_ddl(engine, f'ALTER TABLE projects ADD COLUMN like_count {column_ddl}')
         app.logger.info('[SCHEMA] Added missing column projects.like_count')
 
+    # Professional case-study and SEO fields. These idempotent additions keep
+    # existing Render databases compatible even when the legacy migration
+    # chain is bypassed in favor of ensure-tenant-schema.
+    project_column_ddls = {
+        'image_alt': "VARCHAR(200) DEFAULT ''",
+        'before_image': "VARCHAR(500) DEFAULT ''",
+        'before_image_alt': "VARCHAR(200) DEFAULT ''",
+        'after_image': "VARCHAR(500) DEFAULT ''",
+        'after_image_alt': "VARCHAR(200) DEFAULT ''",
+        'prototype_url': "VARCHAR(500) DEFAULT ''",
+        'problem_statement': "TEXT DEFAULT ''",
+        'solution_overview': "TEXT DEFAULT ''",
+        'outcome_summary': "TEXT DEFAULT ''",
+        'client_quote': "TEXT DEFAULT ''",
+        'client_name': "VARCHAR(120) DEFAULT ''",
+        'client_role': "VARCHAR(160) DEFAULT ''",
+        'meta_title': "VARCHAR(200) DEFAULT ''",
+        'meta_description': "VARCHAR(300) DEFAULT ''",
+        'case_study_enabled': 'BOOLEAN NOT NULL DEFAULT TRUE',
+    }
+    for column_name, column_ddl in project_column_ddls.items():
+        if column_name not in projects_columns:
+            _execute_ddl(engine, f'ALTER TABLE projects ADD COLUMN {column_name} {column_ddl}')
+            app.logger.info('[SCHEMA] Added missing column projects.%s', column_name)
+
+    profile_columns = _table_columns(engine, 'profile')
+    profile_column_ddls = {
+        'profile_image_alt': "VARCHAR(200) DEFAULT ''",
+        'seo_keywords': "VARCHAR(300) DEFAULT ''",
+        'seo_indexable': 'BOOLEAN NOT NULL DEFAULT TRUE',
+    }
+    for column_name, column_ddl in profile_column_ddls.items():
+        if column_name not in profile_columns:
+            _execute_ddl(engine, f'ALTER TABLE profile ADD COLUMN {column_name} {column_ddl}')
+            app.logger.info('[SCHEMA] Added missing column profile.%s', column_name)
+
     reaction_columns = _table_columns(engine, 'project_reactions')
     if not _has_table(engine, 'project_reactions'):
         ProjectReaction.__table__.create(bind=engine, checkfirst=True)

@@ -7,6 +7,8 @@
 {% set meta_desc = portfolio.meta_description or portfolio.bio_plain or portfolio.hero_tagline or 'Professional portfolio built with MyPortfolioHub.' %}
 <title>{{ page_title }}</title>
 <meta name="description" content="{{ meta_desc | striptags | truncate(160, True, '...') }}">
+<meta name="robots" content="{{ 'index, follow, max-image-preview:large' if portfolio.seo_indexable else 'noindex, nofollow, noarchive' }}">
+{% if portfolio.seo_keywords %}<meta name="keywords" content="{{ portfolio.seo_keywords }}">{% endif %}
 <meta name="author" content="{{ portfolio.name }}">
 <meta property="og:type" content="profile">
 <meta property="og:title" content="{{ page_title }}">
@@ -18,7 +20,7 @@
 {% if portfolio.og_image or portfolio.avatar_url %}<meta name="twitter:image" content="{{ portfolio.og_image or portfolio.avatar_url }}">{% endif %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* ============================================================
    SCHEMATIC — a blueprint/spec-sheet developer portfolio theme
@@ -42,7 +44,7 @@
   --radius:2px;
   --font-display:'JetBrains Mono', monospace;
   --font-body:'IBM Plex Sans', sans-serif;
-  --font-mono:'IBM Plex Mono', monospace;
+  --font-mono:'JetBrains Mono', monospace;
   --nav-h:72px;
   --transition:0.25s ease;
   --grid-line: rgba(15,23,30,0.05);
@@ -365,6 +367,12 @@ h1,h2,h3,h4{ font-family:var(--font-display); letter-spacing:-0.01em; }
 button[disabled]{ opacity:.65; cursor:not-allowed; }
 @media (max-width:768px){ .exp-card{grid-template-columns:1fr;} }
 
+
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto;}
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;}
+  .reveal,.js-ready .reveal{opacity:1!important;transform:none!important;}
+}
 </style>
 </head>
 <body data-theme="light">
@@ -483,7 +491,7 @@ button[disabled]{ opacity:.65; cursor:not-allowed; }
       <div class="project-card panel reveal {% if loop.index == 1 or p.is_featured %}featured{% endif %}">
         <div class="project-thumb">
           {% if p.is_featured %}<span class="project-tag-featured">Featured</span>{% endif %}
-          {% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">{% else %}<span class="ph-icon">{% if loop.index == 1 %}▣{% elif loop.index == 2 %}▤{% elif loop.index == 3 %}▥{% elif loop.index == 4 %}▦{% elif loop.index == 5 %}▧{% else %}▨{% endif %}</span>{% endif %}
+          {% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.image_alt or (p.title ~ ' project preview') }}" loading="lazy">{% else %}<span class="ph-icon">{% if loop.index == 1 %}▣{% elif loop.index == 2 %}▤{% elif loop.index == 3 %}▥{% elif loop.index == 4 %}▦{% elif loop.index == 5 %}▧{% else %}▨{% endif %}</span>{% endif %}
         </div>
         <div class="project-body">
           <h3>{{ p.title }}</h3>

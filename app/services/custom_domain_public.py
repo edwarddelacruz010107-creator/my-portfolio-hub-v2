@@ -145,6 +145,7 @@ def render_custom_domain_project(domain_record, slug: str):
     project = (
         Project.query
         .filter_by(slug=slug, status='published', tenant_slug=tenant)
+        .filter(Project.case_study_enabled.is_(True))
         .first_or_404()
     )
     project.increment_views()

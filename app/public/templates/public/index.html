@@ -456,7 +456,7 @@
         {% if trending_projects %}
           {% for project in trending_projects %}
           {% set project_title = project.title|default('Untitled Project', true) %}
-          {% set project_desc = project.description_short|default(project.description|default('No description added yet.', true), true) %}
+          {% set project_desc = (project.description_short|default(project.description|default('No description added yet.', true), true))|striptags %}
           {% set project_category = project.category|default('Project', true) %}
           {% set creator_name = project.creator_name|default('Creator', true) %}
           {% set creator_profile_image = project.creator_profile_image|default('', true) %}
@@ -466,7 +466,7 @@
             <div class="proj-cover">
               {% set project_image_url = project.image|default('', true)|upload_url('projects') %}
               {% if project_image_url %}
-                <img src="{{ project_image_url }}" alt="Preview of {{ project_title }}" loading="lazy"
+                <img src="{{ project_image_url }}" alt="{{ project.image_alt or ('Preview of ' ~ project_title) }}" loading="lazy"
                      onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
                 <div class="proj-cover-placeholder" aria-hidden="true" hidden>
                   <i class="bi bi-window-stack"></i>
@@ -1054,10 +1054,9 @@
       <div class="footer-col">
         <h5>Company</h5>
         <ul>
-          <li><a href="#founder">About</a></li>
+          <li><a href="{{ url_for('public.about_company') }}">About the Company</a></li>
           <li><a href="#faq">FAQ</a></li>
           <li><a href="{{ url_for('main.contact') }}">Contact</a></li>
-          <li><a href="#">Careers</a></li>
         </ul>
       </div>
 

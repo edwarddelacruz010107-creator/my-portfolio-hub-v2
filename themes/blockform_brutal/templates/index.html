@@ -7,6 +7,8 @@
 {% set meta_desc = portfolio.meta_description or portfolio.bio_plain or portfolio.hero_tagline or 'Professional portfolio built with MyPortfolioHub.' %}
 <title>{{ page_title }}</title>
 <meta name="description" content="{{ meta_desc | striptags | truncate(160, True, '...') }}">
+<meta name="robots" content="{{ 'index, follow, max-image-preview:large' if portfolio.seo_indexable else 'noindex, nofollow, noarchive' }}">
+{% if portfolio.seo_keywords %}<meta name="keywords" content="{{ portfolio.seo_keywords }}">{% endif %}
 <meta name="author" content="{{ portfolio.name }}">
 <meta property="og:type" content="profile">
 <meta property="og:title" content="{{ page_title }}">
@@ -18,7 +20,7 @@
 {% if portfolio.og_image or portfolio.avatar_url %}<meta name="twitter:image" content="{{ portfolio.og_image or portfolio.avatar_url }}">{% endif %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* ============================================================
    BLOCKFORM BRUTAL — CMS-bound neubrutalist portfolio theme
@@ -35,11 +37,11 @@
   --text-dim:#4a4a4a;
   --danger:#ff4d4d;
   --border-w:3px;
-  --shadow-off:7px;
+  --shadow-off:4px;
   --radius:0px;
   --font-display:'Archivo Black', Impact, sans-serif;
   --font-body:'Space Grotesk', system-ui, sans-serif;
-  --font-mono:'JetBrains Mono', ui-monospace, monospace;
+  --font-mono:'Space Grotesk', ui-monospace, monospace;
   --nav-h:78px;
   --transition:0.15s ease;
 }
@@ -223,6 +225,18 @@ h1,h2,h3,h4{ font-family:var(--font-display); text-transform:uppercase; letter-s
 @media (max-width:1080px){ .nav-inner{align-items:flex-start}.nav-links{max-width:720px}.skills-grid,.services-grid{ grid-template-columns:repeat(2,1fr); }.projects-grid,.cert-panel.active,.testi-track{ grid-template-columns:repeat(2,1fr); }.project-card.featured{ grid-column:span 2; } }
 @media (max-width:768px){ section{ padding:72px 0; }.nav-inner{align-items:center}.nav-links{ position:fixed; top:var(--nav-h); left:0; right:0; bottom:0; flex-direction:column; align-items:stretch; background:var(--bg); padding:28px 24px; gap:8px; transform:translateX(100%); transition:transform var(--transition); border-top:var(--border-w) solid var(--line); overflow:auto; }.nav-links.open{ transform:translateX(0); }.nav-links a{ width:100%; padding:14px 16px; }.burger{ display:flex; }.hero-grid,.about-grid,.contact-grid{ grid-template-columns:1fr; }.hero-visual{ order:-1; margin-bottom:20px; }.skills-grid,.services-grid,.projects-grid,.cert-panel.active,.testi-track{ grid-template-columns:1fr; }.project-card.featured{ grid-column:span 1; }.exp-card{grid-template-columns:1fr}.form-row{ grid-template-columns:1fr; }.hero-avatar-wrap{ width:220px; height:220px; }.sticker{ display:none; }.about-stats{ grid-template-columns:repeat(3,1fr); }.footer-inner{ flex-direction:column; text-align:center; } }
 @media (max-width:520px){ .container{padding:0 18px}.about-stats{grid-template-columns:1fr}.hero h1{font-size:2.15rem}.btn{width:100%}.hero-ctas{flex-direction:column}.cert-card{flex-direction:column}.cert-badge-img{width:88px;height:88px}.nav-logo{font-size:.9rem} }
+
+/* Professional restraint: preserve Blockform identity without distracting motion. */
+.eyebrow,.nav-logo,.hero-tag,.tilt-l,.tilt-r{transform:none;}
+#about,#services,#certificates,#contact{background:var(--bg);}
+.btn:hover,.btn:active{transform:translateY(-2px);box-shadow:2px 2px 0 var(--line);}
+.block:hover,.tilt-l:hover,.tilt-r:hover{transform:translateY(-2px);box-shadow:2px 2px 0 var(--line);}
+.social-icon:hover,.theme-toggle:hover{transform:translateY(-2px);box-shadow:2px 2px 0 var(--line);}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto;}
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;}
+  .reveal,.js-ready .reveal{opacity:1!important;transform:none!important;}
+}
 </style>
 </head>
 <body data-theme="light">
@@ -277,7 +291,7 @@ h1,h2,h3,h4{ font-family:var(--font-display); text-transform:uppercase; letter-s
     </div>
     <div class="hero-visual reveal">
       <div class="hero-avatar-wrap">
-        {% if portfolio.avatar_url %}<img src="{{ portfolio.avatar_url }}" alt="{{ portfolio.name }}" loading="eager">{% else %}<div class="avatar-fallback">{{ portfolio.initials or 'ME' }}</div>{% endif %}
+        {% if portfolio.avatar_url %}<img src="{{ portfolio.avatar_url }}" alt="{{ portfolio.profile_image_alt or (portfolio.name ~ ' profile photo') }}" loading="eager">{% else %}<div class="avatar-fallback">{{ portfolio.initials or 'ME' }}</div>{% endif %}
       </div>
       <div class="sticker s1"><span class="num">{{ stats[1].value if stats|length > 1 else 0 }}</span>{{ stats[1].label if stats|length > 1 else 'Years Exp.' }}</div>
       <div class="sticker s2"><span class="num">{{ stats[0].value if stats|length > 0 else 0 }}</span>{{ stats[0].label if stats|length > 0 else 'Projects' }}</div>
@@ -338,8 +352,8 @@ h1,h2,h3,h4{ font-family:var(--font-display); text-transform:uppercase; letter-s
     <div class="projects-grid">
       {% for p in portfolio.projects %}
       <article class="project-card block reveal{% if p.is_featured and loop.index <= 2 %} featured{% endif %}">
-        <div class="project-thumb">{% if p.is_featured %}<span class="project-tag-featured">Featured</span>{% endif %}{% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">{% else %}<span class="ph-icon">🖥️</span>{% endif %}</div>
-        <div class="project-body"><div class="project-meta"><span>{{ p.category or 'Project' }}</span><span>{{ p.view_count }} views</span><span>{{ p.like_count }} likes</span></div><h3>{{ p.title }}</h3><p>{{ p.description_short or p.description }}</p>{% if p.tech_stack %}<div class="tech-tags">{% for tech in p.tech_stack %}<span class="tech-tag">{{ tech }}</span>{% endfor %}</div>{% endif %}<div class="project-actions">{% if p.case_study_url or p.url %}<a href="{{ p.case_study_url or p.url }}" class="btn btn-primary btn-sm">Case Study</a>{% endif %}{% if p.demo_url %}<a href="{{ p.demo_url }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Live Demo</a>{% endif %}{% if p.github_url %}<a href="{{ p.github_url }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Source</a>{% endif %}</div></div>
+        <div class="project-thumb">{% if p.is_featured %}<span class="project-tag-featured">Featured</span>{% endif %}{% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.image_alt or (p.title ~ ' project preview') }}" loading="lazy">{% else %}<span class="ph-icon">🖥️</span>{% endif %}</div>
+        <div class="project-body"><div class="project-meta"><span>{{ p.category or 'Project' }}</span><span>{{ p.view_count }} views</span><span>{{ p.like_count }} likes</span></div><h3>{{ p.title }}</h3><p>{{ p.description_short or (p.description | striptags | truncate(220, True, '...')) }}</p>{% if p.tech_stack %}<div class="tech-tags">{% for tech in p.tech_stack %}<span class="tech-tag">{{ tech }}</span>{% endfor %}</div>{% endif %}<div class="project-actions">{% if p.case_study_url or p.url %}<a href="{{ p.case_study_url or p.url }}" class="btn btn-primary btn-sm">Case Study</a>{% endif %}{% if p.demo_url %}<a href="{{ p.demo_url }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Live Demo</a>{% endif %}{% if p.github_url %}<a href="{{ p.github_url }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Source</a>{% endif %}</div></div>
       </article>
       {% else %}<div class="empty-state block reveal"><h3>No projects yet</h3><p>Add your first published project from the Admin dashboard.</p></div>{% endfor %}
     </div>

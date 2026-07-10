@@ -3,12 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ portfolio.name }} | {{ portfolio.title }}</title>
-    <meta name="description" content="{{ portfolio.meta_description or portfolio.bio | truncate(160) }}">
+    {% set page_title = portfolio.meta_title or (portfolio.name ~ ' — ' ~ (portfolio.title or 'Portfolio')) %}
+    {% set meta_desc = portfolio.meta_description or portfolio.bio_plain or portfolio.hero_tagline or 'Professional portfolio built with MyPortfolioHub.' %}
+    <title>{{ page_title }}</title>
+    <meta name="description" content="{{ meta_desc | striptags | truncate(160, True, '...') }}">
+    <meta name="robots" content="{{ 'index, follow, max-image-preview:large' if portfolio.seo_indexable else 'noindex, nofollow, noarchive' }}">
+    {% if portfolio.seo_keywords %}<meta name="keywords" content="{{ portfolio.seo_keywords }}">{% endif %}
     <meta name="author" content="{{ portfolio.name }}">
-    <meta property="og:title" content="{{ portfolio.name }} — {{ portfolio.title }}">
-    <meta property="og:description" content="{{ portfolio.meta_description or (portfolio.bio | truncate(160)) }}">
-    <meta property="og:type" content="website">
+    <meta property="og:title" content="{{ page_title }}">
+    <meta property="og:description" content="{{ meta_desc | striptags | truncate(180, True, '...') }}">
+    <meta property="og:type" content="profile">
+    {% if portfolio.og_image or portfolio.avatar_url %}<meta property="og:image" content="{{ portfolio.og_image or portfolio.avatar_url }}">{% endif %}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ page_title }}">
+    <meta name="twitter:description" content="{{ meta_desc | striptags | truncate(180, True, '...') }}">
+    {% if portfolio.og_image or portfolio.avatar_url %}<meta name="twitter:image" content="{{ portfolio.og_image or portfolio.avatar_url }}">{% endif %}
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -65,7 +74,7 @@
             background: var(--bg);
             color: var(--text);
             overflow-x: hidden;
-            cursor: none;
+            cursor: auto;
         }
         ::selection { background: rgba(0,255,65,0.3); color: #fff; }
         ::-webkit-scrollbar { width: 6px; }
@@ -73,7 +82,7 @@
         ::-webkit-scrollbar-thumb { background: rgba(0,255,65,0.3); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(0,255,65,0.5); }
         a { color: inherit; text-decoration: none; }
-        button { cursor: none; border: none; background: none; font-family: inherit; }
+        button { cursor: pointer; border: none; background: none; font-family: inherit; }
         img { display: block; max-width: 100%; }
 
         /* ============================================
@@ -1190,6 +1199,17 @@
         /* Smooth fade for page load */
         main { opacity: 0; transition: opacity 0.8s ease 0.2s; }
         main.loaded { opacity: 1; }
+
+        /* Professional mode: retain the technical identity without intrusive effects. */
+        #preloader,.cursor-dot,.cursor-ring,#mouseGlow,#matrixCanvas,.scanline{display:none!important;}
+        body,a,button,input,textarea,select{cursor:auto!important;}
+        a,button{cursor:pointer!important;}
+        .project-card:hover,.service-card:hover,.skill-category:hover{transform:translateY(-3px);}
+        @media (prefers-reduced-motion: reduce){
+            html{scroll-behavior:auto;}
+            *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;}
+            .reveal{opacity:1!important;transform:none!important;}
+        }
     </style>
 </head>
 <body>
@@ -1294,7 +1314,7 @@
                             <div class="profile-holo"></div>
                             <div class="profile-holo-inner"></div>
                             <div class="profile-img-container">
-                                <img src="{{ portfolio.avatar_url or 'https://picsum.photos/seed/developer-pro/400/400.jpg' }}" alt="{{ portfolio.name }}" loading="lazy">
+                                <img src="{{ portfolio.avatar_url or 'https://picsum.photos/seed/developer-pro/400/400.jpg' }}" alt="{{ portfolio.profile_image_alt or (portfolio.name ~ ' profile photo') }}" loading="lazy">
                             </div>
                             <div class="profile-status">
                                 <span class="dot"></span>
@@ -1675,22 +1695,25 @@
             {% for p in portfolio.projects %}
             {
                 title: {{ p.title | tojson }},
-                description: {{ p.description | tojson }},
+                description: {{ ((p.description_short or p.description or '') | striptags | truncate(220, True, '...')) | tojson }},
                 image: {{ (p.image_url or 'https://picsum.photos/seed/' + (p.title | urlencode) + '/600/400.jpg') | tojson }},
+                imageAlt: {{ (p.image_alt or (p.title ~ ' project preview')) | tojson }},
                 tech: {{ (p.tech_stack or []) | tojson }},
                 category: {{ (p.category or 'fullstack') | tojson }},
                 github: {{ (p.github_url or '#') | tojson }},
                 demo: {{ (p.demo_url or '#') | tojson }},
-                caseStudy: {{ (p.case_study_url or p.url or '#') | tojson }}
+                caseStudy: {{ (p.case_study_url or p.url or '') | tojson }},
+                caseStudyEnabled: {{ (p.case_study_enabled and (p.case_study_url or p.url)) | tojson }}
             }{% if not loop.last %},{% endif %}
             {% else %}
             {
                 title: 'Add your first project',
                 description: 'Visit your dashboard to add projects to your portfolio.',
                 image: 'https://picsum.photos/seed/placeholder/600/400.jpg',
+                imageAlt: 'Project preview placeholder',
                 tech: ['Portfolio CMS'],
                 category: 'fullstack',
-                github: '#', demo: '#', caseStudy: '#'
+                github: '#', demo: '#', caseStudy: '', caseStudyEnabled: false
             }
             {% endfor %}
         ];
@@ -2158,7 +2181,7 @@
                 card.dataset.category = proj.category;
                 card.innerHTML = `
                     <div class="project-img">
-                        <img src="${proj.image}" alt="${proj.title}" loading="lazy">
+                        <img src="${proj.image}" alt="${proj.imageAlt || (proj.title + ' project preview')}" loading="lazy">
                         <div class="scan-overlay"></div>
                     </div>
                     <div class="project-body">
@@ -2168,7 +2191,7 @@
                             ${proj.tech.map(t => `<span>${t}</span>`).join('')}
                         </div>
                         <div class="project-links">
-                            <a href="${proj.caseStudy}" class="project-link"><i class="fas fa-book-open"></i> Case Study</a>
+                            ${proj.caseStudyEnabled ? `<a href="${proj.caseStudy}" class="project-link"><i class="fas fa-book-open"></i> Case Study</a>` : ''}
                             <a href="${proj.demo}" class="project-link"><i class="fas fa-external-link-alt"></i> Live Demo</a>
                             <a href="${proj.github}" class="project-link"><i class="fab fa-github"></i> Source</a>
                         </div>
@@ -2371,8 +2394,8 @@
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 // Create a simple text file as placeholder
-                const content = `JIAN CODY Q. DELA CRUZ
-Software Developer
+                const content = `{{ portfolio.name | replace('`', '') }}
+{{ (portfolio.title or 'Professional') | replace('`', '') }}
 =====================
 
 SKILLS: Python, Flask, React, PostgreSQL, Docker, Linux, Git, REST APIs, Cybersecurity, AI Tools, Automation

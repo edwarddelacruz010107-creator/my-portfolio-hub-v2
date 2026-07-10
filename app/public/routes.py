@@ -206,6 +206,17 @@ def feed():
     return redirect(url_for('public.projects', **request.args.to_dict(flat=True)))
 
 
+@public_bp.route('/about-company')
+def about_company():
+    """Public company and trust information for platform credibility."""
+    return render_template(
+        'public/about_company.html',
+        company_name=current_app.config.get('COMPANY_NAME', 'MyPortfolioHub'),
+        company_location=current_app.config.get('COMPANY_LOCATION', 'Philippines'),
+        support_email=current_app.config.get('SUPPORT_EMAIL', 'hello@myportfoliohub.online'),
+    )
+
+
 @public_bp.route('/privacy')
 def privacy():
     """Public privacy policy page."""

@@ -168,6 +168,19 @@ csp = {
         "https://api.web3forms.com",
         "https://api.iconify.design",
     ],
+    "frame-src": [
+        "'self'",
+        "https://www.figma.com",
+        "https://*.figma.com",
+        "https://framer.com",
+        "https://*.framer.com",
+        "https://codepen.io",
+        "https://*.codepen.io",
+        "https://stackblitz.com",
+        "https://*.stackblitz.com",
+        "https://codesandbox.io",
+        "https://*.codesandbox.io",
+    ],
     "object-src": "'none'",
     "frame-ancestors": "'none'",
 }
@@ -709,6 +722,12 @@ def create_app(config_name: str = 'default') -> Flask:
         if not value:
             return Markup('')
         return Markup(_escape(value).replace('\n', Markup('<br>\n')))
+
+    @app.template_filter('richtext')
+    def richtext_filter(value: str) -> Markup:
+        """Render the project editor's limited rich text through an allow-list sanitizer."""
+        from app.services.content_sanitizer import richtext_markup
+        return richtext_markup(value)
 
     @app.template_filter('safe_media_value')
     def safe_media_value_filter(value: str | None) -> bool:
@@ -1521,7 +1540,8 @@ def _render_default_portfolio():
     TENANT = 'default'
     g.tenant_slug = TENANT
 
-    profile = Profile.query.filter_by(tenant_slug=TENANT).first()
+    from app.repositories import profile_repository
+    profile = profile_repository.get_by_tenant_slug(TENANT)
     if not profile:
         # Graceful fallback: show a setup page instead of 500
         return render_template('errors/setup_needed.html'), 503
@@ -1630,7 +1650,8 @@ def _render_default_project_detail(slug: str):
     TENANT = 'default'
     g.tenant_slug = TENANT
 
-    profile = Profile.query.filter_by(tenant_slug=TENANT).first()
+    from app.repositories import profile_repository
+    profile = profile_repository.get_by_tenant_slug(TENANT)
     if not profile:
         return render_template('errors/setup_needed.html'), 503
 
@@ -1638,6 +1659,7 @@ def _render_default_project_detail(slug: str):
         Project.query
         .filter(Project.slug == slug)
         .filter(Project.tenant_slug == TENANT)
+        .filter(Project.case_study_enabled.is_(True))
         .filter(db.or_(
             Project.status == 'published',
             db.and_(Project.status == 'draft', Project.is_featured == True),

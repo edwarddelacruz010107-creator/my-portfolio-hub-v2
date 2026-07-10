@@ -71,7 +71,7 @@ PAID_PLAN_NAMES = frozenset({'starter', 'pro', 'business', 'enterprise'})
 
 PLAN_FEATURES = {
     'trial': {
-        'max_projects': 5,
+        'max_projects': 10,
         'max_skills': 20,
         'max_media_uploads': 10,
         'max_testimonials': 3,
@@ -105,7 +105,7 @@ PLAN_FEATURES = {
         'branding_removal': False,
     },
     'starter': {
-        'max_projects': 5,
+        'max_projects': 25,
         'max_skills': 20,
         'max_media_uploads': 10,
         'max_testimonials': 10,

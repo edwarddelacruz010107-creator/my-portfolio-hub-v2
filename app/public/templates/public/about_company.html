@@ -1,0 +1,45 @@
+{% extends 'public/_base.html' %}
+{% block title %}About {{ company_name }} — Professional Portfolio Platform{% endblock %}
+{% block meta_desc %}Learn about {{ company_name }}, the platform's purpose, security approach, support channels, and commitment to professional portfolio publishing.{% endblock %}
+
+{% block content %}
+<section class="ph-company-page">
+  <div class="ph-company-shell">
+    <header class="ph-company-hero">
+      <span class="ph-eyebrow">About the platform</span>
+      <h1>Helping professionals present work with clarity and credibility.</h1>
+      <p>{{ company_name }} is a portfolio publishing platform built for students, freelancers, developers, designers, and professionals who need a structured, modern place to explain what they have built and the value they provide.</p>
+      <div class="ph-company-actions">
+        <a class="ph-btn ph-btn-primary" href="{{ url_for('auth.portal', tab='signup') }}">Create a portfolio</a>
+        <a class="ph-btn ph-btn-ghost" href="mailto:{{ support_email }}">Contact support</a>
+      </div>
+    </header>
+
+    <div class="ph-company-grid">
+      <article><span>01</span><h2>What we build</h2><p>A multi-tenant portfolio CMS with projects, case studies, skills, experience, credentials, themes, custom domains, contact forms, SEO controls, and secure account management.</p></article>
+      <article><span>02</span><h2>Who it serves</h2><p>People who need more than a social profile: applicants, independent professionals, creators, and small teams presenting real evidence of their work.</p></article>
+      <article><span>03</span><h2>How trust is handled</h2><p>The platform uses encrypted secrets, CSRF protection, secure sessions, optional two-factor authentication, tenant isolation, validated uploads, and persistent object storage.</p></article>
+      <article><span>04</span><h2>How to reach us</h2><p>Platform support is available through <a href="mailto:{{ support_email }}">{{ support_email }}</a>. The service is currently operated from {{ company_location }}.</p></article>
+    </div>
+
+    <section class="ph-company-principles">
+      <div><span class="ph-eyebrow">Operating principles</span><h2>Professional by default.</h2></div>
+      <ul>
+        <li><strong>Clear ownership:</strong> creators control their portfolio content and public presentation.</li>
+        <li><strong>Secure foundations:</strong> authentication, tenant boundaries, uploads, and billing workflows are treated as core product concerns.</li>
+        <li><strong>Accessible publishing:</strong> responsive layouts, alt text, readable typography, and reduced-motion support are built into the experience.</li>
+        <li><strong>Transparent policies:</strong> public privacy and terms pages explain how accounts, content, and service availability are handled.</li>
+      </ul>
+    </section>
+
+    <section class="ph-company-contact-card">
+      <div><span class="ph-eyebrow">Company contact</span><h2>{{ company_name }}</h2><p>{{ company_location }}</p></div>
+      <div><span>Support and general inquiries</span><a href="mailto:{{ support_email }}">{{ support_email }}</a></div>
+      <div class="ph-company-legal-links"><a href="{{ url_for('public.privacy') }}">Privacy Policy</a><a href="{{ url_for('public.terms') }}">Terms of Service</a></div>
+    </section>
+  </div>
+</section>
+<style>
+.ph-company-page{padding:120px 24px 80px}.ph-company-shell{max-width:1120px;margin:0 auto}.ph-company-hero{max-width:850px;padding:42px;border:1px solid var(--ph-border);border-radius:24px;background:linear-gradient(145deg,var(--ph-surface),rgba(99,102,241,.08));box-shadow:var(--ph-shadow)}.ph-company-hero h1{font-size:clamp(2.3rem,5vw,4.5rem);line-height:1.04;margin:.7rem 0 1rem}.ph-company-hero p{font-size:1.08rem;line-height:1.75;color:var(--ph-muted)}.ph-company-actions{display:flex;gap:.8rem;flex-wrap:wrap;margin-top:1.5rem}.ph-company-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:24px 0}.ph-company-grid article{padding:28px;border:1px solid var(--ph-border);border-radius:20px;background:var(--ph-surface)}.ph-company-grid article>span{color:var(--ph-accent);font-size:.78rem;font-weight:800;letter-spacing:.1em}.ph-company-grid h2{margin:.65rem 0}.ph-company-grid p,.ph-company-principles li,.ph-company-contact-card p{color:var(--ph-muted);line-height:1.7}.ph-company-grid a,.ph-company-contact-card a{color:var(--ph-accent)}.ph-company-principles{display:grid;grid-template-columns:.75fr 1.25fr;gap:36px;padding:36px;border:1px solid var(--ph-border);border-radius:24px;background:var(--ph-surface);margin:24px 0}.ph-company-principles h2{font-size:2rem}.ph-company-principles ul{margin:0;padding-left:1.2rem;display:grid;gap:1rem}.ph-company-principles strong{color:var(--ph-text)}.ph-company-contact-card{display:grid;grid-template-columns:1.1fr 1fr auto;gap:24px;align-items:center;padding:28px;border:1px solid var(--ph-border);border-radius:20px;background:var(--ph-surface)}.ph-company-contact-card>div{display:flex;flex-direction:column;gap:.35rem}.ph-company-legal-links{align-items:flex-end}.ph-company-legal-links a{white-space:nowrap}@media(max-width:780px){.ph-company-page{padding:96px 16px 60px}.ph-company-hero{padding:28px}.ph-company-grid,.ph-company-principles,.ph-company-contact-card{grid-template-columns:1fr}.ph-company-legal-links{align-items:flex-start}}
+</style>
+{% endblock %}

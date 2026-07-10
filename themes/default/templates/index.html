@@ -18,7 +18,8 @@
     {# ── Primary SEO meta ── #}
     {% set meta_desc = (profile.meta_description or profile.bio_short or (profile.name ~ ' portfolio — ' ~ (profile.title or 'developer'))) if profile else '' %}
     <meta name="description" content="{{ meta_desc | truncate(160, True, '...') }}">
-    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+    <meta name="robots" content="{{ 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1' if (not profile or profile.seo_indexable) else 'noindex, nofollow, noarchive' }}">
+    {% if profile and profile.seo_keywords %}<meta name="keywords" content="{{ profile.seo_keywords }}">{% endif %}
     {% if profile and profile.name %}<meta name="author" content="{{ profile.name }}">{% endif %}
     {% if profile and profile.location %}<meta name="geo.placename" content="{{ profile.location }}">{% endif %}
 
@@ -71,25 +72,23 @@
     {% endif %}
 
     {# ── JSON-LD: Person ── #}
+    {# Serialize every dynamic value with tojson. HTML escaping inside JSON-LD
+       produces entities such as &#34;, which are invalid JSON. #}
     {% if profile %}
+    {% set canonical_url = request.host_url.rstrip('/') ~ request.path %}
+    {% set social_urls = (profile.social_links or {}).values() | select | list %}
     <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "Person",
-      "name": "{{ profile.name | e }}",
-      "jobTitle": "{{ (profile.title or '') | e }}",
-      "description": "{{ (profile.bio_short or '') | e }}",
-      "url": "{{ request.host_url.rstrip('/') }}{{ request.path }}",
-      {% if profile.email %}"email": "mailto:{{ profile.email | e }}",{% endif %}
-      {% if profile.location %}"address": {"@type": "PostalAddress", "addressLocality": "{{ profile.location | e }}"},{% endif %}
-      {% if og_image_url %}"image": "{{ og_image_url }}",{% endif %}
-      "sameAs": [
-        {% set links = [] %}
-        {% for k, v in (profile.social_links or {}).items() if v %}
-          {% if links.append('"' ~ v ~ '"') %}{% endif %}
-        {% endfor %}
-        {{ links | join(',\n        ') }}
-      ]
+      "name": {{ (profile.name or '') | tojson }},
+      "jobTitle": {{ (profile.title or '') | tojson }},
+      "description": {{ (profile.bio_short or '') | tojson }},
+      "url": {{ canonical_url | tojson }},
+      {% if profile.email %}"email": {{ ('mailto:' ~ profile.email) | tojson }},{% endif %}
+      {% if profile.location %}"address": {"@type": "PostalAddress", "addressLocality": {{ profile.location | tojson }}},{% endif %}
+      {% if og_image_url %}"image": {{ og_image_url | tojson }},{% endif %}
+      "sameAs": {{ social_urls | tojson }}
     }
     </script>
 
@@ -98,13 +97,14 @@
     {
       "@context": "https://schema.org",
       "@type": "ProfilePage",
-      "name": "{{ page_title | e }}",
-      "description": "{{ meta_desc | e }}",
-      "url": "{{ request.host_url.rstrip('/') }}{{ request.path }}",
+      "name": {{ page_title | tojson }},
+      "description": {{ meta_desc | tojson }},
+      "url": {{ canonical_url | tojson }},
       "mainEntity": {
         "@type": "Person",
-        "name": "{{ profile.name | e }}",
-        "jobTitle": "{{ (profile.title or '') | e }}"
+        "name": {{ (profile.name or '') | tojson }},
+        "jobTitle": {{ (profile.title or '') | tojson }},
+        "url": {{ canonical_url | tojson }}
       }
     }
     </script>
@@ -116,7 +116,7 @@
     {
       "@context": "https://schema.org",
       "@type": "ItemList",
-      "name": "{{ profile.name | e }} — Projects",
+      "name": {{ ((profile.name or 'Portfolio') ~ ' — Projects') | tojson }},
       "numberOfItems": {{ pub_projects | length }},
       "itemListElement": [
         {% for project in pub_projects[:10] %}
@@ -125,11 +125,11 @@
           "position": {{ loop.index }},
           "item": {
             "@type": "CreativeWork",
-            "name": "{{ project.title | e }}",
-            "description": "{{ (project.description_short or project.description or '') | striptags | truncate(150) | e }}",
-            "url": "{{ tenant_project_url(tenant_slug, project.slug, external=True) }}"
+            "name": {{ (project.title or '') | tojson }},
+            "description": {{ ((project.description_short or project.description or '') | striptags | truncate(150)) | tojson }},
+            "url": {{ tenant_project_url(tenant_slug, project.slug, external=True) | tojson }}
             {% if project.image %},
-            "image": "{{ project.image|upload_url('projects') }}"
+            "image": {{ (project.image|upload_url('projects')) | tojson }}
             {% endif %}
           }
         }{% if not loop.last %},{% endif %}
@@ -315,7 +315,7 @@
                         <img
                             src="{{ hero_avatar_url or hero_avatar_fallback_url }}"
                             data-fallback-src="{{ hero_avatar_fallback_url }}"
-                            alt="{% if profile %}{{ profile.name }}{% else %}Portfolio{% endif %}"
+                            alt="{% if profile %}{{ profile.profile_image_alt or (profile.name ~ ' profile photo') }}{% else %}Portfolio profile photo{% endif %}"
                             class="hero-avatar"
                         >
                         {% if profile and is_owner %}
@@ -449,7 +449,7 @@
                         <article class="project-card reveal-up" data-category="{{ project.category }}" style="--delay: {{ loop.index0 * 0.1 }}s">
                             <div class="project-image" style="position:relative;">
                                 <img src="{% if project.image %}{{ project.image|upload_url('projects') }}{% else %}{{ url_for('static', filename='image/project_placeholder.svg') }}{% endif %}"
-                                     alt="{{ project.title }}">
+                                     alt="{{ project.image_alt or (project.title ~ ' project preview') }}">
                                 {% if project.view_count %}<span class="project-view-badge"><iconify-icon icon="lucide:eye" width="12"></iconify-icon> {{ project.view_count }}</span>{% endif %}
                                 <div class="project-overlay">
                                     <div class="project-overlay-actions">
@@ -463,9 +463,11 @@
                                             <iconify-icon icon="lucide:github" width="18"></iconify-icon>
                                         </a>
                                         {% endif %}
+{% if project.case_study_enabled %}
                                         <a href="{{ tenant_project_url(_tenant_slug, project.slug) }}" class="project-btn" aria-label="View project details">
                                             <iconify-icon icon="lucide:arrow-right" width="18"></iconify-icon>
                                         </a>
+{% endif %}
                                     </div>
                                 </div>
                             </div>
@@ -483,7 +485,7 @@
                                     {% if project.description_short %}
                                         {{ project.description_short }}
                                     {% else %}
-                                        {{ project.description[:150] }}{% if project.description|length > 150 %}...{% endif %}
+                                        {{ project.description | striptags | truncate(150, True, '...') }}
                                     {% endif %}
                                 </p>
                                 <div class="project-links">
@@ -499,10 +501,12 @@
                                         Source Code
                                     </a>
                                     {% endif %}
+{% if project.case_study_enabled %}
                                     <a href="{{ tenant_project_url(_tenant_slug, project.slug) }}" class="project-link">
                                         <iconify-icon icon="lucide:arrow-right" width="14"></iconify-icon>
                                         Details
                                     </a>
+{% endif %}
                                 </div>
                             </div>
                         </article>
@@ -542,7 +546,7 @@
                     <article class="project-card reveal-up" data-category="{{ project.category }}" style="--delay: {{ loop.index0 * 0.1 }}s">
                         <div class="project-image">
                             <img src="{% if project.image %}{{ project.image|upload_url('projects') }}{% else %}{{ url_for('static', filename='image/project_placeholder.svg') }}{% endif %}"
-                                 alt="{{ project.title }}">
+                                 alt="{{ project.image_alt or (project.title ~ ' project preview') }}">
                             <div class="project-overlay">
                                 <div class="project-overlay-actions">
                                     {% if project.live_url %}
@@ -574,7 +578,7 @@
                                 {% if project.description_short %}
                                     {{ project.description_short }}
                                 {% else %}
-                                    {{ project.description[:150] }}{% if project.description|length > 150 %}...{% endif %}
+                                    {{ project.description | striptags | truncate(150, True, '...') }}
                                 {% endif %}
                             </p>
                             <div class="project-links">

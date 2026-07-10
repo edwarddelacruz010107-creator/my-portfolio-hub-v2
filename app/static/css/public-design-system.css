@@ -172,7 +172,7 @@ body:has(.ph-nav) { margin: 0; font-family: var(--ph-font); background: var(--ph
 
 /* ── Footer ──────────────────────────────────────────────────────────── */
 .ph-footer { border-top: 1px solid var(--ph-border); margin-top: 60px; padding: 48px 24px 24px; }
-.ph-footer-inner { max-width: var(--ph-max-w); margin: 0 auto; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 32px; }
+.ph-footer-inner { max-width: var(--ph-max-w); margin: 0 auto; display: grid; grid-template-columns: 2fr repeat(4, 1fr); gap: 32px; }
 .ph-footer-brand p { color: var(--ph-text-dim); font-size: 0.85rem; margin-top: 8px; max-width: 280px; }
 .ph-footer-col h4 { font-size: 0.82rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ph-text-dim); margin: 0 0 12px; }
 .ph-footer-col a { display: block; color: var(--ph-text); text-decoration: none; font-size: 0.88rem; padding: 4px 0; opacity: .85; }
@@ -206,7 +206,7 @@ body:has(.ph-nav) { margin: 0; font-family: var(--ph-font); background: var(--ph
 .ph-legal-card a { color: var(--ph-accent); font-weight: 700; }
 
 @media (min-width: 861px) {
-  .ph-footer-inner { grid-template-columns: 2fr 1fr 1fr 1fr; }
+  .ph-footer-inner { grid-template-columns: 2fr repeat(4, 1fr); }
 }
 
 /* ──────────────────────────────────────────────────────────────

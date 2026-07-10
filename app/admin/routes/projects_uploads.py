@@ -58,6 +58,7 @@ from app.tenant_security import (
 )
 from app import limiter  # Flask-Limiter instance
 from app.forms import ForgotPasswordForm  # Flask-WTF form for CSRF protection
+from app.services.content_sanitizer import sanitize_rich_text
 
 logger = logging.getLogger(__name__)
 admin  = Blueprint('admin', __name__)
@@ -125,6 +126,39 @@ def _clear_portfolio_cache(tenant_slug: str | None = None) -> None:
         cache.delete(f'portfolio_page:{slug}')
     except Exception:
         logger.debug('Could not clear portfolio cache for slug=%s', slug, exc_info=True)
+
+def _apply_project_uploads(project: Project, form: ProjectForm, plan_features: dict) -> None:
+    """Save cover and comparison images with one quota-aware code path."""
+    max_uploads = plan_features.get('max_media_uploads')
+    used_uploads = _tenant_media_upload_count()
+    media_fields = (
+        ('image', 'image', 'Project image'),
+        ('before_image', 'before_image', 'Before comparison image'),
+        ('after_image', 'after_image', 'After comparison image'),
+    )
+    for form_name, attribute, label in media_fields:
+        file_data = getattr(form, form_name).data
+        if not is_upload_file(file_data):
+            continue
+        current_value = getattr(project, attribute, '') or ''
+        adds_slot = not bool(current_value)
+        if max_uploads is not None and adds_slot and used_uploads >= max_uploads:
+            flash(
+                f'Your current plan ({_active_tenant_plan_name()}) allows up to '
+                f'{max_uploads} uploads. {label} was not uploaded.',
+                'warning',
+            )
+            continue
+        new_img, upload_error = save_image(file_data, 'projects')
+        if new_img:
+            if current_value:
+                delete_image(current_value, 'projects')
+            setattr(project, attribute, new_img)
+            if adds_slot:
+                used_uploads += 1
+        elif upload_error:
+            flash(upload_error, 'warning')
+
 
 def _format_filesize(size: int | None) -> str:
     if size is None:
@@ -197,11 +231,24 @@ def new_project():
             tenant_id=tenant_id,   # cross-DB: must be set explicitly
             tenant_slug=tenant_slug,
             title=form.title.data,
-            description=form.description.data or '',
+            description=sanitize_rich_text(form.description.data),
             description_short=form.description_short.data or '',
+            image_alt=form.image_alt.data or '',
+            before_image_alt=form.before_image_alt.data or '',
+            after_image_alt=form.after_image_alt.data or '',
             live_url=form.live_url.data or '',
             github_url=form.github_url.data or '',
+            prototype_url=form.prototype_url.data or '',
             framework=form.framework.data or '',
+            problem_statement=sanitize_rich_text(form.problem_statement.data),
+            solution_overview=sanitize_rich_text(form.solution_overview.data),
+            outcome_summary=sanitize_rich_text(form.outcome_summary.data),
+            client_quote=form.client_quote.data or '',
+            client_name=form.client_name.data or '',
+            client_role=form.client_role.data or '',
+            meta_title=form.meta_title.data or '',
+            meta_description=form.meta_description.data or '',
+            case_study_enabled=bool(form.case_study_enabled.data),
             language=form.language.data or '',
             category=form.category.data,
             status=form.status.data,
@@ -219,20 +266,7 @@ def new_project():
             counter += 1
         project.slug = slug
 
-        if is_upload_file(form.image.data):
-            max_uploads = plan_features.get('max_media_uploads')
-            if max_uploads is not None and not project.image and _tenant_media_upload_count() >= max_uploads:
-                flash(
-                    f'Your current plan ({_active_tenant_plan_name()}) allows up to '
-                    f'{max_uploads} uploads. Remove an existing asset or upgrade.',
-                    'warning',
-                )
-            else:
-                img, upload_error = save_image(form.image.data, 'projects')
-                if img:
-                    project.image = img
-                elif upload_error:
-                    flash(upload_error, 'warning')
+        _apply_project_uploads(project, form, plan_features)
 
         db.session.add(project)
         db.session.commit()
@@ -262,11 +296,24 @@ def edit_project(id: int):
         project.tenant_slug = _active_tenant_slug()
 
         project.title             = form.title.data
-        project.description       = form.description.data or ''
+        project.description       = sanitize_rich_text(form.description.data)
         project.description_short = form.description_short.data or ''
+        project.image_alt         = form.image_alt.data or ''
+        project.before_image_alt  = form.before_image_alt.data or ''
+        project.after_image_alt   = form.after_image_alt.data or ''
         project.live_url          = form.live_url.data or ''
         project.github_url        = form.github_url.data or ''
+        project.prototype_url     = form.prototype_url.data or ''
         project.framework         = form.framework.data or ''
+        project.problem_statement = sanitize_rich_text(form.problem_statement.data)
+        project.solution_overview = sanitize_rich_text(form.solution_overview.data)
+        project.outcome_summary   = sanitize_rich_text(form.outcome_summary.data)
+        project.client_quote      = form.client_quote.data or ''
+        project.client_name       = form.client_name.data or ''
+        project.client_role       = form.client_role.data or ''
+        project.meta_title        = form.meta_title.data or ''
+        project.meta_description  = form.meta_description.data or ''
+        project.case_study_enabled = bool(form.case_study_enabled.data)
         project.language          = form.language.data or ''
         project.category          = form.category.data
         project.status            = form.status.data
@@ -275,23 +322,7 @@ def edit_project(id: int):
         project.order             = form.order.data or 0
         project.tags = [t.strip() for t in (form.tags.data or '').split(',') if t.strip()]
 
-        if is_upload_file(form.image.data):
-            plan_features = _active_tenant_plan_features()
-            max_uploads   = plan_features.get('max_media_uploads')
-            if max_uploads is not None and not project.image and _tenant_media_upload_count() >= max_uploads:
-                flash(
-                    f'Your current plan ({_active_tenant_plan_name()}) allows up to '
-                    f'{max_uploads} uploads. Remove an existing asset or upgrade.',
-                    'warning',
-                )
-            else:
-                new_img, upload_error = save_image(form.image.data, 'projects')
-                if new_img:
-                    if project.image:
-                        delete_image(project.image, 'projects')
-                    project.image = new_img
-                elif upload_error:
-                    flash(upload_error, 'warning')
+        _apply_project_uploads(project, form, _active_tenant_plan_features())
 
         db.session.commit()
         _clear_portfolio_cache(project.tenant_slug)
@@ -310,8 +341,9 @@ def delete_project(id: int):
         flash('Project not found.', 'warning')
         return redirect(url_for('admin.projects'))
     title = project.title
-    if project.image:
-        delete_image(project.image, 'projects')
+    for media_value in (project.image, project.before_image, project.after_image):
+        if media_value:
+            delete_image(media_value, 'projects')
     tenant_slug = project.tenant_slug
     db.session.delete(project)
     db.session.commit()
@@ -325,13 +357,19 @@ def delete_project(id: int):
 def uploads():
     profile    = _load_tenant_profile()
     asset_type = request.args.get('asset_type', 'all')
-    allowed_types = {'all', 'profile', 'project', 'testimonial', 'certificate', 'badge'}
+    allowed_types = {'all', 'profile', 'project', 'comparison', 'testimonial', 'certificate', 'badge', 'seo'}
     if asset_type not in allowed_types:
         asset_type = 'all'
 
     project_images = (
         _tenant_slug_filter(project_repository.query)
         .filter(Project.image != None)
+        .order_by(Project.created_at.desc())
+        .all()
+    )
+    comparison_projects = (
+        _tenant_slug_filter(project_repository.query)
+        .filter(db.or_(Project.before_image != '', Project.after_image != ''))
         .order_by(Project.created_at.desc())
         .all()
     )
@@ -366,13 +404,37 @@ def uploads():
             'url': _asset_public_url(profile.profile_image, 'profiles'),
         })
 
+    if profile and profile.og_image:
+        assets.append({
+            'id': profile.id, 'type': 'seo', 'label': 'Social Share Image',
+            'filename': profile.og_image, 'folder': 'profiles',
+            'description': profile.meta_title or profile.name or profile.tenant_slug,
+            'url': _asset_public_url(profile.og_image, 'profiles'),
+        })
+
     for project in project_images:
         assets.append({
             'id': project.id, 'type': 'project', 'label': 'Project Image',
-            'filename': project.image, 'folder': 'projects',
+            'filename': project.image, 'folder': 'projects', 'field': 'image',
             'description': project.title,
             'url': _asset_public_url(project.image, 'projects'),
         })
+
+    for project in comparison_projects:
+        if project.before_image:
+            assets.append({
+                'id': project.id, 'type': 'comparison', 'label': 'Before Image',
+                'filename': project.before_image, 'folder': 'projects', 'field': 'before_image',
+                'description': project.title,
+                'url': _asset_public_url(project.before_image, 'projects'),
+            })
+        if project.after_image:
+            assets.append({
+                'id': project.id, 'type': 'comparison', 'label': 'After Image',
+                'filename': project.after_image, 'folder': 'projects', 'field': 'after_image',
+                'description': project.title,
+                'url': _asset_public_url(project.after_image, 'projects'),
+            })
 
     for testimonial in testimonial_images:
         assets.append({
@@ -408,6 +470,8 @@ def uploads():
     counts = {
         'profile':     sum(1 for a in assets if a['type'] == 'profile'),
         'project':     sum(1 for a in assets if a['type'] == 'project'),
+        'comparison':  sum(1 for a in assets if a['type'] == 'comparison'),
+        'seo':         sum(1 for a in assets if a['type'] == 'seo'),
         'testimonial': sum(1 for a in assets if a['type'] == 'testimonial'),
         'certificate': sum(1 for a in assets if a['type'] == 'certificate'),
         'badge':       sum(1 for a in assets if a['type'] == 'badge'),
@@ -429,6 +493,7 @@ def uploads():
 @limiter.limit('30 per minute')
 def delete_upload():
     asset_type   = request.form.get('asset_type')
+    asset_field  = (request.form.get('asset_field') or '').strip()
     asset_id_raw = request.form.get('asset_id')
     try:
         asset_id = int(asset_id_raw) if asset_id_raw is not None else None
@@ -447,16 +512,30 @@ def delete_upload():
             flash('Nothing to delete.', 'warning')
         return redirect(url_for('admin.uploads'))
 
-    if asset_type == 'project':
+    if asset_type in {'project', 'comparison'}:
         project = _require_tenant_object(db.session.get(Project, asset_id))
-        if project and project.image:
-            delete_image(project.image, 'projects')
-            project.image = None
+        field_name = asset_field if asset_field in {'image', 'before_image', 'after_image'} else 'image'
+        media_value = getattr(project, field_name, '') if project else ''
+        if project and media_value:
+            delete_image(media_value, 'projects')
+            setattr(project, field_name, '')
             db.session.commit()
-            log_activity('delete', 'project', project.title, 'Deleted project image')
+            log_activity('delete', 'project', project.title, f'Deleted project media: {field_name}')
             flash(f'Image removed from project "{project.title}".', 'success')
         else:
             flash('Project image not found.', 'warning')
+        return redirect(url_for('admin.uploads'))
+
+    if asset_type == 'seo':
+        profile = _load_tenant_profile()
+        if profile and profile.og_image:
+            delete_image(profile.og_image, 'profiles')
+            profile.og_image = ''
+            db.session.commit()
+            log_activity('delete', 'profile', profile.name or profile.tenant_slug, 'Deleted social share image')
+            flash('Social share image deleted.', 'success')
+        else:
+            flash('Social share image not found.', 'warning')
         return redirect(url_for('admin.uploads'))
 
     if asset_type == 'testimonial':

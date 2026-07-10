@@ -143,7 +143,7 @@
         <article class="proj-card case-study-card browse-project-card" data-reveal>
           <a class="proj-cover" href="{{ case_url or '#' }}" aria-label="View case study for {{ project_title }}">
             {% if project.image %}
-              <img src="{{ project.image|upload_url('projects') }}" alt="Preview of {{ project_title }}" loading="lazy">
+              <img src="{{ project.image|upload_url('projects') }}" alt="{{ project.image_alt or ('Preview of ' ~ project_title) }}" loading="lazy">
             {% else %}
               <div class="project-cover-placeholder" aria-hidden="true">
                 <i class="bi bi-window-sidebar" aria-hidden="true"></i>

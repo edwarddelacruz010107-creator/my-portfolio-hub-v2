@@ -15,6 +15,7 @@ from typing import Optional
 from flask import (session, Blueprint, render_template, redirect, url_for,
                    flash, request, jsonify, current_app, Response, abort)
 from flask_login import login_required, current_user
+from sqlalchemy import or_
 
 from app import db
 from app.repositories import (
@@ -32,7 +33,7 @@ from app.repositories import (
 from app.models.portfolio import (Tenant, Profile, Skill, Project, Testimonial, Service,
                                    ActivityLog, Inquiry, InquiryReply, normalize_plan_name,
                                    get_plan_features)
-from app.forms import (ProfileForm, SkillForm, ProjectForm,
+from app.forms import (ProfileForm, SEOSettingsForm, SkillForm, ProjectForm,
                         TestimonialForm, ServiceForm, ChangePasswordForm,
                         PlanSelectionForm)
 from app.security import FileUploadPolicy, log_security_event
@@ -149,18 +150,124 @@ def edit_profile():
         profile_completion=get_profile_completion(profile),
     )
 
+@admin.route('/seo', methods=['GET', 'POST'])
+@admin_required
+def seo_settings():
+    """Portfolio-level search and social sharing controls."""
+    profile = _load_tenant_profile()
+    if not profile:
+        flash('Create your profile before configuring SEO.', 'warning')
+        return redirect(url_for('admin.edit_profile'))
+
+    form = SEOSettingsForm(obj=profile)
+    if request.method == 'GET':
+        form.seo_indexable.data = bool(getattr(profile, 'seo_indexable', True))
+
+    if form.validate_on_submit():
+        if form.remove_og_image.data and profile.og_image:
+            delete_image(profile.og_image, 'profiles')
+            profile.og_image = ''
+
+        if is_upload_file(form.og_image.data):
+            new_image, upload_error = save_image(
+                form.og_image.data,
+                'profiles',
+                max_size=(1600, 900),
+                quality=88,
+            )
+            if new_image:
+                if profile.og_image:
+                    delete_image(profile.og_image, 'profiles')
+                profile.og_image = new_image
+            elif upload_error:
+                flash(upload_error, 'warning')
+
+        profile.meta_title = (form.meta_title.data or '').strip()
+        profile.meta_description = (form.meta_description.data or '').strip()
+        profile.seo_keywords = (form.seo_keywords.data or '').strip()
+        profile.profile_image_alt = (form.profile_image_alt.data or '').strip()
+        profile.seo_indexable = bool(form.seo_indexable.data)
+        db.session.commit()
+
+        try:
+            from app import cache
+            cache.delete(f'portfolio_page:{profile.tenant_slug}')
+        except Exception:
+            logger.debug('Could not clear portfolio cache after SEO update', exc_info=True)
+
+        log_activity('update', 'seo', profile.name or profile.tenant_slug, 'Portfolio SEO settings updated')
+        flash('SEO settings saved.', 'success')
+        return redirect(url_for('admin.seo_settings'))
+
+    return render_template('admin/seo.html', form=form, profile=profile)
+
+def _persist_theme_selection(profile: Profile, theme_id: str) -> Profile:
+    """Persist a theme selection on every duplicate row for the same tenant.
+
+    A few older production databases can contain a duplicate Profile row after
+    bootstrap/import work.  Updating every row that belongs to the exact same
+    tenant keeps the Admin card, public portfolio, and custom-domain renderer
+    consistent while the canonical repository lookup selects one stable row.
+    """
+    slug = (getattr(profile, 'tenant_slug', None) or _active_tenant_slug()).strip().lower()
+    tenant_id = getattr(profile, 'tenant_id', None)
+
+    filters = [Profile.tenant_slug == slug]
+    if tenant_id is not None:
+        filters.append(Profile.tenant_id == tenant_id)
+
+    rows = Profile.query.filter(or_(*filters)).all()
+    if not rows:
+        rows = [profile]
+
+    seen = set()
+    for row in rows:
+        if row.id in seen:
+            continue
+        seen.add(row.id)
+        row.selected_theme = theme_id
+        db.session.add(row)
+
+    db.session.commit()
+    db.session.expire_all()
+
+    refreshed = profile_repository.get_by_tenant_slug(slug)
+    if refreshed is None or (refreshed.selected_theme or 'default') != theme_id:
+        raise RuntimeError('Theme selection did not persist to the canonical profile row.')
+    return refreshed
+
+
+def _clear_theme_page_cache(tenant_slug: str) -> None:
+    """Clear cached public portfolio output after a theme switch."""
+    try:
+        from app import cache
+        cache.delete(f'portfolio_page:{tenant_slug}')
+    except Exception:
+        logger.debug('Could not clear portfolio cache for theme switch tenant=%s', tenant_slug, exc_info=True)
+
+
 @admin.route('/appearance/themes')
 @admin_required
 def themes_index():
     """Theme picker — Appearance -> Themes."""
-    from app.theme_engine import get_theme_engine
+    from app.theme_engine import get_theme_engine, is_supported_theme_id
 
     engine = get_theme_engine()
-    profile = _load_tenant_profile()
+    profile = profile_repository.get_by_tenant_slug(_active_tenant_slug())
+
+    active_theme_id = (getattr(profile, 'selected_theme', None) or 'default') if profile else 'default'
+    if profile and not is_supported_theme_id(active_theme_id):
+        # A retired theme can remain in older DB rows after deployment. Repair
+        # it immediately so the UI and live portfolio have one active theme.
+        try:
+            profile = _persist_theme_selection(profile, 'default')
+            active_theme_id = 'default'
+        except Exception:
+            db.session.rollback()
+            logger.exception('Failed to normalize retired selected_theme=%s', active_theme_id)
+            active_theme_id = 'default'
 
     all_themes = engine.get_all_themes()
-    active_theme_id = (getattr(profile, 'selected_theme', None) or 'default') if profile else 'default'
-
     categories = set()
     for theme in all_themes:
         theme['_can_use'] = engine.can_use_theme(profile, theme['id'])
@@ -177,50 +284,75 @@ def themes_index():
         theme_categories=sorted(categories),
     )
 
+
 @admin.route('/appearance/themes/apply', methods=['POST'])
 @admin_required
 def apply_theme():
-    """Apply a theme to the active tenant. Never touches portfolio content."""
-    from app.theme_engine import get_theme_engine, is_valid_theme_id
+    """Apply a supported theme to the active tenant and verify persistence."""
+    from app.theme_engine import get_theme_engine, is_valid_theme_id, is_supported_theme_id
 
     engine = get_theme_engine()
-    profile = _load_tenant_profile()
-    theme_id = (request.form.get('theme_id') or '').strip()
+    tenant_slug = _active_tenant_slug()
+    profile = profile_repository.get_by_tenant_slug(tenant_slug)
+    theme_id = (request.form.get('theme_id') or '').strip().lower()
+
+    def _wants_json() -> bool:
+        return bool(request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest')
 
     def _fail(message, status):
-        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        if _wants_json():
             return jsonify(success=False, error=message), status
         flash(message, 'warning')
         return redirect(url_for('admin.themes_index'))
 
     if not profile:
         return _fail('No profile found for this tenant yet — set up your profile first.', 400)
-    if not is_valid_theme_id(theme_id) or not engine.get_theme_meta(theme_id):
-        return _fail('Theme not found.', 404)
+    if not is_valid_theme_id(theme_id) or not is_supported_theme_id(theme_id):
+        return _fail('This theme is not available.', 404)
+
+    meta = engine.get_theme_meta(theme_id)
+    if not meta:
+        return _fail('Theme files are incomplete or missing.', 404)
     if not engine.can_use_theme(profile, theme_id):
         return _fail('Upgrade your plan to unlock this theme.', 403)
 
-    profile.selected_theme = theme_id
+    try:
+        profile = _persist_theme_selection(profile, theme_id)
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception('Theme apply failed tenant=%s theme=%s: %s', tenant_slug, theme_id, exc)
+        return _fail('The theme could not be saved. Please try again.', 500)
 
-    # Increment install analytics counter on the catalog entry (if present).
-    # Must be done before commit so both writes land in the same transaction.
+    # Analytics is deliberately a separate best-effort transaction. A catalog
+    # counter failure must never roll back the already-persisted theme choice.
     try:
         from app.models.core import ThemeCatalogEntry
         catalog_entry = ThemeCatalogEntry.get_by_slug(theme_id)
         if catalog_entry:
             catalog_entry.increment_installs()
+            db.session.commit()
     except Exception:
-        pass  # analytics are non-critical — never block a theme switch
+        db.session.rollback()
+        logger.debug('Theme install analytics update failed for %s', theme_id, exc_info=True)
 
-    db.session.commit()
+    engine.clear_cache()
+    _clear_theme_page_cache(tenant_slug)
     log_activity('update', 'theme', theme_id, f'Theme switched to {theme_id}')
 
-    meta = engine.get_theme_meta(theme_id)
-    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return jsonify(success=True, theme=meta, message=f'Theme "{meta["name"]}" applied!')
+    message = f'Theme "{meta["name"]}" applied! Your live portfolio is now using it.'
+    if _wants_json():
+        return jsonify(
+            success=True,
+            theme=meta,
+            active_theme_id=profile.selected_theme,
+            message=message,
+            portfolio_url=url_for('public.administrator_portfolio') if tenant_slug == 'default'
+                          else url_for('tenant.portfolio', tenant_slug=tenant_slug),
+        )
 
-    flash(f'Theme "{meta["name"]}" applied! Your live portfolio is now using it.', 'success')
+    flash(message, 'success')
     return redirect(url_for('admin.themes_index'))
+
 
 @admin.route('/appearance/themes/<theme_id>/preview')
 @admin_required

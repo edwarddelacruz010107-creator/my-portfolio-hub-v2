@@ -30,3 +30,8 @@ CONVERT_UPLOADS_TO_WEBP=true
 UPLOAD_WEBP_QUALITY=82
 UPLOAD_IMAGE_MAX_DIMENSION=2048
 
+
+# Company credibility / public legal pages
+COMPANY_NAME=MyPortfolioHub
+SUPPORT_EMAIL=hello@myportfoliohub.online
+COMPANY_LOCATION=Philippines

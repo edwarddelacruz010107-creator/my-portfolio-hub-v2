@@ -36,6 +36,17 @@ THEMES_DIR = os.path.join(os.path.dirname(__file__), '..', 'themes')
 DEFAULT_THEME = 'default'
 FALLBACK_THEME = 'default'
 
+# Curated production theme set.  Only these themes are discoverable,
+# previewable, or selectable.  Keeping the allowlist in the engine prevents
+# retired theme folders/catalog rows from reappearing after a deploy or sync.
+SUPPORTED_THEME_IDS = (
+    'default',
+    'developer_pro',
+    'blockform_brutal',
+    'schematic_spec',
+)
+SUPPORTED_THEME_ID_SET = frozenset(SUPPORTED_THEME_IDS)
+
 # Theme ids are directory names. Whitelist strictly -- this is the
 # single choke point that prevents path traversal regardless of where
 # the theme_id originated (DB column, query string, form field).
@@ -44,6 +55,11 @@ _VALID_THEME_ID = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$')
 
 def is_valid_theme_id(theme_id: Optional[str]) -> bool:
     return bool(theme_id) and bool(_VALID_THEME_ID.match(theme_id))
+
+
+def is_supported_theme_id(theme_id: Optional[str]) -> bool:
+    """Return True only for an installed, product-supported theme id."""
+    return bool(theme_id) and str(theme_id).strip().lower() in SUPPORTED_THEME_ID_SET
 
 
 import time as _time  # used by ThemeRegistry TTL cache
@@ -122,7 +138,7 @@ class ThemeRegistry:
         return meta
 
     def _load_theme_meta(self, theme_id: str) -> Optional[dict]:
-        if not is_valid_theme_id(theme_id):
+        if not is_valid_theme_id(theme_id) or not is_supported_theme_id(theme_id):
             return None
         meta_path = os.path.join(self.themes_dir, theme_id, 'theme.json')
         if not os.path.isfile(meta_path):
@@ -152,7 +168,8 @@ class ThemeRegistry:
         if not os.path.isdir(self.themes_dir):
             return themes
         for dir_entry in os.scandir(self.themes_dir):
-            if dir_entry.is_dir() and not dir_entry.name.startswith('_') and is_valid_theme_id(dir_entry.name):
+            if (dir_entry.is_dir() and not dir_entry.name.startswith('_')
+                    and is_valid_theme_id(dir_entry.name) and is_supported_theme_id(dir_entry.name)):
                 if not self.exists(dir_entry.name):
                     continue  # metadata without templates isn't installed -- skip from listings
                 meta = self._load_theme_meta(dir_entry.name)
@@ -164,7 +181,7 @@ class ThemeRegistry:
         return themes
 
     def get(self, theme_id: str) -> Optional[dict]:
-        if not is_valid_theme_id(theme_id):
+        if not is_valid_theme_id(theme_id) or not is_supported_theme_id(theme_id):
             return None
         cached = self._cache.get(theme_id)
         if cached is not None:
@@ -179,7 +196,7 @@ class ThemeRegistry:
 
     def exists(self, theme_id: str) -> bool:
         """A theme 'exists' only if it has BOTH metadata and a templates/index.html."""
-        if not is_valid_theme_id(theme_id):
+        if not is_valid_theme_id(theme_id) or not is_supported_theme_id(theme_id):
             return False
         template_dir = os.path.join(self.themes_dir, theme_id, 'templates')
         index_file = os.path.join(template_dir, 'index.html')
@@ -221,7 +238,8 @@ class ThemeEngine:
         theme_loaders = {}
         if os.path.isdir(THEMES_DIR):
             for theme_dir in os.scandir(THEMES_DIR):
-                if theme_dir.is_dir() and is_valid_theme_id(theme_dir.name):
+                if (theme_dir.is_dir() and is_valid_theme_id(theme_dir.name)
+                        and is_supported_theme_id(theme_dir.name)):
                     tpl = os.path.join(theme_dir.path, 'templates')
                     if os.path.isdir(tpl):
                         theme_loaders[theme_dir.name] = FileSystemLoader(tpl)

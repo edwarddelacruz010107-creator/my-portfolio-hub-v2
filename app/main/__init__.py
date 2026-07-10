@@ -100,7 +100,15 @@ def sitemap_xml():
     # doesn't touch the per-tenant loop below.
     today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
     urls.append({'loc': request.host_url.rstrip('/') + '/', 'lastmod': today, 'changefreq': 'daily', 'priority': '1.0'})
-    for endpoint, prio in (('public.explore', '0.9'), ('public.feed', '0.9'), ('public.pricing', '0.8')):
+    for endpoint, prio in (
+        ('public.explore', '0.9'),
+        ('public.projects', '0.9'),
+        ('public.themes', '0.8'),
+        ('public.pricing', '0.8'),
+        ('public.about_company', '0.7'),
+        ('public.privacy', '0.4'),
+        ('public.terms', '0.4'),
+    ):
         try:
             urls.append({'loc': url_for(endpoint, _external=True), 'lastmod': today, 'changefreq': 'daily', 'priority': prio})
         except Exception:
@@ -114,18 +122,14 @@ def sitemap_xml():
 
         for tenant in tenants:
             profile = profile_repository.get_by_tenant_id(tenant.id)
-            if not profile:
+            if not profile or not bool(getattr(profile, 'seo_indexable', True)):
                 continue
 
-            # Tenant homepage
-            if tenant.is_root_domain if hasattr(tenant, 'is_root_domain') else False:
-                homepage_url = request.host_url.rstrip('/')
-            else:
-                homepage_url = url_for(
-                    'tenant.portfolio',
-                    tenant_slug=tenant.slug,
-                    _external=True,
-                )
+            from app.services.custom_domain_service import (
+                tenant_portfolio_public_url,
+                tenant_project_public_url,
+            )
+            homepage_url = tenant_portfolio_public_url(tenant.slug, external=True)
 
             lastmod = (
                 profile.updated_at.strftime('%Y-%m-%d')
@@ -144,18 +148,14 @@ def sitemap_xml():
             projects = (
                 Project.query
                 .filter_by(tenant_slug=tenant.slug, status='published')
+                .filter(Project.case_study_enabled.is_(True))
                 .order_by(Project.id.desc())
                 .all()
             )
             for project in projects:
                 if not project.slug:
                     continue
-                proj_url = url_for(
-                    'tenant.project_detail',
-                    tenant_slug=tenant.slug,
-                    slug=project.slug,
-                    _external=True,
-                )
+                proj_url = tenant_project_public_url(tenant.slug, project.slug, external=True)
                 proj_lastmod = (
                     project.updated_at.strftime('%Y-%m-%d')
                     if hasattr(project, 'updated_at') and project.updated_at
@@ -247,6 +247,7 @@ def project_detail(slug: str):
     project = (
         Project.query
         .filter_by(slug=slug, status='published')
+        .filter(Project.case_study_enabled.is_(True))
         .first_or_404()
     )
     # Redirect to the best canonical public URL. If the tenant has a verified

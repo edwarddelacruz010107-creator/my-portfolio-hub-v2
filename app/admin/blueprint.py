@@ -241,12 +241,16 @@ def _tenant_media_upload_count() -> int:
     """Count all tenant-owned uploaded media slots used in the admin portal.
 
     Keep this in sync with /admin/uploads so plan quota checks count the same
-    files the tenant can see and manage: profile, project, testimonial,
-    certificate image, and certificate badge uploads.
+    files the tenant can see and manage: profile, SEO share, project cover,
+    before/after comparison, testimonial, certificate, and badge uploads.
     """
     profile = _load_tenant_profile()
     count = 1 if profile and profile.profile_image else 0
+    if profile and profile.og_image:
+        count += 1
     count += _tenant_slug_filter(project_repository.query).filter(Project.image != None).filter(Project.image != '').count()
+    count += _tenant_slug_filter(project_repository.query).filter(Project.before_image != None).filter(Project.before_image != '').count()
+    count += _tenant_slug_filter(project_repository.query).filter(Project.after_image != None).filter(Project.after_image != '').count()
     count += _tenant_slug_filter(testimonial_repository.query).filter(Testimonial.author_avatar != None).filter(Testimonial.author_avatar != '').count()
     count += _tenant_slug_filter(certificate_repository.query).filter(Certificate.image_path != None).filter(Certificate.image_path != '').count()
     count += _tenant_slug_filter(certificate_repository.query).filter(Certificate.badge_path != None).filter(Certificate.badge_path != '').count()

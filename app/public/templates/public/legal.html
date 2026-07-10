@@ -1,5 +1,6 @@
 {% extends 'public/_base.html' %}
 {% set is_privacy = page == 'privacy' %}
+{% set support_email = config.get('SUPPORT_EMAIL', 'hello@myportfoliohub.online') %}
 {% block title %}{{ 'Privacy Policy' if is_privacy else 'Terms of Service' }} — MyPortfolioHub{% endblock %}
 {% block meta_desc %}{{ 'How MyPortfolioHub collects, uses, and protects platform information.' if is_privacy else 'Terms and conditions for using MyPortfolioHub.' }}{% endblock %}
 
@@ -30,7 +31,7 @@
       <h2>6. Data retention</h2>
       <p>We retain account, billing, portfolio, and message data while your account or tenant workspace is active, unless deletion is requested or required by law.</p>
       <h2>7. Contact</h2>
-      <p>For privacy questions, contact the platform administrator at <a href="mailto:hello@myportfoliohub.online">hello@myportfoliohub.online</a>.</p>
+      <p>For privacy questions, contact the platform administrator at <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</p>
     </article>
     {% else %}
     <article class="ph-legal-card">
@@ -47,7 +48,7 @@
       <h2>6. Termination</h2>
       <p>Accounts or tenant workspaces may be suspended or removed for abuse, security risks, unpaid subscriptions, or violation of these terms.</p>
       <h2>7. Contact</h2>
-      <p>For terms or account questions, contact <a href="mailto:hello@myportfoliohub.online">hello@myportfoliohub.online</a>.</p>
+      <p>For terms or account questions, contact <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</p>
     </article>
     {% endif %}
   </div>

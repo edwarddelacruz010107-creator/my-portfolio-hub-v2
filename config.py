@@ -130,6 +130,9 @@ class BaseConfig:
     # Set them as Render environment variables; never hardcode values here.
     SUPERADMIN_USERNAME = os.environ.get('SUPERADMIN_USERNAME', 'superadmin')
     SUPERADMIN_EMAIL    = os.environ.get('SUPERADMIN_EMAIL', 'superadmin@portfolio.local')
+    SUPPORT_EMAIL       = os.environ.get('SUPPORT_EMAIL', 'hello@myportfoliohub.online')
+    COMPANY_NAME        = os.environ.get('COMPANY_NAME', 'MyPortfolioHub')
+    COMPANY_LOCATION    = os.environ.get('COMPANY_LOCATION', 'Philippines')
 
     # ─────────────────────────────────────────────────────────────────
     # GOOGLE OAUTH (second login method for EXISTING tenant-admin users)

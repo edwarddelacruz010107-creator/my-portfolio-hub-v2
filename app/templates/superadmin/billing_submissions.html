@@ -288,6 +288,7 @@
       {% set sub = submission.subscription %}
       {% set proof = submission.payment_proof %}
       {% set is_image = proof and (proof.lower().endswith('.jpg') or proof.lower().endswith('.jpeg') or proof.lower().endswith('.png') or proof.lower().endswith('.webp')) %}
+      {% set payment_code = submission.currency_code or 'USD' %}
       <tr data-submission-id="{{ submission.id }}">
         <td style="white-space:nowrap">{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') if submission.submitted_at else '—' }}</td>
         <td><strong>{{ submission.tenant.slug if submission.tenant else 'Unknown' }}</strong></td>
@@ -297,15 +298,15 @@
            to the tenant's self-reported figure so a mismatch is visible without
            the reviewer manually recomputing list_price - coupon per row. #}
         <td>
-          {% if submission.amount_paid %}{{ submission.amount_paid|billing_money }}{% else %}—{% endif %}
+          {% if submission.amount_paid %}{{ '%.2f'|format(submission.amount_paid) }} {{ payment_code }}{% else %}—{% endif %}
           {% if submission.expected_amount is not none %}
             {% set diff = (submission.amount_paid or 0) - submission.expected_amount %}
             {% if diff < -0.01 %}
-              <span class="badge bg-danger" title="Expected {{ submission.expected_amount|billing_money }} — short by {{ (-diff)|billing_money }}">⚠ under expected</span>
+              <span class="badge bg-danger" title="Expected {{ '%.2f'|format(submission.expected_amount) }} {{ payment_code }} — short by {{ '%.2f'|format(-diff) }} {{ payment_code }}">⚠ under expected</span>
             {% elif diff > 0.01 %}
-              <span class="badge bg-warning text-dark" title="Expected {{ submission.expected_amount|billing_money }} — over by {{ diff|billing_money }}">over expected</span>
+              <span class="badge bg-warning text-dark" title="Expected {{ '%.2f'|format(submission.expected_amount) }} {{ payment_code }} — over by {{ '%.2f'|format(diff) }} {{ payment_code }}">over expected</span>
             {% else %}
-              <span class="badge bg-success" title="Matches expected {{ submission.expected_amount|billing_money }}">✓ matches</span>
+              <span class="badge bg-success" title="Matches expected {{ '%.2f'|format(submission.expected_amount) }} {{ payment_code }}">✓ matches</span>
             {% endif %}
           {% else %}
             <span class="text-muted small" title="No reference price captured for this submission (pre-fix record or quote failed)">no reference</span>
@@ -350,7 +351,7 @@
                     data-proof-type="image"
                     data-proof-ref="{{ submission.payment_reference or '' }}"
                     data-proof-tenant="{{ submission.tenant.slug if submission.tenant else '' }}"
-                    data-proof-amount="{{ (submission.amount_paid|billing_money) if submission.amount_paid else '—' }}"
+                    data-proof-amount="{{ ('%.2f'|format(submission.amount_paid) ~ ' ' ~ payment_code) if submission.amount_paid else '—' }}"
                     data-proof-method="{{ submission.payment_method or '' }}"
                     data-proof-date="{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') if submission.submitted_at else '' }}"
                     title="Click to verify proof">
@@ -366,7 +367,7 @@
                     data-proof-type="document"
                     data-proof-ref="{{ submission.payment_reference or '' }}"
                     data-proof-tenant="{{ submission.tenant.slug if submission.tenant else '' }}"
-                    data-proof-amount="{{ (submission.amount_paid|billing_money) if submission.amount_paid else '—' }}"
+                    data-proof-amount="{{ ('%.2f'|format(submission.amount_paid) ~ ' ' ~ payment_code) if submission.amount_paid else '—' }}"
                     data-proof-method="{{ submission.payment_method or '' }}"
                     data-proof-date="{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') if submission.submitted_at else '' }}"
                     title="Open proof document">
@@ -401,8 +402,8 @@
                     data-submission-id="{{ submission.id }}"
                     data-submission-tenant="{{ submission.tenant.slug if submission.tenant else '?' }}"
                     data-submission-plan="{{ submission.plan }}"
-                    data-submission-amount="{{ submission.amount_paid|billing_money }}"
-                    data-submission-expected="{{ (submission.expected_amount|billing_money) if submission.expected_amount is not none else '' }}"
+                    data-submission-amount="{{ '%.2f'|format(submission.amount_paid or 0) }} {{ payment_code }}"
+                    data-submission-expected="{{ ('%.2f'|format(submission.expected_amount) ~ ' ' ~ payment_code) if submission.expected_amount is not none else '' }}"
                     data-review-url="{{ url_for('superadmin.billing_submission_review', submission_id=submission.id) }}"
                     title="Approve — activates subscription">
               <iconify-icon icon="lucide:check" width="14"></iconify-icon>
@@ -414,8 +415,8 @@
                     data-submission-id="{{ submission.id }}"
                     data-submission-tenant="{{ submission.tenant.slug if submission.tenant else '?' }}"
                     data-submission-plan="{{ submission.plan }}"
-                    data-submission-amount="{{ submission.amount_paid|billing_money }}"
-                    data-submission-expected="{{ (submission.expected_amount|billing_money) if submission.expected_amount is not none else '' }}"
+                    data-submission-amount="{{ '%.2f'|format(submission.amount_paid or 0) }} {{ payment_code }}"
+                    data-submission-expected="{{ ('%.2f'|format(submission.expected_amount) ~ ' ' ~ payment_code) if submission.expected_amount is not none else '' }}"
                     data-review-url="{{ url_for('superadmin.billing_submission_review', submission_id=submission.id) }}"
                     title="Reject payment submission">
               <iconify-icon icon="lucide:x" width="14"></iconify-icon>

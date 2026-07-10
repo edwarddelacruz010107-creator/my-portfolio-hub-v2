@@ -3,6 +3,13 @@
 {% block title %}All Tenants{% endblock %}
 {% block page_title %}Tenant Management{% endblock %}
 
+{% block extra_css %}
+<style>
+.country-pill{display:inline-flex;align-items:center;gap:.4rem;padding:.32rem .55rem;border-radius:999px;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.18);font-size:.75rem;font-weight:700;white-space:nowrap;color:var(--text-muted)}
+@media(max-width:900px){.country-pill{justify-content:flex-end}}
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- ── PAGE HEADER ──────────────────────────────────────── -->
 <div class="page-header">
@@ -100,6 +107,7 @@
         <th>Tenant</th>
         <th>Slug</th>
         <th>Owner Email</th>
+        <th>Country</th>
         <th>Plan</th>
         <th>Trial Left</th>
         <th>Status</th>
@@ -140,6 +148,18 @@
             <span class="td-email-text">{{ owner.email }}</span>
           {% elif t.email %}
             <span class="td-email-text">{{ t.email }}</span>
+          {% else %}
+            <span class="text-dim">—</span>
+          {% endif %}
+        </td>
+
+        <!-- Country -->
+        <td data-label="Country">
+          {% set country = country_map.get(t.tenant_slug) if country_map is defined else None %}
+          {% if country %}
+            <span class="country-pill" title="Preferred billing currency: {{ country.currency }}">
+              <span aria-hidden="true">{{ country.flag }}</span> {{ country.name }}
+            </span>
           {% else %}
             <span class="text-dim">—</span>
           {% endif %}

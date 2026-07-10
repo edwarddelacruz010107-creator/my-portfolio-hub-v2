@@ -16,6 +16,7 @@ import os as _os
 import base64 as _base64
 import logging as _logging
 from datetime import datetime, timezone, timedelta
+from decimal import Decimal
 
 import pyotp
 from flask import current_app
@@ -329,6 +330,12 @@ class Tenant(db.Model):
     grace_period_ends_at = db.Column(db.DateTime(timezone=True), nullable=True)
     subscription_started_at = db.Column(db.DateTime(timezone=True), nullable=True)
     subscription_expires_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    # Tenant-confirmed billing location. Country selects a suggested payment currency;
+    # plan prices remain authoritative in USD.
+    country_code = db.Column(db.String(2), nullable=True)
+    preferred_currency = db.Column(db.String(3), nullable=True)
+    country_source = db.Column(db.String(30), nullable=False, default='unconfirmed', server_default='unconfirmed')
+    country_updated_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
     updated_at = db.Column(db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
@@ -1159,6 +1166,10 @@ class PaymentSubmission(db.Model):
     payment_method_id = db.Column(db.Integer, db.ForeignKey('payment_methods.id'), nullable=True, index=True)
     plan              = db.Column(db.String(50), nullable=False, default='Basic')
     amount_paid       = db.Column(db.Float, default=0.0)
+    amount_usd        = db.Column(db.Float, nullable=True)
+    currency_code     = db.Column(db.String(3), nullable=False, default='USD', server_default='USD')
+    exchange_rate     = db.Column(db.Numeric(18, 8), nullable=True)
+    country_code      = db.Column(db.String(2), nullable=True)
     # FIX [MED-COUPON-01]: system-computed reference price at submission time
     # (list price for `plan`/billing_cycle minus any validated coupon),
     # captured via discount_checkout.quote_for_context() in
@@ -1187,6 +1198,8 @@ class PaymentSubmission(db.Model):
         for k, v in d.items():
             if isinstance(v, datetime):
                 d[k] = v.isoformat()
+            elif isinstance(v, Decimal):
+                d[k] = float(v)
         return d
 
     def __repr__(self):

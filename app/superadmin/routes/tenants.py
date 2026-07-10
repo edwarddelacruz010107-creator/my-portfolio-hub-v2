@@ -78,6 +78,7 @@ from app.services.billing import (
 )
 from app.services.billing.trial_limits import get_trial_duration_days
 from app.services.billing.trial_history import ensure_trial_subscription_record
+from app.services.billing.countries import country_details
 from app.services.auth.email_policy import EmailPolicyError, assert_email_allowed_for_user, normalize_email
 
 
@@ -216,6 +217,7 @@ def tenants():
     days_active_map = {}
     trial_days_remaining_map = {}
     plan_label_map = {}
+    country_map = {}
     now = datetime.now(timezone.utc)
     for tenant in tenant_page.items:
         updated_at = _normalize_timestamp(tenant.updated_at)
@@ -227,6 +229,8 @@ def tenants():
         core_tenant = core_tenants_by_slug.get(tenant.tenant_slug)
         plan_label_map[tenant.tenant_slug] = _effective_plan_label(tenant, core_tenant)
         trial_days_remaining_map[tenant.tenant_slug] = _trial_days_remaining(tenant, core_tenant)
+        country_code = getattr(core_tenant, "country_code", None) if core_tenant else None
+        country_map[tenant.tenant_slug] = country_details(country_code) if country_code else None
 
     return render_template(
         'superadmin/tenants.html',
@@ -240,6 +244,7 @@ def tenants():
         days_active_map=days_active_map,
         plan_label_map=plan_label_map,
         trial_days_remaining_map=trial_days_remaining_map,
+        country_map=country_map,
     )
 
 @superadmin.route('/tenants/new', methods=['GET', 'POST'])

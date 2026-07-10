@@ -80,6 +80,8 @@ if [ "$RUN_MIGRATIONS" = "true" ]; then
   if [ "${USE_ORM_BOOTSTRAP_ON_STARTUP:-false}" = "true" ]; then
     echo "Running first-deploy ORM schema bootstrap..."
     flask bootstrap-production-db
+    echo "Applying incremental Alembic migrations after bootstrap..."
+    flask db upgrade
   else
     echo "Running Alembic migrations..."
     if ! flask db upgrade; then

@@ -1,7 +1,6 @@
 {% extends "admin/base.html" %}
-
 {% block page_title %}Billing — Payment{% endblock %}
-
-{% block content %}
-  {% include 'billing/_payment.html' %}
+{% block content %}{% include 'billing/_payment.html' %}{% endblock %}
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/billing-payment.js') }}?v=20260710-country-currency"></script>
 {% endblock %}

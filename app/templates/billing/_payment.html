@@ -1,408 +1,318 @@
-<div class="page-hd">
-  <div class="page-hd-left">
-    <h1>Complete Your Payment</h1>
-    <p>
-      Paying via <strong>{{ payment_method.name }}</strong>
-      {% set _plan = subscription.plan if subscription else profile.plan or 'Basic' %}
-      &mdash; <strong>{{ _plan }}</strong> plan
-      ({{ billing_cycle | capitalize }})
-    </p>
-  </div>
-  <div class="page-hd-right">
-    <span class="activation-eta-badge">
-      <iconify-icon icon="lucide:clock" width="14"></iconify-icon>
-      {{ activation_eta|default('Usually within 24 hours') }} to activate
-    </span>
-  </div>
-</div>
+{% set _plan = subscription.plan if subscription else profile.plan or 'Basic' %}
+<div class="payment-page" id="paymentCheckout"
+     data-quote-url="{{ quote_url }}"
+     data-billing-cycle="{{ billing_cycle }}">
 
-{# ── Billing breakdown ──────────────────────────────────────────────────
-   CRIT-09 FIX: billing_payment_context() already computes discount_quote
-   (amount_before/amount_discounted/amount_after + campaign code) and
-   passes it here — this template never rendered it, so a tenant paying
-   a discounted total saw only a bare "Send ₱X" with no indication a
-   coupon was applied or what they saved. Reuses the exact markup/style
-   already established in _coupon_partial.html (the plans-page equivalent)
-   rather than inventing a second visual language for the same data. #}
-{% if discount_quote and discount_quote.has_discount %}
-<div class="coupon-summary" style="border:1px solid var(--success-border,#b7ebc6);background:var(--success-bg,#f0fbf3);padding:.75rem 1rem;border-radius:.5rem;margin-bottom:1.25rem">
-  <div style="display:flex;justify-content:space-between;margin-bottom:.25rem">
-    <span>Original</span>
-    <span>{{ currency.symbol }}{{ '%.2f'|format(discount_quote.amount_before) }} {{ currency.display_currency }}</span>
-  </div>
-  <div style="display:flex;justify-content:space-between;margin-bottom:.25rem;color:var(--success,#1a7f37)">
-    <span>
-      Discount
-      {% if discount_quote.campaign and discount_quote.campaign.code %}
-        <small>({{ discount_quote.campaign.code }})</small>
-      {% elif discount_quote.campaign %}
-        <small>({{ discount_quote.campaign.name }})</small>
-      {% endif %}
-      {% if discount_quote.amount_before %}
-      <small>&middot; {{ '%.0f'|format((discount_quote.amount_discounted / discount_quote.amount_before) * 100) }}% off</small>
-      {% endif %}
-    </span>
-    <span>− {{ currency.symbol }}{{ '%.2f'|format(discount_quote.amount_discounted) }}</span>
-  </div>
-  <div style="display:flex;justify-content:space-between;font-weight:600;border-top:1px solid var(--success-border,#b7ebc6);padding-top:.4rem;margin-top:.4rem">
-    <span>Amount to Pay</span>
-    <span>{{ currency.symbol }}{{ '%.2f'|format(discount_quote.amount_after) }} {{ currency.display_currency }}</span>
-  </div>
-</div>
-{% endif %}
+  <header class="payment-page-header">
+    <div>
+      <span class="payment-eyebrow">
+        <iconify-icon icon="lucide:shield-check" width="15"></iconify-icon>
+        Secure manual checkout
+      </span>
+      <h1>Complete Your Payment</h1>
+      <p>Review the exact amount, pay through <strong>{{ payment_method.name }}</strong>, and upload your proof for verification.</p>
+    </div>
+    <div class="payment-header-badges">
+      <span class="payment-pill payment-pill--plan">{{ _plan }} · {{ billing_cycle|capitalize }}</span>
+      <span class="payment-pill payment-pill--eta">
+        <iconify-icon icon="lucide:clock-3" width="14"></iconify-icon>
+        {{ activation_eta|default('Usually within 24 hours') }}
+      </span>
+    </div>
+  </header>
 
-{# ── Step progress bar ── #}
-<div class="payment-steps-bar">
-  <div class="pstep pstep--active">
-    <span class="pstep-num">1</span>
-    <span class="pstep-label">{% if payment_method.qr_image %}Scan QR / Transfer{% else %}Transfer{% endif %}</span>
-  </div>
-  <div class="pstep-connector"></div>
-  <div class="pstep pstep--active">
-    <span class="pstep-num">2</span>
-    <span class="pstep-label">Enter Reference</span>
-  </div>
-  <div class="pstep-connector"></div>
-  <div class="pstep pstep--active">
-    <span class="pstep-num">3</span>
-    <span class="pstep-label">Upload Screenshot</span>
-  </div>
-</div>
+  <section class="checkout-summary" aria-label="Payment summary">
+    <div class="checkout-summary__icon">
+      <iconify-icon icon="lucide:receipt-text" width="27"></iconify-icon>
+    </div>
+    <div class="checkout-summary__copy">
+      <span>Amount due</span>
+      <strong id="checkoutAmountLabel">{{ suggested_amount_label }}</strong>
+      <small id="baseUsdAmount">Base price after discount: ${{ '%.2f'|format(suggested_amount_usd) }} USD</small>
+    </div>
+    <div class="checkout-summary__status">
+      <span class="status-dot"></span>
+      Amount locked by the server
+    </div>
+  </section>
 
-<div class="payment-layout">
-  <form method="post" enctype="multipart/form-data" id="paymentForm">
+  <form method="post" enctype="multipart/form-data" id="paymentForm" novalidate>
     {{ form.hidden_tag() }}
     {{ form.payment_method_id() }}
 
-    {# ── Step 1: payment instructions + inline QR (mobile) ── #}
-    <div class="payment-form-card">
-      <h3><span class="step-num">1</span>
-        {% if payment_method.qr_image %}Scan QR Code or Transfer{% else %}Make the Transfer{% endif %}
-      </h3>
-      <p class="payment-card-subtitle">
-        Send <strong>{{ suggested_amount_label }}</strong>
-        to the account below, then continue to step 2.
-      </p>
-
-      {# inline QR — visible only on mobile; desktop shows it in the sidebar #}
-      {% if payment_method.qr_image %}
-      <div class="payment-qr-inline">
-        <div class="payment-qr-frame">
-          <img src="{{ payment_method.qr_image|upload_url('billing') }}"
-               alt="QR code for {{ payment_method.name }}" class="payment-qr-img" />
+    <section class="billing-country-card">
+      <div class="country-card-heading">
+        <div class="country-card-icon">
+          <iconify-icon icon="lucide:globe-2" width="22"></iconify-icon>
         </div>
-        <p class="payment-qr-caption">Scan with your {{ payment_method.name }} app</p>
+        <div>
+          <h2>Billing country and local currency</h2>
+          <p>Select where you are paying from. Your subscription price remains based in USD and is converted securely on the server.</p>
+        </div>
       </div>
-      {% endif %}
 
-      <div class="method-details-block">
-        <div class="paymongo-method-row">
-          <iconify-icon icon="{{ payment_method.icon }}" width="22"></iconify-icon>
-          <div>
-            <strong>{{ payment_method.name }}</strong>
-            <div style="font-size:0.8rem;color:var(--text-muted)">{{ payment_method.type_label }}</div>
-          </div>
-          <span class="badge-status badge-active" style="margin-left:auto">Selected</span>
-        </div>
-
-        {% if payment_method.account_name %}
-        <div class="instruction-row">
-          <span class="key">Account Name</span>
-          <span class="val">{{ payment_method.account_name }}</span>
-        </div>
-        {% endif %}
-        {% if payment_method.account_number %}
-        <div class="instruction-row">
-          <span class="key">Number</span>
-          <span class="val">
-            {{ payment_method.account_number }}
-            <button type="button" class="copy-btn js-copy-payment" data-copy="{{ payment_method.account_number|e }}">Copy</button>
-          </span>
-        </div>
-        {% endif %}
-        {% if payment_method.mobile_number %}
-        <div class="instruction-row">
-          <span class="key">Mobile</span>
-          <span class="val">
-            {{ payment_method.mobile_number }}
-            <button type="button" class="copy-btn js-copy-payment" data-copy="{{ payment_method.mobile_number|e }}">Copy</button>
-          </span>
-        </div>
-        {% endif %}
-        {% if payment_method.bank_name %}
-        <div class="instruction-row">
-          <span class="key">Bank</span>
-          <span class="val">{{ payment_method.bank_name }}</span>
-        </div>
-        {% endif %}
-        {% if payment_method.instructions %}
-        <p class="instruction-description" style="margin-top:0.75rem">{{ payment_method.instructions }}</p>
-        {% endif %}
-      </div>
-    </div>
-
-    {# ── Step 2: reference + amount ── #}
-    <div class="payment-form-card">
-      <h3><span class="step-num">2</span> Enter Transaction Details</h3>
-      <p class="payment-card-subtitle">
-        After sending, enter the reference number shown in your {{ payment_method.name }} app.
-      </p>
-
-      <div class="form-row-group">
+      <div class="country-card-grid">
         <div class="form-group">
-          <label class="field-label" for="payment_reference">
-            Transaction Reference / ID <span class="required">*</span>
-          </label>
-          {{ form.payment_reference(class="field-input", id="payment_reference",
-             placeholder="e.g. TXN-123456789") }}
-          {% for e in form.payment_reference.errors %}
-            <span class="field-error">{{ e }}</span>
-          {% endfor %}
-        </div>
-        <div class="form-group">
-          <label class="field-label" for="amount_paid_display">
-            Fixed Amount to Pay
-          </label>
-          {{ form.amount_paid(id="amount_paid") }}
-          <div class="fixed-amount-field" id="amount_paid_display" aria-label="Fixed payable amount">
-            <span>{{ currency.symbol }}</span>
-            <strong>{{ '%.2f'|format(suggested_amount) }}</strong>
-            <small>{{ currency.display_currency }}</small>
-            <iconify-icon icon="lucide:lock-keyhole" width="16" aria-hidden="true"></iconify-icon>
+          <label class="field-label" for="billingCountry">Country <span class="required">*</span></label>
+          <div class="select-shell">
+            <iconify-icon icon="lucide:map-pin" width="17"></iconify-icon>
+            <select class="field-input" id="billingCountry" name="country_code" required>
+              {% for country in countries %}
+                <option value="{{ country.code }}" data-currency="{{ country.currency }}"
+                        {% if country.code == selected_country.code %}selected{% endif %}>
+                  {{ country.flag }} {{ country.name }} — {{ country.currency }}
+                </option>
+              {% endfor %}
+            </select>
           </div>
-          <div class="field-hint">Calculated by the system from your plan, billing cycle, and valid discount. It cannot be edited.</div>
-          {% for e in form.amount_paid.errors %}
-            <span class="field-error">{{ e }}</span>
-          {% endfor %}
+          <span class="field-hint">Philippines is selected by default for new accounts. You can change it anytime.</span>
+        </div>
+
+        <div class="currency-readout" aria-live="polite">
+          <span class="currency-readout__label">Your payment currency</span>
+          <strong id="countryCurrencyLabel">{{ selected_country.flag }} {{ currency.display_currency }}</strong>
+          <span id="fxRateText">
+            {% if currency.display_currency == 'USD' %}
+              No conversion required
+            {% else %}
+              1 USD = {{ '%.4f'|format(fx.rate or 1) }} {{ currency.display_currency }}
+            {% endif %}
+          </span>
+          <small id="fxProviderText">
+            Rate source: {{ fx.provider|default('fixed')|replace('-', ' ')|title }}
+            {% if fx.stale %} · cached rate{% endif %}
+          </small>
         </div>
       </div>
 
-      <div class="form-group">
-        <label class="field-label" for="payment_note">Note (Optional)</label>
-        {{ form.payment_note(class="field-input", id="payment_note",
-           placeholder="Any additional context for the reviewer") }}
+      <div class="fx-message{% if not fx_available %} fx-message--error{% endif %}" id="fxMessage" role="status">
+        <iconify-icon icon="{% if fx_available %}lucide:refresh-cw{% else %}lucide:triangle-alert{% endif %}" width="15"></iconify-icon>
+        <span>
+          {% if fx_available %}
+            The amount updates automatically when you change country. The final rate is captured with your payment submission.
+          {% else %}
+            The selected currency rate is unavailable. Choose USD or try again before submitting.
+          {% endif %}
+        </span>
       </div>
-    </div>
+    </section>
 
-    {# ── Step 3: screenshot upload ── #}
-    <div class="payment-form-card">
-      <h3><span class="step-num">3</span> Upload Payment Screenshot</h3>
-      <p class="payment-card-subtitle">
-        Attach proof of the successful transaction from your {{ payment_method.name }} app. This file is required before submission.
-        <br><small style="color:var(--text-muted)">JPG · PNG · WebP · PDF — max 10 MB</small>
-      </p>
-
-      <div class="form-group">
-        <div class="upload-zone" id="uploadZone">
-          {{ form.payment_proof(id="paymentProofInput", accept="image/png,image/jpeg,image/webp,application/pdf", required=true) }}
-          <div class="upload-zone-content" id="uploadZoneContent">
-            <div class="upload-zone-icon">
-              <iconify-icon icon="lucide:upload-cloud" width="36"></iconify-icon>
-            </div>
-            <div class="upload-zone-text">Drop your screenshot here or <u>click to browse</u></div>
-            <div class="upload-zone-sub">JPG · PNG · WebP · PDF &nbsp;|&nbsp; max 10 MB</div>
-          </div>
-          <div class="upload-preview" id="uploadPreview" style="display:none">
-            <iconify-icon icon="lucide:file-check" width="20"></iconify-icon>
-            <span id="uploadFileName"></span>
-            <button type="button" class="copy-btn" id="clearUpload">Remove</button>
-          </div>
-        </div>
-        {% for e in form.payment_proof.errors %}
-          <span class="field-error">{{ e }}</span>
-        {% endfor %}
+    {% if discount_quote and discount_quote.has_discount %}
+    <section class="discount-summary" id="discountSummary">
+      <div class="discount-summary__title">
+        <iconify-icon icon="lucide:badge-percent" width="18"></iconify-icon>
+        Discount applied
+        {% if discount_quote.campaign and discount_quote.campaign.code %}
+          <span>{{ discount_quote.campaign.code }}</span>
+        {% elif discount_quote.campaign %}
+          <span>{{ discount_quote.campaign.name }}</span>
+        {% endif %}
       </div>
-    </div>
-
-    <div class="payment-button-group">
-      <a href="{{ url_for('admin.billing_plans') }}" class="btn btn-ghost">
-        <iconify-icon icon="lucide:arrow-left" width="15"></iconify-icon>
-        Back to Plans
-      </a>
-      <button type="submit" class="btn btn-primary btn-submit-pay" id="submitBtn">
-        <iconify-icon icon="lucide:send" width="16"></iconify-icon>
-        Submit Payment for Review
-      </button>
-    </div>
-  </form>
-
-  {# ── Desktop sidebar: large QR + how-it-works ── #}
-  <aside class="payment-sidebar{% if payment_method.qr_image %} payment-sidebar--has-qr{% endif %}">
-    {% if payment_method.qr_image %}
-    <div class="payment-qr-showcase">
-      <div class="payment-qr-showcase-head">
-        <iconify-icon icon="lucide:qr-code" width="20"></iconify-icon>
-        <span>Scan to Pay via {{ payment_method.name }}</span>
+      <div class="discount-summary__rows">
+        <div><span>Original amount</span><strong id="discountOriginal">{{ currency.symbol }}{{ '%.2f'|format(discount_quote.amount_before) }}</strong></div>
+        <div class="discount-row-saving"><span>You save</span><strong id="discountSaving">− {{ currency.symbol }}{{ '%.2f'|format(discount_quote.amount_discounted) }}</strong></div>
+        <div class="discount-row-total"><span>Final amount</span><strong id="discountFinal">{{ currency.symbol }}{{ '%.2f'|format(discount_quote.amount_after) }} {{ currency.display_currency }}</strong></div>
       </div>
-      <div class="payment-qr-frame">
-        <img src="{{ payment_method.qr_image|upload_url('billing') }}"
-             alt="QR code for {{ payment_method.name }}" class="payment-qr-img" />
-      </div>
-      {% if payment_method.account_number %}
-      <p class="payment-qr-caption">{{ payment_method.account_number }}</p>
-      {% endif %}
-      {% if payment_method.account_name %}
-      <p class="payment-qr-caption" style="margin-top:0.2rem;font-size:0.8rem;opacity:0.7">
-        {{ payment_method.account_name }}
-      </p>
-      {% endif %}
-    </div>
+    </section>
     {% endif %}
 
-    <div class="instructions-sidebar">
-      <div class="instructions-header">
-        <iconify-icon icon="lucide:info" width="14"></iconify-icon>
-        How it works
-      </div>
-      <ol class="how-it-works-list">
-        <li>Scan the QR code or send to the account number shown above</li>
-        <li>Copy the <strong>reference / transaction ID</strong> from your app</li>
-        <li>Take a <strong>screenshot</strong> of the confirmation screen</li>
-        <li>Fill in the form and submit — approval usually within <strong>24 hours</strong></li>
-      </ol>
+    <div class="payment-steps-bar" aria-label="Payment steps">
+      <div class="pstep pstep--active"><span class="pstep-num">1</span><span class="pstep-label">Pay</span></div>
+      <div class="pstep-connector"></div>
+      <div class="pstep pstep--active"><span class="pstep-num">2</span><span class="pstep-label">Reference</span></div>
+      <div class="pstep-connector"></div>
+      <div class="pstep pstep--active"><span class="pstep-num">3</span><span class="pstep-label">Proof</span></div>
+      <div class="pstep-connector"></div>
+      <div class="pstep"><span class="pstep-num">4</span><span class="pstep-label">Review</span></div>
     </div>
-  </aside>
+
+    <div class="payment-layout">
+      <div class="payment-main-column">
+        <section class="payment-form-card">
+          <div class="payment-card-heading">
+            <span class="step-num">1</span>
+            <div>
+              <h3>{% if payment_method.qr_image %}Scan QR code or transfer{% else %}Make the transfer{% endif %}</h3>
+              <p>Send exactly <strong id="sendAmountLabel">{{ suggested_amount_label }}</strong> using the account below.</p>
+            </div>
+          </div>
+
+          {% if payment_method.qr_image %}
+          <div class="payment-qr-inline">
+            <div class="payment-qr-frame">
+              <img src="{{ payment_method.qr_image|upload_url('billing') }}"
+                   alt="QR code for {{ payment_method.name }}" class="payment-qr-img" />
+            </div>
+            <p class="payment-qr-caption">Scan with your {{ payment_method.name }} app</p>
+          </div>
+          {% endif %}
+
+          <div class="method-panel">
+            <div class="method-panel__header">
+              <div class="method-panel__icon"><iconify-icon icon="{{ payment_method.icon }}" width="22"></iconify-icon></div>
+              <div>
+                <strong>{{ payment_method.name }}</strong>
+                <span>{{ payment_method.type_label }}</span>
+              </div>
+              <span class="method-selected"><span></span> Selected</span>
+            </div>
+
+            <div class="method-detail-list">
+              {% if payment_method.account_name %}
+              <div class="method-detail"><span>Account name</span><strong>{{ payment_method.account_name }}</strong></div>
+              {% endif %}
+              {% if payment_method.account_number %}
+              <div class="method-detail">
+                <span>Account number</span>
+                <strong>{{ payment_method.account_number }} <button type="button" class="copy-btn js-copy-payment" data-copy="{{ payment_method.account_number|e }}">Copy</button></strong>
+              </div>
+              {% endif %}
+              {% if payment_method.mobile_number %}
+              <div class="method-detail">
+                <span>Mobile number</span>
+                <strong>{{ payment_method.mobile_number }} <button type="button" class="copy-btn js-copy-payment" data-copy="{{ payment_method.mobile_number|e }}">Copy</button></strong>
+              </div>
+              {% endif %}
+              {% if payment_method.bank_name %}
+              <div class="method-detail"><span>Bank</span><strong>{{ payment_method.bank_name }}</strong></div>
+              {% endif %}
+            </div>
+
+            {% if payment_method.instructions %}
+            <div class="method-note"><iconify-icon icon="lucide:info" width="15"></iconify-icon><span>{{ payment_method.instructions }}</span></div>
+            {% endif %}
+          </div>
+        </section>
+
+        <section class="payment-form-card">
+          <div class="payment-card-heading">
+            <span class="step-num">2</span>
+            <div>
+              <h3>Enter transaction details</h3>
+              <p>Copy the official reference number shown after your transfer succeeds.</p>
+            </div>
+          </div>
+
+          <div class="form-row-group">
+            <div class="form-group">
+              <label class="field-label" for="payment_reference">Transaction reference / ID <span class="required">*</span></label>
+              {{ form.payment_reference(class="field-input", id="payment_reference", placeholder="e.g. TXN-123456789", autocomplete="off") }}
+              {% for e in form.payment_reference.errors %}<span class="field-error">{{ e }}</span>{% endfor %}
+            </div>
+
+            <div class="form-group">
+              <label class="field-label" for="amount_paid_display">Fixed amount to pay</label>
+              {{ form.amount_paid(id="amount_paid") }}
+              <div class="fixed-amount-field" id="amount_paid_display" aria-label="Fixed payable amount">
+                <span id="localAmountSymbol">{{ currency.symbol }}</span>
+                <strong id="localAmountValue">{{ '%.2f'|format(suggested_amount) }}</strong>
+                <small id="localAmountCurrency">{{ currency.display_currency }}</small>
+                <iconify-icon icon="lucide:lock-keyhole" width="17" aria-hidden="true"></iconify-icon>
+              </div>
+              <span class="field-hint">Calculated from the USD plan price, billing cycle, discount, and selected country. You cannot edit it.</span>
+              {% for e in form.amount_paid.errors %}<span class="field-error">{{ e }}</span>{% endfor %}
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="field-label" for="payment_note">Note <span class="optional-label">Optional</span></label>
+            {{ form.payment_note(class="field-input", id="payment_note", placeholder="Add context for the billing reviewer") }}
+          </div>
+        </section>
+
+        <section class="payment-form-card">
+          <div class="payment-card-heading">
+            <span class="step-num">3</span>
+            <div>
+              <h3>Upload payment proof</h3>
+              <p>Upload the completed transfer confirmation. A proof file is required before submission.</p>
+            </div>
+          </div>
+
+          <div class="upload-zone" id="uploadZone">
+            {{ form.payment_proof(id="paymentProofInput", accept="image/png,image/jpeg,image/webp,application/pdf", required=true) }}
+            <div class="upload-zone-content" id="uploadZoneContent">
+              <div class="upload-zone-icon"><iconify-icon icon="lucide:cloud-upload" width="34"></iconify-icon></div>
+              <strong>Drop your proof here</strong>
+              <span>or click to browse your device</span>
+              <small>JPG, PNG, WebP, or PDF · maximum 10 MB</small>
+            </div>
+            <div class="upload-preview" id="uploadPreview" hidden>
+              <div class="upload-preview__icon"><iconify-icon icon="lucide:file-check-2" width="22"></iconify-icon></div>
+              <div><strong id="uploadFileName"></strong><span>Ready to submit</span></div>
+              <button type="button" class="remove-upload" id="clearUpload">Remove</button>
+            </div>
+          </div>
+          {% for e in form.payment_proof.errors %}<span class="field-error">{{ e }}</span>{% endfor %}
+        </section>
+
+        <div class="payment-button-group">
+          <a href="{{ url_for(billing_routes.plans, tenant_slug=tenant_slug) if billing_routes.plans.startswith('tenant.') else url_for(billing_routes.plans) }}" class="btn btn-ghost">
+            <iconify-icon icon="lucide:arrow-left" width="16"></iconify-icon> Back to plans
+          </a>
+          <button type="submit" class="btn btn-primary btn-submit-pay" id="submitBtn" {% if not fx_available %}disabled{% endif %}>
+            <iconify-icon icon="lucide:send" width="17"></iconify-icon>
+            Submit payment for review
+          </button>
+        </div>
+      </div>
+
+      <aside class="payment-sidebar{% if payment_method.qr_image %} payment-sidebar--has-qr{% endif %}">
+        {% if payment_method.qr_image %}
+        <section class="payment-qr-showcase">
+          <div class="payment-qr-showcase-head">
+            <iconify-icon icon="lucide:qr-code" width="20"></iconify-icon>
+            <span>Scan to pay via {{ payment_method.name }}</span>
+          </div>
+          <div class="payment-qr-frame">
+            <img src="{{ payment_method.qr_image|upload_url('billing') }}"
+                 alt="QR code for {{ payment_method.name }}" class="payment-qr-img" />
+          </div>
+          {% if payment_method.account_name %}<strong class="qr-account-name">{{ payment_method.account_name }}</strong>{% endif %}
+          {% if payment_method.account_number %}<span class="payment-qr-caption">{{ payment_method.account_number }}</span>{% endif %}
+        </section>
+        {% endif %}
+
+        <section class="instructions-sidebar">
+          <div class="instructions-header"><iconify-icon icon="lucide:list-checks" width="17"></iconify-icon> How it works</div>
+          <ol class="how-it-works-list">
+            <li><span>1</span><div>Choose your country and confirm the converted amount.</div></li>
+            <li><span>2</span><div>Scan the QR code or transfer to the listed account.</div></li>
+            <li><span>3</span><div>Copy the transaction reference and upload proof.</div></li>
+            <li><span>4</span><div>Superadmin reviews and activates the subscription.</div></li>
+          </ol>
+        </section>
+
+        <section class="security-note">
+          <iconify-icon icon="lucide:shield-check" width="19"></iconify-icon>
+          <div><strong>Secure payment review</strong><span>Your amount, country, currency, and exchange rate are captured with the submission.</span></div>
+        </section>
+      </aside>
+    </div>
+  </form>
 </div>
 
 <style>
-/* ── Step progress bar ── */
-.payment-steps-bar{display:flex;align-items:center;margin-bottom:1.75rem;padding:1rem 1.25rem;background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.18);border-radius:14px}
-.pstep{display:flex;align-items:center;gap:0.5rem;flex:1;justify-content:center}
-.pstep-num{width:28px;height:28px;border-radius:50%;background:rgba(99,102,241,0.35);border:2px solid #6366f1;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;color:#e0e7ff;flex-shrink:0}
-.pstep-label{font-size:0.8rem;font-weight:600;color:var(--text-muted)}
-.pstep-connector{flex:0 0 2rem;height:2px;background:rgba(99,102,241,0.25);margin:0 0.25rem}
-@media(max-width:600px){.pstep-label{display:none}.pstep-connector{flex:0 0 0.75rem}}
-
-/* ── Method detail block inside step 1 ── */
-.method-details-block{display:flex;flex-direction:column;gap:0;font-size:0.85rem}
-.instruction-row{display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05)}
-.instruction-row:last-child{border-bottom:none}
-.instruction-row .key{color:var(--text-muted)}
-.instruction-row .val{font-weight:600;display:flex;align-items:center;gap:0.4rem}
-.copy-btn{font-size:0.7rem;padding:0.15rem 0.45rem;border-radius:4px;border:1px solid rgba(99,102,241,0.4);background:rgba(99,102,241,0.1);color:#a5b4fc;cursor:pointer;transition:background 0.15s}
-.copy-btn:hover{background:rgba(99,102,241,0.25)}
-.instruction-description{font-size:0.82rem;color:var(--text-muted);margin:0}
-.paymongo-method-row{display:flex;align-items:center;gap:0.75rem;padding:0.85rem 1rem;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:10px;margin-bottom:0.75rem}
-
-/* ── Inline QR — mobile only ── */
-.payment-qr-inline{display:none;flex-direction:column;align-items:center;gap:0.6rem;margin:0.5rem 0 0.75rem}
-@media(max-width:900px){.payment-qr-inline{display:flex}}
-.payment-qr-caption{font-size:0.78rem;color:var(--text-muted);margin:0;text-align:center}
-
-/* ── Upload zone ── */
-.upload-zone{position:relative;border:2px dashed rgba(99,102,241,0.35);border-radius:14px;padding:2.25rem 1.5rem;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;overflow:hidden}
-.upload-zone:hover,.upload-zone.drag-over{border-color:#6366f1;background:rgba(99,102,241,0.07)}
-.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-.upload-zone-icon{color:#6366f1;margin-bottom:0.6rem}
-.upload-zone-text{font-weight:600;font-size:0.95rem;margin-bottom:0.3rem}
-.upload-zone-sub{font-size:0.78rem;color:var(--text-muted)}
-.upload-preview{display:flex;align-items:center;justify-content:center;gap:0.6rem;font-size:0.9rem;color:#6ee7b7;font-weight:600;padding:0.5rem 0}
-
-.fixed-amount-field{min-height:48px;display:flex;align-items:center;gap:.45rem;padding:.75rem 1rem;border:1px solid rgba(99,102,241,.35);border-radius:10px;background:rgba(99,102,241,.08);color:var(--text-primary,#e0e7ff)}
-.fixed-amount-field strong{font-size:1.05rem;letter-spacing:.01em}.fixed-amount-field small{color:var(--text-muted);font-weight:700}.fixed-amount-field iconify-icon{margin-left:auto;color:#a5b4fc}
-
-/* ── Submit button ── */
-.btn-submit-pay{padding:0.85rem 1.75rem;font-size:1rem;min-width:220px}
-
-/* ── Sidebar ── */
-.payment-sidebar{display:flex;flex-direction:column;gap:1.25rem;position:sticky;top:1.5rem}
-.payment-qr-showcase{background:linear-gradient(160deg,rgba(99,102,241,0.14),rgba(16,185,129,0.08));border:2px solid rgba(99,102,241,0.35);border-radius:20px;padding:1.35rem 1.25rem 1.15rem;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,0.25)}
-.payment-qr-showcase-head{display:flex;align-items:center;justify-content:center;gap:0.5rem;font-weight:800;font-size:0.95rem;color:#e0e7ff;margin-bottom:1rem}
-.payment-qr-frame{background:#fff;border-radius:16px;padding:14px;margin:0 auto;width:min(100%,300px);box-shadow:0 8px 28px rgba(0,0,0,0.35)}
-.payment-qr-img{display:block;width:100%;height:auto;border-radius:8px;image-rendering:auto}
-.instructions-sidebar{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:1rem 1.1rem}
-.instructions-header{display:flex;align-items:center;gap:0.4rem;font-weight:700;font-size:0.85rem;margin-bottom:0.75rem;color:#e0e7ff}
-.how-it-works-list{padding-left:1.2rem;margin:0;display:flex;flex-direction:column;gap:0.55rem;font-size:0.84rem;color:var(--text-muted)}
-.how-it-works-list li strong{color:var(--text-primary,#e0e7ff)}
-.activation-eta-badge{display:inline-flex;align-items:center;gap:0.35rem;font-size:0.82rem;padding:0.35rem 0.75rem;border-radius:20px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);color:#f59e0b}
-
-@media(max-width:980px){.payment-sidebar{position:static}.payment-qr-frame{width:min(100%,320px)}}
-@media(max-width:600px){.payment-qr-showcase{padding:1.1rem}.payment-qr-frame{padding:12px;width:100%}.btn-submit-pay{width:100%}}
+.payment-page{max-width:1280px;margin:0 auto;padding-bottom:3rem;color:var(--text,#f5f7ff)}
+.payment-page *{box-sizing:border-box}.payment-page form{display:grid;gap:1.15rem;min-width:0}
+.payment-page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:2rem;margin-bottom:1.25rem}
+.payment-eyebrow{display:inline-flex;align-items:center;gap:.45rem;color:#9ca3ff;font-size:.76rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.65rem}
+.payment-page-header h1{font-family:var(--font-display);font-size:clamp(1.8rem,3vw,2.45rem);margin:0 0 .45rem;line-height:1.05}.payment-page-header p{color:var(--text-muted);margin:0;max-width:680px;line-height:1.65}
+.payment-header-badges{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.55rem}.payment-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.5rem .75rem;border-radius:999px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.5);font-size:.75rem;font-weight:800;white-space:nowrap}.payment-pill--plan{color:#c7d2fe;border-color:rgba(99,102,241,.35);background:rgba(99,102,241,.1)}.payment-pill--eta{color:#fbbf24;border-color:rgba(245,158,11,.28);background:rgba(245,158,11,.08)}
+.checkout-summary{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:1rem;padding:1rem 1.15rem;margin-bottom:1.15rem;border:1px solid rgba(99,102,241,.28);border-radius:18px;background:linear-gradient(135deg,rgba(99,102,241,.14),rgba(14,165,233,.06));box-shadow:0 16px 45px rgba(0,0,0,.14)}.checkout-summary__icon{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;color:#c7d2fe;background:rgba(99,102,241,.2);border:1px solid rgba(129,140,248,.3)}.checkout-summary__copy{display:grid;gap:.1rem}.checkout-summary__copy>span{font-size:.73rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);font-weight:800}.checkout-summary__copy strong{font-size:1.35rem}.checkout-summary__copy small{color:var(--text-muted)}.checkout-summary__status{display:flex;align-items:center;gap:.45rem;color:#a7f3d0;font-size:.78rem;font-weight:700}.status-dot{width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 0 5px rgba(16,185,129,.12)}
+.billing-country-card,.payment-form-card,.discount-summary{border:1px solid rgba(148,163,184,.14);border-radius:18px;background:linear-gradient(180deg,rgba(20,29,49,.96),rgba(16,23,40,.96));box-shadow:0 18px 50px rgba(0,0,0,.12)}.billing-country-card{padding:1.25rem}.country-card-heading{display:flex;gap:.85rem;align-items:flex-start;margin-bottom:1rem}.country-card-icon{width:42px;height:42px;flex:0 0 auto;border-radius:13px;display:grid;place-items:center;color:#a5b4fc;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.25)}.country-card-heading h2{font-size:1rem;margin:0 0 .3rem}.country-card-heading p{font-size:.84rem;color:var(--text-muted);margin:0;line-height:1.5}.country-card-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(250px,.8fr);gap:1rem;align-items:stretch}.select-shell{position:relative}.select-shell>iconify-icon{position:absolute;left:.9rem;top:50%;transform:translateY(-50%);color:#818cf8;pointer-events:none}.select-shell select{padding-left:2.5rem!important;appearance:auto}.currency-readout{padding:1rem;border-radius:14px;border:1px solid rgba(99,102,241,.23);background:rgba(99,102,241,.07);display:grid;align-content:center;gap:.18rem}.currency-readout__label{font-size:.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;font-weight:800}.currency-readout strong{font-size:1.25rem;color:#e0e7ff}.currency-readout span:not(.currency-readout__label){font-size:.83rem}.currency-readout small{color:var(--text-muted)}.fx-message{display:flex;align-items:flex-start;gap:.45rem;margin-top:.85rem;padding:.7rem .8rem;border-radius:10px;color:#93c5fd;background:rgba(14,165,233,.07);border:1px solid rgba(14,165,233,.16);font-size:.78rem}.fx-message--error{color:#fca5a5;background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.25)}
+.discount-summary{padding:1rem 1.15rem;border-color:rgba(16,185,129,.22);background:rgba(16,185,129,.055)}.discount-summary__title{display:flex;align-items:center;gap:.5rem;color:#6ee7b7;font-weight:800;margin-bottom:.75rem}.discount-summary__title span{margin-left:auto;padding:.25rem .55rem;border-radius:999px;background:rgba(16,185,129,.1);font-size:.7rem}.discount-summary__rows{display:grid;gap:.45rem}.discount-summary__rows>div{display:flex;justify-content:space-between;gap:1rem;color:var(--text-muted);font-size:.85rem}.discount-summary__rows strong{color:var(--text)}.discount-row-saving strong{color:#6ee7b7}.discount-row-total{padding-top:.55rem;border-top:1px solid rgba(16,185,129,.18);font-weight:800}
+.payment-steps-bar{display:flex;align-items:center;padding:.85rem 1rem;background:rgba(99,102,241,.05);border:1px solid rgba(99,102,241,.14);border-radius:14px}.pstep{display:flex;align-items:center;gap:.45rem;flex:1;justify-content:center}.pstep-num{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;background:rgba(99,102,241,.13);border:1px solid rgba(99,102,241,.35);color:#a5b4fc;font-size:.75rem;font-weight:900}.pstep--active .pstep-num{background:#6366f1;color:#fff;border-color:#818cf8;box-shadow:0 0 0 4px rgba(99,102,241,.11)}.pstep-label{font-size:.76rem;font-weight:800;color:var(--text-muted)}.pstep--active .pstep-label{color:#e0e7ff}.pstep-connector{flex:0 0 1.6rem;height:1px;background:rgba(99,102,241,.22)}
+.payment-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(290px,350px);gap:1.25rem;align-items:start}.payment-main-column{display:grid;gap:1rem;min-width:0}.payment-form-card{padding:1.35rem}.payment-card-heading{display:flex;gap:.75rem;align-items:flex-start;margin-bottom:1rem}.payment-card-heading .step-num{width:28px;height:28px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;background:#6366f1;color:#fff;font-weight:900;font-size:.77rem}.payment-card-heading h3{font-size:1rem;margin:0 0 .25rem}.payment-card-heading p{margin:0;color:var(--text-muted);font-size:.84rem;line-height:1.5}.payment-card-heading p strong{color:#c7d2fe}
+.method-panel{border:1px solid rgba(148,163,184,.12);border-radius:14px;overflow:hidden;background:rgba(6,10,20,.2)}.method-panel__header{display:flex;align-items:center;gap:.7rem;padding:.85rem 1rem;border-bottom:1px solid rgba(148,163,184,.1);background:rgba(99,102,241,.055)}.method-panel__icon{width:38px;height:38px;display:grid;place-items:center;border-radius:11px;background:rgba(99,102,241,.13);color:#a5b4fc}.method-panel__header>div:nth-child(2){display:grid}.method-panel__header strong{font-size:.9rem}.method-panel__header span{font-size:.72rem;color:var(--text-muted)}.method-selected{margin-left:auto!important;display:inline-flex!important;align-items:center;gap:.35rem;color:#6ee7b7!important;font-weight:800!important}.method-selected span{width:6px;height:6px;border-radius:50%;background:#10b981}.method-detail-list{padding:.25rem 1rem}.method-detail{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.65rem 0;border-bottom:1px solid rgba(148,163,184,.08);font-size:.83rem}.method-detail:last-child{border-bottom:0}.method-detail>span{color:var(--text-muted)}.method-detail strong{display:flex;align-items:center;gap:.45rem;text-align:right}.copy-btn{font-size:.68rem;padding:.22rem .48rem;border:1px solid rgba(99,102,241,.36);border-radius:6px;background:rgba(99,102,241,.1);color:#a5b4fc;cursor:pointer}.copy-btn:hover{background:rgba(99,102,241,.2)}.method-note{display:flex;gap:.5rem;align-items:flex-start;margin:.25rem 1rem 1rem;padding:.7rem .75rem;border-radius:9px;background:rgba(14,165,233,.06);color:var(--text-muted);font-size:.78rem;line-height:1.45}
+.form-row-group{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.72fr);gap:1rem}.form-group{display:grid;gap:.45rem}.field-label{font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;font-weight:800;color:#aab4c8}.required{color:#fb7185}.optional-label{font-size:.65rem;color:var(--text-muted);text-transform:none;letter-spacing:0;margin-left:.25rem}.field-input{width:100%;min-height:50px;border-radius:11px;border:1px solid rgba(148,163,184,.16)!important;background:rgba(8,13,24,.35)!important;color:var(--text)!important;padding:.78rem .9rem!important}.field-input:focus{border-color:#818cf8!important;box-shadow:0 0 0 3px rgba(99,102,241,.12)!important;outline:0}.field-hint{font-size:.72rem;color:var(--text-muted);line-height:1.45}.field-error{font-size:.75rem;color:#fca5a5}.fixed-amount-field{min-height:50px;display:flex;align-items:center;gap:.42rem;padding:.75rem .9rem;border:1px solid rgba(99,102,241,.32);border-radius:11px;background:rgba(99,102,241,.07)}.fixed-amount-field strong{font-size:1.1rem}.fixed-amount-field small{color:#a5b4fc;font-weight:900}.fixed-amount-field iconify-icon{margin-left:auto;color:#818cf8}
+.upload-zone{position:relative;min-height:180px;border:1.5px dashed rgba(99,102,241,.42);border-radius:15px;background:rgba(99,102,241,.035);display:grid;place-items:center;overflow:hidden;transition:.2s}.upload-zone:hover,.upload-zone.drag-over{border-color:#818cf8;background:rgba(99,102,241,.075);transform:translateY(-1px)}.upload-zone input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2}.upload-zone-content{text-align:center;display:grid;justify-items:center;gap:.3rem;padding:1.5rem}.upload-zone-icon{width:52px;height:52px;border-radius:15px;display:grid;place-items:center;background:rgba(99,102,241,.14);color:#a5b4fc;margin-bottom:.25rem}.upload-zone-content strong{font-size:.95rem}.upload-zone-content span,.upload-zone-content small{color:var(--text-muted);font-size:.78rem}.upload-preview{width:100%;display:flex;align-items:center;gap:.75rem;padding:1rem;z-index:3;pointer-events:auto}.upload-preview[hidden]{display:none}.upload-preview__icon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:rgba(16,185,129,.12);color:#6ee7b7}.upload-preview>div:nth-child(2){display:grid;min-width:0}.upload-preview strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.upload-preview span{font-size:.72rem;color:#6ee7b7}.remove-upload{margin-left:auto;border:1px solid rgba(239,68,68,.25);background:rgba(239,68,68,.07);color:#fca5a5;border-radius:8px;padding:.45rem .65rem;cursor:pointer}
+.payment-button-group{display:flex;justify-content:space-between;gap:1rem;align-items:center;padding-top:.2rem}.btn-submit-pay{min-width:245px;justify-content:center;padding:.85rem 1.2rem}.btn-submit-pay[disabled]{opacity:.55;cursor:not-allowed}
+.payment-sidebar{display:grid;gap:1rem;position:sticky;top:calc(var(--topbar-h,72px) + 1rem)}.payment-qr-showcase,.instructions-sidebar,.security-note{border:1px solid rgba(148,163,184,.14);border-radius:18px;background:linear-gradient(180deg,rgba(20,29,49,.98),rgba(14,21,36,.98));box-shadow:0 18px 50px rgba(0,0,0,.13)}.payment-qr-showcase{padding:1.15rem;text-align:center;border-color:rgba(99,102,241,.33)}.payment-qr-showcase-head{display:flex;align-items:center;justify-content:center;gap:.45rem;font-size:.88rem;font-weight:900;margin-bottom:.85rem}.payment-qr-frame{width:min(100%,290px);margin:0 auto;background:#fff;padding:12px;border-radius:15px}.payment-qr-img{width:100%;height:auto;display:block;border-radius:8px}.qr-account-name{display:block;margin-top:.75rem;font-size:.83rem}.payment-qr-caption{display:block;color:var(--text-muted);font-size:.75rem;margin-top:.25rem}.payment-qr-inline{display:none;text-align:center}.instructions-sidebar{overflow:hidden}.instructions-header{display:flex;align-items:center;gap:.5rem;padding:.9rem 1rem;border-bottom:1px solid rgba(148,163,184,.1);font-size:.78rem;text-transform:uppercase;letter-spacing:.07em;font-weight:900}.how-it-works-list{list-style:none;margin:0;padding:.8rem 1rem;display:grid;gap:.75rem}.how-it-works-list li{display:grid;grid-template-columns:26px 1fr;gap:.6rem;align-items:start;color:var(--text-muted);font-size:.78rem;line-height:1.45}.how-it-works-list li>span{width:24px;height:24px;border-radius:8px;display:grid;place-items:center;background:rgba(99,102,241,.12);color:#a5b4fc;font-weight:900}.security-note{display:flex;gap:.65rem;align-items:flex-start;padding:.9rem 1rem;color:#a7f3d0}.security-note>div{display:grid;gap:.15rem}.security-note strong{font-size:.8rem}.security-note span{font-size:.72rem;color:var(--text-muted);line-height:1.45}
+.payment-loading{opacity:.65;pointer-events:none}.payment-loading .currency-readout{position:relative}.payment-loading .currency-readout:after{content:'';position:absolute;right:1rem;top:1rem;width:16px;height:16px;border:2px solid rgba(165,180,252,.3);border-top-color:#a5b4fc;border-radius:50%;animation:paymentSpin .7s linear infinite}@keyframes paymentSpin{to{transform:rotate(360deg)}}
+@media(max-width:1180px){.payment-layout{grid-template-columns:minmax(0,1fr) 300px}.payment-page-header{flex-direction:column}.payment-header-badges{justify-content:flex-start}}
+@media(max-width:980px){.payment-layout{grid-template-columns:1fr}.payment-sidebar{position:static}.payment-qr-showcase{display:none}.payment-qr-inline{display:grid;justify-items:center;gap:.45rem;margin-bottom:1rem}.payment-qr-inline .payment-qr-frame{max-width:280px}.instructions-sidebar,.security-note{display:none}.country-card-grid{grid-template-columns:1fr 260px}}
+@media(max-width:720px){.payment-page{padding:0 .1rem 2rem}.checkout-summary{grid-template-columns:auto 1fr}.checkout-summary__status{grid-column:1/-1;padding-top:.6rem;border-top:1px solid rgba(148,163,184,.1)}.country-card-grid,.form-row-group{grid-template-columns:1fr}.payment-steps-bar{padding:.75rem .5rem}.pstep-label{display:none}.pstep-connector{flex-basis:.8rem}.payment-form-card,.billing-country-card{padding:1rem}.method-detail{align-items:flex-start;flex-direction:column;gap:.25rem}.method-detail strong{text-align:left}.payment-button-group{flex-direction:column-reverse;align-items:stretch}.payment-button-group .btn,.btn-submit-pay{width:100%;min-width:0;justify-content:center}.payment-header-badges{display:grid;width:100%}.payment-pill{justify-content:center}.checkout-summary__copy strong{font-size:1.1rem}}
+@media(max-width:430px){.payment-page-header h1{font-size:1.65rem}.country-card-heading{align-items:center}.country-card-heading p{display:none}.payment-card-heading p{font-size:.78rem}.method-panel__header{padding:.75rem}.method-selected{font-size:0!important}.method-selected:after{content:'Selected';font-size:.68rem}.checkout-summary{padding:.85rem}.checkout-summary__icon{width:42px;height:42px}.upload-zone{min-height:160px}}
+@media(prefers-reduced-motion:reduce){.payment-page *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 </style>
-
-<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
-/* ── Copy with feedback ── */
-function copyText(txt, btn) {
-  navigator.clipboard.writeText(txt).then(function () {
-    if (!btn) return;
-    var orig = btn.textContent;
-    btn.textContent = 'Copied!';
-    btn.style.color = '#6ee7b7';
-    setTimeout(function () { btn.textContent = orig; btn.style.color = ''; }, 1600);
-  });
-}
-document.querySelectorAll('.js-copy-payment').forEach(function (button) {
-  button.addEventListener('click', function () {
-    copyText(button.dataset.copy || '', button);
-  });
-});
-
-/* ── Upload zone: drag highlight + filename preview ── */
-(function () {
-  var zone     = document.getElementById('uploadZone');
-  var input    = document.getElementById('paymentProofInput');
-  var preview  = document.getElementById('uploadPreview');
-  var content  = document.getElementById('uploadZoneContent');
-  var nameEl   = document.getElementById('uploadFileName');
-  var clearBtn = document.getElementById('clearUpload');
-
-  if (!zone || !input) return;
-
-  zone.addEventListener('dragover',  function (e) { e.preventDefault(); zone.classList.add('drag-over'); });
-  zone.addEventListener('dragleave', function ()  { zone.classList.remove('drag-over'); });
-  zone.addEventListener('drop',      function (e) { e.preventDefault(); zone.classList.remove('drag-over'); });
-
-  function showFile(name) {
-    nameEl.textContent = name;
-    preview.style.display = 'flex';
-    if (content) content.style.display = 'none';
-  }
-
-  function clearFile() {
-    input.value = '';
-    preview.style.display = 'none';
-    if (content) content.style.display = '';
-  }
-
-  input.addEventListener('change', function () {
-    if (this.files && this.files[0]) showFile(this.files[0].name);
-  });
-
-  if (clearBtn) clearBtn.addEventListener('click', function (e) {
-    e.stopPropagation();
-    clearFile();
-  });
-})();
-
-/* ── Submit guard + double-submit protection ── */
-document.getElementById('paymentForm').addEventListener('submit', function (e) {
-  var ref = document.getElementById('payment_reference');
-  var btn = document.getElementById('submitBtn');
-
-  if (ref && !ref.value.trim()) {
-    e.preventDefault();
-    ref.focus();
-    ref.style.outline = '2px solid rgba(239,68,68,0.7)';
-    setTimeout(function () { ref.style.outline = ''; }, 3000);
-    return;
-  }
-
-  var proof = document.getElementById('paymentProofInput');
-  if (!proof || !proof.files || !proof.files.length) {
-    e.preventDefault();
-    if (proof) proof.focus();
-    var zone = document.getElementById('uploadZone');
-    if (zone) {
-      zone.style.borderColor = 'rgba(239,68,68,.85)';
-      zone.scrollIntoView({behavior:'smooth', block:'center'});
-      setTimeout(function(){ zone.style.borderColor = ''; }, 3500);
-    }
-    return;
-  }
-
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<iconify-icon icon="lucide:loader-2" width="16"></iconify-icon> Submitting\u2026';
-  }
-});
-</script>

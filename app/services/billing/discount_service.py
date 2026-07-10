@@ -213,6 +213,7 @@ def quote_discount(
     plan: str,
     billing_cycle: str,
     code: Optional[str] = None,
+    base_amount_override: Decimal | float | int | None = None,
 ) -> DiscountQuote:
     """
     Read-only. Resolves the price a tenant would pay for `plan`/`billing_cycle`
@@ -225,7 +226,7 @@ def quote_discount(
     rather than blocking checkout entirely.
     """
     norm_plan = normalize_plan_name(plan)
-    base_amount = _to_decimal(get_plan_price(norm_plan, billing_cycle))
+    base_amount = _to_decimal(base_amount_override if base_amount_override is not None else get_plan_price(norm_plan, billing_cycle))
 
     campaign: Optional[DiscountCampaign] = None
 

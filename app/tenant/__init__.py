@@ -46,6 +46,7 @@ from app.services.billing.trial_history import ensure_profile_trial_history
 from app.services.billing import subscription_access_status, is_in_grace_period
 from app.services.billing_handlers import (
     billing_payment_context,
+    country_payment_quote_payload,
     billing_plans_context,
     handle_billing_payment_post,
     handle_billing_plans_post,
@@ -491,7 +492,29 @@ def billing_payment(method_id):
         billing_routes=billing_routes,
         billing_cycle=billing_cycle,
     )
+    ctx['quote_url'] = url_for('tenant.billing_payment_quote', tenant_slug=tenant, method_id=method_id)
     return render_template('billing/payment.html', **ctx)
+
+
+
+@tenant_bp.route('/billing/payment/<int:method_id>/quote')
+@login_required
+def billing_payment_quote(method_id):
+    tenant = g.tenant_slug
+    profile = g.tenant_profile
+    if profile is None:
+        return jsonify({'ok': False, 'error': 'Tenant profile not found.'}), 404
+    if not _tenant_billing_access_allowed(tenant):
+        return jsonify({'ok': False, 'error': 'Access denied.'}), 403
+    method = get_payment_method_for_tenant(method_id, profile.tenant_id)
+    if not method:
+        return jsonify({'ok': False, 'error': 'Payment method unavailable.'}), 404
+    payload = country_payment_quote_payload(
+        profile,
+        billing_cycle=request.args.get('billing_cycle', 'monthly'),
+        country_code=request.args.get('country'),
+    )
+    return jsonify(payload), (200 if payload.get('ok') else 503)
 
 
 @tenant_bp.route('/billing/history')

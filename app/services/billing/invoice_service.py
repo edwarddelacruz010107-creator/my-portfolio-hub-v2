@@ -76,6 +76,10 @@ def record_invoice(
     payment_reference: Optional[str] = None,
     redemption=None,
     tax_rate: Decimal = Decimal('0'),
+    amount_subtotal_override: Decimal | float | int | None = None,
+    amount_discount_override: Decimal | float | int | None = None,
+    amount_total_override: Decimal | float | int | None = None,
+    currency_override: str | None = None,
     commit: bool = False,
 ) -> Optional[Invoice]:
     """
@@ -111,9 +115,17 @@ def record_invoice(
                 return existing
 
         norm_plan = normalize_plan_name(plan)
-        amount_subtotal = _to_decimal(get_plan_price(norm_plan, billing_cycle))
+        amount_subtotal = _to_decimal(
+            amount_subtotal_override
+            if amount_subtotal_override is not None
+            else get_plan_price(norm_plan, billing_cycle)
+        )
 
-        if redemption is not None:
+        if amount_discount_override is not None:
+            amount_discount = _to_decimal(amount_discount_override)
+            coupon_code = getattr(getattr(redemption, 'campaign', None), 'code', None) if redemption is not None else None
+            discount_redemption_id = getattr(redemption, 'id', None) if redemption is not None else None
+        elif redemption is not None:
             amount_discount = _to_decimal(redemption.amount_discounted)
             coupon_code = getattr(getattr(redemption, 'campaign', None), 'code', None)
             discount_redemption_id = getattr(redemption, 'id', None)
@@ -125,7 +137,11 @@ def record_invoice(
         tax_rate = _to_decimal(tax_rate)
         taxable_base = amount_subtotal - amount_discount
         amount_tax = (taxable_base * tax_rate).quantize(Decimal('0.01'))
-        amount_total = taxable_base + amount_tax
+        amount_total = (
+            _to_decimal(amount_total_override)
+            if amount_total_override is not None
+            else taxable_base + amount_tax
+        )
 
         invoice = Invoice(
             invoice_number=_next_invoice_number(),
@@ -140,7 +156,7 @@ def record_invoice(
             amount_tax=amount_tax,
             amount_total=amount_total,
             coupon_code=coupon_code,
-            currency=get_currency_settings().get('display_currency', 'USD'),
+            currency=(currency_override or get_currency_settings().get('display_currency', 'USD')).upper(),
             payment_method=payment_method or '',
             payment_provider=payment_provider or '',
             payment_reference=payment_reference,

@@ -90,6 +90,7 @@ def quote_for_context(
     plan: str,
     billing_cycle: str,
     code: Optional[str] = None,
+    base_amount_override: Decimal | float | int | None = None,
 ) -> DiscountQuote:
     """
     Safe wrapper for template rendering. Never raises — an invalid coupon
@@ -98,13 +99,13 @@ def quote_for_context(
     """
     try:
         return discount_service.quote_discount(
-            tenant_id=tenant_id, plan=plan, billing_cycle=billing_cycle, code=code,
+            tenant_id=tenant_id, plan=plan, billing_cycle=billing_cycle, code=code, base_amount_override=base_amount_override,
         )
     except DiscountError as exc:
         logger.info("coupon %r not usable for tenant %s: %s", code, tenant_id, exc)
         # Fall back to auto-apply (or no discount) so the page still renders.
         return discount_service.quote_discount(
-            tenant_id=tenant_id, plan=plan, billing_cycle=billing_cycle, code=None,
+            tenant_id=tenant_id, plan=plan, billing_cycle=billing_cycle, code=None, base_amount_override=base_amount_override,
         )
 
 
@@ -120,6 +121,8 @@ def apply_on_activation(
     billing_cycle: str,
     commit: bool = True,
     code: Optional[str] = None,
+    base_amount_override: Decimal | float | int | None = None,
+    sync_subscription_amount: bool = True,
 ) -> Optional[object]:
     """
     Call this right AFTER activate_subscription() (or your manual-approval
@@ -150,7 +153,11 @@ def apply_on_activation(
 
     try:
         quote = discount_service.quote_discount(
-            tenant_id=tenant_id, plan=plan, billing_cycle=billing_cycle, code=code,
+            tenant_id=tenant_id,
+            plan=plan,
+            billing_cycle=billing_cycle,
+            code=code,
+            base_amount_override=base_amount_override,
         )
     except DiscountError as exc:
         logger.warning(
@@ -174,7 +181,7 @@ def apply_on_activation(
     # If a real discount landed, keep subscription.amount_paid in sync with
     # what the tenant actually paid. Do not decrease it below the amount
     # already recorded by the payment provider — trust the payment record.
-    if redemption is not None:
+    if redemption is not None and sync_subscription_amount:
         try:
             paid = Decimal(str(subscription.amount_paid or 0))
             if paid == 0 or paid > quote.amount_after:

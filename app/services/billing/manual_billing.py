@@ -216,6 +216,11 @@ def submit_manual_payment(
     note: str = '',
     proof_filename: str | None = None,
     billing_cycle: str = 'monthly',
+    expected_amount: float | None = None,
+    amount_usd: float | None = None,
+    currency_code: str = 'USD',
+    exchange_rate: float | None = None,
+    country_code: str | None = None,
 ) -> PaymentSubmission:
     """Create pending subscription + payment submission for manual review."""
     plan_norm = normalize_plan_name(plan)
@@ -235,7 +240,7 @@ def submit_manual_payment(
     # instead of trusting the self-reported figure at face value.
     # Never let a discount-quote failure block the submission itself —
     # this is a review aid, not a gate.
-    expected_amount = None
+    computed_expected_amount = expected_amount
     coupon_code_applied = None
     try:
         from app.services.billing import discount_checkout
@@ -245,7 +250,8 @@ def submit_manual_payment(
             billing_cycle=billing_cycle,
             code=discount_checkout.peek_coupon(profile.tenant_id),
         )
-        expected_amount = float(quote.amount_after)
+        if computed_expected_amount is None:
+            computed_expected_amount = float(quote.amount_after)
         coupon_code_applied = quote.campaign.code if quote.campaign else None
     except Exception:
         logger.exception(
@@ -260,8 +266,12 @@ def submit_manual_payment(
         subscription_id=sub.id,
         payment_method_id=method.id,
         plan=plan_norm,
-        amount_paid=float(amount_paid or get_plan_price(plan_norm)),
-        expected_amount=expected_amount,
+        amount_paid=float(amount_paid if amount_paid is not None else get_plan_price(plan_norm)),
+        expected_amount=computed_expected_amount,
+        amount_usd=amount_usd,
+        currency_code=(currency_code or 'USD').upper()[:3],
+        exchange_rate=exchange_rate,
+        country_code=(country_code or '').upper()[:2] or None,
         coupon_code_applied=coupon_code_applied,
         payment_method=method.name,
         payment_reference=(payment_reference or '').strip(),
@@ -366,14 +376,32 @@ def approve_payment_submission(
         # runs in the superadmin's request, not the tenant's — the tenant's
         # session-stashed coupon is not visible here.
         from app.services.billing import discount_checkout
+        from app.services.billing.currency import get_plan_usd_amount
+        base_amount_usd = get_plan_usd_amount(submission.plan, billing_cycle)
         redemption = discount_checkout.apply_on_activation(
             tenant_id=submission.tenant_id,
             subscription=sub,
             plan=submission.plan,
             billing_cycle=billing_cycle,
             code=sub.coupon_code,
+            base_amount_override=base_amount_usd,
+            # The subscription/payment snapshot is in the tenant's chosen
+            # settlement currency. Do not overwrite it with a USD coupon quote.
+            sync_subscription_amount=False,
             commit=False,
         )
+
+        # Preserve the exact locally converted amount approved by the reviewer.
+        sub.amount_paid = float(submission.amount_paid or 0)
+        try:
+            sub.price_paid = float(submission.amount_paid or 0)
+        except Exception:
+            pass
+
+        fx_rate = Decimal(str(submission.exchange_rate or 1))
+        subtotal_local = (Decimal(str(base_amount_usd)) * fx_rate).quantize(Decimal('0.01'))
+        total_local = Decimal(str(submission.amount_paid or 0)).quantize(Decimal('0.01'))
+        discount_local = max(Decimal('0.00'), subtotal_local - total_local)
 
         from app.services.billing import invoice_service
         invoice_service.record_invoice(
@@ -385,6 +413,10 @@ def approve_payment_submission(
             payment_provider='manual',
             payment_reference=submission.payment_reference,
             redemption=redemption,
+            amount_subtotal_override=subtotal_local,
+            amount_discount_override=discount_local,
+            amount_total_override=total_local,
+            currency_override=submission.currency_code or 'USD',
             commit=False,
         )
 

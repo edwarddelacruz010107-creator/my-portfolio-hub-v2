@@ -24,6 +24,8 @@ DISCOUNT_CHECKOUT_INTEGRATION.md).
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP
 
 from flask import current_app, flash, redirect, request, url_for
 
@@ -33,7 +35,14 @@ from app.models.portfolio import normalize_plan_name
 from app.models import Subscription
 from app.services.billing import get_or_create_pending_subscription, initiate_checkout, subscription_access_status
 from app.services.billing import discount_checkout, discount_service
-from app.services.billing.currency import currency_context, format_money, get_currency_settings
+from app.services.billing.currency import (
+    currency_context, currency_symbol, format_money, get_currency_settings,
+    get_exchange_rate, get_plan_usd_amount,
+)
+from app.services.billing.countries import (
+    country_details, country_options, normalize_country_code,
+)
+from app.services.billing.discount_service import DiscountQuote
 from app.services.billing.trial_history import ensure_profile_trial_history
 from app.utils import get_plan_price, get_public_billing_plans
 from app.services.manual_billing import (
@@ -47,6 +56,81 @@ from app.utils import BILLING_PLANS
 from app.system_plan import ADMINISTRATOR_PLAN, has_administrator_access, is_administrator_plan
 
 logger = logging.getLogger(__name__)
+
+
+def _money_decimal(value) -> Decimal:
+    return Decimal(str(value or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def build_country_payment_quote(profile, *, billing_cycle: str = "monthly", country_code: str | None = None) -> dict:
+    """Build an immutable USD quote plus a tenant-country converted quote."""
+    subscription = profile.current_subscription()
+    plan = normalize_plan_name(subscription.plan if subscription else profile.plan or "Basic")
+    tenant = getattr(profile, "tenant", None)
+    saved_country = getattr(tenant, "country_code", None) if tenant is not None else None
+    country = country_details(country_code or saved_country or "PH")
+    currency_code = country["currency"]
+
+    usd_base = get_plan_usd_amount(plan, billing_cycle)
+    stashed = discount_checkout.peek_coupon(profile.tenant_id)
+    quote_usd = discount_checkout.quote_for_context(
+        tenant_id=profile.tenant_id,
+        plan=plan,
+        billing_cycle=billing_cycle,
+        code=stashed,
+        base_amount_override=usd_base,
+    )
+    fx = get_exchange_rate(target=currency_code)
+    rate = Decimal(str(fx.get("rate") or 1))
+
+    def converted(value: Decimal) -> Decimal:
+        return (value * rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    quote_local = DiscountQuote(
+        campaign=quote_usd.campaign,
+        plan=quote_usd.plan,
+        billing_cycle=quote_usd.billing_cycle,
+        amount_before=converted(quote_usd.amount_before),
+        amount_discounted=converted(quote_usd.amount_discounted),
+        amount_after=converted(quote_usd.amount_after),
+    )
+    currency = currency_context(target=currency_code)
+    return {
+        "plan": plan,
+        "country": country,
+        "currency": currency,
+        "fx": fx,
+        "quote_usd": quote_usd,
+        "quote_local": quote_local,
+        "amount_usd": float(quote_usd.amount_after),
+        "amount_local": float(quote_local.amount_after),
+        "fx_available": bool(fx.get("available", True)),
+        "coupon_code": stashed or "",
+    }
+
+
+def country_payment_quote_payload(profile, *, billing_cycle: str, country_code: str | None) -> dict:
+    data = build_country_payment_quote(profile, billing_cycle=billing_cycle, country_code=country_code)
+    quote = data["quote_local"]
+    quote_usd = data["quote_usd"]
+    currency = data["currency"]
+    fx = data["fx"]
+    return {
+        "ok": bool(data["fx_available"]),
+        "country": data["country"],
+        "currency": currency["display_currency"],
+        "symbol": currency["symbol"],
+        "amount": float(quote.amount_after),
+        "amount_before": float(quote.amount_before),
+        "discount": float(quote.amount_discounted),
+        "amount_usd": float(quote_usd.amount_after),
+        "formatted": format_money(quote.amount_after, currency["display_currency"], include_code=True),
+        "rate": float(fx.get("rate") or 1),
+        "provider": fx.get("provider") or "fixed",
+        "stale": bool(fx.get("stale")),
+        "source_date": fx.get("source_date") or "",
+        "error": fx.get("error") or "",
+    }
 
 
 def billing_plans_context(profile, *, tenant_slug: str | None, billing_routes: dict, paymongo_enabled: bool):
@@ -308,19 +392,15 @@ def billing_payment_context(
 ):
     if has_administrator_access(profile):
         raise ValueError('Administrator plan does not require payment.')
+
+    requested_country = request.values.get('country_code') or request.args.get('country')
+    payment_quote = build_country_payment_quote(
+        profile, billing_cycle=billing_cycle, country_code=requested_country,
+    )
     subscription = profile.current_subscription()
-    plan = normalize_plan_name(subscription.plan if subscription else profile.plan or 'Basic')
     form = PaymentUploadForm()
     form.payment_method_id.data = str(method.id)
-
-    # Present the discounted amount so the tenant pays the correct total.
-    stashed = discount_checkout.peek_coupon(profile.tenant_id)
-    quote = discount_checkout.quote_for_context(
-        tenant_id=profile.tenant_id, plan=plan, billing_cycle=billing_cycle, code=stashed,
-    )
-    suggested_amount = float(quote.amount_after)
-    form.amount_paid.data = f'{suggested_amount:.2f}'
-    currency = currency_context()
+    form.amount_paid.data = f"{payment_quote['amount_local']:.2f}"
 
     return dict(
         profile=profile,
@@ -331,13 +411,23 @@ def billing_payment_context(
         tenant_slug=tenant_slug,
         billing_routes=billing_routes,
         billing_cycle=billing_cycle,
-        suggested_amount=suggested_amount,
+        suggested_amount=payment_quote['amount_local'],
+        suggested_amount_usd=payment_quote['amount_usd'],
         activation_eta='Usually within 24 hours',
         show_billing_tabs=False,
-        discount_quote=quote,
-        coupon_code=stashed or '',
-        currency=currency,
-        suggested_amount_label=format_money(suggested_amount, currency['display_currency'], include_code=True),
+        discount_quote=payment_quote['quote_local'],
+        discount_quote_usd=payment_quote['quote_usd'],
+        coupon_code=payment_quote['coupon_code'],
+        currency=payment_quote['currency'],
+        fx=payment_quote['fx'],
+        fx_available=payment_quote['fx_available'],
+        countries=country_options(),
+        selected_country=payment_quote['country'],
+        suggested_amount_label=format_money(
+            payment_quote['amount_local'],
+            payment_quote['currency']['display_currency'],
+            include_code=True,
+        ),
     )
 
 
@@ -349,18 +439,18 @@ def handle_billing_payment_post(profile, method, *, billing_cycle: str = 'monthl
                 flash(f'{field}: {err}', 'danger')
         return None
 
-    # Never trust a browser-submitted amount. Recompute the exact payable
-    # total from the selected plan, billing cycle, and validated coupon.
-    plan = normalize_plan_name(
-        profile.current_subscription().plan
-        if profile.current_subscription()
-        else profile.plan or 'Basic'
+    # Never trust browser-submitted country, currency, rate, or amount.
+    # Country is normalized against a server-side allow-list, currency is
+    # derived from country, and the exact local total is converted from USD.
+    country_code = normalize_country_code(request.form.get('country_code'))
+    payment_quote = build_country_payment_quote(
+        profile, billing_cycle=billing_cycle, country_code=country_code,
     )
-    stashed = discount_checkout.peek_coupon(profile.tenant_id)
-    quote = discount_checkout.quote_for_context(
-        tenant_id=profile.tenant_id, plan=plan, billing_cycle=billing_cycle, code=stashed,
-    )
-    amount_paid = float(quote.amount_after)
+    plan = payment_quote['plan']
+    if not payment_quote['fx_available'] and payment_quote['currency']['display_currency'] != 'USD':
+        flash('The exchange rate is temporarily unavailable. Please retry or choose United States (USD).', 'danger')
+        return None
+    amount_paid = payment_quote['amount_local']
 
     # Proof is mandatory in both WTForms and server-side business logic.
     if not form.payment_proof.data:
@@ -370,6 +460,14 @@ def handle_billing_payment_post(profile, method, *, billing_cycle: str = 'monthl
     if err:
         flash(err, 'danger')
         return None
+    tenant = getattr(profile, 'tenant', None)
+    if tenant is not None:
+        tenant.country_code = payment_quote['country']['code']
+        tenant.preferred_currency = payment_quote['currency']['display_currency']
+        tenant.country_source = 'billing_selection'
+        tenant.country_updated_at = datetime.now(timezone.utc)
+        db.session.add(tenant)
+
     submission = submit_manual_payment(
         profile,
         method=method,
@@ -379,6 +477,11 @@ def handle_billing_payment_post(profile, method, *, billing_cycle: str = 'monthl
         note=form.payment_note.data or '',
         proof_filename=proof_filename,
         billing_cycle=billing_cycle,
+        expected_amount=payment_quote['amount_local'],
+        amount_usd=payment_quote['amount_usd'],
+        currency_code=payment_quote['currency']['display_currency'],
+        exchange_rate=float(payment_quote['fx'].get('rate') or 1),
+        country_code=payment_quote['country']['code'],
     )
 
     # NOTE: For manual payments, actual activation happens later when a

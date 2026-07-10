@@ -58,6 +58,16 @@ SUPPORTED_CURRENCIES: dict[str, dict[str, str]] = {
     "SGD": {"name": "Singapore Dollar", "symbol": "S$"},
     "HKD": {"name": "Hong Kong Dollar", "symbol": "HK$"},
     "NZD": {"name": "New Zealand Dollar", "symbol": "NZ$"},
+    "CNY": {"name": "Chinese Yuan", "symbol": "CN¥"},
+    "KRW": {"name": "South Korean Won", "symbol": "₩"},
+    "INR": {"name": "Indian Rupee", "symbol": "₹"},
+    "IDR": {"name": "Indonesian Rupiah", "symbol": "Rp"},
+    "MYR": {"name": "Malaysian Ringgit", "symbol": "RM"},
+    "THB": {"name": "Thai Baht", "symbol": "฿"},
+    "CHF": {"name": "Swiss Franc", "symbol": "CHF"},
+    "SEK": {"name": "Swedish Krona", "symbol": "kr"},
+    "NOK": {"name": "Norwegian Krone", "symbol": "kr"},
+    "DKK": {"name": "Danish Krone", "symbol": "kr"},
 }
 
 _MEMORY_CACHE: dict[str, dict[str, Any]] = {}
@@ -378,15 +388,32 @@ def apply_currency_pricing(plans: dict[str, dict]) -> dict[str, dict]:
     return plans
 
 
-def currency_context(*, force: bool = False) -> dict[str, Any]:
+def get_plan_usd_amount(plan: str, billing_cycle: str = "monthly") -> float:
+    """Return the authoritative plan total in USD for one billing period."""
+    from app.utils import BILLING_PLANS, get_yearly_discount, normalize_plan_name
+
+    norm = normalize_plan_name(plan)
+    defaults = {
+        key: float(data.get("base_price_usd", data.get("price_monthly", data.get("price", 0))))
+        for key, data in BILLING_PLANS.items()
+    }
+    prices = get_plan_usd_prices(defaults)
+    monthly = float(prices.get(norm, prices.get("Basic", 0.0)))
+    if billing_cycle == "yearly":
+        return round(monthly * 12 * get_yearly_discount(norm), 2)
+    return round(monthly, 2)
+
+
+def currency_context(*, force: bool = False, target: str | None = None) -> dict[str, Any]:
     settings = get_currency_settings()
-    fx = get_exchange_rate(force=force, target=settings["display_currency"])
+    display_currency = _safe_currency(target or settings["display_currency"])
+    fx = get_exchange_rate(force=force, target=display_currency)
     return {
         "settings": settings,
         "fx": fx,
         "base_currency": BASE_CURRENCY,
-        "display_currency": settings["display_currency"],
-        "symbol": currency_symbol(settings["display_currency"]),
+        "display_currency": display_currency,
+        "symbol": currency_symbol(display_currency),
         "supported": SUPPORTED_CURRENCIES,
         "providers_configured": provider_configuration(),
     }

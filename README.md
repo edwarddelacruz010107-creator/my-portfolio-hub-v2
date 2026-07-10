@@ -683,3 +683,31 @@ CURRENCYAPI_KEY=
 
 No new database table or migration is required for currency settings; plan
 prices, provider settings, and the last valid FX rate use `PlatformSetting`.
+
+## Tenant country and local-currency checkout
+
+The manual checkout page now asks the tenant to confirm their billing country.
+Philippines is preselected for new or unconfirmed accounts, but the tenant can
+choose another supported country before submitting payment.
+
+- Plan prices remain authoritative in USD.
+- The server derives the local currency from the selected country.
+- FreecurrencyAPI is used when configured; Frankfurter remains the automatic
+  no-key fallback.
+- The browser never supplies a trusted price, currency, or exchange rate.
+- The selected country, currency, FX rate, local amount, and USD amount are
+  captured with the payment submission for review and audit.
+- Superadmin → All Tenants shows the confirmed country after the tenant submits
+  a payment preference.
+
+Run the new migration after deployment:
+
+```bash
+flask db upgrade
+```
+
+Migration added:
+
+```text
+0053_tenant_country_payment_currency
+```

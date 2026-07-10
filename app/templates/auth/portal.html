@@ -178,7 +178,8 @@
     .portal-tab {
       position: relative; z-index: 1; flex: 1; text-align: center; padding: 0.65rem 1rem; border-radius: 10px;
       font-family: var(--font-b); font-weight: 600; font-size: 0.86rem; color: var(--text-dim);
-      background: none; border: none; cursor: pointer; transition: color var(--t);
+      background: none; border: none; cursor: pointer; transition: color var(--t); text-decoration: none;
+      display: flex; align-items: center; justify-content: center;
     }
     .portal-tab.is-active { color: var(--text); }
 
@@ -333,8 +334,8 @@
 
     <div class="portal-tabs" role="tablist" data-active="{{ active_tab }}" id="portalTabs">
       <div class="portal-tabs-thumb"></div>
-      <button type="button" class="portal-tab {{ 'is-active' if active_tab == 'signin' }}" data-tab="signin" role="tab">Sign In</button>
-      <button type="button" class="portal-tab {{ 'is-active' if active_tab == 'signup' }}" data-tab="signup" role="tab">Create Account</button>
+      <a href="{{ url_for('auth.portal', tab='signin', next=next_url or none) }}" class="portal-tab {{ 'is-active' if active_tab == 'signin' }}" data-tab="signin" role="tab" aria-selected="{{ 'true' if active_tab == 'signin' else 'false' }}">Sign In</a>
+      <a href="{{ url_for('auth.portal', tab='signup', next=next_url or none) }}" class="portal-tab {{ 'is-active' if active_tab == 'signup' }}" data-tab="signup" role="tab" aria-selected="{{ 'true' if active_tab == 'signup' else 'false' }}">Create Account</a>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -357,7 +358,7 @@
       {% if google_enabled or github_enabled %}
       <div class="portal-oauth-stack" aria-label="Social sign in options">
         {% if google_enabled %}
-        <a class="portal-google" href="{{ url_for('auth.google_login', next=next_url or none) }}">
+        <a class="portal-google" href="{{ url_for('auth.google_signin', next=next_url or none) }}">
           <iconify-icon icon="flat-color-icons:google" width="18"></iconify-icon> Continue with Google
         </a>
         {% endif %}
@@ -403,7 +404,7 @@
 
       <p class="sub" style="margin-top:1.5rem;text-align:center;">
         New to Portfolio Hub?
-        <a href="#" data-switch-to="signup" style="color:var(--accent-l);text-decoration:none;">Create an account</a>
+        <a href="{{ url_for('auth.portal', tab='signup', next=next_url or none) }}" data-switch-to="signup" style="color:var(--accent-l);text-decoration:none;">Create an account</a>
       </p>
     </div>
 
@@ -432,10 +433,10 @@
       <form method="post" action="{{ url_for('auth.register', next=next_url or none) }}" novalidate id="portalSignupForm">
         {{ register_form.hidden_tag() }}
         <div class="portal-field">
-          <label for="portal-username">Username</label>
+          <label for="portal-signup-username">Username</label>
           <div class="portal-input-wrap">
             <iconify-icon icon="lucide:user" width="16" class="portal-input-icon-l"></iconify-icon>
-            {{ register_form.username(id="portal-username", type="text", autocomplete="username") }}
+            {{ register_form.username(id="portal-signup-username", type="text", autocomplete="username") }}
           </div>
           {% for e in register_form.username.errors %}<span class="portal-field-err"><iconify-icon icon="lucide:alert-circle" width="13"></iconify-icon>{{ e }}</span>{% endfor %}
         </div>
@@ -448,10 +449,10 @@
           {% for e in register_form.full_name.errors %}<span class="portal-field-err"><iconify-icon icon="lucide:alert-circle" width="13"></iconify-icon>{{ e }}</span>{% endfor %}
         </div>
         <div class="portal-field">
-          <label for="portal-email">Email</label>
+          <label for="portal-signup-email">Email</label>
           <div class="portal-input-wrap">
             <iconify-icon icon="lucide:mail" width="16" class="portal-input-icon-l"></iconify-icon>
-            {{ register_form.email(id="portal-email", type="email", autocomplete="email") }}
+            {{ register_form.email(id="portal-signup-email", type="email", autocomplete="email") }}
           </div>
           {% for e in register_form.email.errors %}<span class="portal-field-err"><iconify-icon icon="lucide:alert-circle" width="13"></iconify-icon>{{ e }}</span>{% endfor %}
         </div>
@@ -490,7 +491,7 @@
 
       <p class="sub" style="margin-top:1.5rem;text-align:center;">
         Already have an account?
-        <a href="#" data-switch-to="signin" style="color:var(--accent-l);text-decoration:none;">Sign in</a>
+        <a href="{{ url_for('auth.portal', tab='signin', next=next_url or none) }}" data-switch-to="signin" style="color:var(--accent-l);text-decoration:none;">Sign in</a>
       </p>
     </div>
 
@@ -510,7 +511,11 @@
 
     function activate(name) {
       tabsEl.setAttribute('data-active', name);
-      tabs.forEach(function (t) { t.classList.toggle('is-active', t.dataset.tab === name); });
+      tabs.forEach(function (t) {
+        var active = t.dataset.tab === name;
+        t.classList.toggle('is-active', active);
+        t.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
       Object.keys(panels).forEach(function (k) { panels[k].classList.toggle('is-active', k === name); });
       var url = new URL(window.location.href);
       url.searchParams.set('tab', name);
@@ -518,7 +523,12 @@
       document.title = (name === 'signup' ? 'Create your account' : 'Sign in') + ' — Portfolio Hub';
     }
 
-    tabs.forEach(function (t) { t.addEventListener('click', function () { activate(t.dataset.tab); }); });
+    tabs.forEach(function (t) {
+      t.addEventListener('click', function (e) {
+        e.preventDefault();
+        activate(t.dataset.tab);
+      });
+    });
     document.querySelectorAll('[data-switch-to]').forEach(function (a) {
       a.addEventListener('click', function (e) { e.preventDefault(); activate(a.dataset.switchTo); });
     });

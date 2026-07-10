@@ -11,6 +11,7 @@ import logging
 import re
 import secrets
 import string
+import time
 from datetime import datetime, timezone, timedelta
 from functools import wraps
 
@@ -64,6 +65,7 @@ from app.security import log_security_event
 from app.tenant_security import RESERVED_SLUGS, validate_slug, stamp_session_tenant
 from app.models.portfolio import TenantCommunicationSettings
 from app.models.portfolio import _utcnow
+from app.system_plan import has_administrator_access
 from app.services.billing import (
     compute_billing_metrics,
     tenant_billing_summary,
@@ -180,12 +182,29 @@ def dashboard():
     if export_format in ('csv', 'excel'):
         return _dashboard_export(query.all(), export_format, q, status_filter, plan_filter)
 
-    plan_breakdown_rows = (
-        db.session.query(Profile.plan, func.count(Profile.id))
-        .group_by(Profile.plan)
-        .all()
-    )
-    plan_breakdown = {row[0] or 'Unknown': row[1] for row in plan_breakdown_rows}
+    # Display plan analytics using the effective runtime plan, so active trials
+    # do not appear as Basic just because Profile.plan has a fallback value.
+    plan_breakdown = {}
+    try:
+        for profile in profile_repository.query.all():
+            try:
+                if has_administrator_access(profile):
+                    label = 'Administrator'
+                elif profile.is_trial_active() or ((getattr(getattr(profile, 'tenant', None), 'subscription_state', '') or '').strip().lower() == 'trial'):
+                    label = 'Trial'
+                else:
+                    raw = profile.effective_plan() if callable(getattr(profile, 'effective_plan', None)) else (profile.plan or 'Basic')
+                    label = {'starter': 'Basic', 'business': 'Business', 'pro': 'Pro', 'enterprise': 'Enterprise', 'trial': 'Trial', 'administrator': 'Administrator'}.get((raw or '').lower(), str(raw).title())
+            except Exception:
+                label = {'starter': 'Basic', 'business': 'Business', 'pro': 'Pro', 'enterprise': 'Enterprise', 'trial': 'Trial', 'administrator': 'Administrator'}.get((profile.plan or '').lower(), profile.plan or 'Unknown')
+            plan_breakdown[label] = plan_breakdown.get(label, 0) + 1
+    except Exception:
+        plan_breakdown_rows = (
+            db.session.query(Profile.plan, func.count(Profile.id))
+            .group_by(Profile.plan)
+            .all()
+        )
+        plan_breakdown = {row[0] or 'Unknown': row[1] for row in plan_breakdown_rows}
 
     subscription_status_rows = (
         db.session.query(Subscription.status, func.count(Subscription.id))
@@ -228,7 +247,57 @@ def dashboard():
         from app.heartbeat import get_heartbeat_state
         heartbeat_state = get_heartbeat_state() or {}
     except Exception:
+        heartbeat_state = {}
+
+    # Dashboard monitor should show live app/database state even when no external
+    # BetterStack/self-ping has hit /heartbeat yet. The previous card depended
+    # only on the in-memory heartbeat state, so a healthy deployed app could
+    # incorrectly show "Not checked yet" until a monitor ping arrived.
+    try:
+        db.session.execute(db.text('SELECT 1'))
+        db.session.remove()
+        heartbeat_state['db_ok'] = True
+        heartbeat_state['db_detail'] = 'Connected via live dashboard probe'
+    except Exception as exc:
+        try:
+            db.session.rollback()
+            db.session.remove()
+        except Exception:
+            pass
+        heartbeat_state['db_ok'] = False
+        heartbeat_state['db_detail'] = str(exc)
+
+    try:
+        start_time = heartbeat_state.get('start_time')
+        if start_time is not None:
+            heartbeat_state['uptime_seconds'] = max(0, int(time.monotonic() - float(start_time)))
+    except Exception:
         pass
+    heartbeat_state['dashboard_checked_at'] = datetime.now(timezone.utc).isoformat()
+
+    # Make recent tenant plan labels reflect the active subscription state, not
+    # only the stored profile.plan fallback. Trial users should show Trial.
+    recent_tenant_plan_labels = {}
+    recent_tenant_trial_days = {}
+    for tenant in recent_tenants:
+        try:
+            if has_administrator_access(tenant):
+                recent_tenant_plan_labels[tenant.tenant_slug] = 'Administrator'
+                recent_tenant_trial_days[tenant.tenant_slug] = None
+                continue
+            tenant_obj = getattr(tenant, 'tenant', None)
+            state = (getattr(tenant_obj, 'subscription_state', '') or '').strip().lower() if tenant_obj else ''
+            if state == 'trial' or tenant.is_trial_active():
+                recent_tenant_plan_labels[tenant.tenant_slug] = 'Trial'
+                recent_tenant_trial_days[tenant.tenant_slug] = tenant.trial_days_remaining()
+            else:
+                label = tenant.effective_plan() if callable(getattr(tenant, 'effective_plan', None)) else (tenant.plan or 'Basic')
+                label = {'starter': 'Basic', 'business': 'Business', 'pro': 'Pro', 'enterprise': 'Enterprise', 'trial': 'Trial', 'administrator': 'Administrator'}.get((label or '').lower(), str(label).title())
+                recent_tenant_plan_labels[tenant.tenant_slug] = label
+                recent_tenant_trial_days[tenant.tenant_slug] = None
+        except Exception:
+            recent_tenant_plan_labels[tenant.tenant_slug] = tenant.plan or 'Basic'
+            recent_tenant_trial_days[tenant.tenant_slug] = None
 
     return render_template(
         'superadmin/dashboard.html',
@@ -242,6 +311,8 @@ def dashboard():
         status_filter=status_filter,
         plan_filter=plan_filter,
         heartbeat_state=heartbeat_state,
+        recent_tenant_plan_labels=recent_tenant_plan_labels,
+        recent_tenant_trial_days=recent_tenant_trial_days,
     )
 
 def _dashboard_export(tenants, export_format, q, status_filter, plan_filter):

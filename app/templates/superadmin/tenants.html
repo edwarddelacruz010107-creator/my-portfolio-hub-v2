@@ -37,6 +37,11 @@
   </div>
   <div class="tstat-divider"></div>
   <div class="tstat">
+    <span class="tstat-val tstat-green">{{ trial_count|default(0) }}</span>
+    <span class="tstat-label">On Trial</span>
+  </div>
+  <div class="tstat-divider"></div>
+  <div class="tstat">
     <span class="tstat-val tstat-muted">{{ tenants.pages }}</span>
     <span class="tstat-label">Pages</span>
   </div>
@@ -96,6 +101,7 @@
         <th>Slug</th>
         <th>Owner Email</th>
         <th>Plan</th>
+        <th>Trial Left</th>
         <th>Status</th>
         <th>Projects</th>
         <th>Last Updated</th>
@@ -115,12 +121,9 @@
             </div>
             <div class="tenant-name-info">
               <span class="tenant-name-main">{{ t.name or 'Untitled Tenant' }}</span>
-              {% set is_system_tenant = t.tenant_slug in ['default', 'administrator'] or (t.plan or '')|lower == 'administrator' %}
-              {% if is_system_tenant %}
-                <span class="tenant-plan-badge plan-administrator">ADMINISTRATOR</span>
-              {% elif t.plan %}
-                <span class="tenant-plan-badge plan-{{ t.plan|lower }}">{{ t.plan }}</span>
-              {% endif %}
+              {% set plan_label_name = plan_label_map.get(t.tenant_slug, t.plan or 'Trial') if plan_label_map is defined else (t.plan or 'Trial') %}
+              {% set plan_class_name = plan_label_name|lower|replace(' ', '_') %}
+              <span class="tenant-plan-badge plan-{{ plan_class_name }}">{{ 'ADMINISTRATOR' if plan_label_name == 'Administrator' else plan_label_name }}</span>
             </div>
           </div>
         </td>
@@ -144,10 +147,22 @@
 
         <!-- Plan -->
         <td data-label="Plan">
-          {% set plan_label = 'Administrator' if (t.tenant_slug in ['default', 'administrator'] or (t.plan or '')|lower == 'administrator') else (t.plan or 'Basic') %}
+          {% set plan_label = plan_label_map.get(t.tenant_slug, t.plan or 'Trial') if plan_label_map is defined else (t.plan or 'Trial') %}
           <span class="plan-tag plan-{{ plan_label|lower|replace(' ','_') }}">
             {{ 'ADMINISTRATOR' if plan_label == 'Administrator' else plan_label }}
           </span>
+        </td>
+
+        <!-- Trial Days Remaining -->
+        <td class="td-count" data-label="Trial Left">
+          {% set trial_days = trial_days_remaining_map.get(t.tenant_slug) if trial_days_remaining_map is defined else None %}
+          {% if plan_label == 'Trial' %}
+            <span class="trial-days-pill {% if trial_days is not none and trial_days <= 2 %}trial-days-low{% endif %}">
+              {{ trial_days if trial_days is not none else 0 }}d left
+            </span>
+          {% else %}
+            <span class="text-dim">—</span>
+          {% endif %}
         </td>
 
         <!-- Status -->

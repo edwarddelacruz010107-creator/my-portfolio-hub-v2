@@ -70,9 +70,20 @@
       box-shadow: var(--shadow); position: relative; z-index: 1;
       opacity: 0; animation: fadeUp 0.45s var(--ease) forwards;
     }
+    .sa-brand-head {
+      display: flex; align-items: center; gap: 0.85rem; margin-bottom: 1.2rem;
+    }
+    .sa-brand-icon {
+      width: 48px; height: 48px; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center;
+      color: #fff; background: linear-gradient(135deg, var(--accent-l), var(--accent-d));
+      border: 1px solid rgba(255,255,255,0.14); box-shadow: 0 14px 36px var(--accent-glow);
+      flex: 0 0 auto;
+    }
+    .sa-brand-copy { min-width: 0; }
+    .sa-brand-copy h1 { margin: 0 0 0.35rem; }
     .sa-eyebrow {
       display: flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent-l); margin-bottom: 0.8rem;
+      text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent-l); margin-bottom: 0.45rem;
     }
     .sa-eyebrow::before { content: ''; width: 14px; height: 2px; background: var(--accent-l); border-radius: 2px; }
     .sa-card h1 { font-family: var(--font-d); font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 0.35rem; }
@@ -119,8 +130,15 @@
 <div class="sa-badge"><iconify-icon icon="lucide:shield-alert" width="14"></iconify-icon> Restricted Access</div>
 
 <div class="sa-card">
-  <div class="sa-eyebrow">Platform Control</div>
-  <h1>{{ page_title or 'Superadmin Portal' }}</h1>
+  <div class="sa-brand-head">
+    <div class="sa-brand-icon" aria-hidden="true">
+      <iconify-icon icon="lucide:shield-check" width="25"></iconify-icon>
+    </div>
+    <div class="sa-brand-copy">
+      <div class="sa-eyebrow">Platform Control</div>
+      <h1>{{ page_title or 'Superadmin Portal' }}</h1>
+    </div>
+  </div>
   <p class="sub">{{ page_subtitle or 'Sign in to manage the entire tenant system.' }}</p>
 
   {% with messages = get_flashed_messages(with_categories=true) %}

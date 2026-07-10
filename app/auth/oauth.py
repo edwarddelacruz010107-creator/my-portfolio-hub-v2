@@ -64,6 +64,23 @@ from app.services.auth.github_oauth_service import (
 logger = logging.getLogger(__name__)
 
 
+def _oauth_external_url(endpoint: str, **values) -> str:
+    """Build a stable production OAuth redirect URI.
+
+    Flask's url_for(..., _external=True) is normally enough, but hosted
+    platforms can produce mismatches when APP_BASE_URL differs from request
+    proxy headers. When APP_BASE_URL is configured, use it as the canonical
+    origin so Google receives exactly the same domain registered in Cloud
+    Console.
+    """
+    base = (current_app.config.get('APP_BASE_URL') or '').strip().rstrip('/')
+    path = url_for(endpoint, **values)
+    if base:
+        return f"{base}{path}"
+    return url_for(endpoint, _external=True, **values)
+
+
+
 def _oauth_client():
     """Return the registered Authlib google client, or None if disabled."""
     if not current_app.config.get('GOOGLE_OAUTH_ENABLED'):
@@ -133,6 +150,7 @@ def _fetch_github_identity(client, token: dict) -> dict:
     }
 
 
+@auth.route('/google/signin', endpoint='google_signin')
 @auth.route('/google/login')
 @limiter.limit('20 per minute')
 @limiter.limit('100 per hour')
@@ -160,10 +178,17 @@ def google_login():
     # auth.login / tenant.auth_login / tenant.admin_login before the
     # Google button was rendered) so the callback authorizes against the
     # correct tenant, exactly like the password flow does.
-    redirect_uri = url_for('auth.google_callback', _external=True)
+    # Production canonical callback for the Sign In tab.
+    # Keep /auth/google/callback registered below as a backward-compatible
+    # alias, but always send Google the stable /auth/google/signin/callback
+    # URL so production OAuth configuration does not drift between the
+    # Sign In and Create Account buttons.
+    redirect_uri = _oauth_external_url('auth.google_signin_callback')
+    session['_oauth_flow'] = 'signin'
     return client.authorize_redirect(redirect_uri)
 
 
+@auth.route('/google/signin/callback', endpoint='google_signin_callback')
 @auth.route('/google/callback')
 @limiter.limit('20 per minute')
 @limiter.limit('100 per hour')
@@ -312,7 +337,8 @@ def google_signup():
     else:
         session.pop('_oauth_signup_next', None)
 
-    redirect_uri = url_for('auth.google_signup_callback', _external=True)
+    redirect_uri = _oauth_external_url('auth.google_signup_callback')
+    session['_oauth_flow'] = 'signup'
     return client.authorize_redirect(redirect_uri)
 
 

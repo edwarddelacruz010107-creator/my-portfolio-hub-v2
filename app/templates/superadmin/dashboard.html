@@ -245,7 +245,11 @@
                 </td>
                 <td data-label="Email" class="muted sa-table-email">{{ tenant.email or '—' }}</td>
                 <td data-label="Plan">
-                  <span class="badge-status badge-active" style="font-size:0.68rem">{{ tenant.plan or 'Basic' }}</span>
+                  {% set recent_plan = recent_tenant_plan_labels.get(tenant.tenant_slug, tenant.plan or 'Basic') if recent_tenant_plan_labels is defined else (tenant.plan or 'Basic') %}
+                  <span class="badge-status badge-active" style="font-size:0.68rem">{{ recent_plan }}</span>
+                  {% if recent_tenant_trial_days is defined and recent_tenant_trial_days.get(tenant.tenant_slug) is not none %}
+                    <span class="badge-status" style="font-size:0.65rem;background:rgba(245,158,11,.12);color:#fbbf24;margin-left:.25rem">{{ recent_tenant_trial_days.get(tenant.tenant_slug) }}d trial</span>
+                  {% endif %}
                 </td>
                 <td data-label="Updated" class="muted">{{ tenant.updated_at.strftime('%b %d') if tenant.updated_at else '—' }}</td>
               </tr>
@@ -377,10 +381,21 @@
               {{ heartbeat_state.last_heartbeat_at[:19] | replace("T"," ") }} UTC
             </span>
           </div>
+        {% elif heartbeat_state.uptime_seconds is defined %}
+          {% set up = heartbeat_state.uptime_seconds|int %}
+          {% set up_days = up // 86400 %}
+          {% set up_hours = (up % 86400) // 3600 %}
+          {% set up_minutes = (up % 3600) // 60 %}
+          <div class="hb-value hb-ok">
+            <span class="hb-dot hb-dot--green"></span>
+            <span title="Live dashboard check: {{ heartbeat_state.dashboard_checked_at|default('now') }}">
+              App running{% if up_days %} {{ up_days }}d{% endif %} {{ up_hours }}h {{ up_minutes }}m
+            </span>
+          </div>
         {% else %}
           <div class="hb-value hb-warn">
             <span class="hb-dot hb-dot--yellow"></span>
-            <span>No ping yet this session</span>
+            <span>No ping yet, dashboard checked live</span>
           </div>
         {% endif %}
       </div>
@@ -389,9 +404,9 @@
         {% if heartbeat_state.db_ok is none %}
           <div class="hb-value hb-neutral"><span class="hb-dot hb-dot--grey"></span> Not checked yet</div>
         {% elif heartbeat_state.db_ok %}
-          <div class="hb-value hb-ok"><span class="hb-dot hb-dot--green"></span> Connected</div>
+          <div class="hb-value hb-ok" title="{{ heartbeat_state.db_detail|default('Live database probe passed') }}"><span class="hb-dot hb-dot--green"></span> Connected</div>
         {% else %}
-          <div class="hb-value hb-error"><span class="hb-dot hb-dot--red"></span> Unreachable</div>
+          <div class="hb-value hb-error" title="{{ heartbeat_state.db_detail|default('Database probe failed') }}"><span class="hb-dot hb-dot--red"></span> Unreachable</div>
         {% endif %}
       </div>
       <div class="hb-card">
@@ -401,8 +416,12 @@
             <span class="hb-dot {% if heartbeat_state.selfping_ok %}hb-dot--green{% else %}hb-dot--red{% endif %}"></span>
             <span class="hb-time">{{ heartbeat_state.last_selfping_at[:19] | replace("T"," ") }} UTC</span>
           </div>
+        {% elif heartbeat_state.db_ok %}
+          <div class="hb-value hb-ok" title="No external self-ping has run yet, but the dashboard live health probe passed.">
+            <span class="hb-dot hb-dot--green"></span> Dashboard live
+          </div>
         {% else %}
-          <div class="hb-value hb-neutral"><span class="hb-dot hb-dot--grey"></span> Disabled / not run</div>
+          <div class="hb-value hb-neutral"><span class="hb-dot hb-dot--grey"></span> Not configured</div>
         {% endif %}
       </div>
       <div class="hb-card hb-card--links">

@@ -76,6 +76,7 @@ from app.services.billing import (
     force_activate_subscription,
     sync_subscription_from_paymongo,
 )
+from app.services.billing.trial_limits import get_trial_duration_days
 from app.services.auth.email_policy import EmailPolicyError, assert_email_allowed_for_user, normalize_email
 
 
@@ -94,6 +95,49 @@ def _configure_tenant_form_plan_choices(form: TenantForm, include_administrator:
     form.plan.choices = list(_PUBLIC_PLAN_CHOICES)
     if include_administrator:
         form.plan.choices.append((ADMINISTRATOR_PLAN_NAME, 'Administrator — protected system plan'))
+
+
+def _plan_display_label(raw_plan: str | None) -> str:
+    """Return the label shown to superadmin users."""
+    norm = normalize_plan_name(raw_plan or 'Trial')
+    return {
+        'trial': 'Trial',
+        'starter': 'Basic',
+        'basic': 'Basic',
+        'pro': 'Pro',
+        'business': 'Business',
+        'enterprise': 'Enterprise',
+        'administrator': 'Administrator',
+    }.get(norm, (raw_plan or 'Trial').strip().title())
+
+
+def _trial_days_remaining(profile: Profile, tenant_obj: Tenant | None = None) -> int | None:
+    """Days left in trial, or None when the tenant is not on trial."""
+    if has_administrator_access(profile):
+        return None
+    state = (getattr(tenant_obj, 'subscription_state', '') or '').strip().lower() if tenant_obj else ''
+    trial_ends = getattr(tenant_obj, 'trial_ends_at', None) if tenant_obj else None
+    if trial_ends is None:
+        trial_ends = getattr(profile, 'free_trial_ends', None)
+    if state != 'trial' and not trial_ends:
+        return None
+    trial_ends = _normalize_timestamp(trial_ends)
+    if trial_ends is None:
+        return None if state != 'trial' else 0
+    return max(0, (trial_ends - datetime.now(timezone.utc)).days)
+
+
+def _effective_plan_label(profile: Profile, tenant_obj: Tenant | None = None) -> str:
+    """Plan label that respects core Tenant.subscription_state."""
+    if has_administrator_access(profile):
+        return 'Administrator'
+    state = (getattr(tenant_obj, 'subscription_state', '') or '').strip().lower() if tenant_obj else ''
+    if state == 'trial' or _trial_days_remaining(profile, tenant_obj) is not None:
+        return 'Trial'
+    try:
+        return _plan_display_label(profile.effective_plan())
+    except Exception:
+        return _plan_display_label(getattr(profile, 'plan', None))
 
 
 @superadmin.route('/tenants')
@@ -129,6 +173,14 @@ def tenants():
 
     slugs = [t.tenant_slug for t in tenant_page.items]
 
+    core_tenants_by_slug = {}
+    if slugs:
+        try:
+            core_rows = Tenant.query.filter(Tenant.slug.in_(slugs)).all()
+            core_tenants_by_slug = {row.slug: row for row in core_rows}
+        except Exception:
+            core_tenants_by_slug = {}
+
     project_counts = {}
     if slugs:
         rows = (
@@ -155,7 +207,14 @@ def tenants():
     except Exception:
         active_count = tenant_page.total
 
+    try:
+        trial_count = Tenant.query.filter(Tenant.subscription_state == 'trial').count()
+    except Exception:
+        trial_count = 0
+
     days_active_map = {}
+    trial_days_remaining_map = {}
+    plan_label_map = {}
     now = datetime.now(timezone.utc)
     for tenant in tenant_page.items:
         updated_at = _normalize_timestamp(tenant.updated_at)
@@ -164,6 +223,9 @@ def tenants():
             days_active_map[tenant.tenant_slug] = max(0, delta.days)
         else:
             days_active_map[tenant.tenant_slug] = None
+        core_tenant = core_tenants_by_slug.get(tenant.tenant_slug)
+        plan_label_map[tenant.tenant_slug] = _effective_plan_label(tenant, core_tenant)
+        trial_days_remaining_map[tenant.tenant_slug] = _trial_days_remaining(tenant, core_tenant)
 
     return render_template(
         'superadmin/tenants.html',
@@ -173,7 +235,10 @@ def tenants():
         project_counts=project_counts,
         tenant_owners=tenant_owners,
         active_count=active_count,
+        trial_count=trial_count,
         days_active_map=days_active_map,
+        plan_label_map=plan_label_map,
+        trial_days_remaining_map=trial_days_remaining_map,
     )
 
 @superadmin.route('/tenants/new', methods=['GET', 'POST'])
@@ -236,17 +301,21 @@ def tenant_new():
         except (ValueError, TypeError):
             free_trial_days_val = 0
 
+        plan_choice = (form.plan.data or 'Trial').strip()
+        if plan_choice == 'Trial' and free_trial_days_val <= 0:
+            free_trial_days_val = get_trial_duration_days()
+
         free_trial_ends = (
             datetime.now(timezone.utc) + timedelta(days=free_trial_days_val)
             if free_trial_days_val > 0 else None
         )
 
-        plan_choice = (form.plan.data or 'Trial').strip()
         if is_administrator_plan(plan_choice):
             flash('Administrator is a protected internal system plan and cannot be assigned to normal tenants.', 'danger')
             return render_template('superadmin/tenant_form.html', form=form, page_title='Create Tenant')
         normalized_plan = normalize_plan_name(plan_choice)
         is_system_profile = False
+        is_trial_plan = normalized_plan == 'trial'
         tenant = Tenant(
             slug=slug,
             company_name=form.name.data.strip(),
@@ -254,6 +323,12 @@ def tenant_new():
             contact_email=form.contact_email.data.strip().lower() if form.contact_email.data else email,
             status='active' if request.form.get('is_active') == 'on' else 'inactive',
             plan=normalized_plan,
+            plan_name=normalized_plan,
+            subscription_state='trial' if is_trial_plan else 'pending',
+            trial_status='trial' if is_trial_plan else 'pending',
+            trial_started_at=datetime.now(timezone.utc) if is_trial_plan else None,
+            trial_ends_at=free_trial_ends if is_trial_plan else None,
+            grace_period_ends_at=(free_trial_ends + timedelta(days=3)) if is_trial_plan and free_trial_ends else None,
         )
         db.session.add(tenant)
         # ── CRITICAL: flush to core_db so PostgreSQL assigns tenant.id ──────────
@@ -275,10 +350,9 @@ def tenant_new():
             tenant.slug,
         )
 
-        # Trial tenants rely on free_trial_ends — no subscription until they pay
-        if plan_choice == 'Trial' and free_trial_days_val <= 0:
-            free_trial_days_val = get_trial_duration_days()
-            free_trial_ends = datetime.now(timezone.utc) + timedelta(days=free_trial_days_val)
+        # Trial tenants rely on free_trial_ends — no subscription until they pay.
+        # free_trial_ends was computed before Tenant/Profile construction so both
+        # core_db.tenants and tenant_db.profile stay in sync.
 
         # ── Profile construction ─────────────────────────────────────────────────
         # Pass tenant_id and tenant_slug EXPLICITLY (post-flush, id is valid).
@@ -442,14 +516,32 @@ def tenant_edit(tenant_id):
         profile.plan = normalized_plan
         if profile.tenant:
             profile.tenant.plan = normalized_plan
+            profile.tenant.plan_name = normalized_plan if not is_system_profile else 'administrator'
             if is_system_profile:
-                profile.tenant.plan_name = 'administrator'
                 profile.tenant.status = 'active'
                 profile.tenant.subscription_state = 'active'
                 profile.tenant.trial_status = 'active'
                 profile.tenant.trial_ends_at = None
                 profile.tenant.grace_period_ends_at = None
                 profile.tenant.subscription_expires_at = None
+            elif normalized_plan == 'trial':
+                profile.tenant.subscription_state = 'trial'
+                profile.tenant.trial_status = 'trial'
+                if profile.tenant.trial_started_at is None:
+                    profile.tenant.trial_started_at = datetime.now(timezone.utc)
+                profile.tenant.trial_ends_at = profile.free_trial_ends
+                profile.tenant.grace_period_ends_at = (
+                    profile.free_trial_ends + timedelta(days=3)
+                    if profile.free_trial_ends else None
+                )
+                profile.tenant.subscription_expires_at = None
+            elif normalized_plan in PAID_PLAN_NAMES:
+                # A superadmin-provisioned paid plan still requires payment/admin
+                # activation unless the existing billing flow marks it active.
+                profile.tenant.subscription_state = 'pending'
+                profile.tenant.trial_status = 'pending'
+                profile.tenant.trial_ends_at = None
+                profile.tenant.grace_period_ends_at = None
             # Update contact_email if provided
             new_contact_email = request.form.get('contact_email', '').strip().lower()
             if new_contact_email:

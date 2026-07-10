@@ -885,6 +885,29 @@
 .plan-enterprise  { background: rgba(251,191,36,0.15); color: #fbbf24; }
 .plan-administrator { background: linear-gradient(135deg, rgba(124,58,237,0.22), rgba(245,158,11,0.18)); color: #fde68a; border: 1px solid rgba(245,158,11,0.35); font-weight: 800; letter-spacing: 0.04em; box-shadow: 0 8px 20px rgba(124,58,237,0.18); }
 
+
+.plan-trial { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.25); }
+.plan-pro { background: rgba(99,102,241,0.15); color: var(--accent-light); }
+.plan-business { background: rgba(14,165,233,0.15); color: #7dd3fc; }
+.trial-days-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(16,185,129,0.12);
+  border: 1px solid rgba(16,185,129,0.22);
+  color: #34d399;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.trial-days-pill.trial-days-low {
+  background: rgba(245,158,11,0.12);
+  border-color: rgba(245,158,11,0.28);
+  color: #fbbf24;
+}
+
 .slug-code {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 0.8rem;

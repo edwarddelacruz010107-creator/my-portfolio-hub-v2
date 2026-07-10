@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from flask import g
 from flask_login import current_user
 
-from app.models.portfolio import Project, Profile, Inquiry
+from app.models.portfolio import Project, Profile, Inquiry, Tenant
 from app.repositories import profile_repository
 try:
     from app.services.notification_service import get_unread_count as _get_notif_count, get_expiry_warning as _get_expiry_warning
@@ -41,6 +41,38 @@ from app.tenant_security import resolve_active_tenant
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TENANT_SLUG = 'default'
+
+
+def _project_count_for_admin_sidebar(tenant_slug: str | None, *, published_only: bool = False) -> int:
+    """Count projects for the active tenant in the admin sidebar.
+
+    The sidebar is an admin/content-management counter, so it must count
+    Draft + Published projects. The previous implementation counted only
+    ``status='published'``; that made the badge show 0 while the Projects
+    page visibly had Draft cards.
+
+    The lookup also matches by tenant_slug OR tenant_id. This mirrors the
+    project list/public portfolio repair logic and protects the default
+    administrator portfolio from stale tenant_id values after bootstrap or
+    redeploy.
+    """
+    q = Project.query
+    if published_only:
+        q = q.filter(Project.status == 'published')
+
+    slug = (tenant_slug or '').strip().lower()
+    if not slug:
+        return q.count()
+
+    filters = [Project.tenant_slug == slug]
+    try:
+        tenant_row = Tenant.query.filter_by(slug=slug).first()
+        if tenant_row is not None:
+            filters.append(Project.tenant_id == tenant_row.id)
+    except Exception:
+        logger.debug('Unable to resolve tenant_id while counting projects for slug=%s', slug, exc_info=True)
+
+    return q.filter(db.or_(*filters)).count()
 
 
 def _load_globals(app):
@@ -120,7 +152,7 @@ def _load_globals(app):
 
         if tenant_slug:
             profile = profile_repository.get_by_tenant_slug(tenant_slug)
-            project_count   = Project.query.filter_by(status='published', tenant_slug=tenant_slug).count()
+            project_count   = _project_count_for_admin_sidebar(tenant_slug)
             # Count unread: original messages not read + threads with new superadmin replies
             unread_messages = Inquiry.query.filter(
                 Inquiry.tenant_slug == tenant_slug,
@@ -150,7 +182,7 @@ def _load_globals(app):
             # Profile.query.first() is acceptable here because no admin write
             # actions are performed on superadmin or public routes.
             profile         = profile_repository.get_first()
-            project_count   = Project.query.filter_by(status='published').count()
+            project_count   = _project_count_for_admin_sidebar(None)
             unread_messages = Inquiry.query.filter_by(is_read=False).count()
             unread_superadmin_messages = 0
 

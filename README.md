@@ -566,3 +566,26 @@ Use this checklist after major changes:
 ## License
 
 This project is prepared as a portfolio CMS/SaaS application. Update this section with the final license and ownership details before public release.
+
+## Google OAuth production redirect setup
+
+If Google shows `Error 400: redirect_uri_mismatch`, the deployed app is sending a callback URL that is not listed in Google Cloud Console. Set this environment variable in production:
+
+```env
+APP_BASE_URL=https://myportfoliohub.online
+```
+
+Then add these exact URLs under **Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs → Authorized redirect URIs**:
+
+```text
+https://myportfoliohub.online/auth/google/signin/callback
+https://myportfoliohub.online/auth/google/signup/callback
+```
+
+Optional legacy fallback:
+
+```text
+https://myportfoliohub.online/auth/google/callback
+```
+
+The app logs the exact OAuth redirect URI it sends to Google as `Google OAuth signin redirect_uri=...` or `Google OAuth signup redirect_uri=...`. If Google still blocks access, copy the logged URL exactly into the Authorized redirect URIs list.

@@ -16,10 +16,16 @@
       Open your authenticator app (Google Authenticator, Authy, 1Password, etc.) and scan the code below.
     </p>
 
+    {% if qr_b64 %}
     <div style="padding:1.25rem; background:white; border-radius:16px; display:inline-block; box-shadow:0 4px 24px rgba(0,0,0,0.25);">
       <img src="data:image/png;base64,{{ qr_b64 }}" alt="2FA QR Code"
            style="width:200px; height:200px; display:block;" />
     </div>
+    {% else %}
+    <div style="padding:1rem;border:1px solid rgba(245,158,11,0.35);background:rgba(245,158,11,0.12);border-radius:14px;text-align:left;color:#fcd34d;line-height:1.5;">
+      QR generation is unavailable on this deployment. Use the manual key below in your authenticator app.
+    </div>
+    {% endif %}
 
     <p style="color:var(--text-muted); font-size:0.8rem;">Can't scan? Enter the key manually:</p>
     <div style="font-family:'Courier New',monospace; font-size:0.95rem; font-weight:700; letter-spacing:0.2em;

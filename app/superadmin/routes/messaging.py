@@ -77,6 +77,34 @@ from app.superadmin.blueprint import superadmin, superadmin_required
 logger = logging.getLogger(__name__)
 
 
+_READY_MADE_MESSAGE_TEMPLATES = {
+    'general': {
+        'message_type': 'general',
+        'subject': 'Platform update from MyPortfolioHub',
+        'message': 'Hello,\n\nWe wanted to share a quick platform update with you. Please review the details below and let us know if you need any help.\n\nWhat changed:\n- [Add the main update here]\n- [Add any action needed here]\n\nThank you,\nMyPortfolioHub Team',
+    },
+    'alert': {
+        'message_type': 'alert',
+        'subject': 'Important alert for your portfolio account',
+        'message': 'Hello,\n\nWe are sending this alert because an important item may require your attention.\n\nSummary:\n- Issue: [Describe the alert]\n- Impact: [Explain who or what is affected]\n- Action needed: [Explain what the tenant admin should do]\n\nPlease review this as soon as possible.\n\nThank you,\nMyPortfolioHub Team',
+    },
+    'billing': {
+        'message_type': 'billing',
+        'subject': 'Billing update for your portfolio subscription',
+        'message': 'Hello,\n\nThis is a billing update regarding your MyPortfolioHub account.\n\nDetails:\n- Plan or invoice: [Add plan/invoice detail]\n- Amount or status: [Add amount/status if applicable]\n- Next step: [Explain payment, renewal, or confirmation action]\n\nPlease check your billing page or contact support if you have questions.\n\nThank you,\nMyPortfolioHub Team',
+    },
+    'maintenance': {
+        'message_type': 'maintenance',
+        'subject': 'Scheduled maintenance notice',
+        'message': 'Hello,\n\nWe will be performing scheduled maintenance on MyPortfolioHub.\n\nSchedule:\n- Date/time: [Add maintenance schedule]\n- Expected duration: [Add estimated duration]\n- Expected impact: [Add downtime or feature impact]\n\nWe recommend saving any work before the maintenance window begins.\n\nThank you for your patience,\nMyPortfolioHub Team',
+    },
+    'account': {
+        'message_type': 'account',
+        'subject': 'Reminder: review your portfolio account settings',
+        'message': 'Hello,\n\nThis is a friendly reminder to review your MyPortfolioHub account settings.\n\nRecommended actions:\n- Confirm your portfolio details are updated\n- Review your contact and email settings\n- Check your theme, projects, and billing information\n\nKeeping your account updated helps your portfolio stay accurate and professional.\n\nThank you,\nMyPortfolioHub Team',
+    },
+}
+
 @superadmin.route('/messages/send', methods=['GET', 'POST'])
 @superadmin_required
 def send_message():
@@ -91,6 +119,13 @@ def send_message():
         requested_tenant = request.args.get('tenant_slug')
         if requested_tenant:
             form.tenant_slug.data = requested_tenant
+
+        requested_template = (request.args.get('template') or '').strip().lower()
+        template = _READY_MADE_MESSAGE_TEMPLATES.get(requested_template)
+        if template:
+            form.message_type.data = template['message_type']
+            form.subject.data = template['subject']
+            form.message.data = template['message']
 
     if form.validate_on_submit():
         selected = form.tenant_slug.data

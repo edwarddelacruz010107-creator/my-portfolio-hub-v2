@@ -65,19 +65,63 @@ logger = logging.getLogger(__name__)
 
 
 def _oauth_external_url(endpoint: str, **values) -> str:
-    """Build a stable production OAuth redirect URI.
+    """Build the exact public OAuth redirect URI used with Google/GitHub.
 
-    Flask's url_for(..., _external=True) is normally enough, but hosted
-    platforms can produce mismatches when APP_BASE_URL differs from request
-    proxy headers. When APP_BASE_URL is configured, use it as the canonical
-    origin so Google receives exactly the same domain registered in Cloud
-    Console.
+    Why this is intentionally stricter than plain ``url_for(...,
+    _external=True)``:
+
+    * Render/Cloudflare/reverse proxies may make Flask see ``http://`` even
+      when the visitor is on ``https://``. Google compares the redirect URI
+      character-for-character, so ``http`` vs ``https`` causes
+      ``redirect_uri_mismatch``.
+    * Production should have one canonical origin. Set APP_BASE_URL to your
+      public domain, for example ``https://myportfoliohub.online``.
+    * If APP_BASE_URL is missing, infer the public host from forwarded headers
+      and force HTTPS for non-localhost hosts so production does not send an
+      accidental internal/http callback to Google.
     """
-    base = (current_app.config.get('APP_BASE_URL') or '').strip().rstrip('/')
     path = url_for(endpoint, **values)
-    if base:
-        return f"{base}{path}"
-    return url_for(endpoint, _external=True, **values)
+
+    configured_base = (
+        current_app.config.get('APP_BASE_URL')
+        or current_app.config.get('PUBLIC_BASE_URL')
+        or ''
+    )
+    configured_base = str(configured_base).strip().rstrip('/')
+    if configured_base:
+        return f"{configured_base}{path}"
+
+    # Fallback: derive from proxy headers. ProxyFix is active in create_app(),
+    # but reading the raw forwarded headers here makes the OAuth callback stable
+    # even if a host/proxy strips one of them before Flask builds external URLs.
+    forwarded_host = (request.headers.get('X-Forwarded-Host') or '').split(',')[0].strip()
+    host = forwarded_host or request.host
+
+    forwarded_proto = (request.headers.get('X-Forwarded-Proto') or '').split(',')[0].strip().lower()
+    scheme = forwarded_proto or request.scheme or 'https'
+
+    # Google production OAuth callbacks must use HTTPS. Keep HTTP only for local
+    # development hostnames.
+    local_hosts = ('localhost', '127.0.0.1', '0.0.0.0')
+    host_without_port = host.split(':', 1)[0].lower()
+    if host_without_port not in local_hosts:
+        scheme = 'https'
+
+    return f"{scheme}://{host}{path}"
+
+
+def _log_oauth_redirect_uri(flow: str, redirect_uri: str) -> None:
+    """Log the exact redirect URI sent to the OAuth provider.
+
+    This does not log tokens or secrets. It is deliberately helpful in
+    production because Google's ``redirect_uri_mismatch`` screen only says the
+    URI is invalid; the app log now shows the exact URI that must be added in
+    Google Cloud Console.
+    """
+    try:
+        logger.info('Google OAuth %s redirect_uri=%s', flow, redirect_uri)
+    except Exception:
+        pass
 
 
 
@@ -184,6 +228,7 @@ def google_login():
     # URL so production OAuth configuration does not drift between the
     # Sign In and Create Account buttons.
     redirect_uri = _oauth_external_url('auth.google_signin_callback')
+    _log_oauth_redirect_uri('signin', redirect_uri)
     session['_oauth_flow'] = 'signin'
     return client.authorize_redirect(redirect_uri)
 
@@ -338,6 +383,7 @@ def google_signup():
         session.pop('_oauth_signup_next', None)
 
     redirect_uri = _oauth_external_url('auth.google_signup_callback')
+    _log_oauth_redirect_uri('signup', redirect_uri)
     session['_oauth_flow'] = 'signup'
     return client.authorize_redirect(redirect_uri)
 

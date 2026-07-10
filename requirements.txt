@@ -35,6 +35,7 @@ email-validator==2.3.0
 # AUTHENTICATION & OTP
 # ─────────────────────────────────────────────────────────────────────
 PyOTP==2.10.0
+qrcode[pil]==8.2
 python-dotenv==1.2.2
 Authlib==1.7.2  # Google OAuth (Sign-In) — app/auth/oauth.py
 

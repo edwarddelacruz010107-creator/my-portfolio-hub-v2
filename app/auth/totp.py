@@ -61,7 +61,7 @@ from datetime import datetime, timezone, timedelta
 from typing import TYPE_CHECKING
 
 import pyotp
-import qrcode
+# qrcode is optional at import time; setup pages fall back to manual key if missing.
 from flask import session, current_app
 from werkzeug.security import generate_password_hash
 
@@ -226,19 +226,26 @@ def generate_setup_context(user: "User", issuer: str | None = None) -> dict:
         issuer_name=issuer,
     )
 
-    # QR code — indigo fill matches admin UI palette
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=8,
-        border=2,
-    )
-    qr.add_data(uri)
-    qr.make(fit=True)
-    img    = qr.make_image(fill_color="#6366f1", back_color="white")
-    buf    = io.BytesIO()
-    img.save(buf, format="PNG")
-    qr_b64 = base64.b64encode(buf.getvalue()).decode()
+    # QR code — indigo fill matches admin UI palette.
+    # Production safety: if qrcode is not installed yet, do not 500 the page;
+    # the manual setup key below remains enough for authenticator apps.
+    qr_b64 = None
+    try:
+        import qrcode  # type: ignore
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=8,
+            border=2,
+        )
+        qr.add_data(uri)
+        qr.make(fit=True)
+        img    = qr.make_image(fill_color="#6366f1", back_color="white")
+        buf    = io.BytesIO()
+        img.save(buf, format="PNG")
+        qr_b64 = base64.b64encode(buf.getvalue()).decode()
+    except Exception as exc:
+        logger.warning("2FA QR generation unavailable; using manual-key fallback: %s", exc)
 
     # Generate backup codes only once per setup session
     if _PENDING_BACKUP_KEY not in session:

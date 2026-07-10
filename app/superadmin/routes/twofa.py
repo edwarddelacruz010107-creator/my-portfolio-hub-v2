@@ -80,72 +80,72 @@ logger = logging.getLogger(__name__)
 @superadmin.route('/profile/2fa/setup', methods=['GET'])
 @superadmin_required
 def setup_2fa():
-    import io, base64, qrcode
-    from flask import current_app
+    """Start Superadmin TOTP setup using the same safe flow as tenant admin.
+
+    The old implementation temporarily wrote the pending TOTP secret onto the
+    current user during GET and generated the QR code inline. On production this
+    could 500 if qrcode was unavailable and it also risked stale session/DB
+    state. The shared helper keeps pending secrets in session until a valid code
+    is submitted.
+    """
     from app.forms import TOTPSetupForm
+    from app.auth.totp import generate_setup_context
 
     form = TOTPSetupForm()
-    if '_pending_totp_secret' not in session:
-        secret = current_user.generate_totp_secret()
-        session['_pending_totp_secret'] = secret
-
-    secret = session['_pending_totp_secret']
-    current_user.totp_secret = secret
-    uri = current_user.get_totp_uri(
-        issuer=current_app.config.get('TOTP_ISSUER', 'Portfolio CMS')
-    )
-    db.session.expire(current_user)
-
-    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=8, border=2)
-    qr.add_data(uri)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color='#6366f1', back_color='transparent')
-    buffer = io.BytesIO()
-    img.save(buffer, format='PNG')
-    qr_b64 = base64.b64encode(buffer.getvalue()).decode()
-
-    if '_pending_backup_codes' not in session:
-        current_user.totp_secret = secret
-        codes = current_user.generate_backup_codes()
-        session['_pending_backup_codes'] = codes
-        db.session.expire(current_user)
-
-    backup_codes = session['_pending_backup_codes']
-    return render_template('superadmin/2fa_setup.html', form=form, qr_b64=qr_b64,
-                           secret=secret, backup_codes=backup_codes)
+    ctx = generate_setup_context(user=current_user)
+    return render_template('superadmin/2fa_setup.html', form=form, **ctx)
 
 @superadmin.route('/profile/2fa/enable', methods=['POST'])
 @superadmin_required
 def enable_2fa():
-    from app.forms import TOTPSetupForm
-    form   = TOTPSetupForm()
-    secret = session.get('_pending_totp_secret')
-    backup = session.get('_pending_backup_codes', [])
+    """Confirm and persist Superadmin TOTP setup.
 
-    if not secret:
-        flash('Setup session expired. Please start again.', 'warning')
+    Mirrors the tenant/admin implementation: validate CSRF, rate-limit attempts,
+    verify against the pending session secret, then commit atomically.
+    """
+    from app.forms import TOTPSetupForm
+    from app.auth.totp import (
+        commit_2fa_enable, rate_limit_totp_verify,
+        record_totp_failure, clear_totp_attempts, TotpRateLimitError,
+    )
+
+    form = TOTPSetupForm()
+    ip = (
+        request.headers.get('CF-Connecting-IP')
+        or request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+        or request.remote_addr
+        or 'unknown'
+    )
+
+    try:
+        rate_limit_totp_verify(ip)
+    except TotpRateLimitError as exc:
+        flash(str(exc), 'danger')
+        session.pop('_pending_totp_secret', None)
+        session.pop('_pending_backup_codes', None)
+        return redirect(url_for('superadmin.settings'))
+
+    if not form.validate_on_submit():
+        flash('Invalid form submission. Please try again.', 'danger')
         return redirect(url_for('superadmin.setup_2fa'))
 
-    if form.validate_on_submit():
-        import pyotp, json
-        from werkzeug.security import generate_password_hash
-
-        totp = pyotp.TOTP(secret)
-        if totp.verify(form.code.data.strip(), valid_window=1):
-            current_user.totp_secret       = secret
-            current_user.totp_enabled      = True
-            current_user.totp_backup_codes = json.dumps(
-                [generate_password_hash(c) for c in backup]
-            )
+    success, error = commit_2fa_enable(current_user, form.code.data or '')
+    if success:
+        clear_totp_attempts(ip)
+        try:
             db.session.commit()
-            session.pop('_pending_totp_secret', None)
-            session.pop('_pending_backup_codes', None)
-            session['totp_verified'] = True
-            log_activity('security', 'user', current_user.username, '2FA enabled via TOTP setup')
-            flash('Two-factor authentication enabled successfully!', 'success')
-            return redirect(url_for('superadmin.settings'))
-        flash('Code incorrect — please try again.', 'danger')
+        except Exception as exc:
+            db.session.rollback()
+            logger.exception('Failed to persist superadmin 2FA settings: %s', exc)
+            flash('Database error saving 2FA settings. Please try again.', 'danger')
+            return redirect(url_for('superadmin.setup_2fa'))
+        session['totp_verified'] = True
+        log_activity('security', 'user', current_user.username, 'Superadmin 2FA enabled via TOTP setup')
+        flash('Two-factor authentication enabled successfully!', 'success')
+        return redirect(url_for('superadmin.settings'))
 
+    record_totp_failure(ip)
+    flash(error or 'Code incorrect — please try again.', 'danger')
     return redirect(url_for('superadmin.setup_2fa'))
 
 @superadmin.route('/profile/2fa/disable', methods=['POST'])

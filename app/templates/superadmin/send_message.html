@@ -435,6 +435,10 @@
 .sm-template-btn{
   width:100%;
   min-height:36px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  text-decoration:none;
   padding:.58rem .7rem;
   border:1px solid var(--sm-border-strong);
   border-radius:12px;
@@ -761,6 +765,46 @@ html[data-theme='light'] .sm-template-btn{
   .sm-template-card:hover,
   .sm-template-btn:hover{transform:none!important}
 }
+
+
+/* Production responsive repair: ready-made template cards should never
+   squeeze titles into one-letter columns. Keep card content readable on
+   superadmin dashboard widths and when the sidebar is visible. */
+.sm-template-grid{
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));
+  align-items:stretch;
+}
+.sm-template-card{
+  min-height:148px;
+}
+.sm-template-top{
+  padding-right:0;
+  align-items:center;
+}
+.sm-template-title{
+  overflow-wrap:normal;
+  word-break:normal;
+  hyphens:none;
+  line-height:1.18;
+}
+.sm-template-card.is-active::after{
+  top:auto;
+  right:.9rem;
+  bottom:3.1rem;
+}
+@media (min-width:1025px) and (max-width:1440px){
+  .send-message-grid{grid-template-columns:minmax(0,1fr) minmax(280px,360px)}
+  .sm-template-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:900px){
+  .sm-template-grid{grid-template-columns:1fr}
+  .sm-template-card{min-height:auto}
+}
+@media (max-width:768px){
+  .send-message-shell{overflow-x:hidden}
+  .send-message-header,.message-composer-card,.message-preview-card,.message-safety-card,.message-summary-card{max-width:100%}
+}
+
 </style>
 {% endblock %}
 
@@ -869,7 +913,7 @@ html[data-theme='light'] .sm-template-btn{
                   <h4 class="sm-template-title">General Message</h4>
                 </div>
                 <p class="sm-template-copy">Quick professional update for one tenant or all tenants.</p>
-                <button type="button" class="sm-template-btn" data-template-key="general">Use template</button>
+                <a class="sm-template-btn" data-template-key="general" href="{{ url_for('superadmin.send_message', template='general') }}">Use template</a>
               </article>
               <article class="sm-template-card" data-template-card="alert">
                 <div class="sm-template-top">
@@ -877,7 +921,7 @@ html[data-theme='light'] .sm-template-btn{
                   <h4 class="sm-template-title">Alert</h4>
                 </div>
                 <p class="sm-template-copy">Urgent notice for important account or platform issues.</p>
-                <button type="button" class="sm-template-btn" data-template-key="alert">Use template</button>
+                <a class="sm-template-btn" data-template-key="alert" href="{{ url_for('superadmin.send_message', template='alert') }}">Use template</a>
               </article>
               <article class="sm-template-card" data-template-card="billing">
                 <div class="sm-template-top">
@@ -885,7 +929,7 @@ html[data-theme='light'] .sm-template-btn{
                   <h4 class="sm-template-title">Billing Update</h4>
                 </div>
                 <p class="sm-template-copy">Helpful billing, payment, or subscription reminder.</p>
-                <button type="button" class="sm-template-btn" data-template-key="billing">Use template</button>
+                <a class="sm-template-btn" data-template-key="billing" href="{{ url_for('superadmin.send_message', template='billing') }}">Use template</a>
               </article>
               <article class="sm-template-card" data-template-card="maintenance">
                 <div class="sm-template-top">
@@ -893,7 +937,7 @@ html[data-theme='light'] .sm-template-btn{
                   <h4 class="sm-template-title">Maintenance Notice</h4>
                 </div>
                 <p class="sm-template-copy">Scheduled downtime, deployment window, or platform maintenance notice.</p>
-                <button type="button" class="sm-template-btn" data-template-key="maintenance">Use template</button>
+                <a class="sm-template-btn" data-template-key="maintenance" href="{{ url_for('superadmin.send_message', template='maintenance') }}">Use template</a>
               </article>
               <article class="sm-template-card" data-template-card="account">
                 <div class="sm-template-top">
@@ -901,7 +945,7 @@ html[data-theme='light'] .sm-template-btn{
                   <h4 class="sm-template-title">Account Reminder</h4>
                 </div>
                 <p class="sm-template-copy">Reminder for profile, security, or setup action items.</p>
-                <button type="button" class="sm-template-btn" data-template-key="account">Use template</button>
+                <a class="sm-template-btn" data-template-key="account" href="{{ url_for('superadmin.send_message', template='account') }}">Use template</a>
               </article>
             </div>
             <p class="sm-template-note">
@@ -1156,7 +1200,10 @@ html[data-theme='light'] .sm-template-btn{
 
 
   templateButtons.forEach(button => {
-    button.addEventListener('click', () => applyReadyMadeTemplate(button.getAttribute('data-template-key')));
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      applyReadyMadeTemplate(button.getAttribute('data-template-key'));
+    });
   });
 
   type.addEventListener('change', () => highlightTemplate(type.value));

@@ -44,6 +44,7 @@ from app.models.portfolio import Subscription
 from app.system_plan import ADMINISTRATOR_PLAN, has_administrator_access, is_administrator_plan
 from app.services.billing import subscription_access_status
 from app.services.billing.currency import get_currency_settings
+from app.services.billing.trial_history import ensure_profile_trial_history
 from app.services.billing_handlers import (
     billing_payment_context,
     billing_plans_context,
@@ -264,6 +265,8 @@ def billing_history():
     denied = _billing_access_check(tenant)
     if denied:
         return denied
+
+    ensure_profile_trial_history(profile, commit=True)
 
     subscriptions = (
         subscription_repository.query

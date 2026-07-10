@@ -20,6 +20,7 @@ from typing import Optional
 from app import db
 from app.utils.datetime_utils import utc_now
 from app.services.billing.trial_limits import get_trial_duration_days
+from app.services.billing.trial_history import ensure_trial_subscription_record
 from app.models import User
 from app.models.core import Tenant
 from app.security import log_security_event
@@ -180,6 +181,7 @@ def resolve_or_create_github_user(
     )
     db.session.add(tenant)
     db.session.flush()
+    ensure_trial_subscription_record(tenant, commit=False)
 
     profile = Profile(
         tenant=tenant,

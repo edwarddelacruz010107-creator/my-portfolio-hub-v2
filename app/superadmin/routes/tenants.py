@@ -77,6 +77,7 @@ from app.services.billing import (
     sync_subscription_from_paymongo,
 )
 from app.services.billing.trial_limits import get_trial_duration_days
+from app.services.billing.trial_history import ensure_trial_subscription_record
 from app.services.auth.email_policy import EmailPolicyError, assert_email_allowed_for_user, normalize_email
 
 
@@ -337,6 +338,7 @@ def tenant_new():
         # Without flush(), tenant.id is None at Profile construction time, which
         # violates the NOT NULL constraint on profile.tenant_id.
         db.session.flush()
+        ensure_trial_subscription_record(tenant, commit=False)
 
         # Guard: if id is still None the sequence/autoincrement is broken
         if tenant.id is None:

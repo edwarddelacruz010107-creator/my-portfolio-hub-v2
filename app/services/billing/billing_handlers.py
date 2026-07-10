@@ -30,9 +30,11 @@ from flask import current_app, flash, redirect, request, url_for
 from app import db
 from app.forms import PaymentUploadForm, PlanSelectionForm
 from app.models.portfolio import normalize_plan_name
-from app.services.billing import get_or_create_pending_subscription, initiate_checkout
+from app.models import Subscription
+from app.services.billing import get_or_create_pending_subscription, initiate_checkout, subscription_access_status
 from app.services.billing import discount_checkout, discount_service
 from app.services.billing.currency import currency_context, format_money, get_currency_settings
+from app.services.billing.trial_history import ensure_profile_trial_history
 from app.utils import get_plan_price, get_public_billing_plans
 from app.services.manual_billing import (
     get_active_payment_methods_for_tenant,
@@ -48,18 +50,69 @@ logger = logging.getLogger(__name__)
 
 
 def billing_plans_context(profile, *, tenant_slug: str | None, billing_routes: dict, paymongo_enabled: bool):
-    """
-    Build context dict for billing/plans templates.
+    """Build a consistent tenant billing-plan context.
 
-    Adds `discount_quote`: a DiscountQuote for the currently-selected plan
-    and cycle so the template can render "Original / Discount / Total".
+    Trial entitlement is stored on ``Tenant`` rather than in ``Profile.plan``.
+    Older code treated the profile's paid fallback (usually ``Basic``) as the
+    active plan, which made trial accounts look subscribed.  This resolver
+    keeps current, pending, and trial states separate.
     """
     is_admin_plan = has_administrator_access(profile)
-    subscription = None if is_admin_plan else profile.current_subscription()
-    current_plan = 'Administrator' if is_admin_plan else normalize_plan_name(
-        subscription.plan if subscription else profile.plan or 'Basic'
+
+    # Backfill the zero-cost trial timeline row for existing accounts.  This is
+    # best-effort and does not alter entitlements or the user's paid plan.
+    if not is_admin_plan:
+        ensure_profile_trial_history(profile, commit=True)
+        if hasattr(profile, '_current_subscription_cache'):
+            del profile._current_subscription_cache
+
+    tenant = getattr(profile, 'tenant', None)
+    access_state = 'active' if is_admin_plan else subscription_access_status(profile)
+    is_trial = (not is_admin_plan and access_state == 'trial')
+
+    active_subscription = None
+    pending_subscription = None
+    if not is_admin_plan:
+        active_subscription = (
+            Subscription.query
+            .filter_by(tenant_id=profile.tenant_id, status='active')
+            .order_by(Subscription.created_at.desc())
+            .first()
+        )
+        if active_subscription is not None:
+            active_subscription.refresh_status(commit=False)
+            if not active_subscription.is_active():
+                active_subscription = None
+
+        pending_subscription = (
+            Subscription.query
+            .filter(
+                Subscription.tenant_id == profile.tenant_id,
+                Subscription.status.in_(['pending', 'scheduled']),
+            )
+            .order_by(Subscription.created_at.desc())
+            .first()
+        )
+
+    if is_admin_plan:
+        current_plan = 'Administrator'
+    elif is_trial:
+        current_plan = 'Trial'
+    elif active_subscription is not None:
+        current_plan = normalize_plan_name(active_subscription.plan)
+    else:
+        current_plan = normalize_plan_name(profile.plan or 'Basic')
+
+    # Paid cards should not be preselected merely because Profile.plan keeps a
+    # fallback value during a trial.  A pending checkout may be prefilled, but
+    # it is clearly labelled as pending rather than current.
+    selected_candidate = (
+        request.values.get('plan')
+        or (pending_subscription.plan if pending_subscription is not None else None)
+        or (current_plan if current_plan in get_public_billing_plans() else 'Basic')
     )
-    form = PlanSelectionForm(plan=current_plan)
+    selected_candidate = normalize_plan_name(selected_candidate)
+    form = PlanSelectionForm(plan=selected_candidate)
 
     manual_methods = [] if is_admin_plan else get_manual_payment_methods(profile.tenant_id)
 
@@ -70,26 +123,19 @@ def billing_plans_context(profile, *, tenant_slug: str | None, billing_routes: d
             profile.tenant_id,
         )
 
-    # -- Discount preview ---------------------------------------------------
-    # Reflect current URL/session state so the totals row is accurate on
-    # first paint. GET params override the session stash (users often land
-    # here from a marketing link with ?coupon=...).
     billing_cycle = request.values.get('billing_cycle', 'monthly')
     coupon_code = (request.values.get('coupon_code') or '').strip().upper() or None
     if coupon_code is None:
         coupon_code = discount_checkout.peek_coupon(profile.tenant_id)
 
+    quote_plan = selected_candidate if selected_candidate in get_public_billing_plans() else 'Basic'
     discount_quote = None if is_admin_plan else discount_checkout.quote_for_context(
         tenant_id=profile.tenant_id,
-        plan=current_plan,
+        plan=quote_plan,
         billing_cycle=billing_cycle,
         code=coupon_code,
     )
 
-    # Plan-agnostic "sale ends in..." banner for the top of the plans page.
-    # Independent of discount_quote above (which is scoped to current_plan) —
-    # this reflects whatever global campaign is running, regardless of which
-    # plan card the tenant ends up picking.
     promo_campaign = discount_service.get_promo_banner_campaign()
     promo_eligible_plans: list[str] = []
     promo_scope_label = None
@@ -101,9 +147,22 @@ def billing_plans_context(profile, *, tenant_slug: str | None, billing_routes: d
             promo_eligible_plans = list(get_public_billing_plans().keys())
             promo_scope_label = "All Plans"
 
+    trial_ends_at = None
+    if tenant is not None:
+        trial_ends_at = getattr(tenant, 'trial_ends_at', None)
+    if trial_ends_at is None:
+        trial_ends_at = getattr(profile, 'free_trial_ends', None)
+
     return dict(
         profile=profile,
-        subscription=subscription,
+        subscription=active_subscription,
+        active_subscription=active_subscription,
+        pending_subscription=pending_subscription,
+        current_plan=current_plan,
+        subscription_state=access_state,
+        is_trial=is_trial,
+        trial_days_left=profile.trial_days_remaining() if is_trial else 0,
+        trial_ends_at=trial_ends_at,
         form=form,
         plans=get_public_billing_plans(),
         is_administrator_plan=is_admin_plan,

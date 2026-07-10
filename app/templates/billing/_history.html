@@ -1,39 +1,85 @@
-<div class="page-hd">
+<div class="page-hd billing-history-header">
   <div class="page-hd-left">
     <h1>Subscription History</h1>
-    <p>Past and current subscriptions for this tenant.</p>
+    <p>Your trial, paid subscriptions, renewals, and scheduled changes appear here.</p>
   </div>
 </div>
 
-<div class="dash-panel">
-  <div class="table-responsive">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Plan</th>
-          <th>Status</th>
-          <th>Started</th>
-          <th>Expires</th>
-          <th>Amount</th>
-          <th>PayMongo</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for s in subscriptions %}
-        <tr>
-          <td><span class="badge-plan badge-{{ s.plan|lower }}">{{ s.plan }}</span></td>
-          <td><span class="badge-status badge-{{ s.status }}">{{ s.status_label }}</span></td>
-          <td>{{ s.started_at.strftime('%b %d, %Y') if s.started_at else '—' }}</td>
-          <td>{{ s.expires_at.strftime('%b %d, %Y') if s.expires_at else '—' }}</td>
-          <td>{{ s.amount_paid|billing_money }}</td>
-          <td style="font-size:0.78rem;font-family:monospace">
-            {% if s.paymongo_payment_id %}{{ s.paymongo_payment_id[:12] }}…{% else %}—{% endif %}
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="6" class="text-muted" style="text-align:center;padding:2rem">No subscription history yet.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+<div class="dash-panel subscription-history-panel">
+  {% if subscriptions %}
+  <div class="subscription-history-list" role="list">
+    {% for s in subscriptions %}
+    <article class="subscription-history-card" role="listitem">
+      <div class="subscription-history-main">
+        <div class="subscription-history-plan-row">
+          <span class="badge-plan badge-{{ s.plan|lower|replace(' ', '-') }}">{{ s.plan }}</span>
+          <span class="badge-status badge-{{ s.status|lower|replace(' ', '-') }}">{{ s.status_label }}</span>
+        </div>
+        <div class="subscription-history-dates">
+          <div>
+            <span>Started</span>
+            <strong>{{ s.started_at.strftime('%b %d, %Y') if s.started_at else '—' }}</strong>
+          </div>
+          <div>
+            <span>Expires</span>
+            <strong>{{ s.expires_at.strftime('%b %d, %Y') if s.expires_at else 'No expiry' }}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="subscription-history-meta">
+        <div>
+          <span>Amount</span>
+          <strong>{% if s.plan|lower == 'trial' %}Free{% else %}{{ s.amount_paid|billing_money }}{% endif %}</strong>
+        </div>
+        <div>
+          <span>Payment</span>
+          <strong>
+            {% if s.plan|lower == 'trial' %}System trial
+            {% elif s.payment_method %}{{ s.payment_method|replace('_', ' ')|title }}
+            {% else %}—{% endif %}
+          </strong>
+        </div>
+        {% if s.paymongo_payment_id %}
+        <div>
+          <span>PayMongo ID</span>
+          <code>{{ s.paymongo_payment_id[:12] }}…</code>
+        </div>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
   </div>
+  {% else %}
+  <div class="empty-state-v2">
+    <div class="empty-icon"><iconify-icon icon="lucide:history" width="28"></iconify-icon></div>
+    <h3>No subscription history yet</h3>
+    <p>Your free trial and future paid subscriptions will appear here automatically.</p>
+  </div>
+  {% endif %}
 </div>
+
+<style>
+.subscription-history-panel{padding:0;overflow:hidden}
+.subscription-history-list{display:flex;flex-direction:column}
+.subscription-history-card{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);gap:1.25rem;padding:1.15rem 1.25rem;border-bottom:1px solid rgba(148,163,184,.14);background:rgba(255,255,255,.015)}
+.subscription-history-card:last-child{border-bottom:0}
+.subscription-history-card:hover{background:rgba(99,102,241,.035)}
+.subscription-history-main,.subscription-history-meta{min-width:0}
+.subscription-history-plan-row{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.9rem}
+.subscription-history-dates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}
+.subscription-history-dates div,.subscription-history-meta div{display:flex;flex-direction:column;gap:.18rem;min-width:0}
+.subscription-history-dates span,.subscription-history-meta span{font-size:.68rem;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted)}
+.subscription-history-dates strong,.subscription-history-meta strong{font-size:.86rem;color:var(--text-primary,#e5e7eb);overflow-wrap:anywhere}
+.subscription-history-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem 1rem;padding-left:1.1rem;border-left:1px solid rgba(148,163,184,.14)}
+.subscription-history-meta code{font-size:.76rem;color:#a5b4fc;overflow-wrap:anywhere}
+.badge-trial{background:rgba(245,158,11,.14)!important;border-color:rgba(245,158,11,.32)!important;color:#fbbf24!important}
+.badge-status.badge-trial{display:inline-flex;align-items:center}
+@media(max-width:820px){
+  .subscription-history-card{grid-template-columns:1fr}
+  .subscription-history-meta{padding-left:0;padding-top:1rem;border-left:0;border-top:1px solid rgba(148,163,184,.14)}
+}
+@media(max-width:520px){
+  .subscription-history-card{padding:1rem}
+  .subscription-history-dates,.subscription-history-meta{grid-template-columns:1fr}
+}
+</style>

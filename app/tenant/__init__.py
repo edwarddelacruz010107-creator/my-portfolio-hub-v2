@@ -42,6 +42,7 @@ from app.models.portfolio import (
 )
 from app.utils import BILLING_PLANS, get_public_billing_plans, is_paymongo_enabled, log_activity
 from app.services.billing.currency import get_currency_settings
+from app.services.billing.trial_history import ensure_profile_trial_history
 from app.services.billing import subscription_access_status, is_in_grace_period
 from app.services.billing_handlers import (
     billing_payment_context,
@@ -503,6 +504,8 @@ def billing_history():
         abort(404)
     if not _tenant_billing_access_allowed(tenant):
         abort(403)
+
+    ensure_profile_trial_history(profile, commit=True)
 
     subscriptions = (
         Subscription.query

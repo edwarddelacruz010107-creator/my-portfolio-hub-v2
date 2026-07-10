@@ -43,7 +43,7 @@
   <div>
     <div class="sub-status-label">Current Plan</div>
     <div class="sub-status-name">
-      {{ 'Administrator' if is_admin_plan else (sub.plan if sub else profile.plan or 'Basic') }}
+      {{ 'Administrator' if is_admin_plan else ('Trial' if is_trial else (sub.plan if sub else profile.plan or 'Basic')) }}
       <span class="badge-status
         {% if is_admin_plan %}badge-active
         {% elif is_active %}badge-active
@@ -174,7 +174,7 @@
   {% else %}
   <div class="plan-cards-grid">
     {% for key, details in plans.items() %}
-    {% set is_current = (sub and sub.plan == key) or (not sub and profile and profile.plan == key) %}
+    {% set is_current = is_active and sub and sub.plan|lower == key|lower %}
     <div class="plan-card-v2 {% if is_current %}selected{% endif %}">
       {% if loop.index == 2 %}<div class="plan-badge-popular">Most Popular</div>{% endif %}
       <div class="plan-name">{{ key }}</div>

@@ -23,6 +23,7 @@ from app.services.auth.email_policy import (
 from app.utils import log_activity
 from app.utils.datetime_utils import ensure_utc_aware, utc_expiry, utc_now
 from app.services.billing.trial_limits import get_trial_duration_days
+from app.services.billing.trial_history import ensure_trial_subscription_record
 
 logger = logging.getLogger(__name__)
 
@@ -453,6 +454,7 @@ def complete_pending_signup(
         )
         db.session.add(tenant)
         db.session.flush()
+        ensure_trial_subscription_record(tenant, commit=False)
 
         user = User(
             username=username,

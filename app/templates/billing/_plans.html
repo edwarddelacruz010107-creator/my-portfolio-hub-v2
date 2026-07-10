@@ -37,7 +37,7 @@
 </div>
 
 <div style="margin-top:1.5rem">
-  <a href="{{ url_for('admin.billing_index') }}" class="btn btn-ghost">
+  <a href="{{ url_for(billing_routes.overview, tenant_slug=tenant_slug) if billing_routes.overview.startswith('tenant.') else url_for(billing_routes.overview) }}" class="btn btn-ghost">
     <iconify-icon icon="lucide:arrow-left" width="14"></iconify-icon> Back to Billing
   </a>
 </div>
@@ -64,6 +64,27 @@
   {% if currency.fx.rate %}at 1 USD = {{ '%.6g'|format(currency.fx.rate) }} {{ currency.display_currency }}{% endif %}.
   {% if currency.fx.stale %}<span class="text-warning">Using the last available rate.</span>{% endif %}
 </div>
+
+{% if is_trial %}
+<section class="trial-plan-banner" aria-label="Current trial subscription">
+  <div class="trial-plan-icon" aria-hidden="true">
+    <iconify-icon icon="lucide:sparkles" width="22"></iconify-icon>
+  </div>
+  <div class="trial-plan-copy">
+    <span class="trial-plan-eyebrow">Current access</span>
+    <strong>You are using the Trial plan</strong>
+    <p>
+      Your free trial includes the platform's trial features.
+      {% if trial_days_left > 0 %}<b>{{ trial_days_left }} day{{ '' if trial_days_left == 1 else 's' }} remaining.</b>{% else %}<b>Your trial ends soon.</b>{% endif %}
+      Choose a paid plan below when you are ready to continue.
+    </p>
+  </div>
+  <div class="trial-plan-meta">
+    <span class="trial-current-badge"><iconify-icon icon="lucide:check" width="14"></iconify-icon> Current plan</span>
+    {% if trial_ends_at %}<small>Ends {{ trial_ends_at.strftime('%b %d, %Y') }}</small>{% endif %}
+  </div>
+</section>
+{% endif %}
 
 {# ── Promo banner: plan-agnostic "sale ends in..." with live countdown ── #}
 {% if promo_campaign %}
@@ -98,10 +119,11 @@
 
   <div class="plan-cards-grid" id="planCardsGrid">
     {% for key, details in plans.items() %}
-    {% set is_current = (subscription and subscription.plan == key) or (not subscription and profile and profile.plan == key) %}
-    <label class="plan-card-v2 {% if is_current %}selected{% endif %}" data-plan="{{ key }}">
+    {% set is_current = (not is_trial) and current_plan|lower == key|lower %}
+    {% set is_pending = pending_subscription and pending_subscription.plan|lower == key|lower and pending_subscription.status in ['pending', 'scheduled'] %}
+    <label class="plan-card-v2 {% if is_current %}is-current{% endif %} {% if is_pending %}is-pending selected{% endif %}" data-plan="{{ key }}" data-current="{{ 'true' if is_current else 'false' }}">
       <input type="radio" name="plan_choice" value="{{ key }}"
-             class="plan-radio" {% if is_current %}checked{% endif %}
+             class="plan-radio" {% if is_pending %}checked{% endif %}
              style="position:absolute;opacity:0;pointer-events:none">
       {% if loop.index == 2 %}<div class="plan-badge-popular">Most Popular</div>{% endif %}
       {% if promo_campaign and key in promo_eligible_plans %}
@@ -128,7 +150,13 @@
         {% for feature in _features %}{% if feature|trim %}<li>{{ feature|trim }}</li>{% endif %}{% endfor %}
       </ul>
       <div class="plan-select-indicator">
-        {% if is_current %}<span class="badge-status badge-active">Current Plan</span>{% else %}<span class="plan-pick-cta">Select</span>{% endif %}
+        {% if is_current %}
+          <span class="badge-status badge-active">Current paid plan</span>
+        {% elif is_pending %}
+          <span class="badge-status badge-pending">{{ 'Scheduled' if pending_subscription.status == 'scheduled' else 'Payment pending' }}</span>
+        {% else %}
+          <span class="plan-pick-cta">Select</span>
+        {% endif %}
       </div>
     </label>
     {% endfor %}
@@ -211,7 +239,7 @@
         {% if method.bank_name %}<div class="method-detail-row"><span>Bank</span><span>{{ method.bank_name }}</span></div>{% endif %}
       </div>
       {% if method.instructions %}<p class="method-instructions">{{ method.instructions }}</p>{% endif %}
-      <a href="{{ url_for('admin.billing_payment', method_id=method.id) }}"
+      <a href="{{ url_for(billing_routes.payment, method_id=method.id, tenant_slug=tenant_slug) if billing_routes.payment.startswith('tenant.') else url_for(billing_routes.payment, method_id=method.id) }}"
          class="method-pay-btn js-pay-btn" data-method-id="{{ method.id }}">
         <iconify-icon icon="lucide:send" width="15"></iconify-icon>
         Pay via {{ method.name }}
@@ -228,7 +256,7 @@
 </div>
 
 <div style="margin-top:1.5rem">
-  <a href="{{ url_for('admin.billing_index') }}" class="btn btn-ghost">
+  <a href="{{ url_for(billing_routes.overview, tenant_slug=tenant_slug) if billing_routes.overview.startswith('tenant.') else url_for(billing_routes.overview) }}" class="btn btn-ghost">
     <iconify-icon icon="lucide:arrow-left" width="14"></iconify-icon> Cancel
   </a>
 </div>
@@ -274,7 +302,7 @@
 /* Cycle selector */
 .billing-cycle-selector{display:flex;gap:0.75rem;margin-bottom:1.25rem}
 .cycle-toggle{display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.6rem 1.25rem;border-radius:10px;border:1px solid rgba(255,255,255,0.1);font-weight:600;font-size:0.9rem;transition:background 0.2s,border-color 0.2s;user-select:none}
-.cycle-toggle:has(input:checked){background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.5)}
+.cycle-toggle:has(input:checked),.cycle-toggle.is-selected{background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.5)}
 .cycle-toggle input{accent-color:#6366f1}
 .cycle-save-badge{font-size:0.68rem;padding:0.1rem 0.4rem;border-radius:10px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7}
 
@@ -303,6 +331,53 @@
 .method-pay-btn:active{transform:translateY(0)}
 .activation-eta-badge{display:inline-flex;align-items:center;gap:0.35rem;font-size:0.82rem;padding:0.35rem 0.75rem;border-radius:20px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);color:#f59e0b}
 
+
+/* Trial state */
+.trial-plan-banner{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:1rem;margin:0 0 1.25rem;padding:1rem 1.1rem;border:1px solid rgba(245,158,11,.34);border-radius:16px;background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(99,102,241,.07));overflow:hidden}
+.trial-plan-icon{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;color:#fbbf24;background:rgba(245,158,11,.13);border:1px solid rgba(245,158,11,.3)}
+.trial-plan-copy{min-width:0}.trial-plan-eyebrow{display:block;margin-bottom:.15rem;color:#fbbf24;font-size:.68rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase}.trial-plan-copy strong{display:block;font-size:1rem;color:var(--text-primary,#f8fafc)}.trial-plan-copy p{margin:.25rem 0 0;color:var(--text-muted);font-size:.84rem;line-height:1.55}.trial-plan-copy b{color:#fde68a}
+.trial-plan-meta{display:flex;align-items:flex-end;flex-direction:column;gap:.35rem;text-align:right}.trial-current-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.32rem .62rem;border-radius:999px;background:rgba(16,185,129,.13);border:1px solid rgba(16,185,129,.3);color:#6ee7b7;font-size:.75rem;font-weight:800;white-space:nowrap}.trial-plan-meta small{color:var(--text-muted);font-size:.72rem;white-space:nowrap}
+
+/* Current and pending paid-plan states are intentionally separate. */
+.plan-card-v2.is-current{border-color:rgba(16,185,129,.48);background:rgba(16,185,129,.06)}
+.plan-card-v2.is-pending{border-color:#6366f1;background:rgba(99,102,241,.1);box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+.badge-pending{background:rgba(245,158,11,.13);border:1px solid rgba(245,158,11,.3);color:#fbbf24}
+
+/* Responsive billing layout */
+.billing-section,.page-hd,.currency-rate-note,.promo-banner,.trial-plan-banner{max-width:100%;min-width:0}
+.plan-cards-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.plan-card-v2{min-width:0;overflow-wrap:anywhere}
+.plan-price .amount{font-size:clamp(1.28rem,2vw,1.75rem);line-height:1.15;word-break:break-word}
+.plan-desc,.plan-features,.method-instructions{overflow-wrap:anywhere}
+
+@media(max-width:1100px){
+  .plan-cards-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .page-hd{align-items:flex-start;gap:1rem;flex-wrap:wrap}
+}
+@media(max-width:760px){
+  .plan-cards-grid,.payment-methods-grid{grid-template-columns:1fr}
+  .trial-plan-banner{grid-template-columns:auto minmax(0,1fr)}
+  .trial-plan-meta{grid-column:1/-1;align-items:flex-start;text-align:left;padding-left:calc(46px + 1rem)}
+  .billing-cycle-selector{display:grid;grid-template-columns:1fr 1fr}
+  .cycle-toggle{justify-content:center;min-width:0;padding:.72rem .7rem}
+  .selected-plan-bar{align-items:flex-start}
+  .method-detail-row{align-items:flex-start;flex-direction:column;gap:.15rem}
+  .activation-eta-badge{white-space:normal;text-align:left}
+}
+@media(max-width:520px){
+  .page-hd h1{font-size:clamp(1.55rem,8vw,2rem)}
+  .page-hd-right,.activation-eta-badge{width:100%}
+  .activation-eta-badge{justify-content:center}
+  .trial-plan-banner{grid-template-columns:1fr;padding:.9rem}
+  .trial-plan-icon{width:40px;height:40px}
+  .trial-plan-meta{grid-column:auto;padding-left:0;align-items:flex-start}
+  .billing-cycle-selector{grid-template-columns:1fr}
+  .selected-plan-bar{padding:.9rem;flex-direction:column}
+  .spb-price{font-size:1.05rem}
+  .promo-banner{align-items:flex-start;flex-direction:column}
+  .currency-rate-note{align-items:flex-start}
+}
+
 @media(max-width:600px){
   .billing-cycle-selector{flex-direction:column}
   .selected-plan-bar{flex-direction:column;align-items:flex-start}
@@ -313,150 +388,6 @@
 .currency-rate-note{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin:-.5rem 0 1.25rem;padding:.65rem .85rem;border:1px solid rgba(99,102,241,.2);border-radius:10px;background:rgba(99,102,241,.06);font-size:.82rem;color:var(--text-muted)}
 .currency-rate-note strong{color:var(--text-primary,#e0e7ff)}
 </style>
-<script>
-(function () {
-  var planCards   = document.querySelectorAll('.plan-card-v2');
-  var stepPayment = document.getElementById('step-payment');
-  var spbName     = document.getElementById('spbPlanName');
-  var spbPrice    = document.getElementById('spbPrice');
-  var cycleRadios = document.querySelectorAll('input[name="billing_cycle"]');
-  var priceEls    = document.querySelectorAll('.price-display');
-  var yearNotes   = document.querySelectorAll('.plan-yearly-note');
-  var payLinks    = document.querySelectorAll('.js-pay-btn');
-  var pmBtn       = document.getElementById('paymongoBtn');
-
-  /* ── Helpers ── */
-  function getSelectedPlan() {
-    var r = document.querySelector('.plan-card-v2.selected');
-    return r ? r.dataset.plan : '';
-  }
-
-  function getSelectedCycle() {
-    var r = document.querySelector('input[name="billing_cycle"]:checked');
-    return r ? r.value : 'monthly';
-  }
-
-  function getPriceForPlan(planName, cycle) {
-    var card = document.querySelector('.plan-card-v2[data-plan="' + planName + '"]');
-    if (!card) return '';
-    var el = card.querySelector('.price-display');
-    if (!el) return '';
-    return cycle === 'yearly' ? el.dataset.yearly : el.dataset.monthly;
-  }
-
-  /* ── Update pay link hrefs ── */
-  function updatePayLinks() {
-    var plan  = getSelectedPlan();
-    var cycle = getSelectedCycle();
-    payLinks.forEach(function (a) {
-      var base = a.href.split('?')[0];
-      var p = new URLSearchParams({ billing_cycle: cycle });
-      if (plan) p.set('plan', plan);
-      a.href = base + '?' + p.toString();
-    });
-    if (pmBtn) {
-      /* PayMongo path — build checkout URL with plan + cycle */
-      var base = pmBtn.href.split('?')[0];
-      var p = new URLSearchParams({ action: 'checkout', plan: plan, billing_cycle: cycle });
-      pmBtn.href = base + '?' + p.toString();
-    }
-  }
-
-  /* ── Update the selected-plan summary bar ── */
-  function updateSummaryBar() {
-    var plan  = getSelectedPlan();
-    var cycle = getSelectedCycle();
-    if (!plan) return;
-    spbName.textContent  = plan;
-    spbPrice.textContent = getPriceForPlan(plan, cycle);
-  }
-
-  /* ── Cycle toggle: swap displayed prices ── */
-  function applyCycle(cycle) {
-    priceEls.forEach(function (el) {
-      el.textContent = cycle === 'yearly' ? el.dataset.yearly : el.dataset.monthly;
-    });
-    yearNotes.forEach(function (el) {
-      el.style.display = cycle === 'yearly' ? 'flex' : 'none';
-    });
-    document.querySelectorAll('.cycle-toggle').forEach(function (l) {
-      var inp = l.querySelector('input');
-      l.style.borderColor = inp && inp.checked ? 'rgba(99,102,241,0.5)' : '';
-    });
-    updateSummaryBar();
-    updatePayLinks();
-  }
-
-  cycleRadios.forEach(function (r) {
-    r.addEventListener('change', function () { applyCycle(this.value); });
-  });
-
-  /* ── Plan card selection ── */
-  function selectPlan(card) {
-    planCards.forEach(function (c) { c.classList.remove('selected'); });
-    card.classList.add('selected');
-    card.querySelector('.plan-radio').checked = true;
-    stepPayment.style.display = '';
-    updateSummaryBar();
-    updatePayLinks();
-    /* Smooth scroll into the payment section */
-    stepPayment.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  planCards.forEach(function (card) {
-    card.addEventListener('click', function () { selectPlan(card); });
-  });
-
-  /* ── Init: if a plan is already selected (current plan), show step 2+3 ── */
-  var preSelected = document.querySelector('.plan-card-v2.selected');
-  if (preSelected) {
-    stepPayment.style.display = '';
-    updateSummaryBar();
-    updatePayLinks();
-  }
-
-  /* Init cycle */
-  var initCycle = document.querySelector('input[name="billing_cycle"]:checked');
-  if (initCycle) applyCycle(initCycle.value);
-
-  /* ── Promo banner countdown ── */
-  var promoBanner = document.getElementById('promoBanner');
-  if (promoBanner && promoBanner.dataset.expires) {
-    var promoCountdownText = document.getElementById('promoCountdownText');
-    var expiresAt = new Date(promoBanner.dataset.expires).getTime();
-
-    function formatRemaining(ms) {
-      var totalSeconds = Math.floor(ms / 1000);
-      var days = Math.floor(totalSeconds / 86400);
-      var hours = Math.floor((totalSeconds % 86400) / 3600);
-      var minutes = Math.floor((totalSeconds % 3600) / 60);
-      var seconds = totalSeconds % 60;
-      if (days > 0) return days + 'd ' + hours + 'h ' + minutes + 'm';
-      if (hours > 0) return hours + 'h ' + minutes + 'm ' + seconds + 's';
-      if (minutes > 0) return minutes + 'm ' + seconds + 's';
-      return seconds + 's';
-    }
-
-    var promoTimerId = setInterval(function () {
-      var remaining = expiresAt - Date.now();
-      if (remaining <= 0) {
-        clearInterval(promoTimerId);
-        promoBanner.style.display = 'none';
-        return;
-      }
-      if (promoCountdownText) promoCountdownText.textContent = formatRemaining(remaining);
-    }, 1000);
-
-    /* Paint immediately instead of waiting a full second for the first tick */
-    var initialRemaining = expiresAt - Date.now();
-    if (initialRemaining > 0 && promoCountdownText) {
-      promoCountdownText.textContent = formatRemaining(initialRemaining);
-    } else if (initialRemaining <= 0) {
-      clearInterval(promoTimerId);
-      promoBanner.style.display = 'none';
-    }
-  }
-})();
-</script>
+<script src="{{ url_for('static', filename='js/billing-plans.js') }}?v=20260710.2" defer></script>
 
 {% endif %}

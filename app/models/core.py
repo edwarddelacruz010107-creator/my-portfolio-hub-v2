@@ -711,7 +711,7 @@ class Subscription(db.Model):
     def current(cls, tenant_id: int) -> 'Subscription | None':
         sub = (
             cls.query
-            .filter(cls.tenant_id == tenant_id, cls.status.notin_(['cancelled']))
+            .filter(cls.tenant_id == tenant_id, cls.status.notin_(['cancelled', 'trial']))
             .order_by(cls.created_at.desc())
             .first()
         )
@@ -771,6 +771,7 @@ class Subscription(db.Model):
     @property
     def status_label(self) -> str:
         _MAP = {
+            'trial':     'Trial',
             'pending':   'Pending Payment',
             'scheduled': 'Scheduled',
             'active':    'Active',

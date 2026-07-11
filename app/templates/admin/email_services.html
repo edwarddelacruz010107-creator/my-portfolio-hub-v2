@@ -70,6 +70,22 @@
 .priority-dot.active{background:#22c55e}
 .priority-dot.inactive{background:#6b7280}
 
+.priority-controls{display:flex;gap:.3rem;margin-left:auto}
+.priority-move{width:30px;height:30px;border:1px solid var(--border-color,#2d3448);border-radius:7px;
+  background:transparent;color:#94a3b8;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.priority-move:hover,.priority-move:focus-visible{border-color:#6366f1;color:#c7d2fe;background:rgba(99,102,241,.1)}
+.priority-move:disabled{opacity:.35;cursor:not-allowed}
+.es-test-recipient{display:flex;align-items:flex-end;gap:.65rem;margin:0 0 1.25rem;padding:1rem 1.1rem;
+  background:rgba(59,130,246,.055);border:1px solid rgba(59,130,246,.18);border-radius:10px}
+.es-test-recipient .es-form-group{flex:1}
+@media(max-width:640px){
+  .es-test-recipient{align-items:stretch;flex-direction:column}
+  .es-test-recipient .btn-es-test{width:100%;justify-content:center}
+  .priority-item{flex-wrap:wrap}
+  .priority-name{min-width:120px}
+  .priority-controls{margin-left:0}
+}
+
 /* Config forms */
 .es-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
 @media(max-width:640px){.es-form-grid{grid-template-columns:1fr}}
@@ -104,7 +120,7 @@
 .btn-es-save-priority:hover{background:#4f46e5}
 
 /* Collapsible guides */
-.guide-toggle{display:flex;align-items:center;justify-content:space-between;cursor:pointer;
+.guide-toggle{width:100%;color:inherit;text-align:left;font:inherit;display:flex;align-items:center;justify-content:space-between;cursor:pointer;
   padding:.6rem .75rem;border-radius:8px;background:var(--input-bg,#111827);
   border:1px solid var(--border-color,#2d3448);transition:background .15s;user-select:none}
 .guide-toggle:hover{background:rgba(59,130,246,.06)}
@@ -147,6 +163,13 @@
 </style>
 
 <div class="es-toast-container" id="esToastContainer"></div>
+<div id="emailServicesApp"
+     data-test-url="{{ url_for('admin.email_services_test') }}"
+     data-toggle-url-template="{{ url_for('admin.email_services_toggle', provider_name='__provider__') }}"
+     data-priority-url="{{ url_for('admin.email_services_priority') }}"
+     data-status-url="{{ url_for('admin.email_services_status') }}"
+     data-csrf-token="{{ csrf_token() }}"
+     data-default-email="{{ current_user.email|e }}"></div>
 
 <div class="es-header">
   <h1><iconify-icon icon="lucide:mail-check" width="26" style="vertical-align:-4px;margin-right:.4rem"></iconify-icon>Email Services</h1>
@@ -199,6 +222,20 @@
   {% endif %}
 {% endwith %}
 
+<div class="es-test-recipient">
+  <div class="es-form-group">
+    <label class="es-label" for="emailTestRecipient">Test recipient</label>
+    <input class="es-input" type="email" id="emailTestRecipient"
+           value="{{ current_user.email|e }}" autocomplete="email"
+           placeholder="you@example.com">
+    <span class="es-hint">Provider tests send a real email to this address.</span>
+  </div>
+  <button type="button" class="btn-es-test" data-test-active-provider>
+    <iconify-icon icon="lucide:flask-conical" width="14"></iconify-icon>
+    Test first active provider
+  </button>
+</div>
+
 <!-- ── Provider Overview (3-col) ─────────────────────────────────────────── -->
 <div class="es-grid-3" style="margin-bottom:1.25rem">
 
@@ -222,7 +259,7 @@
       <label class="provider-toggle" title="Toggle {{ plabel }}">
         <div class="toggle-switch">
           <input type="checkbox" {% if pst.active %}checked{% endif %}
-            onchange="toggleProvider('{{ pkey }}', this.checked)">
+            data-provider-toggle="{{ pkey }}" aria-label="Toggle {{ plabel }} provider">
           <div class="toggle-track"></div>
         </div>
         <span class="toggle-label" id="toggleLabel-{{ pkey }}">{{ 'Active' if pst.active else 'Inactive' }}</span>
@@ -266,7 +303,7 @@
     {% endif %}
 
     <!-- Test button -->
-    <button class="btn-es-test" onclick="testProvider('{{ pkey }}')" id="testBtn-{{ pkey }}" style="width:100%;justify-content:center">
+    <button type="button" class="btn-es-test" data-test-provider="{{ pkey }}" style="width:100%;justify-content:center">
       <iconify-icon icon="lucide:flask-conical" width="14"></iconify-icon>
       Send Test Email
     </button>
@@ -318,13 +355,15 @@
   </div>
 
   <!-- ── Priority Ordering ────────────────────────────────────────────────── -->
-  <div class="es-card">
+  <form class="es-card" id="providerPriorityForm" method="POST" action="{{ url_for('admin.email_services_priority') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="provider_order" id="providerOrder" value="{{ providers|sort(attribute='priority')|map(attribute='provider_name')|join(',') }}">
     <div class="es-card-header">
       <div class="es-card-title">
         <iconify-icon icon="lucide:layers" width="18"></iconify-icon>
         Provider Priority
       </div>
-      <button class="btn-es-save-priority" onclick="savePriority()">
+      <button type="submit" class="btn-es-save-priority" id="savePriorityBtn">
         <iconify-icon icon="lucide:save" width="14"></iconify-icon>
         Save Order
       </button>
@@ -345,10 +384,18 @@
           {% if p.provider_name == 'smtp' %}🖥️ SMTP{% elif p.provider_name == 'resend' %}⚡ Resend{% else %}📨 MailerSend{% endif %}
         </span>
         <span class="status-badge {{ p.status }}">{{ p.status | replace('_',' ') | title }}</span>
+        <span class="priority-controls">
+          <button type="button" class="priority-move" data-priority-move="up" aria-label="Move {{ p.provider_name }} up">
+            <iconify-icon icon="lucide:chevron-up" width="15"></iconify-icon>
+          </button>
+          <button type="button" class="priority-move" data-priority-move="down" aria-label="Move {{ p.provider_name }} down">
+            <iconify-icon icon="lucide:chevron-down" width="15"></iconify-icon>
+          </button>
+        </span>
       </div>
       {% endfor %}
     </div>
-  </div>
+  </form>
 
   <!-- ── Security Notes ────────────────────────────────────────────────────── -->
   <div class="es-card" style="border-color:rgba(245,158,11,.2)">
@@ -437,7 +484,7 @@
         <label class="es-label">Password {% if smtp_display.has_password %}<span style="color:#22c55e;font-size:.7rem">● Saved</span>{% endif %}</label>
         <div class="es-password-group">
           <input class="es-input" type="password" id="smtpPassword" name="smtp_password" placeholder="{{ '••••••••  (leave blank to keep current)' if smtp_display.has_password else 'App password or SMTP password' }}" autocomplete="new-password">
-          <button type="button" class="es-password-toggle" onclick="togglePwd('smtpPassword',this)">
+          <button type="button" class="es-password-toggle" data-password-target="smtpPassword" aria-label="Show or hide password">
             <iconify-icon icon="lucide:eye" width="16"></iconify-icon>
           </button>
         </div>
@@ -464,7 +511,7 @@
         <iconify-icon icon="lucide:save" width="14"></iconify-icon>
         Save SMTP Settings
       </button>
-      <button type="button" class="btn-es-test" onclick="testProvider('smtp')">
+      <button type="button" class="btn-es-test" data-test-provider="smtp">
         <iconify-icon icon="lucide:send" width="14"></iconify-icon>
         Test Connection
       </button>
@@ -492,7 +539,7 @@
         <label class="es-label">API Key {% if resend_display.has_api_key %}<span style="color:#22c55e;font-size:.7rem">● Saved</span>{% endif %}</label>
         <div class="es-password-group">
           <input class="es-input" type="password" id="resendApiKey" name="api_key" placeholder="{{ '••••••••  (leave blank to keep current)' if resend_display.has_api_key else 're_xxxxxxxxxxxxxxxxxxxx' }}" autocomplete="new-password">
-          <button type="button" class="es-password-toggle" onclick="togglePwd('resendApiKey',this)">
+          <button type="button" class="es-password-toggle" data-password-target="resendApiKey" aria-label="Show or hide password">
             <iconify-icon icon="lucide:eye" width="16"></iconify-icon>
           </button>
         </div>
@@ -516,7 +563,7 @@
         <iconify-icon icon="lucide:save" width="14"></iconify-icon>
         Save Resend Settings
       </button>
-      <button type="button" class="btn-es-test" onclick="testProvider('resend')">
+      <button type="button" class="btn-es-test" data-test-provider="resend">
         <iconify-icon icon="lucide:send" width="14"></iconify-icon>
         Test Resend
       </button>
@@ -544,7 +591,7 @@
         <label class="es-label">API Token {% if ms_display.has_api_token %}<span style="color:#22c55e;font-size:.7rem">● Saved</span>{% endif %}</label>
         <div class="es-password-group">
           <input class="es-input" type="password" id="msApiToken" name="api_token" placeholder="{{ '••••••••  (leave blank to keep current)' if ms_display.has_api_token else 'mlsn.xxxxxxxxxxxxxxxxxxxx' }}" autocomplete="new-password">
-          <button type="button" class="es-password-toggle" onclick="togglePwd('msApiToken',this)">
+          <button type="button" class="es-password-toggle" data-password-target="msApiToken" aria-label="Show or hide password">
             <iconify-icon icon="lucide:eye" width="16"></iconify-icon>
           </button>
         </div>
@@ -568,7 +615,7 @@
         <iconify-icon icon="lucide:save" width="14"></iconify-icon>
         Save MailerSend Settings
       </button>
-      <button type="button" class="btn-es-test" onclick="testProvider('mailersend')">
+      <button type="button" class="btn-es-test" data-test-provider="mailersend">
         <iconify-icon icon="lucide:send" width="14"></iconify-icon>
         Test MailerSend
       </button>
@@ -596,13 +643,13 @@
 
     {% for gkey, gicon, gtitle, gdesc in guides %}
     <div>
-      <div class="guide-toggle" onclick="toggleGuide('{{ gkey }}')">
+      <button type="button" class="guide-toggle" data-guide-key="{{ gkey }}" aria-expanded="false">
         <span class="guide-toggle-title">
           <iconify-icon icon="{{ gicon }}" width="15"></iconify-icon>
           {{ gtitle }}
         </span>
         <iconify-icon icon="lucide:chevron-down" width="16" id="guideArrow-{{ gkey }}" style="transition:transform .2s"></iconify-icon>
-      </div>
+      </button>
       <div class="guide-content" id="guide-{{ gkey }}">
         <p>{{ gdesc }}</p>
       </div>
@@ -612,152 +659,8 @@
   </div>
 </div>
 
-<!-- ── Scripts ────────────────────────────────────────────────────────────── -->
-<script>
-// ── Toast ────────────────────────────────────────────────────────────────────
-function esToast(msg, type='info', duration=4000) {
-  const icons = {success:'lucide:check-circle', error:'lucide:x-circle', info:'lucide:info'};
-  const container = document.getElementById('esToastContainer');
-  const t = document.createElement('div');
-  t.className = `es-toast ${type}`;
-  t.innerHTML = `<iconify-icon icon="${icons[type]||icons.info}" width="18" style="flex-shrink:0;color:${type==='success'?'#22c55e':type==='error'?'#ef4444':'#60a5fa'}"></iconify-icon><span>${msg}</span>`;
-  container.appendChild(t);
-  setTimeout(() => { t.classList.add('hide'); setTimeout(() => t.remove(), 350); }, duration);
-}
+{% endblock %}
 
-// ── Toggle provider active state ─────────────────────────────────────────────
-async function toggleProvider(name, checked) {
-  const label = document.getElementById('toggleLabel-' + name);
-  const card  = document.getElementById('providerCard-' + name);
-  try {
-    const fd = new FormData();
-    fd.append('action', checked ? 'activate' : 'deactivate');
-    fd.append('csrf_token', '{{ csrf_token() }}');
-    const r = await fetch(`{{ url_for('admin.email_services_toggle', provider_name='PLACEHOLDER') }}`.replace('PLACEHOLDER', name), {method:'POST', body:fd});
-    const d = await r.json();
-    if (d.success) {
-      label.textContent = d.active ? 'Active' : 'Inactive';
-      card.classList.toggle('active-provider', d.active);
-      esToast(`${name.charAt(0).toUpperCase()+name.slice(1)} ${d.active?'activated':'deactivated'}`, 'success');
-    } else {
-      esToast('Toggle failed — please try again', 'error');
-      // Revert checkbox
-      document.querySelector(`[onchange*="${name}"]`).checked = !checked;
-    }
-  } catch(e) {
-    esToast('Network error', 'error');
-  }
-}
-
-// ── Test provider ─────────────────────────────────────────────────────────────
-async function testProvider(name) {
-  const btn = document.getElementById('testBtn-' + name);
-  const orig = btn.innerHTML;
-  btn.innerHTML = '<span class="es-spinner"></span> Sending...';
-  btn.disabled = true;
-
-  try {
-    const fd = new FormData();
-    fd.append('provider', name);
-    fd.append('to_email', '{{ current_user.email }}');
-    fd.append('csrf_token', '{{ csrf_token() }}');
-    const r = await fetch('{{ url_for("admin.email_services_test") }}', {method:'POST', body:fd});
-    const d = await r.json();
-    if (d.success) {
-      esToast(`✅ Test sent via ${name} in ${d.latency}s → ${d.to_email}`, 'success', 5000);
-      // Update status badge
-      const badge = document.getElementById('statusBadge-' + name);
-      if (badge) { badge.className = 'status-badge connected'; badge.textContent = 'Connected'; }
-    } else {
-      esToast(`❌ ${name}: ${d.message}`, 'error', 6000);
-    }
-  } catch(e) {
-    esToast('Test request failed', 'error');
-  } finally {
-    btn.innerHTML = orig;
-    btn.disabled = false;
-  }
-}
-
-// ── Password show/hide ────────────────────────────────────────────────────────
-function togglePwd(id, btn) {
-  const inp = document.getElementById(id);
-  if (!inp) return;
-  const show = inp.type === 'password';
-  inp.type = show ? 'text' : 'password';
-  btn.querySelector('iconify-icon').setAttribute('icon', show ? 'lucide:eye-off' : 'lucide:eye');
-}
-
-// ── Collapsible guides ────────────────────────────────────────────────────────
-function toggleGuide(key) {
-  const content = document.getElementById('guide-' + key);
-  const arrow   = document.getElementById('guideArrow-' + key);
-  const open    = content.classList.toggle('open');
-  if (arrow) arrow.style.transform = open ? 'rotate(180deg)' : '';
-}
-
-// ── Drag-and-drop priority ────────────────────────────────────────────────────
-(function() {
-  const list = document.getElementById('priorityList');
-  if (!list) return;
-
-  let dragged = null;
-
-  list.addEventListener('dragstart', e => {
-    dragged = e.target.closest('.priority-item');
-    if (dragged) { setTimeout(() => dragged.classList.add('dragging'), 0); }
-  });
-
-  list.addEventListener('dragend', () => {
-    if (dragged) dragged.classList.remove('dragging');
-    list.querySelectorAll('.priority-item').forEach(i => i.classList.remove('drag-over'));
-    dragged = null;
-    updatePriorityNumbers();
-  });
-
-  list.addEventListener('dragover', e => {
-    e.preventDefault();
-    const target = e.target.closest('.priority-item');
-    if (!target || target === dragged) return;
-    list.querySelectorAll('.priority-item').forEach(i => i.classList.remove('drag-over'));
-    target.classList.add('drag-over');
-    const rect = target.getBoundingClientRect();
-    const after = e.clientY > rect.top + rect.height / 2;
-    list.insertBefore(dragged, after ? target.nextSibling : target);
-  });
-
-  list.addEventListener('dragleave', e => {
-    const t = e.target.closest('.priority-item');
-    if (t) t.classList.remove('drag-over');
-  });
-
-  function updatePriorityNumbers() {
-    list.querySelectorAll('.priority-item').forEach((item, i) => {
-      const num = item.querySelector('.priority-num');
-      if (num) num.textContent = i + 1;
-    });
-  }
-})();
-
-// ── Save priority ─────────────────────────────────────────────────────────────
-async function savePriority() {
-  const items = document.querySelectorAll('#priorityList .priority-item');
-  const providers = Array.from(items).map((el, i) => ({
-    name: el.dataset.provider, priority: i + 1
-  }));
-
-  try {
-    const r = await fetch('{{ url_for("admin.email_services_priority") }}', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json', 'X-CSRFToken':'{{ csrf_token() }}'},
-      body: JSON.stringify({providers}),
-    });
-    const d = await r.json();
-    if (d.success) esToast('Provider priority saved', 'success');
-    else esToast('Failed to save priority', 'error');
-  } catch(e) {
-    esToast('Network error', 'error');
-  }
-}
-</script>
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/tenant-email-services.js', v='20260711-production-actions') }}" defer></script>
 {% endblock %}

@@ -82,6 +82,39 @@ def _email_provider_allowed(provider_name: str | None = None) -> tuple[bool, str
     return True, 'ok'
 
 
+def _active_email_tenant_id() -> int | None:
+    """Resolve the tenant selected in the Studio, including superadmin tenant context.
+
+    Using ``current_user.tenant_id`` alone is incorrect when a superadmin opens a
+    tenant Studio through the active tenant session. Email settings, tests, and
+    provider ordering must all target the same tenant displayed by the page.
+    """
+    slug = _active_tenant_slug()
+    tenant = tenant_repository.get_by_slug(slug) if slug else None
+    if tenant is not None:
+        return int(tenant.id)
+    tenant_id = getattr(current_user, 'tenant_id', None)
+    return int(tenant_id) if tenant_id is not None else None
+
+
+def _email_services_wants_json() -> bool:
+    return (
+        request.is_json
+        or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        or request.accept_mimetypes.best == 'application/json'
+    )
+
+
+def _email_services_error(message: str, status: int = 400):
+    if _email_services_wants_json():
+        response = jsonify({'success': False, 'error': message, 'message': message})
+        response.status_code = status
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+    flash(message, 'danger')
+    return redirect(url_for('admin.email_services'))
+
+
 @admin.route('/notifications')
 @login_required
 def notifications():
@@ -232,7 +265,10 @@ def email_services():
         flash(lock_message, 'warning')
         return redirect(url_for('admin.dashboard'))
 
-    tenant_id = current_user.tenant_id
+    tenant_id = _active_email_tenant_id()
+    if tenant_id is None:
+        flash('No active tenant could be resolved for Email Services.', 'danger')
+        return redirect(url_for('admin.dashboard'))
 
     # Ensure provider records exist
     bootstrap_tenant_providers(tenant_id)
@@ -326,7 +362,9 @@ def email_services_save(provider_name: str):
         flash(lock_message, 'warning')
         return redirect(url_for('admin.dashboard'))
 
-    tenant_id = current_user.tenant_id
+    tenant_id = _active_email_tenant_id()
+    if tenant_id is None:
+        return _email_services_error('No active tenant could be resolved.', 404)
 
     try:
         if provider_name == 'smtp':
@@ -378,8 +416,9 @@ def email_services_save(provider_name: str):
         try:
             provider_rec = TenantEmailProvider.get_or_create(tenant_id, provider_name)
             if s.is_configured:
-                provider_rec.status = 'connected'
                 provider_rec.active = True
+                if provider_rec.status == 'unconfigured':
+                    provider_rec.status = 'disconnected'
                 db.session.commit()
         except Exception as _pe:
             logger.warning('[EmailServices] provider_rec status update failed (non-fatal): %s', _pe)
@@ -450,7 +489,9 @@ def email_services_toggle(provider_name: str):
     if not allowed:
         return jsonify({'success': False, 'error': lock_message}), 403
 
-    tenant_id = current_user.tenant_id
+    tenant_id = _active_email_tenant_id()
+    if tenant_id is None:
+        return _email_services_error('No active tenant could be resolved.', 404)
     action    = request.form.get('action', 'toggle')   # activate | deactivate | toggle
 
     try:
@@ -518,79 +559,128 @@ def email_services_toggle(provider_name: str):
 @admin.route('/email-services/priority', methods=['POST'])
 @admin_required
 def email_services_priority():
+    """Persist a complete, unique provider order for the active tenant.
+
+    Accepts JSON for API clients and ``provider_order=smtp,resend,mailersend``
+    for the CSP-safe browser form fallback.
     """
-    Update provider priority ordering.
-    Expects JSON body: {providers: [{name: 'smtp', priority: 1}, ...]}
-    """
-    from flask import jsonify
     from app.models.core import TenantEmailProvider
-    from app import db
 
     allowed, lock_message = _email_provider_allowed()
     if not allowed:
-        return jsonify({'success': False, 'error': lock_message}), 403
+        return _email_services_error(lock_message, 403)
 
-    tenant_id = current_user.tenant_id
+    tenant_id = _active_email_tenant_id()
+    if tenant_id is None:
+        return _email_services_error('No active tenant could be resolved.', 404)
 
+    valid = ('smtp', 'resend', 'mailersend')
     try:
-        data      = request.get_json(silent=True) or {}
-        providers = data.get('providers', [])
+        order: list[str] = []
+        if request.is_json:
+            payload = request.get_json(silent=True) or {}
+            raw_items = payload.get('providers', [])
+            if isinstance(raw_items, list):
+                order = [
+                    str(item.get('name', '')).strip().lower()
+                    for item in raw_items
+                    if isinstance(item, dict)
+                ]
+        else:
+            raw_order = (request.form.get('provider_order') or '').strip()
+            if raw_order:
+                if raw_order.startswith('['):
+                    parsed = json.loads(raw_order)
+                    order = [str(name).strip().lower() for name in parsed]
+                else:
+                    order = [name.strip().lower() for name in raw_order.split(',')]
 
-        VALID = ('smtp', 'resend', 'mailersend')
-        for item in providers:
-            name     = item.get('name', '')
-            priority = item.get('priority')
-            if name not in VALID or not isinstance(priority, int):
-                continue
+        if len(order) != len(valid) or set(order) != set(valid):
+            return _email_services_error(
+                'Provider order must contain SMTP, Resend, and MailerSend exactly once.',
+                400,
+            )
+
+        for priority, name in enumerate(order, start=1):
             rec = TenantEmailProvider.get_or_create(tenant_id, name)
-            rec.priority = max(1, min(99, priority))
+            rec.priority = priority
 
         db.session.commit()
         log_activity('update', 'email_provider', 'priority', 'Email provider priority updated')
-        return jsonify({'success': True})
 
-    except Exception as e:
+        if _email_services_wants_json():
+            response = jsonify({'success': True, 'order': order})
+            response.headers['Cache-Control'] = 'no-store'
+            return response
+        flash('Email provider priority saved.', 'success')
+        return redirect(url_for('admin.email_services'))
+
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
         db.session.rollback()
-        logger.error('[EmailServices] Priority update failed: %s', str(e))
-        return jsonify({'success': False, 'error': 'Priority update failed'}), 500
+        logger.warning('[EmailServices] Invalid priority payload tenant=%s: %s', tenant_id, exc)
+        return _email_services_error('The provider order was invalid. Refresh and try again.', 400)
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception('[EmailServices] Priority update failed tenant=%s', tenant_id)
+        return _email_services_error('Priority update failed. Please try again.', 500)
+
 
 @admin.route('/email-services/test', methods=['POST'])
 @admin_required
 def email_services_test():
-    """
-    Send a test email through a specified provider.
-    JSON endpoint — returns {success, message, latency}.
-    """
-    from flask import jsonify
+    """Send a real test message through one saved provider configuration."""
     from app.services.tenant_email_service import test_provider
 
-    tenant_id     = current_user.tenant_id
-    provider_name = request.form.get('provider', '').strip()
-    to_email      = request.form.get('to_email', '').strip() or current_user.email
+    tenant_id = _active_email_tenant_id()
+    if tenant_id is None:
+        return _email_services_error('No active tenant could be resolved.', 404)
 
-    VALID_PROVIDERS = ('smtp', 'resend', 'mailersend')
-    if provider_name not in VALID_PROVIDERS:
-        return jsonify({'success': False, 'message': 'Invalid provider'}), 400
+    provider_name = request.form.get('provider', '').strip().lower()
+    to_email = request.form.get('to_email', '').strip().lower() or current_user.email
+    valid_providers = ('smtp', 'resend', 'mailersend')
+
+    if provider_name not in valid_providers:
+        return _email_services_error('Invalid email provider.', 400)
 
     allowed, lock_message = _email_provider_allowed(provider_name)
     if not allowed:
-        return jsonify({'success': False, 'message': lock_message}), 403
+        return _email_services_error(lock_message, 403)
 
     if not to_email or '@' not in to_email:
-        to_email = current_user.email
+        return _email_services_error('Enter a valid test recipient email address.', 400)
 
-    ok, msg, latency = test_provider(tenant_id, provider_name, to_email)
-    log_activity(
-        'update', 'email_provider', provider_name,
-        f'Test email {"succeeded" if ok else "failed"} via {provider_name}'
-    )
-    return jsonify({
-        'success': ok,
-        'message': msg,
-        'latency': round(latency, 2),
-        'provider': provider_name,
-        'to_email': to_email,
-    })
+    try:
+        ok, message, latency = test_provider(tenant_id, provider_name, to_email)
+        log_activity(
+            'update', 'email_provider', provider_name,
+            f'Test email {"succeeded" if ok else "failed"} via {provider_name}',
+        )
+        payload = {
+            'success': bool(ok),
+            'message': message or ('Test email sent.' if ok else 'The provider test failed.'),
+            'latency': round(float(latency or 0.0), 2),
+            'provider': provider_name,
+            'to_email': to_email,
+        }
+        if _email_services_wants_json():
+            response = jsonify(payload)
+            response.headers['Cache-Control'] = 'no-store'
+            return response
+
+        flash(payload['message'], 'success' if ok else 'danger')
+        return redirect(url_for('admin.email_services'))
+    except Exception:
+        db.session.rollback()
+        logger.exception(
+            '[EmailServices] Provider test crashed tenant=%s provider=%s',
+            tenant_id,
+            provider_name,
+        )
+        return _email_services_error(
+            'The provider test could not complete. Check the saved credentials and production logs.',
+            502,
+        )
+
 
 @admin.route('/email-services/status')
 @admin_required
@@ -599,7 +689,9 @@ def email_services_status():
     from flask import jsonify
     from app.services.tenant_email_service import get_provider_status
 
-    tenant_id = current_user.tenant_id
+    tenant_id = _active_email_tenant_id()
+    if tenant_id is None:
+        return _email_services_error('No active tenant could be resolved.', 404)
     status    = get_provider_status(tenant_id)
 
     # Serialize datetimes to ISO strings

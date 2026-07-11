@@ -1856,10 +1856,19 @@ class GlobalEmailConfig(db.Model):
 
     @property
     def sa_resend_api_key(self) -> str:
-        raw = self._sa_resend_api_key
-        if raw is None or raw == '' or not isinstance(raw, str):
+        raw = self.get_sa_resend_api_key_blob()
+        if not raw:
             return ''
         return decrypt_secret(raw)
+
+    def get_sa_resend_api_key_blob(self) -> str:
+        """Return the encrypted Resend key without Boolean-testing ORM clauses."""
+        try:
+            from sqlalchemy import inspect as sa_inspect
+            raw = sa_inspect(self).attrs._sa_resend_api_key.value
+        except Exception:
+            raw = self.__dict__.get('_sa_resend_api_key', '')
+        return raw.strip() if isinstance(raw, str) else ''
 
     @sa_resend_api_key.setter
     def sa_resend_api_key(self, value: str):
@@ -1869,10 +1878,7 @@ class GlobalEmailConfig(db.Model):
     def has_sa_resend(self) -> bool:
         """Check raw encrypted blob to avoid decrypt failures giving false-negative."""
         try:
-            raw_key = self._sa_resend_api_key
-            if raw_key is None:
-                raw_key = ''
-            raw_key = str(raw_key).strip()
+            raw_key = self.get_sa_resend_api_key_blob()
             sender  = str(self.sa_resend_sender_email or '').strip()
             return bool(raw_key and sender)
         except Exception:

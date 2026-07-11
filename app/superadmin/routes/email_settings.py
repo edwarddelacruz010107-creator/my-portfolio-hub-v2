@@ -10,6 +10,7 @@ import io
 import logging
 import re
 import secrets
+import requests
 import string
 from datetime import datetime, timezone, timedelta
 from functools import wraps
@@ -291,6 +292,11 @@ def email_settings():
             # if decryption fails but raw blob exists, still allow the test
             # (the actual SMTP send will fail if the key is wrong, not silently pass).
             form_password = request.form.get('smtp_password', '').strip()
+            if form_password and ('gmail.com' in host.lower() or username.lower().endswith('@gmail.com')):
+                # Google displays 16-character App Passwords in groups. SMTP expects
+                # the same value without spaces. Normalizing here prevents a valid
+                # pasted App Password from failing authentication in production.
+                form_password = ''.join(form_password.split())
             if form_password:
                 password = form_password
             else:
@@ -501,8 +507,12 @@ def email_settings():
             username     = request.form.get('smtp_username', '').strip()
             password     = request.form.get('smtp_password', '').strip()
             sender_email = request.form.get('smtp_sender_email', '').strip().lower()
+            if password and ('gmail.com' in host.lower() or username.lower().endswith('@gmail.com')):
+                password = ''.join(password.split())
             sender_name  = request.form.get('smtp_sender_name', '').strip()
-            encryption   = request.form.get('smtp_encryption', 'tls')
+            encryption   = request.form.get('smtp_encryption', 'tls').strip().lower()
+            if encryption not in {'tls', 'ssl', 'none'}:
+                encryption = 'tls'
             try:
                 port = max(1, min(65535, int(port_raw)))
             except (ValueError, TypeError):

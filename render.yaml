@@ -32,12 +32,12 @@ services:
     # Step 1: Apply all pending core DB migrations
     # Step 2: Create tenant-bound tables on the tenant bind; if TENANT_DATABASE_URL is blank, it reuses CORE_DATABASE_URL
     # Step 3: Ensure 'default' Tenant row + Profile exist
-    # Step 4: Create superadmin user (CRITICAL — was missing before)
+    # Step 4: Ensure the superadmin user exists (existing passwords are preserved)
     #
     # All commands are idempotent — safe to run on every deploy.
     # If SUPERADMIN_PASSWORD is set as an env var, it is used.
-    # If absent, a secure password is auto-generated and printed to
-    # the Render deploy log — capture it before the log scrolls away.
+    # SUPERADMIN_PASSWORD is required only for first-time creation and is
+    # never printed. Rotate it immediately if it has ever appeared in logs.
     preDeployCommand: >
       (if [ "$USE_ORM_BOOTSTRAP_ON_STARTUP" = "true" ]; then flask bootstrap-production-db; else flask db upgrade || flask bootstrap-production-db; fi) &&
       flask ensure-tenant-schema &&

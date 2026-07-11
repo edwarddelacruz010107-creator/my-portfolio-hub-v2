@@ -2147,14 +2147,13 @@ def register_cli_commands(app):
 
     @app.cli.command('create-superadmin')
     def cli_create_superadmin():
-        """Create or reset the superadmin account."""
-        import secrets as _secrets
+        """Create the superadmin once; never reset or disclose it during deploys."""
         import os as _os
         from app.models import User
         from app.models.portfolio import Tenant
         from app.services.auth.email_policy import EmailPolicyError, assert_email_allowed_for_user
 
-        password = _os.environ.get('SUPERADMIN_PASSWORD', _secrets.token_urlsafe(16))
+        password = _os.environ.get('SUPERADMIN_PASSWORD', '').strip()
         existing = User.query.filter_by(username='superadmin').first()
         try:
             owner_email = assert_email_allowed_for_user('delacruzedward735@gmail.com', user=existing, role='superadmin')
@@ -2172,18 +2171,20 @@ def register_cli_commands(app):
             db.session.flush()
 
         if existing:
-            existing.password      = password
             existing.is_superadmin = True
             existing.is_admin      = True
             existing.email         = owner_email
             existing.tenant        = tenant
             existing.tenant_slug   = tenant.slug
             db.session.commit()
-            click.echo('✔  Superadmin already exists — password reset:')
-            click.echo(f'   Username: superadmin')
-            click.echo(f'   New password: {password}')
+            click.echo('✔  Superadmin already exists — account preserved (password unchanged).')
             click.echo('   Login at: /superadmin/login')
             return
+
+
+        if not password:
+            click.echo('ERROR: SUPERADMIN_PASSWORD is required for first-time creation.', err=True)
+            raise click.ClickException('Set SUPERADMIN_PASSWORD securely and rerun create-superadmin.')
 
         superadmin = User(
             username='superadmin',
@@ -2198,9 +2199,8 @@ def register_cli_commands(app):
         db.session.commit()
         click.echo('✔  Superadmin created:')
         click.echo(f'   Username:  superadmin')
-        click.echo(f'   Password:  {password}')
         click.echo('   Login URL: /superadmin/login')
-        click.echo('⚠️  Change this password immediately after first login!')
+        click.echo('   Password loaded securely from SUPERADMIN_PASSWORD (not printed).')
 
     @app.cli.command('create-admin')
     def cli_create_admin():

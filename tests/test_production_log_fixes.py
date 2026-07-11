@@ -1,0 +1,36 @@
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_smtp_blob_never_boolean_tests_sqlalchemy_clause():
+    route = (ROOT / 'app/superadmin/routes/email_settings.py').read_text()
+    model = (ROOT / 'app/models/core.py').read_text()
+    assert "getattr(cfg, '_sa_smtp_password', '') or ''" not in route
+    assert "getattr(verified_cfg, '_sa_smtp_password', '') or ''" not in route
+    assert 'def get_sa_smtp_password_blob' in model
+    assert 'sa_inspect(self).attrs._sa_smtp_password.value' in model
+
+
+def test_superadmin_deploy_is_idempotent_and_never_logs_password():
+    source = (ROOT / 'app/__init__.py').read_text()
+    command = source[source.index("@app.cli.command('create-superadmin')"):]
+    command = command[:command.index("@app.cli.command('create-admin')")]
+    assert 'existing.password' not in command
+    assert 'New password:' not in command
+    assert 'Password:  {password}' not in command
+    assert 'account preserved (password unchanged)' in command
+
+
+def test_missing_project_placeholder_is_packaged():
+    asset = ROOT / 'app/static/image/project_placeholder.svg'
+    assert asset.is_file()
+    assert '<svg' in asset.read_text()
+
+
+def test_mailersend_1010_has_actionable_diagnostic():
+    source = (ROOT / 'app/services/email/superadmin_email_service.py').read_text()
+    assert "e.code == 403" in source
+    assert 'account approval' in source
+    assert 'sender-domain verification' in source

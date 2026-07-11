@@ -1799,10 +1799,19 @@ class GlobalEmailConfig(db.Model):
         # Force scalar string — _sa_smtp_password can be an ORM InstrumentedAttribute
         # descriptor if the instance hasn't been refreshed yet, which causes
         # decrypt_secret to receive a Column object and raise AttributeError.
-        raw = self._sa_smtp_password
-        if raw is None or raw == '' or not isinstance(raw, str):
+        raw = self.get_sa_smtp_password_blob()
+        if not raw:
             return ''
         return decrypt_secret(raw)
+
+    def get_sa_smtp_password_blob(self) -> str:
+        """Return the persisted encrypted SMTP value without truth-testing ORM clauses."""
+        try:
+            from sqlalchemy import inspect as sa_inspect
+            raw = sa_inspect(self).attrs._sa_smtp_password.value
+        except Exception:
+            raw = self.__dict__.get('_sa_smtp_password', '')
+        return raw.strip() if isinstance(raw, str) else ''
 
     @sa_smtp_password.setter
     def sa_smtp_password(self, value: str):
@@ -1832,10 +1841,7 @@ class GlobalEmailConfig(db.Model):
             port    = self.sa_smtp_port
 
             # Read raw encrypted blob — avoid decrypt path entirely
-            raw_pw = self._sa_smtp_password
-            if raw_pw is None:
-                raw_pw = ''
-            raw_pw = str(raw_pw).strip()
+            raw_pw = self.get_sa_smtp_password_blob()
 
             return bool(
                 host

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" role="img" aria-labelledby="title desc">
+  <title id="title">Project image placeholder</title>
+  <desc id="desc">A neutral code-window illustration shown when a project has no uploaded image.</desc>
+  <rect width="800" height="450" rx="24" fill="#111827"/>
+  <rect x="42" y="42" width="716" height="366" rx="16" fill="#1f2937" stroke="#374151" stroke-width="4"/>
+  <circle cx="78" cy="78" r="10" fill="#f87171"/><circle cx="110" cy="78" r="10" fill="#fbbf24"/><circle cx="142" cy="78" r="10" fill="#4ade80"/>
+  <path d="m285 190-75 55 75 55M515 190l75 55-75 55M450 150l-100 190" fill="none" stroke="#60a5fa" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

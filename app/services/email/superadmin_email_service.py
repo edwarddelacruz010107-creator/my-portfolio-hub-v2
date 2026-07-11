@@ -210,6 +210,11 @@ def _send_mailersend(cfg: dict, to: str, subject: str, html: str, text: str) -> 
         body = e.read(200).decode(errors='ignore')
         if e.code == 401:
             return False, 'MailerSend: invalid API key'
+        if e.code == 403 and ('1010' in body or 'error code: 1010' in body.lower()):
+            return False, (
+                'MailerSend denied API access (403/1010). Check account approval, '
+                'API-token permissions, and sender-domain verification; enable SMTP or Resend as failover.'
+            )
         if e.code in (429, 503):
             raise ConnectionError(f'MailerSend transient {e.code}')
         return False, f'MailerSend HTTP {e.code}: {body}'

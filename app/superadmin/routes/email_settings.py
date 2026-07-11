@@ -307,7 +307,7 @@ def email_settings():
                 # If decryption returned empty but blob exists, we still have credentials
                 # stored — we just can't decrypt them (Fernet key mismatch).
                 if not password:
-                    raw_blob = getattr(cfg, '_sa_smtp_password', '') or ''
+                    raw_blob = cfg.get_sa_smtp_password_blob()
                     if raw_blob:
                         return jsonify({'ok': False, 'message': (
                             'Stored SMTP password cannot be decrypted — the FERNET_KEY may have changed. '
@@ -536,8 +536,8 @@ def email_settings():
             # column directly — never go through decrypt_secret here because a
             # decryption failure (wrong FERNET_KEY, ORM state) returns '' and
             # silently makes us think no password exists.
-            existing_pw_blob = cfg._sa_smtp_password
-            has_existing_pw  = isinstance(existing_pw_blob, str) and len(existing_pw_blob.strip()) > 0
+            existing_pw_blob = cfg.get_sa_smtp_password_blob()
+            has_existing_pw  = bool(existing_pw_blob)
 
             missing = []
             if not host:
@@ -561,8 +561,8 @@ def email_settings():
             if password:                          # blank = keep existing encrypted blob
                 cfg.sa_smtp_password = password
                 # ── Phase 2: Verify encryption actually ran ─────────────
-                blob_after_set = getattr(cfg, '_sa_smtp_password', '') or ''
-                if not str(blob_after_set).strip():
+                blob_after_set = cfg.get_sa_smtp_password_blob()
+                if not blob_after_set:
                     _smtp_log.error(
                         '[SMTP SAVE] Encryption failure — _sa_smtp_password empty after setter '
                         '(host=%s user=%s)', host, username
@@ -601,8 +601,8 @@ def email_settings():
                 return jsonify({'ok': False, 'message': 'Save appeared to succeed but verification read failed. Contact support.'})
 
             # ── Phase 4: Verify encrypted blob persisted ──────────────────
-            db_blob = getattr(verified_cfg, '_sa_smtp_password', '') or ''
-            if not str(db_blob).strip():
+            db_blob = verified_cfg.get_sa_smtp_password_blob()
+            if not db_blob:
                 _smtp_log.error(
                     '[SMTP SAVE] Post-commit verification failed — sa_smtp_password_encrypted '
                     'is empty in DB after commit (host=%s user=%s)', host, username
@@ -776,7 +776,7 @@ def email_provider_diagnostics():
     # Test decryptability without exposing the value
     smtp_decryptable = False
     smtp_decrypt_error = None
-    raw_blob = getattr(cfg, '_sa_smtp_password', '') or ''
+    raw_blob = cfg.get_sa_smtp_password_blob()
     if raw_blob:
         try:
             decrypted = decrypt_secret(raw_blob)

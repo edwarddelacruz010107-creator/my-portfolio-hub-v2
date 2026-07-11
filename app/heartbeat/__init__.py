@@ -565,6 +565,15 @@ def init_heartbeat(app) -> None:
     """
     global _selfping_thread  # noqa: PLW0603
 
+    # Flask CLI setup/migration commands import the application factory too.
+    # They must never start production background workers.
+    import sys
+    cli_args = ' '.join(sys.argv).lower()
+    is_setup_command = any(command in cli_args for command in (
+        'create-superadmin', 'ensure-default-tenant', 'ensure-tenant-schema',
+        'bootstrap-production-db', 'db upgrade', 'flask db',
+    ))
+
     # Register the blueprint (exempt from CSRF — monitoring pings are GET-only)
     # Guard against double-registration: Werkzeug's stat reloader calls create_app()
     # twice in the same process (parent + child). heartbeat_bp is a module-level
@@ -584,6 +593,14 @@ def init_heartbeat(app) -> None:
 
     if not self_ping_enabled:
         logger.debug("Self-ping disabled (SELF_PING_ENABLED != true)")
+        return
+
+    if is_setup_command:
+        logger.info('Self-ping disabled during database/setup CLI command')
+        return
+
+    if _selfping_thread is not None and _selfping_thread.is_alive():
+        logger.debug('Self-ping thread already running in this process — skipping duplicate start')
         return
 
     betterstack_url: str = (

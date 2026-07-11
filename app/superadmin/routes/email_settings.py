@@ -638,16 +638,16 @@ def email_settings():
             sender_email = request.form.get('resend_sender_email', '').strip().lower()
             sender_name  = request.form.get('resend_sender_name', '').strip()
 
-            existing_blob = getattr(cfg, '_sa_resend_api_key', '') or ''
-            has_existing  = isinstance(existing_blob, str) and len(existing_blob.strip()) > 0
+            existing_blob = cfg.get_sa_resend_api_key_blob()
+            has_existing  = bool(existing_blob)
 
             if not key and not has_existing:
                 return jsonify({'ok': False, 'message': 'Resend API key is required on first save.'})
 
             if key:
                 cfg.sa_resend_api_key = key
-                blob_after = getattr(cfg, '_sa_resend_api_key', '') or ''
-                if not str(blob_after).strip():
+                blob_after = cfg.get_sa_resend_api_key_blob()
+                if not blob_after:
                     _rs_log.error('[RS SAVE] Encryption failure — blob empty after setter')
                     db.session.rollback()
                     return jsonify({'ok': False, 'message': 'Resend key encryption failed. Check FERNET_KEY.'})
@@ -655,6 +655,9 @@ def email_settings():
             if sender_email:
                 cfg.sa_resend_sender_email = sender_email
             cfg.sa_resend_sender_name = sender_name or cfg.sa_resend_sender_name
+            # A deliberate credential save should make the provider available
+            # to the priority chain, matching SMTP save behaviour.
+            cfg.sa_resend_active = True
             cfg.updated_by = current_user.username
 
             _rs_log.info('[RS SAVE] Committing (user=%s)', current_user.username)

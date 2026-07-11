@@ -25,7 +25,6 @@ import re
 import smtplib
 import ssl
 import time
-import urllib.request
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr
@@ -134,42 +133,46 @@ def _send_smtp(cfg: dict, to: str, subject: str, html: str, text: str) -> tuple[
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _send_resend(cfg: dict, to: str, subject: str, html: str, text: str) -> tuple[bool, str]:
+    import requests
+
     api_key = cfg['api_key']
     from_email = cfg['sender_email']
     from_name  = _clean_sender_name(cfg.get('sender_name', 'MyPortfolioHub'))
     reply_to   = cfg.get('reply_to') or _reply_to_for(from_email)
 
-    payload = json.dumps({
+    payload = {
         'from':    f'{from_name} <{from_email}>',
         'to':      [to],
         'subject': subject,
         'html':    html,
         'text':    text,
         'reply_to': reply_to,
-    }).encode()
-
-    req = urllib.request.Request(
-        'https://api.resend.com/emails',
-        data=payload,
-        headers={
-            'Authorization': f'Bearer {api_key}',
-            'Content-Type': 'application/json',
-        },
-        method='POST',
-    )
+    }
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            if resp.status in (200, 201):
-                return True, ''
-            return False, f'Resend HTTP {resp.status}'
-    except urllib.error.HTTPError as e:
-        body = e.read(200).decode(errors='ignore')
-        if e.code == 401:
+        response = requests.post(
+            'https://api.resend.com/emails',
+            json=payload,
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'User-Agent': 'MyPortfolioHub/1.0 (+https://myportfoliohub.online)',
+            },
+            timeout=20,
+        )
+        if response.status_code in (200, 201):
+            return True, ''
+        body = _safe_error(response.text, 200)
+        if response.status_code == 401:
             return False, 'Resend: invalid API key'
-        if e.code in (429, 503):
-            raise ConnectionError(f'Resend transient {e.code}')
-        return False, f'Resend HTTP {e.code}: {body}'
-    except (urllib.error.URLError, OSError, TimeoutError) as e:
+        if response.status_code == 403:
+            return False, 'Resend refused sending (HTTP 403). Verify the API-key permission and From domain.'
+        if response.status_code == 422:
+            return False, f'Resend rejected the message or sender: {body}'
+        if response.status_code in (429, 503):
+            raise ConnectionError(f'Resend transient {response.status_code}')
+        return False, f'Resend HTTP {response.status_code}: {body}'
+    except requests.RequestException as e:
         raise ConnectionError(f'Resend network error: {e}')
 
 

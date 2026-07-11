@@ -677,7 +677,7 @@ def email_settings():
                 'providers': {
                     'resend': {
                         'configured': configured,
-                        'active': bool(v.sa_resend_active) if v else False,
+                        'active': bool(v.sa_resend_effectively_active) if v else False,
                     },
                 },
             })
@@ -709,7 +709,7 @@ def email_settings():
         },
         'resend': {
             'configured': cfg.has_sa_resend,
-            'active': cfg.sa_resend_active or False,
+            'active': cfg.sa_resend_effectively_active,
         },
     }
     return render_template(
@@ -755,7 +755,7 @@ def email_provider_status():
             },
             'resend': {
                 'configured': bool(cfg.has_sa_resend),
-                'active': bool(cfg.sa_resend_active or False),
+                'active': bool(cfg.sa_resend_effectively_active),
             },
         },
         'priority': cfg.get_sa_provider_priority(),
@@ -818,7 +818,8 @@ def email_provider_diagnostics():
         'resend': {
             'sender_email': cfg.sa_resend_sender_email or '',
             'sender_name': cfg.sa_resend_sender_name or '',
-            'active': bool(cfg.sa_resend_active),
+            'active': bool(cfg.sa_resend_effectively_active),
+            'env_configured': bool(cfg.sa_resend_env_configured),
             'encrypted_key_blob_exists': bool(resend_blob),
             'encrypted_key_decryptable': resend_decryptable,
             'decrypt_error': resend_decrypt_error,

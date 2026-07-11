@@ -375,15 +375,22 @@ class EmailService:
         if providers:
             last_err = 'No providers configured'
             for pcfg in providers:
-                name = pcfg.get('provider')
+                send_cfg = dict(pcfg)
+                if reply_to:
+                    # Contact-form admin notifications must reply to the
+                    # visitor, while still sending from the verified platform
+                    # sender. The SuperAdmin provider primitives read
+                    # reply_to from their config dict.
+                    send_cfg['reply_to'] = reply_to
+                name = send_cfg.get('provider')
                 for attempt in range(MAX_RETRIES + 1):
                     try:
                         if name == 'mailersend':
-                            ok, err = sa_email._send_mailersend(pcfg, to, subject, html or '', text or '')
+                            ok, err = sa_email._send_mailersend(send_cfg, to, subject, html or '', text or '')
                         elif name == 'smtp':
-                            ok, err = sa_email._send_smtp(pcfg, to, subject, html or '', text or '')
+                            ok, err = sa_email._send_smtp(send_cfg, to, subject, html or '', text or '')
                         elif name == 'resend':
-                            ok, err = sa_email._send_resend(pcfg, to, subject, html or '', text or '')
+                            ok, err = sa_email._send_resend(send_cfg, to, subject, html or '', text or '')
                         else:
                             ok, err = False, f'Unknown provider {name}'
 

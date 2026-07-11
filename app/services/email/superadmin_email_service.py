@@ -68,6 +68,48 @@ def _reply_to_for(sender_email: str) -> str:
     )
 
 
+def _truthy_env(key: str, default: bool = False) -> bool:
+    raw = os.environ.get(key)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def _env_provider_priority(default_priority: list[str]) -> list[str]:
+    """Allow production to force provider order from env without DB edits."""
+    valid = {'mailersend', 'smtp', 'resend'}
+    raw = (
+        os.environ.get('SUPERADMIN_EMAIL_PROVIDER_PRIORITY', '').strip()
+        or os.environ.get('EMAIL_PROVIDER_PRIORITY', '').strip()
+    )
+    parsed: list[str] = []
+    if raw:
+        try:
+            if raw.startswith('['):
+                data = json.loads(raw)
+                parsed = [str(x).strip().lower() for x in data if str(x).strip()]
+            else:
+                parsed = [p.strip().lower() for p in raw.split(',') if p.strip()]
+        except Exception:
+            parsed = []
+
+    primary = (
+        os.environ.get('SUPERADMIN_EMAIL_PROVIDER', '').strip().lower()
+        or os.environ.get('EMAIL_PROVIDER', '').strip().lower()
+    )
+    if primary in valid:
+        parsed = [primary] + [p for p in (parsed or default_priority) if p != primary]
+
+    ordered: list[str] = []
+    for p in parsed or default_priority:
+        if p in valid and p not in ordered:
+            ordered.append(p)
+    for p in default_priority:
+        if p in valid and p not in ordered:
+            ordered.append(p)
+    return ordered
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # SMTP send
 # ─────────────────────────────────────────────────────────────────────────────
@@ -263,7 +305,7 @@ def _resolve_configs() -> list[dict]:
     def _e(key, fallback=''):
         return os.environ.get(key, '').strip() or fallback
 
-    priority = cfg.get_sa_provider_priority() if cfg else ['mailersend', 'smtp', 'resend']
+    priority = _env_provider_priority(cfg.get_sa_provider_priority() if cfg else ['mailersend', 'smtp', 'resend'])
 
     for provider in priority:
         if provider == 'mailersend':
@@ -313,12 +355,27 @@ def _resolve_configs() -> list[dict]:
                 })
 
         elif provider == 'resend':
-            active = cfg.sa_resend_active if cfg is not None and cfg.sa_resend_active is not None else False
+            env_key = _e('SUPERADMIN_RESEND_API_KEY') or _e('RESEND_API_KEY')
+            env_sender = _e('SUPERADMIN_RESEND_FROM_EMAIL') or _e('RESEND_FROM_EMAIL')
+            env_configured = bool(env_key and env_sender)
+            env_enabled = _truthy_env('SUPERADMIN_RESEND_ACTIVE', default=env_configured)
+            active = (
+                bool(cfg.sa_resend_active) if cfg is not None and cfg.sa_resend_active is not None else False
+            ) or env_enabled
             if not active:
                 continue
-            api_key = (cfg.sa_resend_api_key if cfg else '') or _e('RESEND_API_KEY')
-            sender_email = (cfg.sa_resend_sender_email if cfg else '') or _e('RESEND_FROM_EMAIL')
-            sender_name  = _clean_sender_name((cfg.sa_resend_sender_name if cfg else '') or _e('RESEND_FROM_NAME', 'MyPortfolioHub'))
+            try:
+                db_api_key = cfg.sa_resend_api_key if cfg else ''
+            except Exception:
+                logger.warning('[SAEmail] DB Resend key could not be decrypted; trying env fallback')
+                db_api_key = ''
+            api_key = db_api_key or env_key
+            sender_email = (cfg.sa_resend_sender_email if cfg else '') or env_sender
+            sender_name  = _clean_sender_name(
+                (cfg.sa_resend_sender_name if cfg else '')
+                or _e('SUPERADMIN_RESEND_FROM_NAME')
+                or _e('RESEND_FROM_NAME', 'MyPortfolioHub')
+            )
             if api_key and sender_email:
                 configs.append({
                     'provider': 'resend',

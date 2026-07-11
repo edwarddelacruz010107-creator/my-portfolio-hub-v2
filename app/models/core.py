@@ -1880,11 +1880,43 @@ class GlobalEmailConfig(db.Model):
 
     @property
     def has_sa_resend(self) -> bool:
-        """Check raw encrypted blob to avoid decrypt failures giving false-negative."""
+        """Check DB or env Resend config without decrypting secret values."""
         try:
             raw_key = self.get_sa_resend_api_key_blob()
-            sender  = str(self.sa_resend_sender_email or '').strip()
-            return bool(raw_key and sender)
+            env_key = (
+                _os.environ.get('SUPERADMIN_RESEND_API_KEY', '').strip()
+                or _os.environ.get('RESEND_API_KEY', '').strip()
+            )
+            sender  = (
+                str(self.sa_resend_sender_email or '').strip()
+                or _os.environ.get('SUPERADMIN_RESEND_FROM_EMAIL', '').strip()
+                or _os.environ.get('RESEND_FROM_EMAIL', '').strip()
+            )
+            return bool((raw_key or env_key) and sender)
+        except Exception:
+            return False
+
+    @property
+    def sa_resend_env_configured(self) -> bool:
+        """True when production env has enough Resend config to send."""
+        try:
+            key = (
+                _os.environ.get('SUPERADMIN_RESEND_API_KEY', '').strip()
+                or _os.environ.get('RESEND_API_KEY', '').strip()
+            )
+            sender = (
+                _os.environ.get('SUPERADMIN_RESEND_FROM_EMAIL', '').strip()
+                or _os.environ.get('RESEND_FROM_EMAIL', '').strip()
+            )
+            return bool(key and sender)
+        except Exception:
+            return False
+
+    @property
+    def sa_resend_effectively_active(self) -> bool:
+        """DB active toggle, with env config treated as active in production."""
+        try:
+            return bool(self.sa_resend_active or self.sa_resend_env_configured)
         except Exception:
             return False
 

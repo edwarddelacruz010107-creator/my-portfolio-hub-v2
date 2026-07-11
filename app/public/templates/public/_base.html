@@ -19,6 +19,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+{% include 'partials/_favicons.html' %}
   <meta name="csrf-token" content="{{ csrf_token() }}"/>
   <title>{% block title %}MyPortfolioHub — Build Your Professional Portfolio{% endblock %}</title>
   <meta name="description" content="{% block meta_desc %}Launch a modern portfolio, showcase your projects, and grow your creator identity with MyPortfolioHub.{% endblock %}"/>
@@ -35,13 +36,7 @@
   <link rel="canonical" href="{% block canonical %}{{ request.base_url }}{% endblock %}"/>
 
   <!-- Favicons / app icons (Phase: brand identity) -->
-  <link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon"/>
-  <link rel="icon" href="{{ url_for('static', filename='img/brand/favicon.ico') }}" sizes="any"/>
-  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/brand/logo-mark.svg') }}"/>
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/brand/apple-touch-icon.png') }}"/>
-  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/brand/icon-192.png') }}"/>
-  <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='img/brand/icon-512.png') }}"/>
-  <meta property="og:image" content="{{ url_for('static', filename='img/brand/icon-512.png', _external=True) }}"/>
+  <meta property="og:image" content="{{ url_for('static', filename='images/favicon/icon-512x512.png', _external=True) }}"/>
 
   <link rel="stylesheet" href="{{ url_for('static', filename='css/public-design-system.css') }}"/>
   {% block head_extra %}{% endblock %}

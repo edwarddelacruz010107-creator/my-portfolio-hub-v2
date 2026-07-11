@@ -2677,3 +2677,167 @@ html[data-theme="light"] .community-view-link {
 .theme-card-actions .btn-mph {
   margin-top: 0;
 }
+
+/* =============================================================
+   Mobile project-card polish — landing showcase + project browser
+   ============================================================= */
+@media (max-width: 760px) {
+  .landing-case-studies {
+    overflow: clip;
+  }
+
+  .landing-case-studies .section-head,
+  .case-study-header {
+    max-width: 100%;
+    margin-bottom: 1.6rem;
+  }
+
+  .case-study-grid,
+  .case-study-grid.single-card,
+  .browse-project-grid {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .case-study-card,
+  .browse-project-card {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    border-radius: 20px;
+    transform: none !important;
+  }
+
+  .case-study-card .proj-cover,
+  .browse-project-card .proj-cover,
+  .browse-project-card .project-cover-placeholder {
+    min-height: 0;
+    aspect-ratio: 4 / 3;
+  }
+
+  .case-study-card .proj-cover img,
+  .browse-project-card .proj-cover img {
+    transform: none !important;
+  }
+
+  .proj-cover-badges {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    gap: 6px;
+  }
+
+  .proj-category-badge,
+  .proj-creator-badge {
+    min-height: 24px;
+    padding: 5px 8px;
+    font-size: 0.62rem;
+  }
+
+  .case-study-card .proj-body,
+  .browse-project-card .proj-body {
+    min-width: 0;
+    padding: 1rem;
+  }
+
+  .case-study-card .proj-title,
+  .browse-project-card .proj-title {
+    min-height: 0;
+    margin-bottom: 0.55rem;
+    font-size: 1.06rem;
+    line-height: 1.32;
+    overflow-wrap: anywhere;
+  }
+
+  .case-study-card .proj-desc,
+  .browse-project-card .proj-desc {
+    min-height: 0;
+    -webkit-line-clamp: 3;
+    font-size: 0.88rem;
+    line-height: 1.55;
+  }
+
+  .case-study-card .proj-tags,
+  .browse-project-card .proj-tags {
+    gap: 0.4rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .case-study-card .pf-tag,
+  .browse-project-card .pf-tag {
+    max-width: 100%;
+    font-size: 0.67rem;
+  }
+
+  .case-study-card .proj-author {
+    margin-top: 0.9rem;
+    padding-top: 0.8rem;
+  }
+
+  .project-card-actions {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+    margin-top: 0.9rem;
+  }
+
+  .project-action-btn,
+  .project-action-like.like-btn {
+    width: 100%;
+    min-height: 46px;
+    justify-content: center;
+    padding: 0.72rem 0.9rem;
+    border-radius: 13px;
+  }
+
+  .case-study-card .proj-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0.35rem 0.85rem;
+    padding-top: 0.85rem;
+  }
+
+  .case-study-card .proj-meta-item {
+    flex: 0 1 auto;
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 430px) {
+  .landing-case-studies .container-mph,
+  .projects-browser-main .container-mph {
+    padding-inline: 12px;
+  }
+
+  .case-study-card,
+  .browse-project-card {
+    border-radius: 17px;
+  }
+
+  .case-study-card .proj-cover,
+  .browse-project-card .proj-cover,
+  .browse-project-card .project-cover-placeholder {
+    aspect-ratio: 16 / 11;
+  }
+
+  .proj-cover-badges {
+    align-items: flex-end;
+  }
+
+  .proj-creator-badge {
+    max-width: 72%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .proj-card.case-study-card:hover,
+  .case-study-card:hover,
+  .browse-project-card:hover,
+  .project-action-btn:hover {
+    transform: none !important;
+  }
+}

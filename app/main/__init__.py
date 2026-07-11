@@ -59,6 +59,8 @@ def robots_txt():
 
     content = f"""User-agent: *
 Allow: /
+Allow: /favicon.ico
+Allow: /static/
 
 # Admin and internal routes — not for indexing
 Disallow: /admin/

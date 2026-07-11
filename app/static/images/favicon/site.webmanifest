@@ -1,0 +1,32 @@
+{
+  "name": "MyPortfolioHub",
+  "short_name": "MyPortfolioHub",
+  "description": "Build and publish a professional portfolio with MyPortfolioHub.",
+  "icons": [
+    {
+      "src": "/static/images/favicon/favicon-48x48.png",
+      "sizes": "48x48",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/images/favicon/favicon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/images/favicon/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/images/favicon/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#7c3aed",
+  "background_color": "#080a12",
+  "display": "standalone",
+  "start_url": "/",
+  "scope": "/"
+}

@@ -686,6 +686,33 @@ def create_app(config_name: str = 'default') -> Flask:
     # system blueprint above — tenant_bp's /<tenant_slug> is a wildcard and
     # Flask matches routes top-down at registration time.
     app.register_blueprint(public_bp)
+
+    # ── Canonical site favicon ────────────────────────────────────────────────
+    # Register this concrete root route before the tenant catch-all blueprint.
+    # It intentionally has no authentication, database, or tenant-resolution
+    # dependency so crawlers always receive the real ICO file directly.
+    @app.get('/favicon.ico')
+    def site_favicon():
+        favicon_dir = Path(app.static_folder) / 'images' / 'favicon'
+        response = send_from_directory(
+            str(favicon_dir),
+            'favicon.ico',
+            mimetype='image/vnd.microsoft.icon',
+            conditional=True,
+            max_age=86400,
+        )
+        response.headers['Cache-Control'] = 'public, max-age=86400'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        return response
+
+    @app.after_request
+    def _cache_public_favicon_assets(response):
+        """Apply a one-day cache to stable, non-hashed favicon assets."""
+        path = request.path or ''
+        if path == '/favicon.ico' or path.startswith('/static/images/favicon/'):
+            response.headers['Cache-Control'] = 'public, max-age=86400'
+        return response
+
     # tenant_bp MUST be last — its /<tenant_slug> prefix is a wildcard
     app.register_blueprint(tenant_bp)
 

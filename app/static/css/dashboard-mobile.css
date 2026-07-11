@@ -1,0 +1,187 @@
+/* MyPortfolioHub dashboard mobile shell — loaded after existing admin CSS. */
+html.drawer-scroll-locked,
+html.drawer-scroll-locked body {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+.menu-toggle {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 900px) {
+  body.admin-body {
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .admin-topbar {
+    min-width: 0;
+    display: grid !important;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.65rem 0.8rem !important;
+  }
+
+  .menu-toggle {
+    position: relative;
+    z-index: 1305;
+    display: inline-flex !important;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 5px;
+    border: 1px solid var(--border, rgba(255,255,255,0.1));
+    border-radius: 12px;
+    background: var(--surface-2, rgba(255,255,255,0.05));
+    cursor: pointer;
+  }
+
+  .menu-toggle span {
+    display: block;
+    width: 20px;
+    height: 2px;
+    border-radius: 999px;
+    background: var(--text, #f8fafc) !important;
+    transform-origin: center;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+
+  .menu-toggle.is-active span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .menu-toggle.is-active span:nth-child(2) { opacity: 0; }
+  .menu-toggle.is-active span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  .topbar-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.9rem !important;
+  }
+
+  .topbar-actions {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.45rem !important;
+  }
+
+  .topbar-actions .topbar-user,
+  .topbar-actions .sa-topbar-chip,
+  .topbar-actions .topbar-cta .btn-label,
+  .topbar-actions .topbar-cta span:not(.iconify) {
+    display: none !important;
+  }
+
+  .topbar-cta,
+  .theme-toggle-pill {
+    flex: 0 0 auto;
+  }
+
+  .admin-body .sidebar {
+    position: fixed !important;
+    inset: 0 auto 0 0 !important;
+    width: min(86vw, 310px) !important;
+    max-width: 310px !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    transform: translate3d(-104%, 0, 0) !important;
+    visibility: hidden;
+    opacity: 0;
+    z-index: 1401 !important;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    transition: transform 0.24s cubic-bezier(.2,.8,.2,1), opacity 0.18s ease, visibility 0s linear 0.24s !important;
+  }
+
+  .admin-body .sidebar.open {
+    transform: translate3d(0, 0, 0) !important;
+    visibility: visible;
+    opacity: 1;
+    box-shadow: 20px 0 70px rgba(0,0,0,0.58) !important;
+    transition-delay: 0s !important;
+  }
+
+  .admin-body .sidebar-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    display: block !important;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 1400 !important;
+    background: rgba(2, 6, 16, 0.66) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    transition: opacity 0.2s ease, visibility 0s linear 0.2s;
+  }
+
+  .admin-body .sidebar-overlay.show,
+  .admin-body .sidebar-overlay.active {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transition-delay: 0s;
+  }
+
+  .admin-main {
+    min-width: 0;
+    width: 100%;
+    margin-left: 0 !important;
+  }
+
+  .admin-content {
+    min-width: 0;
+    padding: 1rem 0.8rem 2rem !important;
+  }
+
+  .sidebar-close {
+    display: inline-flex !important;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 40px;
+    touch-action: manipulation;
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-topbar {
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+  }
+
+  .topbar-actions .topbar-cta {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    padding: 0 !important;
+    justify-content: center;
+  }
+
+  .topbar-actions .license-pill,
+  .topbar-actions .topbar-license-pill {
+    max-width: 88px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-body .sidebar,
+  .admin-body .sidebar-overlay,
+  .menu-toggle span {
+    transition-duration: 0.001ms !important;
+  }
+}

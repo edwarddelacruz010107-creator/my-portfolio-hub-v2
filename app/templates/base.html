@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+{% include 'partials/_favicons.html' %}
 
   {# ── Title ── #}
   {% set _base_title = self.title() | trim %}
@@ -76,7 +77,6 @@
   <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
   <script src="https://unpkg.com/iconify-icon@1.0.7/dist/iconify-icon.min.js" defer></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}"/>
-  <link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon"/>
   {% block extra_css %}{% endblock %}
 </head>
 <body>

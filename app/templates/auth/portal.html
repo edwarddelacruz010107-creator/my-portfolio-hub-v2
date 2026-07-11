@@ -36,12 +36,13 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+{% include 'partials/_favicons.html' %}
   <title>{{ 'Create your account' if active_tab == 'signup' else 'Sign in' }} — Portfolio Hub</title>
-  <link rel="icon" href="{{ url_for('static', filename='img/brand/favicon.ico') }}" sizes="any"/>
+  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
-  <link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon"/>
+  
   <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
   <script>(function(){var t=null;try{t=localStorage.getItem('phPublicTheme');}catch(e){} if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}})();</script>
   <style>

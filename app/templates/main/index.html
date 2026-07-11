@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% include 'partials/_favicons.html' %}
 
     {# ── Tenant context guards ── #}
     {# tenant_slug is always passed by both root() and portfolio() routes.      #}
@@ -24,7 +25,7 @@
 
     {# ── Canonical ── #}
     <link rel="canonical" href="{{ request.host_url.rstrip('/') }}{{ request.path }}">
-    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon">
+    
 
     {# ── Open Graph ── #}
     {% set og_image_url = '' %}

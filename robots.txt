@@ -1,6 +1,14 @@
 User-agent: *
-Disallow: /admin
-Disallow: /auth
-Disallow: /static/uploads/
+Allow: /
+Allow: /favicon.ico
+Allow: /static/
 
-# Admin panel is hidden from crawlers
+Disallow: /admin/
+Disallow: /studio/
+Disallow: /superadmin/
+Disallow: /auth/
+Disallow: /billing/
+Disallow: /heartbeat/
+Disallow: /webhooks/
+
+Sitemap: https://myportfoliohub.online/sitemap.xml

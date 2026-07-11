@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+{% include 'partials/_favicons.html' %}
   <title>Subscription Expired — {{ profile.name if profile else 'Portfolio' }}</title>
-  <link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon">
+  
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
   <script src="https://code.iconify.design/iconify-icon/1.0.8/iconify-icon.min.js"></script>
   <style>

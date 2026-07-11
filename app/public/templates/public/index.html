@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% include 'partials/_favicons.html' %}
 <title>MyPortfolioHub — Build Your Professional Portfolio</title>
 <meta name="description" content="MyPortfolioHub is the SaaS platform professionals use to build, publish, and share a modern online portfolio — projects, skills, certificates, and experience in one place.">
 
@@ -19,8 +20,7 @@
 <meta name="csrf-token" content="{{ csrf_token() }}" />
 
 <!-- Site styles -->
- <link rel="icon" href="{{ url_for('static', filename='image/icon.ico') }}" type="image/x-icon"/>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+ <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css', v='20260711-mobile-projects') }}">
 </head>
 <body>
 
@@ -35,7 +35,7 @@
 <header class="navbar-mph" id="navbar">
   <div class="nav-inner">
     <a href="#home" class="brand" aria-label="MyPortfolioHub home">
-      <span class="brand-mark"><img src="{{ url_for('static', filename='image/icon.ico') }}" alt="MyPortfolioHub Icon"></span>
+      <span class="brand-mark"><img src="{{ url_for('static', filename='images/favicon/favicon-96x96.png') }}" alt="MyPortfolioHub Icon"></span>
       MyPortfolioHub
     </a>
 

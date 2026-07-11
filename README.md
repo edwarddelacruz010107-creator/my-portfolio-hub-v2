@@ -711,3 +711,44 @@ Migration added:
 ```text
 0053_tenant_country_payment_currency
 ```
+
+## Centralized technical SEO system
+
+Public platform pages, tenant portfolios, and project case studies now share a
+single SEO service (`app/services/seo.py`) rather than maintaining conflicting
+metadata in individual templates.
+
+The system provides:
+
+- Self-referential canonical URLs without tracking or search parameters.
+- Open Graph and Twitter Card metadata on platform, portfolio, and project pages.
+- Organization, WebSite, WebPage, ProfilePage, Person, CreativeWork, and
+  BreadcrumbList JSON-LD graphs.
+- A dynamic sitemap containing public platform pages, indexable tenant
+  portfolios, and published case studies.
+- `noindex` handling for dashboard/auth/API routes, theme previews, and public
+  search/filter result URLs.
+- Custom-domain-aware canonical and sitemap URLs for tenant portfolios.
+- Tenant-controlled SEO titles, descriptions, social images, image alt text,
+  and search indexing.
+
+Optional organization/social configuration:
+
+```env
+COMPANY_SOCIAL_URLS=https://www.linkedin.com/company/your-page,https://github.com/your-org
+```
+
+SoftwareApplication review markup is intentionally disabled unless a genuine
+review is also visibly published on the site. To enable it, configure all three
+values below with real review data:
+
+```env
+SOFTWARE_REVIEW_BODY=
+SOFTWARE_REVIEW_AUTHOR=
+SOFTWARE_REVIEW_RATING=
+```
+
+After deployment, submit `/sitemap.xml` and inspect the platform homepage,
+`/administrator-portfolio/`, and a published project URL in Google Search
+Console. Use Google's Rich Results Test and Schema Markup Validator to verify
+the generated JSON-LD.

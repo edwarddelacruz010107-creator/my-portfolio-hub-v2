@@ -35,6 +35,12 @@ UPLOAD_IMAGE_MAX_DIMENSION=2048
 COMPANY_NAME=MyPortfolioHub
 SUPPORT_EMAIL=hello@myportfoliohub.online
 COMPANY_LOCATION=Philippines
+# Optional comma-separated official social profile URLs for Organization schema.
+COMPANY_SOCIAL_URLS=
+# Optional real, visibly published software review. Leave blank otherwise.
+SOFTWARE_REVIEW_BODY=
+SOFTWARE_REVIEW_AUTHOR=
+SOFTWARE_REVIEW_RATING=
 
 # ─── Billing currency conversion ───────────────────────────────
 # Store all authoritative plan prices in USD and convert only for display/payment.

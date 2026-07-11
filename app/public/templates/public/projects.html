@@ -4,8 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 {% include 'partials/_favicons.html' %}
-<title>Browse Projects — MyPortfolioHub</title>
-<meta name="description" content="Browse real case studies and portfolio projects published by creators on MyPortfolioHub.">
+{% set _canonical = url_for('public.projects', page=page, _external=True) if page|int > 1 else url_for('public.projects', _external=True) %}
+{% set _robots = 'noindex, follow' if query or category or sort != 'latest' else 'index, follow, max-image-preview:large' %}
+{% set _seo = platform_seo(title='Browse Projects — MyPortfolioHub', description='Browse real case studies and portfolio projects published by creators on MyPortfolioHub.', canonical=_canonical, robots=_robots, page_name='Browse Projects') %}
+{% include 'partials/_seo_meta.html' %}
+
 <meta name="csrf-token" content="{{ csrf_token() }}" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

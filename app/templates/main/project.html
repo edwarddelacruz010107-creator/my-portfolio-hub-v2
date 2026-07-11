@@ -1,114 +1,26 @@
 {% extends "base.html" %}
+{% set _project_seo = project_seo(profile=profile, project=project, tenant_slug=tenant_slug|default(project.tenant_slug|default("default"))) %}
 
 {# ── SEO overrides ── #}
-{% block title %}{{ project.meta_title or ((project.title or 'Untitled Project') ~ ' — ' ~ (profile.name if profile else 'Portfolio')) }}{% endblock %}
-{% block meta_desc %}{{ (project.meta_description or project.description_short or project.outcome_summary or project.description or 'View this project case study.')|striptags|truncate(160) }}{% endblock %}
-{% block meta_robots %}{% if profile and profile.seo_indexable is defined and not profile.seo_indexable %}noindex, nofollow{% elif project.status != 'published' %}noindex, nofollow{% else %}index, follow, max-snippet:-1, max-image-preview:large{% endif %}{% endblock %}
-{% block canonical %}{{ request.host_url.rstrip('/') }}{{ request.path }}{% endblock %}
+{% block title %}{{ _project_seo.title }}{% endblock %}
+{% block meta_desc %}{{ _project_seo.description }}{% endblock %}
+{% block meta_robots %}{{ _project_seo.robots }}{% endblock %}
+{% block canonical %}{{ _project_seo.canonical }}{% endblock %}
 
 {% block og_type %}article{% endblock %}
 {% block og_image %}
-{% set _og_project_image = project.image if project.image is defined else '' %}
-{% set _og_profile_image = profile.profile_image if profile and profile.profile_image is defined else '' %}
-{% if _og_project_image | safe_media_value %}
-{% set _og_project_url = _og_project_image|upload_url('projects') %}
-{% if _og_project_url %}<meta property="og:image" content="{{ _og_project_url }}">{% endif %}
-<meta property="og:image:width"  content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:alt"    content="{{ project.image_alt or project.title or 'Untitled Project' }}">
-{% elif _og_profile_image | safe_media_value %}
-{% if _og_profile_image.startswith('http') %}
-<meta property="og:image" content="{{ _og_profile_image }}">
-{% else %}
-{% set _og_profile_url = _og_profile_image|upload_url('profiles') %}
-{% if _og_profile_url %}<meta property="og:image" content="{{ _og_profile_url }}">{% endif %}
+{% if _project_seo.image %}
+<meta property="og:image" content="{{ _project_seo.image }}">
+<meta property="og:image:secure_url" content="{{ _project_seo.image }}">
+<meta property="og:image:alt" content="{{ _project_seo.image_alt }}">
 {% endif %}
-{% endif %}
-{% if project.date_completed %}
-<meta property="article:published_time" content="{{ project.date_completed.isoformat() }}">
-{% endif %}
-{% if profile and profile.name %}
-<meta property="article:author" content="{{ profile.name }}">
-{% endif %}
+{% if project.date_completed %}<meta property="article:published_time" content="{{ project.date_completed.isoformat() }}">{% endif %}
+{% if profile and profile.name %}<meta property="article:author" content="{{ profile.name }}">{% endif %}
 {% endblock %}
+{% block twitter_image %}{% if _project_seo.image %}<meta name="twitter:image" content="{{ _project_seo.image }}">{% endif %}{% endblock %}
 
 {% block structured_data %}
-{% set project_title = project.title or 'Untitled Project' %}
-{% set project_description = (project.meta_description or project.description_short or project.outcome_summary or project.description or '') | striptags | truncate(300) %}
-{% set project_category = project.category or 'Project' %}
-{% set project_keywords = project.tags if project.tags else [] %}
-{% set project_image_value = project.image if project.image is defined else '' %}
-{% set project_image_external = '' %}
-{% if project.image_url is defined and (project.image_url | safe_media_value) %}
-  {% if project.image_url.startswith('http') %}
-    {% set project_image_external = project.image_url %}
-  {% elif project.image_url.startswith('/') %}
-    {% set project_image_external = request.host_url.rstrip('/') ~ project.image_url %}
-  {% endif %}
-{% elif project_image_value | safe_media_value %}
-  {% set project_image_external = (project_image_value|upload_url('projects')) %}
-{% endif %}
-{# ── JSON-LD: CreativeWork ── #}
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "CreativeWork",
-  "name": {{ project_title | tojson }},
-  "description": {{ project_description | tojson }},
-  "url": {{ request.url | tojson }},
-  {% if project_image_external %}
-  "image": {{ project_image_external | tojson }},
-  {% endif %}
-  {% if project.date_completed %}
-  "dateCreated": {{ project.date_completed.strftime('%Y-%m-%d') | tojson }},
-  {% endif %}
-  {% if project.created_at %}
-  "datePublished": {{ project.created_at.isoformat() | tojson }},
-  {% endif %}
-  {% if project.updated_at %}
-  "dateModified": {{ project.updated_at.isoformat() | tojson }},
-  {% endif %}
-  "genre": {{ project_category | tojson }},
-  "keywords": {{ project_keywords | tojson }},
-  "author": {
-    "@type": "Person",
-    "name": {{ (profile.name if profile and profile.name else 'Creator') | tojson }},
-    "url": {{ (tenant_portfolio_url(tenant_slug or (project.tenant_slug if project.tenant_slug is defined else 'default'), external=True) if tenant_slug or project.tenant_slug is defined else request.host_url) | tojson }}
-  },
-  "creator": {
-    "@type": "Person",
-    "name": {{ (profile.name if profile and profile.name else 'Creator') | tojson }}
-  }
-}
-</script>
-
-{# ── JSON-LD: BreadcrumbList ── #}
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [
-    {
-      "@type": "ListItem",
-      "position": 1,
-      "name": {{ (profile.name if profile and profile.name else 'Portfolio') | tojson }},
-      "item": {{ (tenant_portfolio_url(tenant_slug or (project.tenant_slug if project.tenant_slug is defined else 'default'), external=True) if tenant_slug or project.tenant_slug is defined else request.host_url) | tojson }}
-    },
-    {
-      "@type": "ListItem",
-      "position": 2,
-      "name": "Projects",
-      "item": {{ ((tenant_portfolio_url(tenant_slug or (project.tenant_slug if project.tenant_slug is defined else 'default'), external=True) if tenant_slug or project.tenant_slug is defined else request.host_url) ~ '#projects') | tojson }}
-    },
-    {
-      "@type": "ListItem",
-      "position": 3,
-      "name": {{ project_title | tojson }},
-      "item": {{ request.url | tojson }}
-    }
-  ]
-}
-</script>
+<script type="application/ld+json"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ _project_seo.graph | tojson }}</script>
 {% endblock %}
 
 {% block body %}

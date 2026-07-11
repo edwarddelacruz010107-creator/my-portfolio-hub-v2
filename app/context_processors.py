@@ -234,6 +234,10 @@ def register_context_processors(app) -> None:
     from app.services.billing.currency import currency_context, format_money
     app.add_template_global(currency_context, 'billing_currency_context')
     app.add_template_global(format_money, 'billing_money')
+    from app.services.seo import platform_seo, portfolio_seo, project_seo
+    app.add_template_global(platform_seo, 'platform_seo')
+    app.add_template_global(portfolio_seo, 'portfolio_seo')
+    app.add_template_global(project_seo, 'project_seo')
 
     @app.context_processor
     def inject_globals() -> dict:

@@ -203,7 +203,7 @@ def projects():
 @public_bp.route('/feed')
 def feed():
     """Legacy alias for the premium project browser."""
-    return redirect(url_for('public.projects', **request.args.to_dict(flat=True)))
+    return redirect(url_for('public.projects', **request.args.to_dict(flat=True)), code=301)
 
 
 @public_bp.route('/about-company')
@@ -372,7 +372,11 @@ def theme_preview(theme_id: str):
     sample_ctx['preview_mode'] = True
 
     rendered_preview = engine.render(preview_profile, 'index.html', **sample_ctx)
-    return inject_theme_preview_badge(rendered_preview, meta, label='Public preview')
+    response = current_app.make_response(
+        inject_theme_preview_badge(rendered_preview, meta, label='Public preview')
+    )
+    response.headers['X-Robots-Tag'] = 'noindex, nofollow, noarchive'
+    return response
 
 
 @public_bp.route('/administrator-portfolio')

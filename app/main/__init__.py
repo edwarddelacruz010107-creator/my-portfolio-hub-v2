@@ -13,15 +13,15 @@ are now handled by the tenant blueprint at /<tenant_slug>/*.
 The old /project/<slug> and /contact routes are kept for legacy
 backward compatibility (no tenant context = first/default profile).
 
-v3.9-SEO:
-  GET /sitemap.xml     → dynamic XML sitemap covering all public tenants
-  GET /robots.txt      → instructs crawlers and links to sitemap
-  GET /<slug>/sitemap.xml  → per-tenant sitemap (served via tenant blueprint)
+SEO endpoints:
+  GET /sitemap.xml  → canonical public platform, tenant, and case-study URLs
+  GET /robots.txt   → crawler rules plus the current-host sitemap location
 """
 import uuid
 import logging
 from datetime import timezone
 from pathlib import Path
+from xml.sax.saxutils import escape as xml_escape
 
 from flask import Blueprint, current_app, flash, render_template, request, jsonify, abort, url_for, redirect, Response, make_response
 from flask_login import current_user, login_required
@@ -48,34 +48,31 @@ main   = Blueprint('main', __name__)
 
 @main.route('/robots.txt')
 def robots_txt():
-    """
-    Serve a dynamic robots.txt that:
-      • Allows all crawlers on public portfolio pages.
-      • Blocks crawlers on admin, billing, auth, and superadmin routes.
-      • Points to the sitemap.
-    """
+    """Serve crawler rules for the platform host or a verified custom domain."""
     base_url = request.host_url.rstrip('/')
-    sitemap_url = f"{base_url}/sitemap.xml"
-
     content = f"""User-agent: *
 Allow: /
 Allow: /favicon.ico
 Allow: /static/
+Allow: /uploads/
 
-# Admin and internal routes — not for indexing
+# Private application surfaces are excluded from crawling. Authorization is
+# still enforced by the application; robots.txt is not a security boundary.
 Disallow: /admin/
+Disallow: /studio/
 Disallow: /superadmin/
 Disallow: /auth/
 Disallow: /billing/
+Disallow: /api/
 Disallow: /heartbeat/
 Disallow: /webhooks/
+Disallow: /impersonate/
 
-# Sitemap
-Sitemap: {sitemap_url}
+Sitemap: {base_url}/sitemap.xml
 """
-    resp = make_response(content.strip(), 200)
+    resp = make_response(content.strip() + '\n', 200)
     resp.headers['Content-Type'] = 'text/plain; charset=utf-8'
-    resp.headers['Cache-Control'] = 'public, max-age=86400'  # 24h
+    resp.headers['Cache-Control'] = 'public, max-age=86400'
     return resp
 
 
@@ -83,111 +80,107 @@ Sitemap: {sitemap_url}
 
 @main.route('/sitemap.xml')
 def sitemap_xml():
-    """
-    Dynamic XML sitemap covering:
-      • Root portfolio page for every active tenant
-      • All published projects for every active tenant
-
-    Priority/changefreq tuning:
-      homepage  → priority 1.0, weekly
-      project   → priority 0.8, monthly
-
-    Cached for 6 hours so heavy DB queries don't run on every crawl.
-    Returns 200 even if DB is unavailable (empty sitemap, no 500).
-    """
+    """Return canonical public URLs, scoped to a custom domain when present."""
     from datetime import datetime
+    from app.models.portfolio import Tenant, Profile, Project
+    from app.services.custom_domain_service import (
+        resolve_verified_custom_domain,
+        tenant_portfolio_public_url,
+        tenant_project_public_url,
+    )
 
-    urls: list[dict] = []
-
-    # Phase 1b: static public SaaS pages (no tenant concept) — additive,
-    # doesn't touch the per-tenant loop below.
     today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-    urls.append({'loc': request.host_url.rstrip('/') + '/', 'lastmod': today, 'changefreq': 'daily', 'priority': '1.0'})
-    for endpoint, prio in (
-        ('public.explore', '0.9'),
-        ('public.projects', '0.9'),
-        ('public.themes', '0.8'),
-        ('public.pricing', '0.8'),
-        ('public.about_company', '0.7'),
-        ('public.privacy', '0.4'),
-        ('public.terms', '0.4'),
-    ):
-        try:
-            urls.append({'loc': url_for(endpoint, _external=True), 'lastmod': today, 'changefreq': 'daily', 'priority': prio})
-        except Exception:
-            pass
+    rows: list[dict] = []
+    seen: set[str] = set()
+
+    def add(loc: str, *, lastmod: str = today, changefreq: str = 'weekly', priority: str = '0.7') -> None:
+        loc = (loc or '').strip()
+        if not loc or loc in seen:
+            return
+        seen.add(loc)
+        rows.append({
+            'loc': loc,
+            'lastmod': lastmod,
+            'changefreq': changefreq,
+            'priority': priority,
+        })
 
     try:
-        from app.models.portfolio import Tenant, Profile, Project
+        domain_record = resolve_verified_custom_domain(request.host)
+        if domain_record is not None:
+            tenants = [Tenant.query.filter_by(slug=domain_record.tenant_slug, status='active').first()]
+        else:
+            tenants = tenant_repository.list_by(status='active')
+            add(url_for('root', _external=True), changefreq='daily', priority='1.0')
+            for endpoint, frequency, priority in (
+                ('public.explore', 'daily', '0.8'),
+                ('public.projects', 'daily', '0.9'),
+                ('public.themes', 'weekly', '0.8'),
+                ('public.pricing', 'weekly', '0.8'),
+                ('public.about_company', 'monthly', '0.7'),
+                ('public.privacy', 'yearly', '0.3'),
+                ('public.terms', 'yearly', '0.3'),
+            ):
+                add(url_for(endpoint, _external=True), changefreq=frequency, priority=priority)
 
-        # All active tenants with a published profile
-        tenants = tenant_repository.list_by(status='active')
-
-        for tenant in tenants:
+        for tenant in [t for t in tenants if t is not None]:
             profile = profile_repository.get_by_tenant_id(tenant.id)
             if not profile or not bool(getattr(profile, 'seo_indexable', True)):
                 continue
-
-            from app.services.custom_domain_service import (
-                tenant_portfolio_public_url,
-                tenant_project_public_url,
-            )
-            homepage_url = tenant_portfolio_public_url(tenant.slug, external=True)
-
-            lastmod = (
+            profile_lastmod = (
                 profile.updated_at.strftime('%Y-%m-%d')
-                if hasattr(profile, 'updated_at') and profile.updated_at
-                else datetime.now(timezone.utc).strftime('%Y-%m-%d')
+                if getattr(profile, 'updated_at', None)
+                else today
+            )
+            add(
+                tenant_portfolio_public_url(tenant.slug, external=True),
+                lastmod=profile_lastmod,
+                changefreq='weekly',
+                priority='1.0' if domain_record is not None else '0.9',
             )
 
-            urls.append({
-                'loc':        homepage_url,
-                'lastmod':    lastmod,
-                'changefreq': 'weekly',
-                'priority':   '1.0',
-            })
-
-            # Published projects for this tenant
             projects = (
                 Project.query
                 .filter_by(tenant_slug=tenant.slug, status='published')
                 .filter(Project.case_study_enabled.is_(True))
-                .order_by(Project.id.desc())
+                .order_by(Project.updated_at.desc(), Project.id.desc())
                 .all()
             )
             for project in projects:
                 if not project.slug:
                     continue
-                proj_url = tenant_project_public_url(tenant.slug, project.slug, external=True)
-                proj_lastmod = (
+                project_lastmod = (
                     project.updated_at.strftime('%Y-%m-%d')
-                    if hasattr(project, 'updated_at') and project.updated_at
-                    else lastmod
+                    if getattr(project, 'updated_at', None)
+                    else profile_lastmod
                 )
-                urls.append({
-                    'loc':        proj_url,
-                    'lastmod':    proj_lastmod,
-                    'changefreq': 'monthly',
-                    'priority':   '0.8',
-                })
-
+                add(
+                    tenant_project_public_url(tenant.slug, project.slug, external=True),
+                    lastmod=project_lastmod,
+                    changefreq='monthly',
+                    priority='0.8',
+                )
     except Exception as exc:
-        logger.warning('sitemap_xml: DB query failed — returning empty sitemap: %s', exc)
+        logger.warning('sitemap_xml: DB query failed — returning available URLs: %s', exc)
 
-    xml_lines = ['<?xml version="1.0" encoding="UTF-8"?>',
-                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-    for u in urls:
-        xml_lines.append('  <url>')
-        xml_lines.append(f'    <loc>{u["loc"]}</loc>')
-        xml_lines.append(f'    <lastmod>{u["lastmod"]}</lastmod>')
-        xml_lines.append(f'    <changefreq>{u["changefreq"]}</changefreq>')
-        xml_lines.append(f'    <priority>{u["priority"]}</priority>')
-        xml_lines.append('  </url>')
+    xml_lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+    for row in rows:
+        xml_lines.extend([
+            '  <url>',
+            f'    <loc>{xml_escape(row["loc"])}</loc>',
+            f'    <lastmod>{xml_escape(row["lastmod"])}</lastmod>',
+            f'    <changefreq>{row["changefreq"]}</changefreq>',
+            f'    <priority>{row["priority"]}</priority>',
+            '  </url>',
+        ])
     xml_lines.append('</urlset>')
 
     resp = make_response('\n'.join(xml_lines), 200)
     resp.headers['Content-Type'] = 'application/xml; charset=utf-8'
-    resp.headers['Cache-Control'] = 'public, max-age=21600'  # 6h
+    resp.headers['Cache-Control'] = 'public, max-age=21600'
     return resp
 
 

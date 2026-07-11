@@ -4,8 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 {% include 'partials/_favicons.html' %}
-<title>Browse Themes — MyPortfolioHub</title>
-<meta name="description" content="Browse all active MyPortfolioHub portfolio themes and preview each design with sample content.">
+{% set _canonical = url_for('public.themes', page=page, _external=True) if page|int > 1 else url_for('public.themes', _external=True) %}
+{% set _robots = 'noindex, follow' if query or category or sort != 'featured' else 'index, follow, max-image-preview:large' %}
+{% set _seo = platform_seo(title='Browse Themes — MyPortfolioHub', description='Browse active MyPortfolioHub portfolio themes and preview each professional design.', canonical=_canonical, robots=_robots, page_name='Browse Themes') %}
+{% include 'partials/_seo_meta.html' %}
+
 <meta name="csrf-token" content="{{ csrf_token() }}" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

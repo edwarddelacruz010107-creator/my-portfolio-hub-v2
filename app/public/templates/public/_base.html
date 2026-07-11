@@ -21,22 +21,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 {% include 'partials/_favicons.html' %}
   <meta name="csrf-token" content="{{ csrf_token() }}"/>
-  <title>{% block title %}MyPortfolioHub — Build Your Professional Portfolio{% endblock %}</title>
-  <meta name="description" content="{% block meta_desc %}Launch a modern portfolio, showcase your projects, and grow your creator identity with MyPortfolioHub.{% endblock %}"/>
-  <meta name="robots" content="index, follow"/>
-
-  <!-- OpenGraph / SEO (Phase 10) -->
-  <meta property="og:site_name" content="MyPortfolioHub"/>
-  <meta property="og:type" content="{% block og_type %}website{% endblock %}"/>
-  <meta property="og:title" content="{% block og_title %}{{ self.title() }}{% endblock %}"/>
-  <meta property="og:description" content="{% block og_desc %}{{ self.meta_desc() }}{% endblock %}"/>
-  <meta property="og:url" content="{{ request.url }}"/>
-  {% block og_image %}{% endblock %}
-  <meta name="twitter:card" content="summary_large_image"/>
-  <link rel="canonical" href="{% block canonical %}{{ request.base_url }}{% endblock %}"/>
-
-  <!-- Favicons / app icons (Phase: brand identity) -->
-  <meta property="og:image" content="{{ url_for('static', filename='images/favicon/icon-512x512.png', _external=True) }}"/>
+  {% set _seo_title %}{% block title %}MyPortfolioHub — Build Your Professional Portfolio{% endblock %}{% endset %}
+  {% set _seo_description %}{% block meta_desc %}Launch a modern portfolio, showcase your projects, and grow your creator identity with MyPortfolioHub.{% endblock %}{% endset %}
+  {% set _seo_robots %}{% block meta_robots %}index, follow, max-image-preview:large{% endblock %}{% endset %}
+  {% set _seo_canonical %}{% block canonical %}{{ request.base_url }}{% endblock %}{% endset %}
+  {% set _seo = platform_seo(title=_seo_title|trim, description=_seo_description|trim, canonical=_seo_canonical|trim, robots=_seo_robots|trim, page_name=_seo_title|trim) %}
+  {% include 'partials/_seo_meta.html' %}
 
   <link rel="stylesheet" href="{{ url_for('static', filename='css/public-design-system.css') }}"/>
   {% block head_extra %}{% endblock %}

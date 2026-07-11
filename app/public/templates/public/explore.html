@@ -11,8 +11,10 @@
 #}
 {% extends "public/_base.html" %}
 
-{% block title %}Explore Creators & Projects — Portfolio Hub{% endblock %}
-{% block meta_desc %}Discover creator portfolios and published projects across Portfolio Hub.{% endblock %}
+{% block title %}Explore Creators & Projects — MyPortfolioHub{% endblock %}
+{% block meta_desc %}Discover creator portfolios and published projects across MyPortfolioHub.{% endblock %}
+{% block meta_robots %}{% if query or category or page|int > 1 %}noindex, follow{% else %}index, follow, max-image-preview:large{% endif %}{% endblock %}
+{% block canonical %}{% if page|int > 1 and not query and not category %}{{ url_for('public.explore', page=page, _external=True) }}{% else %}{{ url_for('public.explore', _external=True) }}{% endif %}{% endblock %}
 
 {% block content %}
 <section class="ph-section">
@@ -54,7 +56,7 @@
     {% for creator in creators %}
     <a class="ph-card" href="{{ creator.url }}">
       {% if creator.profile_image %}
-        <img class="ph-creator-avatar" src="{{ creator.profile_image }}" alt="{{ project.image_alt or (project.title ~ ' project preview') }}" loading="lazy">
+        <img class="ph-creator-avatar" src="{{ creator.profile_image }}" alt="{{ creator.name }} profile photo" loading="lazy">
       {% else %}
         <div class="ph-creator-avatar" aria-hidden="true"></div>
       {% endif %}

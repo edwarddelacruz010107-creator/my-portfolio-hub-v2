@@ -4,8 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 {% include 'partials/_favicons.html' %}
-<title>MyPortfolioHub — Build Your Professional Portfolio</title>
-<meta name="description" content="MyPortfolioHub is the SaaS platform professionals use to build, publish, and share a modern online portfolio — projects, skills, certificates, and experience in one place.">
+{% set _seo = platform_seo(
+  title='MyPortfolioHub — Build Your Professional Portfolio',
+  description='MyPortfolioHub is the SaaS platform professionals use to build, publish, and share a modern online portfolio — projects, skills, certificates, and experience in one place.',
+  canonical=url_for('root', _external=True),
+  image=landing_content.hero_image_url if landing_content and landing_content.hero_image_url else none,
+  page_name='Home'
+) %}
+{% include 'partials/_seo_meta.html' %}
 
 <!-- Google Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com">

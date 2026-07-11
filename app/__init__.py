@@ -916,6 +916,17 @@ def create_app(config_name: str = 'default') -> Flask:
         response.headers['Referrer-Policy']        = 'strict-origin-when-cross-origin'
         response.headers['Permissions-Policy']     = 'geolocation=(), microphone=(), camera=()'
 
+        # Keep authenticated, operational, and machine-only endpoints out of
+        # search indexes even if a crawler reaches them without consulting
+        # robots.txt. Public portfolio and marketing routes are unaffected.
+        private_roots = (
+            '/admin', '/studio', '/superadmin', '/auth', '/billing', '/api',
+            '/heartbeat', '/health', '/webhooks', '/impersonate',
+        )
+        request_path = request.path.rstrip('/') or '/'
+        if any(request_path == root or request_path.startswith(root + '/') for root in private_roots):
+            response.headers.setdefault('X-Robots-Tag', 'noindex, nofollow, noarchive')
+
         return response
     
     # ── Health endpoint ───────────────────────────────────────────────────────

@@ -9,21 +9,7 @@
 
 
 <meta name="theme-color" content="#0b0d14">
-{% set page_title = portfolio.meta_title or (portfolio.name ~ ' — ' ~ (portfolio.title or 'Portfolio')) %}
-{% set meta_desc = portfolio.meta_description or portfolio.bio_plain or portfolio.hero_tagline or 'Professional portfolio built with MyPortfolioHub.' %}
-<title>{{ page_title }}</title>
-<meta name="description" content="{{ meta_desc | striptags | truncate(160, True, '...') }}">
-<meta name="robots" content="{{ 'index, follow, max-image-preview:large' if portfolio.seo_indexable else 'noindex, nofollow, noarchive' }}">
-{% if portfolio.seo_keywords %}<meta name="keywords" content="{{ portfolio.seo_keywords }}">{% endif %}
-<meta name="author" content="{{ portfolio.name }}">
-<meta property="og:type" content="profile">
-<meta property="og:title" content="{{ page_title }}">
-<meta property="og:description" content="{{ meta_desc | striptags | truncate(180, True, '...') }}">
-{% if portfolio.og_image or portfolio.avatar_url %}<meta property="og:image" content="{{ portfolio.og_image or portfolio.avatar_url }}">{% endif %}
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="{{ page_title }}">
-<meta name="twitter:description" content="{{ meta_desc | striptags | truncate(180, True, '...') }}">
-{% if portfolio.og_image or portfolio.avatar_url %}<meta name="twitter:image" content="{{ portfolio.og_image or portfolio.avatar_url }}">{% endif %}
+{% include 'partials/_portfolio_seo.html' %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">

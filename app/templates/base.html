@@ -22,7 +22,7 @@
   {% endif %}
 
   {# ── Canonical ── #}
-  <link rel="canonical" href="{% block canonical %}{{ request.url }}{% endblock %}"/>
+  <link rel="canonical" href="{% block canonical %}{{ request.base_url }}{% endblock %}"/>
 
   {# ── Open Graph ── #}
   {% set _og_title = self.title() | trim or (profile.name if profile else 'Portfolio') %}
@@ -30,7 +30,7 @@
   <meta property="og:type"        content="{% block og_type %}website{% endblock %}"/>
   <meta property="og:title"       content="{{ _og_title }}"/>
   <meta property="og:description" content="{{ _og_desc }}"/>
-  <meta property="og:url"         content="{{ request.url }}"/>
+  <meta property="og:url"         content="{{ self.canonical() | trim }}"/>
   <meta property="og:site_name"   content="{{ profile.name if profile else 'Portfolio CMS' }}"/>
   {% block og_image %}
   {% if profile and (profile.og_image or profile.profile_image) %}
@@ -50,21 +50,14 @@
   <meta name="twitter:card"        content="summary_large_image"/>
   <meta name="twitter:title"       content="{{ _og_title }}"/>
   <meta name="twitter:description" content="{{ _og_desc }}"/>
+  {% block twitter_image %}
+  {% if profile and (profile.og_image or profile.profile_image) %}
+  {% set _twitter_image = profile.og_image or profile.profile_image %}
+  <meta name="twitter:image" content="{{ _twitter_image if _twitter_image.startswith('http') else (_twitter_image|upload_url('profiles')) }}"/>
+  {% endif %}
+  {% endblock %}
   {% if profile and profile.social_links and profile.social_links.get('twitter') %}
   <meta name="twitter:creator"     content="@{{ profile.social_links.twitter.rstrip('/').split('/')[-1] }}"/>
-  {% endif %}
-
-  {# ── JSON-LD: WebSite (sitelinks search box signal) ── #}
-  {% if profile %}
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    "name": {{ (profile.name or 'Portfolio') | tojson }},
-    "url": {{ request.host_url | tojson }},
-    "description": {{ (profile.meta_description or profile.bio_short or '') | tojson }}
-  }
-  </script>
   {% endif %}
 
   {# ── Page-specific structured data slot ── #}

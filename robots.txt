@@ -2,13 +2,16 @@ User-agent: *
 Allow: /
 Allow: /favicon.ico
 Allow: /static/
+Allow: /uploads/
 
 Disallow: /admin/
 Disallow: /studio/
 Disallow: /superadmin/
 Disallow: /auth/
 Disallow: /billing/
+Disallow: /api/
 Disallow: /heartbeat/
 Disallow: /webhooks/
+Disallow: /impersonate/
 
 Sitemap: https://myportfoliohub.online/sitemap.xml

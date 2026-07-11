@@ -133,6 +133,14 @@ class BaseConfig:
     SUPPORT_EMAIL       = os.environ.get('SUPPORT_EMAIL', 'hello@myportfoliohub.online')
     COMPANY_NAME        = os.environ.get('COMPANY_NAME', 'MyPortfolioHub')
     COMPANY_LOCATION    = os.environ.get('COMPANY_LOCATION', 'Philippines')
+    COMPANY_SOCIAL_URLS = os.environ.get('COMPANY_SOCIAL_URLS', '')
+
+    # Optional SoftwareApplication review markup. Leave blank unless the same
+    # genuine review is visibly published on the website; fake or hidden ratings
+    # can violate Google's structured-data policies.
+    SOFTWARE_REVIEW_BODY  = os.environ.get('SOFTWARE_REVIEW_BODY', '')
+    SOFTWARE_REVIEW_AUTHOR = os.environ.get('SOFTWARE_REVIEW_AUTHOR', '')
+    SOFTWARE_REVIEW_RATING = os.environ.get('SOFTWARE_REVIEW_RATING', '')
 
     # ─────────────────────────────────────────────────────────────────
     # GOOGLE OAUTH (second login method for EXISTING tenant-admin users)

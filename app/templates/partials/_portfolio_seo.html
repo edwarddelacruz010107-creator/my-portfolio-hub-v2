@@ -1,0 +1,5 @@
+{% set _seo_projects = portfolio.projects if portfolio is defined and portfolio.projects is defined else ((featured_projects|default([])) + (other_projects|default([]))) %}
+{% set _seo = portfolio_seo(profile=profile|default(none), portfolio=portfolio|default(none), tenant_slug=tenant_slug|default('default'), projects=_seo_projects, preview_mode=preview_mode|default(false)) %}
+{% include 'partials/_seo_meta.html' %}
+{% if portfolio is defined and portfolio.seo_keywords %}<meta name="keywords" content="{{ portfolio.seo_keywords }}">{% elif profile is defined and profile and profile.seo_keywords %}<meta name="keywords" content="{{ profile.seo_keywords }}">{% endif %}
+<meta name="author" content="{{ portfolio.name if portfolio is defined else (profile.name if profile else '') }}">

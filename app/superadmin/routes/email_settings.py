@@ -231,7 +231,6 @@ def email_settings():
     """
     from app.models.core import GlobalEmailConfig
     from app.services.mailersend_service import validate_mailersend_key
-    from app.services.superadmin_email_service import send_email as _sa_send
     from flask import jsonify
     import re as _re
     import json as _json
@@ -263,21 +262,60 @@ def email_settings():
             if not test_to or not _re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$', test_to):
                 return jsonify({'ok': False, 'message': 'Invalid recipient email address.'})
             # Pre-flight: check if any provider is active + configured
-            from app.services.superadmin_email_service import _resolve_configs
+            from app.services.superadmin_email_service import (
+                _resolve_configs,
+                _send_mailersend,
+                _send_resend,
+                _send_smtp,
+            )
             active_providers = _resolve_configs()
             if not active_providers:
                 return jsonify({'ok': False, 'message': (
                     'No active providers. Configure and toggle at least one provider ON, then retry.'
                 )})
-            ok, result = _sa_send(
-                to=test_to,
-                subject='[Portfolio CMS] Email Delivery Test',
-                html='<p>This is a <strong>test email</strong> from Portfolio CMS confirming your provider is configured.</p>',
+
+            subject = '[Portfolio CMS] Email Delivery Test'
+            html = (
+                '<p>This is a <strong>test email</strong> from MyPortfolioHub confirming '
+                'your active email provider chain can deliver production email.</p>'
             )
-            if ok:
-                current_app.logger.info('Test email sent to %s by superadmin %s', test_to, current_user.username)
-                return jsonify({'ok': True, 'message': f'Test email delivered to {test_to}.'})
-            return jsonify({'ok': False, 'message': f'Delivery failed: {result}'})
+            text = 'This is a test email from MyPortfolioHub confirming your active email provider chain can deliver production email.'
+
+            failures = []
+            for pcfg in active_providers:
+                provider = str(pcfg.get('provider') or 'unknown')
+                try:
+                    if provider == 'mailersend':
+                        ok, err = _send_mailersend(pcfg, test_to, subject, html, text)
+                    elif provider == 'resend':
+                        ok, err = _send_resend(pcfg, test_to, subject, html, text)
+                    elif provider == 'smtp':
+                        ok, err = _send_smtp(pcfg, test_to, subject, html, text)
+                    else:
+                        ok, err = False, f'Unknown provider {provider}'
+                except Exception as exc:  # noqa: BLE001
+                    ok, err = False, f'{type(exc).__name__}: {str(exc)[:120]}'
+
+                if ok:
+                    current_app.logger.info(
+                        'Test email sent to %s via %s by superadmin %s',
+                        test_to, provider, current_user.username,
+                    )
+                    prefix = f'Test email delivered to {test_to} via {provider}.'
+                    if failures:
+                        return jsonify({
+                            'ok': True,
+                            'message': prefix + ' Earlier provider(s) failed: ' + '; '.join(failures)[:260],
+                        })
+                    return jsonify({'ok': True, 'message': prefix})
+
+                failures.append(f'{provider}: {err or "send failed"}')
+                current_app.logger.warning(
+                    'Test email provider failed provider=%s to=%s err=%s',
+                    provider, test_to, str(err or 'send failed')[:180],
+                )
+
+            return jsonify({'ok': False, 'message': 'Delivery failed: ' + '; '.join(failures)[:500]})
 
         # ── AJAX: validate SMTP (uses stored DB credentials when form fields blank) ──
         if action == 'validate_smtp':

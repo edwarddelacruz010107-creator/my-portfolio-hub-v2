@@ -505,6 +505,17 @@ class User(UserMixin, db.Model):
     auth_provider = db.Column(db.String(20), nullable=False, default='local')  # local | google | github | both
     avatar_url    = db.Column(db.String(500), nullable=True)
 
+    # Local-credential state for accounts created through Google/GitHub.
+    # New OAuth-only accounts must finish a one-time username/password setup.
+    # Existing local accounts linked by verified email keep local login enabled
+    # and are never forced through the setup page.
+    local_password_enabled = db.Column(
+        db.Boolean, nullable=False, default=True, server_default=db.true()
+    )
+    oauth_setup_required = db.Column(
+        db.Boolean, nullable=False, default=False, server_default=db.false()
+    )
+
     email_verified             = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     email_verification_token   = db.Column(db.String(64), nullable=True, unique=True, index=True)
     email_verification_expires = db.Column(db.DateTime(timezone=True), nullable=True)
@@ -519,9 +530,24 @@ class User(UserMixin, db.Model):
     @password.setter
     def password(self, raw: str):
         self.password_hash = generate_password_hash(raw)
+        self.local_password_enabled = True
+        self.oauth_setup_required = False
+        # Once an OAuth-created account has a local password, both login
+        # methods are available. Existing local accounts already use `both`
+        # when a provider is linked.
+        if (self.auth_provider or '').lower() in {'google', 'github'}:
+            self.auth_provider = 'both'
 
     def verify_password(self, raw: str) -> bool:
-        return check_password_hash(self.password_hash, raw)
+        if not getattr(self, 'local_password_enabled', True):
+            return False
+        try:
+            return check_password_hash(self.password_hash or '', raw)
+        except (ValueError, TypeError):
+            # Older OAuth-only rows stored an opaque random placeholder rather
+            # than a Werkzeug password hash. Treat it as unavailable instead
+            # of allowing a malformed hash to break the login page.
+            return False
 
     def get_totp_uri(self, issuer: str = 'Portfolio CMS') -> str:
         return pyotp.totp.TOTP(self.totp_secret).provisioning_uri(

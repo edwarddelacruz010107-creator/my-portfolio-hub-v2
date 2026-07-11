@@ -440,6 +440,20 @@ def _handle_login(require_admin: bool = False, require_superadmin: bool = False,
 
         password_valid = user and user.verify_password(form.password.data)
 
+        if user and not getattr(user, 'local_password_enabled', True):
+            flash(
+                'This account was created with Google or GitHub and does not have a local password yet. '
+                'Use the connected provider to sign in and finish account setup.',
+                'warning',
+            )
+            return _render_login_page(
+                form,
+                action_url or request.path,
+                page_title,
+                page_subtitle,
+                allow_google=_allow_google,
+            )
+
         if not password_valid:
             if user:
                 AccountLockout.record_failed_attempt(user, db)

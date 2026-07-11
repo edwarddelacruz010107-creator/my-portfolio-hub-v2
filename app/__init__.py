@@ -1257,6 +1257,25 @@ def _ensure_user_columns():
             logger.info('Added missing users column: last_login_user_agent')
             added = True
 
+        if 'local_password_enabled' not in existing_columns:
+            execute_with_retry(db.text('ALTER TABLE users ADD COLUMN local_password_enabled BOOLEAN NOT NULL DEFAULT 1'))
+            logger.info('Added missing users column: local_password_enabled')
+            added = True
+
+        if 'oauth_setup_required' not in existing_columns:
+            execute_with_retry(db.text('ALTER TABLE users ADD COLUMN oauth_setup_required BOOLEAN NOT NULL DEFAULT 0'))
+            logger.info('Added missing users column: oauth_setup_required')
+            added = True
+
+        execute_with_retry(db.text("""
+            UPDATE users
+               SET local_password_enabled = 0,
+                   oauth_setup_required = 1
+             WHERE lower(COALESCE(auth_provider, '')) IN ('google', 'github')
+               AND password_hash NOT LIKE '%:%'
+               AND password_hash NOT LIKE '%$%'
+        """))
+
     if added:
         logger.info('[DB MIGRATION] Schema synchronized successfully. Run "flask db upgrade" to record migration state.')
     else:
@@ -1486,6 +1505,8 @@ def _ensure_profile_columns():
                         'require_password_reset': 'BOOLEAN NOT NULL DEFAULT 0',
                         'last_password_changed': 'DATETIME',
                         'session_token': 'VARCHAR(255)',
+                        'local_password_enabled': 'BOOLEAN NOT NULL DEFAULT 1',
+                        'oauth_setup_required': 'BOOLEAN NOT NULL DEFAULT 0',
                     }
                     for column_name, ddl in expected_users_columns.items():
                         if column_name not in table_columns:

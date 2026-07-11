@@ -48,6 +48,63 @@ class ChangePasswordForm(FlaskForm):
     submit = SubmitField('Change Password')
 
 
+def _validate_account_username(field, *, exclude_user_id=None):
+    import re
+    from sqlalchemy import func
+    from app.models import User
+
+    candidate = (field.data or '').strip()
+    field.data = candidate
+    if not re.fullmatch(r'[A-Za-z0-9._-]+', candidate):
+        raise ValidationError(
+            'Use only letters, numbers, periods, underscores, or hyphens.'
+        )
+    query = User.query.filter(func.lower(User.username) == candidate.lower())
+    if exclude_user_id is not None:
+        query = query.filter(User.id != exclude_user_id)
+    if query.first():
+        raise ValidationError('That username is already taken.')
+
+
+class AccountUsernameForm(FlaskForm):
+    username = StringField(
+        'Username',
+        validators=[DataRequired(), Length(min=3, max=64)],
+    )
+    submit = SubmitField('Save Username')
+
+    def validate_username(self, field):
+        _validate_account_username(
+            field,
+            exclude_user_id=getattr(current_user, 'id', None),
+        )
+
+
+class OAuthAccountSetupForm(FlaskForm):
+    username = StringField(
+        'Choose a username',
+        validators=[DataRequired(), Length(min=3, max=64)],
+    )
+    password = PasswordField(
+        'Create a password',
+        validators=[DataRequired(), password_policy_check],
+    )
+    confirm_password = PasswordField(
+        'Confirm password',
+        validators=[
+            DataRequired(),
+            EqualTo('password', message='Passwords must match.'),
+        ],
+    )
+    submit = SubmitField('Finish Account Setup')
+
+    def validate_username(self, field):
+        _validate_account_username(
+            field,
+            exclude_user_id=getattr(current_user, 'id', None),
+        )
+
+
 class RegisterForm(FlaskForm):
     """Public signup form — used by /auth/register and the /auth portal's
     Create Account tab. Was defined in app/forms_patch/FORMS_ADDITIONS.py

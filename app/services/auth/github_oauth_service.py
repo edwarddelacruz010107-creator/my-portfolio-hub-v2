@@ -17,6 +17,8 @@ import re
 import secrets
 from typing import Optional
 
+from werkzeug.security import generate_password_hash
+
 from app import db
 from app.utils.datetime_utils import utc_now
 from app.services.billing.trial_limits import get_trial_duration_days
@@ -199,7 +201,9 @@ def resolve_or_create_github_user(
     user = User(
         username=_unique_username(email, login),
         email=email,
-        password_hash=secrets.token_urlsafe(48),  # opaque; user can set one later via reset flow
+        password_hash=generate_password_hash(secrets.token_urlsafe(64)),
+        local_password_enabled=False,
+        oauth_setup_required=True,
         tenant_slug=tenant.slug,
         tenant_id=tenant.id,
         is_admin=True,

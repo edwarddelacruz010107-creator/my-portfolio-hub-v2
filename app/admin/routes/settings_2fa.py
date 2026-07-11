@@ -34,7 +34,7 @@ from app.models.portfolio import (Tenant, Profile, Skill, Project, Testimonial, 
                                    get_plan_features)
 from app.forms import (ProfileForm, SkillForm, ProjectForm,
                         TestimonialForm, ServiceForm, ChangePasswordForm,
-                        PlanSelectionForm)
+                        AccountUsernameForm, PlanSelectionForm)
 from app.security import FileUploadPolicy, log_security_event
 from werkzeug.utils import secure_filename
 import uuid
@@ -78,12 +78,16 @@ logger = logging.getLogger(__name__)
 @admin_required
 def settings():
     form = ChangePasswordForm()
+    username_form = AccountUsernameForm()
     if form.validate_on_submit():
         if current_user.verify_password(form.current_password.data):
             current_user.password = form.new_password.data
+            current_user.last_password_changed = datetime.now(timezone.utc)
             db.session.commit()
             log_activity('update', 'user', current_user.username, 'Password changed')
+            log_security_event('password_changed', current_user, 'Password changed from account settings', 'info')
             flash('Password changed successfully!', 'success')
+            return redirect(url_for('admin.settings'))
         else:
             flash('Current password is incorrect.', 'danger')
     # Pass tenant + the real per-tenant form settings (TenantFormSettings is
@@ -93,7 +97,49 @@ def settings():
     from app.models.tenant_form_settings import TenantFormSettings
     tenant = tenant_repository.get_by_slug(_active_tenant_slug())
     form_settings = TenantFormSettings.get_or_create(tenant.id) if tenant else None
-    return render_template('admin/settings.html', form=form, tenant=tenant, form_settings=form_settings)
+    return render_template('admin/settings.html', form=form, username_form=username_form, tenant=tenant, form_settings=form_settings)
+
+@admin.route('/settings/username', methods=['POST'])
+@admin_required
+@limiter.limit('10 per minute')
+def update_username():
+    form = AccountUsernameForm()
+    if not form.validate_on_submit():
+        for errors in form.errors.values():
+            for error in errors:
+                flash(error, 'danger')
+        return redirect(url_for('admin.settings'))
+
+    new_username = form.username.data.strip()
+    old_username = current_user.username
+    if new_username == old_username:
+        flash('Your username is already up to date.', 'info')
+        return redirect(url_for('admin.settings'))
+
+    current_user.username = new_username
+    try:
+        db.session.commit()
+    except Exception as exc:
+        from sqlalchemy.exc import IntegrityError
+        db.session.rollback()
+        if isinstance(exc, IntegrityError):
+            flash('That username was just taken. Please choose another one.', 'danger')
+        else:
+            logger.exception('Failed to update username')
+            flash('Username could not be updated. Please try again.', 'danger')
+        return redirect(url_for('admin.settings'))
+    log_activity(
+        'update', 'user', new_username,
+        f'Username changed from {old_username} to {new_username}',
+        tenant_slug=current_user.tenant_slug,
+    )
+    log_security_event(
+        'username_changed', current_user,
+        f'Username changed from {old_username} to {new_username}', 'info',
+    )
+    flash('Username updated successfully.', 'success')
+    return redirect(url_for('admin.settings'))
+
 
 @admin.route('/activity')
 @admin_required

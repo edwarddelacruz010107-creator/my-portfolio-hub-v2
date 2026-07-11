@@ -92,6 +92,12 @@ def admin_required(f):
         if not (getattr(user, 'is_admin', False) or getattr(user, 'is_superadmin', False)):
             flash('Admin access required.', 'danger')
             return redirect(_safe_root())
+        if (
+            not getattr(user, 'is_superadmin', False)
+            and getattr(user, 'oauth_setup_required', False)
+        ):
+            flash('Finish setting your username and password before opening the dashboard.', 'info')
+            return redirect(url_for('auth.oauth_account_setup'))
         return f(*args, **kwargs)
     return decorated
 

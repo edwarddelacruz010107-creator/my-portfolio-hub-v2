@@ -45,8 +45,8 @@ app/superadmin/routes/__init__.py for their route submodules.
 """
 import logging
 
-from flask import redirect, url_for, flash, request, session, current_app
-from flask_login import current_user
+from flask import redirect, url_for, flash, request, session, current_app, render_template
+from flask_login import current_user, login_required
 
 from app import db, limiter
 from app.models import User
@@ -388,6 +388,8 @@ def _google_signin_callback_impl():
 
     tenant_slug = session.get('tenant_slug') or user.tenant_slug or _DEFAULT_TENANT_SLUG
     next_page = session.pop('_oauth_next', None)
+    if getattr(user, 'oauth_setup_required', False):
+        next_page = url_for('auth.oauth_account_setup')
 
     return _authorize_and_login(
         user, tenant_slug, ip,
@@ -470,6 +472,8 @@ def _google_signup_callback_impl():
     next_page = session.pop('_oauth_signup_next', None)
     if not _is_safe_url(next_page):
         next_page = None
+    if getattr(user, 'oauth_setup_required', False):
+        next_page = url_for('auth.oauth_account_setup')
 
     return _authorize_and_login(
         user, user.tenant_slug, ip,
@@ -478,6 +482,92 @@ def _google_signup_callback_impl():
         next_page=next_page,
         default_next=url_for('admin.dashboard'),
         on_denied=lambda: redirect(url_for('auth.portal', tab='signup')),
+    )
+
+
+@auth.route('/oauth/account-setup', methods=['GET', 'POST'])
+@login_required
+def oauth_account_setup():
+    """Finish local credentials for a newly created OAuth account.
+
+    Existing tenant accounts linked by verified email keep their current
+    username/password and never enter this flow.
+    """
+    if current_user.is_superadmin:
+        return redirect(url_for('superadmin.dashboard'))
+
+    if not getattr(current_user, 'oauth_setup_required', False):
+        return redirect(url_for('admin.dashboard'))
+
+    from app.forms import OAuthAccountSetupForm
+    from app.utils.datetime_utils import utc_now
+
+    form = OAuthAccountSetupForm()
+    if request.method == 'GET':
+        form.username.data = current_user.username
+
+    if form.validate_on_submit():
+        old_username = current_user.username
+        current_user.username = form.username.data.strip()
+        # User.password hashes the password, enables local login, clears the
+        # setup requirement, and changes google/github auth to `both`.
+        current_user.password = form.password.data
+        current_user.last_password_changed = utc_now()
+        try:
+            db.session.commit()
+        except Exception as exc:
+            from sqlalchemy.exc import IntegrityError
+            db.session.rollback()
+            if isinstance(exc, IntegrityError):
+                form.username.errors.append('That username was just taken. Please choose another one.')
+                return render_template(
+                    'auth/oauth_account_setup.html',
+                    form=form,
+                    provider='Google' if getattr(current_user, 'google_id', None) else 'GitHub',
+                )
+            logger.exception('Failed to save OAuth account setup')
+            flash('We could not save your account setup. Please try again.', 'danger')
+            return render_template(
+                'auth/oauth_account_setup.html',
+                form=form,
+                provider='Google' if getattr(current_user, 'google_id', None) else 'GitHub',
+            )
+
+        log_security_event(
+            'oauth_account_setup_completed',
+            current_user,
+            f'OAuth account setup completed from {_get_ip()}',
+            'info',
+        )
+        try:
+            from app.utils import log_activity
+            log_activity(
+                'update',
+                'user',
+                current_user.username,
+                f'OAuth account setup completed; previous username={old_username}',
+                tenant_slug=current_user.tenant_slug,
+            )
+        except Exception:
+            logger.exception('Could not write OAuth account setup activity')
+
+        flash(
+            'Account setup complete. You can now sign in with Google/GitHub or with your username and password.',
+            'success',
+        )
+        return redirect(url_for('admin.dashboard'))
+
+    if getattr(current_user, 'google_id', None) and not getattr(current_user, 'github_id', None):
+        provider = 'Google'
+    elif getattr(current_user, 'github_id', None) and not getattr(current_user, 'google_id', None):
+        provider = 'GitHub'
+    else:
+        provider = 'OAuth'
+
+    return render_template(
+        'auth/oauth_account_setup.html',
+        form=form,
+        provider=provider,
     )
 
 
@@ -549,6 +639,8 @@ def github_callback():
         next_page = session.pop('_oauth_signup_next', None)
         if not _is_safe_url(next_page):
             next_page = None
+        if getattr(user, 'oauth_setup_required', False):
+            next_page = url_for('auth.oauth_account_setup')
 
         return _authorize_and_login(
             user, user.tenant_slug, ip,
@@ -600,6 +692,8 @@ def github_callback():
 
     tenant_slug = session.get('tenant_slug') or user.tenant_slug or _DEFAULT_TENANT_SLUG
     next_page = session.pop('_oauth_next', None)
+    if getattr(user, 'oauth_setup_required', False):
+        next_page = url_for('auth.oauth_account_setup')
 
     return _authorize_and_login(
         user, tenant_slug, ip,

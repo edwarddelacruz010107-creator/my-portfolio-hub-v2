@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  {% include 'partials/_favicons.html' %}
+  <title>Finish account setup — MyPortfolioHub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/oauth-account-setup.css', v='20260711') }}"/>
+</head>
+<body>
+  <main class="oauth-setup-shell">
+    <section class="oauth-setup-card" aria-labelledby="setupTitle">
+      <div class="oauth-setup-brand">
+        <img src="{{ url_for('static', filename='img/brand/logo-mark.svg') }}" alt="" width="44" height="44"/>
+        <span>MyPortfolioHub</span>
+      </div>
+
+      <div class="oauth-setup-provider" aria-label="Connected provider">
+        <span class="oauth-setup-provider__dot"></span>
+        {{ provider }} account verified
+      </div>
+
+      <div class="oauth-setup-heading">
+        <p class="oauth-setup-eyebrow">ONE-TIME ACCOUNT SETUP</p>
+        <h1 id="setupTitle">Choose how you will sign in locally.</h1>
+        <p>
+          Your email is already verified through {{ provider }}. Choose a unique username
+          and create a password so you can also access your account when OAuth is unavailable.
+        </p>
+      </div>
+
+      <form method="POST" class="oauth-setup-form" novalidate>
+        {{ form.hidden_tag() }}
+
+        <div class="oauth-field">
+          {{ form.username.label }}
+          <div class="oauth-input-wrap">
+            <span class="oauth-input-icon" aria-hidden="true">@</span>
+            {{ form.username(class='oauth-input', autocomplete='username', spellcheck='false') }}
+          </div>
+          <small>3–64 characters. Letters, numbers, periods, underscores, and hyphens only.</small>
+          {% for error in form.username.errors %}<p class="oauth-error">{{ error }}</p>{% endfor %}
+        </div>
+
+        <div class="oauth-field">
+          {{ form.password.label }}
+          <div class="oauth-input-wrap">
+            <span class="oauth-input-icon" aria-hidden="true">●</span>
+            {{ form.password(class='oauth-input', autocomplete='new-password', data_password_input='password') }}
+            <button type="button" class="oauth-password-toggle" data-password-toggle="password" aria-label="Show password">Show</button>
+          </div>
+          <small>Use a strong password that meets the platform security rules.</small>
+          {% for error in form.password.errors %}<p class="oauth-error">{{ error }}</p>{% endfor %}
+        </div>
+
+        <div class="oauth-field">
+          {{ form.confirm_password.label }}
+          <div class="oauth-input-wrap">
+            <span class="oauth-input-icon" aria-hidden="true">●</span>
+            {{ form.confirm_password(class='oauth-input', autocomplete='new-password', data_password_input='confirm') }}
+            <button type="button" class="oauth-password-toggle" data-password-toggle="confirm" aria-label="Show confirmation password">Show</button>
+          </div>
+          {% for error in form.confirm_password.errors %}<p class="oauth-error">{{ error }}</p>{% endfor %}
+        </div>
+
+        {{ form.submit(class='oauth-submit') }}
+      </form>
+
+      <div class="oauth-setup-note">
+        <strong>You will not be asked for this password when using {{ provider }}.</strong>
+        It is only an additional sign-in option for your MyPortfolioHub account.
+      </div>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='js/oauth-account-setup.js', v='20260711') }}" defer></script>
+</body>
+</html>

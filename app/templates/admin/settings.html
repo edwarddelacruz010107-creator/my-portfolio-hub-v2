@@ -2,190 +2,171 @@
 {% block title %}{{ page_title if page_title is defined else 'Settings' }}{% endblock %}
 {% block page_title %}{{ page_title if page_title is defined else 'Settings' }}{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/account-settings.css', v='20260711') }}"/>
+{% endblock %}
+
 {% block content %}
-<div class="page-hd" style="margin-bottom:1.5rem;">
-  <div class="page-hd-left">
-    <h1>Settings</h1>
-    <p>Manage your account security and preferences.</p>
-  </div>
-</div>
-<div class="settings-grid">
-
-  <!-- Account Overview -->
-  <div class="form-card">
-    <h3>Account Overview</h3>
-    <div class="profile-summary">
-      <div class="profile-summary-row">
-        <span>Username</span>
-        <strong>{{ current_user.username }}</strong>
-      </div>
-      <div class="profile-summary-row">
-        <span>Email</span>
-        <strong>{{ current_user.email }}</strong>
-      </div>
-      <div class="profile-summary-row">
-        <span>Last login</span>
-        <strong>{{ current_user.last_login.strftime('%b %d, %Y %H:%M') if current_user.last_login else 'N/A' }}</strong>
-      </div>
-      <div class="profile-summary-row">
-        <span>Two-Factor Auth</span>
-        <strong>
-          {% if current_user.totp_enabled %}
-            <span style="color:#22c55e; display:inline-flex; align-items:center; gap:0.4rem;">
-              <iconify-icon icon="lucide:shield-check" width="15"></iconify-icon> Enabled
-            </span>
-          {% else %}
-            <span style="color:var(--text-muted); display:inline-flex; align-items:center; gap:0.4rem;">
-              <iconify-icon icon="lucide:shield-off" width="15"></iconify-icon> Disabled
-            </span>
-          {% endif %}
-        </strong>
+<div class="account-settings-page">
+  <section class="account-settings-hero">
+    <div>
+      <span class="account-settings-kicker">ACCOUNT & SECURITY</span>
+      <h1>Account Settings</h1>
+      <p>Manage your username, password, connected sign-in methods, and account protection.</p>
+    </div>
+    <div class="account-security-score">
+      <span class="account-security-score__icon"><iconify-icon icon="lucide:shield-check" width="20"></iconify-icon></span>
+      <div>
+        <strong>{{ 'Enhanced protection' if current_user.totp_enabled else 'Standard protection' }}</strong>
+        <small>{{ 'Password and two-factor authentication enabled' if current_user.totp_enabled else 'Enable 2FA for stronger account security' }}</small>
       </div>
     </div>
-  </div>
+  </section>
 
-  <!-- Change Password -->
-  <form data-loading="true" method="POST" class="admin-form" id="changePasswordForm">
-    {{ form.hidden_tag() }}
-    <div class="form-card">
-      <h3>Change Password</h3>
-      <div class="form-group">
-        {{ form.current_password.label }}
-        {{ form.current_password(class="form-input", placeholder="Current password") }}
-        {% for e in form.current_password.errors %}
-          <span class="form-error">{{ e }}</span>
-        {% endfor %}
+  <div class="account-settings-grid">
+    <section class="account-settings-card account-settings-card--profile">
+      <div class="account-card-heading">
+        <span class="account-card-icon"><iconify-icon icon="lucide:user-round-cog" width="19"></iconify-icon></span>
+        <div><h2>Account Identity</h2><p>Edit the username used for local sign-in.</p></div>
       </div>
-      <div class="form-group">
-        {{ form.new_password.label }}
-        {{ form.new_password(class="form-input", placeholder="New password (min. 8 chars)") }}
-        {% for e in form.new_password.errors %}
-          <span class="form-error">{{ e }}</span>
-        {% endfor %}
-      </div>
-      <div class="form-group">
-        {{ form.confirm_password.label }}
-        {{ form.confirm_password(class="form-input", placeholder="Repeat new password") }}
-        {% for e in form.confirm_password.errors %}
-          <span class="form-error">{{ e }}</span>
-        {% endfor %}
-      </div>
-      <div class="form-actions">
-        {{ form.submit(class="btn btn-primary") }}
-      </div>
-    </div>
-  </form>
 
-  <!-- Two-Factor Authentication -->
-  <div class="form-card">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
-      <h3 style="margin:0;">Two-Factor Authentication</h3>
-      {% if current_user.totp_enabled %}
-        <span style="
-            display:inline-flex; align-items:center; gap:0.4rem;
-            padding:0.3rem 0.75rem; border-radius:999px;
-            background:rgba(34,197,94,0.15); color:#22c55e;
-            font-size:0.8rem; font-weight:600; letter-spacing:0.05em;">
-          <iconify-icon icon="lucide:shield-check" width="13"></iconify-icon> Active
-        </span>
-      {% else %}
-        <span style="
-            display:inline-flex; align-items:center; gap:0.4rem;
-            padding:0.3rem 0.75rem; border-radius:999px;
-            background:rgba(122,128,148,0.15); color:var(--text-muted);
-            font-size:0.8rem; font-weight:600; letter-spacing:0.05em;">
-          <iconify-icon icon="lucide:shield-off" width="13"></iconify-icon> Inactive
-        </span>
-      {% endif %}
-    </div>
-
-    {% if current_user.totp_enabled %}
-      <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem; line-height:1.6;">
-        Your account is protected with TOTP two-factor authentication.
-        You have <strong style="color:var(--text);">{{ current_user.backup_codes_remaining }}</strong>
-        backup code{{ 's' if current_user.backup_codes_remaining != 1 else '' }} remaining.
-      </p>
-
-      <div style="display:flex; flex-direction:column; gap:0.75rem;">
-
-        <!-- Regenerate backup codes -->
-        <form data-loading="true" method="POST" action="{{ url_for('admin.regenerate_backup_codes') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-          <button type="submit" class="btn btn-secondary" style="width:100%;">
-            <iconify-icon icon="lucide:refresh-cw" width="16"></iconify-icon>
-            Regenerate Backup Codes
-          </button>
-        </form>
-
-        <!-- Disable 2FA -->
-        <button class="btn btn-danger" style="width:100%;"
-                onclick="document.getElementById('disable2faModal').classList.remove('hidden')">
-          <iconify-icon icon="lucide:shield-off" width="16"></iconify-icon>
-          Disable Two-Factor Auth
+      <form method="POST" action="{{ url_for('admin.update_username') }}" class="account-settings-form">
+        {{ username_form.hidden_tag() }}
+        <div class="account-field">
+          {{ username_form.username.label }}
+          <div class="account-input-shell">
+            <span>@</span>
+            {{ username_form.username(class='form-input', value=current_user.username, autocomplete='username', spellcheck='false') }}
+          </div>
+          <small>3–64 characters. Letters, numbers, periods, underscores, and hyphens only.</small>
+          {% for error in username_form.username.errors %}<span class="form-error">{{ error }}</span>{% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <iconify-icon icon="lucide:save" width="16"></iconify-icon>
+          Save Username
         </button>
+      </form>
+
+      <div class="account-identity-list">
+        <div><span>Email</span><strong>{{ current_user.email }}</strong></div>
+        <div><span>Last login</span><strong>{{ current_user.last_login.strftime('%b %d, %Y · %H:%M') if current_user.last_login else 'Not available' }}</strong></div>
+        <div><span>Local password</span><strong class="status-{{ 'ok' if current_user.local_password_enabled else 'muted' }}">{{ 'Enabled' if current_user.local_password_enabled else 'Not configured' }}</strong></div>
+      </div>
+    </section>
+
+    <section class="account-settings-card">
+      <div class="account-card-heading">
+        <span class="account-card-icon"><iconify-icon icon="lucide:link-2" width="19"></iconify-icon></span>
+        <div><h2>Connected Sign-in Methods</h2><p>Use any connected provider without entering your local password.</p></div>
+      </div>
+      <div class="provider-list">
+        <div class="provider-item {{ 'is-connected' if current_user.google_id else '' }}">
+          <div class="provider-mark provider-mark--google">G</div>
+          <div><strong>Google</strong><small>{{ 'Connected' if current_user.google_id else 'Not connected' }}</small></div>
+          <span class="provider-state">{{ 'Active' if current_user.google_id else 'Unavailable' }}</span>
+        </div>
+        <div class="provider-item {{ 'is-connected' if current_user.github_id else '' }}">
+          <div class="provider-mark provider-mark--github"><iconify-icon icon="lucide:github" width="19"></iconify-icon></div>
+          <div><strong>GitHub</strong><small>{{ 'Connected' if current_user.github_id else 'Not connected' }}</small></div>
+          <span class="provider-state">{{ 'Active' if current_user.github_id else 'Unavailable' }}</span>
+        </div>
+        <div class="provider-item is-connected">
+          <div class="provider-mark"><iconify-icon icon="lucide:key-round" width="19"></iconify-icon></div>
+          <div><strong>Username & password</strong><small>Local account access</small></div>
+          <span class="provider-state">{{ 'Active' if current_user.local_password_enabled else 'Setup needed' }}</span>
+        </div>
+      </div>
+      {% if current_user.google_id or current_user.github_id %}
+      <p class="account-info-note"><iconify-icon icon="lucide:info" width="15"></iconify-icon> Signing in with Google or GitHub does not ask for your MyPortfolioHub password.</p>
+      {% endif %}
+    </section>
+
+    <section class="account-settings-card">
+      <div class="account-card-heading">
+        <span class="account-card-icon"><iconify-icon icon="lucide:key-square" width="19"></iconify-icon></span>
+        <div><h2>Change Password</h2><p>Update the password used for local sign-in.</p></div>
+      </div>
+      <form data-loading="true" method="POST" class="account-settings-form" id="changePasswordForm">
+        {{ form.hidden_tag() }}
+        <div class="account-field">
+          {{ form.current_password.label }}
+          {{ form.current_password(class="form-input", placeholder="Current password", autocomplete="current-password") }}
+          {% for e in form.current_password.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+        </div>
+        <div class="account-field-row">
+          <div class="account-field">
+            {{ form.new_password.label }}
+            {{ form.new_password(class="form-input", placeholder="New password", autocomplete="new-password") }}
+            {% for e in form.new_password.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+          </div>
+          <div class="account-field">
+            {{ form.confirm_password.label }}
+            {{ form.confirm_password(class="form-input", placeholder="Repeat password", autocomplete="new-password") }}
+            {% for e in form.confirm_password.errors %}<span class="form-error">{{ e }}</span>{% endfor %}
+          </div>
+        </div>
+        {{ form.submit(class="btn btn-primary") }}
+      </form>
+    </section>
+
+    <section class="account-settings-card">
+      <div class="account-card-heading account-card-heading--split">
+        <span class="account-card-icon"><iconify-icon icon="lucide:shield-check" width="19"></iconify-icon></span>
+        <div><h2>Two-Factor Authentication</h2><p>Protect your account with a time-based verification code.</p></div>
+        <span class="security-pill {{ 'is-active' if current_user.totp_enabled else '' }}">{{ 'Active' if current_user.totp_enabled else 'Inactive' }}</span>
       </div>
 
-    {% else %}
-      <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.25rem; line-height:1.6;">
-        Add an extra layer of security to your account. Once enabled, you'll need a 6-digit code
-        from your authenticator app each time you log in.
-      </p>
-      <a href="{{ url_for('admin.setup_2fa') }}" class="btn btn-primary" style="display:flex;">
-        <iconify-icon icon="lucide:shield-plus" width="16"></iconify-icon>
-        Enable Two-Factor Auth
-      </a>
-    {% endif %}
-  </div>
+      {% if current_user.totp_enabled %}
+        <p class="account-card-copy">Two-factor authentication is enabled. You have <strong>{{ current_user.backup_codes_remaining }}</strong> backup code{{ 's' if current_user.backup_codes_remaining != 1 else '' }} remaining.</p>
+        <div class="account-button-stack">
+          <form data-loading="true" method="POST" action="{{ url_for('admin.regenerate_backup_codes') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="btn btn-secondary"><iconify-icon icon="lucide:refresh-cw" width="16"></iconify-icon> Regenerate Backup Codes</button>
+          </form>
+          <button type="button" class="btn btn-danger" data-open-disable-2fa><iconify-icon icon="lucide:shield-off" width="16"></iconify-icon> Disable Two-Factor Auth</button>
+        </div>
+      {% else %}
+        <p class="account-card-copy">Once enabled, every password sign-in requires a six-digit code from your authenticator app.</p>
+        <a href="{{ url_for('admin.setup_2fa') }}" class="btn btn-primary"><iconify-icon icon="lucide:shield-plus" width="16"></iconify-icon> Enable Two-Factor Auth</a>
+      {% endif %}
+    </section>
 
-  <!-- Portfolio Links -->
-  <div class="form-card">
-    <h3>Portfolio Links</h3>
-    <div class="settings-links">
-      <a href="{{ url_for('root') }}" target="_blank" class="btn btn-secondary">
-        <span class="link-icon">↗</span>
-        View Live Portfolio
-      </a>
-      <a href="{{ url_for('admin.edit_profile') }}" class="btn btn-secondary">
-        <span class="link-icon">◎</span>
-        Edit Profile
-      </a>
-    </div>
+    <section class="account-settings-card account-settings-card--links">
+      <div class="account-card-heading">
+        <span class="account-card-icon"><iconify-icon icon="lucide:external-link" width="19"></iconify-icon></span>
+        <div><h2>Portfolio Shortcuts</h2><p>Open your public portfolio or update its content.</p></div>
+      </div>
+      <div class="settings-links">
+        <a href="{{ url_for('root') }}" target="_blank" rel="noopener" class="btn btn-secondary"><iconify-icon icon="lucide:external-link" width="16"></iconify-icon> View Live Portfolio</a>
+        <a href="{{ url_for('admin.edit_profile') }}" class="btn btn-secondary"><iconify-icon icon="lucide:user-pen" width="16"></iconify-icon> Edit Profile</a>
+      </div>
+    </section>
   </div>
-
 </div>
 
-<!-- Disable 2FA confirmation modal -->
 {% if current_user.totp_enabled %}
-<div class="modal-backdrop hidden" id="disable2faModal">
+<div class="modal-backdrop hidden" id="disable2faModal" role="dialog" aria-modal="true" aria-labelledby="disable2faTitle">
   <div class="modal">
-    <div class="modal-header">
-      <h3>Disable Two-Factor Authentication</h3>
-    </div>
+    <div class="modal-header"><h3 id="disable2faTitle">Disable Two-Factor Authentication</h3></div>
     <div class="modal-body">
-      <p style="margin-bottom:1.25rem; color:var(--text-muted);">
-        Enter your password to confirm. This will remove 2FA from your account.
-      </p>
+      <p>Enter your password to confirm. This removes the extra verification step from future sign-ins.</p>
       <form data-loading="true" method="POST" action="{{ url_for('admin.disable_2fa') }}" id="disable2faForm">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="form-group">
-          <label for="disable_password" style="text-transform:uppercase; font-size:0.82rem; letter-spacing:0.08em; color:var(--text-muted);">Current Password</label>
-          <input type="password" id="disable_password" name="password"
-                 class="form-input" placeholder="Enter your password" required
-                 style="margin-top:0.5rem;"/>
+          <label for="disable_password">Current Password</label>
+          <input type="password" id="disable_password" name="password" class="form-input" placeholder="Enter your password" required autocomplete="current-password"/>
         </div>
       </form>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="document.getElementById('disable2faModal').classList.add('hidden')">
-        Cancel
-      </button>
-      <button type="submit" form="disable2faForm" class="btn btn-danger">
-        Disable 2FA
-      </button>
+      <button type="button" class="btn btn-ghost" data-close-disable-2fa>Cancel</button>
+      <button type="submit" form="disable2faForm" class="btn btn-danger">Disable 2FA</button>
     </div>
   </div>
 </div>
 {% endif %}
+{% endblock %}
 
-
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/account-settings.js', v='20260711') }}" defer></script>
 {% endblock %}

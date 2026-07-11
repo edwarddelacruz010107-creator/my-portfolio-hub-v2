@@ -277,6 +277,25 @@ def themes_index():
             logger.exception('Failed to normalize retired selected_theme=%s', active_theme_id)
             active_theme_id = 'default'
 
+    if profile and active_theme_id != 'default':
+        meta = engine.get_theme_meta(active_theme_id)
+        if not meta or not engine.can_use_theme(profile, active_theme_id):
+            # Existing rows can contain a premium theme selected before plan
+            # gating was tightened. Repair it immediately so the dashboard and
+            # live renderer agree, and Trial tenants cannot keep a paid theme
+            # as their stored active selection.
+            try:
+                logger.warning(
+                    'Theme access repair tenant=%s selected_theme=%s plan=%s -> default',
+                    _active_tenant_slug(), active_theme_id, _active_tenant_plan_name(),
+                )
+                profile = _persist_theme_selection(profile, 'default')
+                active_theme_id = 'default'
+            except Exception:
+                db.session.rollback()
+                logger.exception('Failed to reset disallowed selected_theme=%s', active_theme_id)
+                active_theme_id = 'default'
+
     all_themes = engine.get_all_themes()
     categories = set()
     for theme in all_themes:

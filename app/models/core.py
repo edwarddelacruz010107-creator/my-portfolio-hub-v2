@@ -352,17 +352,24 @@ class Tenant(db.Model):
         return normalize_plan_name(self.plan)
 
     def effective_plan(self) -> str:
-        """Current plan from active subscription, else Trial/tenant.plan."""
+        """Current plan from active subscription, else Trial/tenant.plan.
+
+        Pending checkout/manual-review states store an intended plan, but they
+        must not unlock paid features until the subscription is active.
+        """
         if has_administrator_access(self):
             return ADMINISTRATOR_PLAN_SLUG
+        state = (self.subscription_state or '').strip().lower()
+        if state == 'trial':
+            return 'trial'
+        if state in {'pending', 'scheduled', 'expired', 'cancelled', 'canceled', 'past_due'}:
+            return 'trial'
         active = next(
             (s for s in self.subscriptions if s.is_active()),
             None,
         )
         if active:
             return normalize_plan_name(active.plan)
-        if (self.subscription_state or '').strip().lower() == 'trial':
-            return 'trial'
         return self.normalized_plan
 
     @property

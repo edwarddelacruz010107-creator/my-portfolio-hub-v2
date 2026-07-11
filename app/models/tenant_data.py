@@ -136,18 +136,31 @@ class Profile(db.Model):
         return self._get_subscription()
 
     def effective_plan(self) -> str:
-        """Current plan from active subscription, else Trial/profile default."""
+        """Current plan from active subscription, else Trial/profile default.
+
+        Pending checkout/manual-review subscriptions must not unlock paid
+        capabilities. A tenant can be visibly on Trial while a pending Pro
+        subscription row exists; feature gates must continue to treat that
+        tenant as Trial until the subscription is actually active.
+        """
         from app.models.core import normalize_plan_name
         if has_administrator_access(self):
             return ADMINISTRATOR_PLAN_SLUG
-        sub = self._get_subscription()
-        if sub and sub.plan and sub.status in ('active', 'pending'):
-            return normalize_plan_name(sub.plan)
         tenant = getattr(self, 'tenant', None)
-        if tenant is not None and (getattr(tenant, 'subscription_state', '') or '').strip().lower() == 'trial':
+        inactive_states = {'pending', 'scheduled', 'expired', 'cancelled', 'canceled', 'past_due'}
+        tenant_state = (getattr(tenant, 'subscription_state', '') or '').strip().lower() if tenant is not None else ''
+        if tenant_state == 'trial':
             return 'trial'
-        if (getattr(self, 'subscription_status', '') or '').strip().lower() == 'trial':
+        if tenant_state in inactive_states:
             return 'trial'
+        profile_state = (getattr(self, 'subscription_status', '') or '').strip().lower()
+        if profile_state == 'trial':
+            return 'trial'
+        if profile_state in inactive_states:
+            return 'trial'
+        sub = self._get_subscription()
+        if sub and sub.plan and callable(getattr(sub, 'is_active', None)) and sub.is_active():
+            return normalize_plan_name(sub.plan)
         return normalize_plan_name(self.plan or 'Basic')
 
     @property

@@ -292,12 +292,19 @@ class ThemeEngine:
 
         if theme_id != DEFAULT_THEME and not bool(features.get('theme_customization', False)):
             return False
-        if meta.get('premium', False) and not bool(features.get('premium_themes', False)):
-            return False
 
         required_plan = meta.get('required_plan')
-        if required_plan:
-            return self._plan_meets_requirement(plan, required_plan)
+        if required_plan and not self._plan_meets_requirement(plan, required_plan):
+            return False
+
+        # Premium themes are paid-tier assets.  Editable plan settings can
+        # disable them for paid plans, but must not accidentally enable them
+        # for Trial/Basic/Starter tenants.
+        if meta.get('premium', False):
+            return (
+                self._plan_meets_requirement(plan, 'pro')
+                and bool(features.get('premium_themes', False))
+            )
 
         return True
 

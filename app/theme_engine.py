@@ -268,16 +268,75 @@ class ThemeEngine:
         need = self._PLAN_RANK.get(str(required_plan).lower(), 0)
         return have >= need
 
+    def _tenant_theme_features(self, tenant_profile) -> dict:
+        """SuperAdmin-editable feature flags (theme_customization, premium_themes)
+        for the tenant's current effective plan. Empty dict if unavailable --
+        callers fail open to legacy plan-rank-only behaviour in that case."""
+        if not callable(getattr(tenant_profile, 'plan_features', None)):
+            return {}
+        try:
+            return tenant_profile.plan_features() or {}
+        except Exception:
+            return {}
+
+    def _theme_access_allowed(self, tenant_profile, meta: dict) -> bool:
+        """
+        Single source of truth for "can this tenant use this theme". Consumed
+        by both resolve_theme() (render path) and can_use_theme() (picker/UI
+        path) so they can never disagree.
+
+        Rules (evaluated in order):
+          1. Administrators / system tenants        -> always allowed.
+          2. `theme_customization` OFF for the plan  -> locked to default
+             theme entirely (non-default theme_id denied outright).
+          3. `premium_themes` ON for the plan        -> OVERRIDES both the
+             legacy `premium` boolean AND any catalog `required_plan`. This
+             is the control point for granting Trial (or any plan) access
+             to Pro/Enterprise-tier themes via the SuperAdmin Pricing CMS,
+             without touching the plan-rank table used elsewhere.
+          4. Catalog `required_plan` set              -> gated by plan rank
+             (Trial < Basic < Pro < Enterprise < Administrator).
+          5. Legacy `premium` boolean, no required_plan -> gated to Pro+.
+          6. Free theme                                -> always allowed.
+        """
+        if getattr(tenant_profile, 'is_administrator', False) or has_administrator_access(tenant_profile):
+            return True
+
+        theme_id = meta.get('id')
+        features = self._tenant_theme_features(tenant_profile)
+
+        if theme_id != DEFAULT_THEME and features and not features.get('theme_customization', False):
+            return False
+
+        if features and bool(features.get('premium_themes', False)):
+            return True
+
+        # Use effective_plan() so subscription-based upgrades (e.g. tenant upgraded
+        # to PRO via billing while profile.plan column is still 'Basic') are honoured.
+        if callable(getattr(tenant_profile, 'effective_plan', None)):
+            plan = tenant_profile.effective_plan()
+        else:
+            plan = (getattr(tenant_profile, 'plan', None) or 'free')
+
+        required_plan = meta.get('required_plan')
+        if required_plan:
+            return self._plan_meets_requirement(plan, required_plan)
+
+        if meta.get('premium', False):
+            return str(plan).lower() in ('pro', 'premium', 'enterprise', 'agency')
+
+        return True
+
     def resolve_theme(self, tenant_profile) -> str:
         """
         Determine the active theme for a tenant's profile.
 
         Rules:
           - Administrators        -> always honoured (no restriction)
-          - PRO/premium tenants   -> any theme allowed (unless required_plan
-                                      from the SuperAdmin theme catalog says
-                                      otherwise)
-          - FREE tenants          -> only non-premium themes
+          - Access gating         -> delegated to _theme_access_allowed(),
+                                      shared with can_use_theme() so the
+                                      picker UI and the render path never
+                                      disagree on what a tenant can see.
           - Deactivated theme (SuperAdmin) -> DEFAULT_THEME for everyone
           - Missing/invalid/corrupted theme -> DEFAULT_THEME
         """
@@ -294,27 +353,7 @@ class ThemeEngine:
             # SuperAdmin deactivated this theme platform-wide.
             return FALLBACK_THEME
 
-        if getattr(tenant_profile, 'is_administrator', False) or has_administrator_access(tenant_profile):
-            return requested
-
-        # Use effective_plan() so subscription-based upgrades (e.g. tenant upgraded
-        # to PRO via billing while profile.plan column is still 'Basic') are honoured.
-        if callable(getattr(tenant_profile, 'effective_plan', None)):
-            plan = tenant_profile.effective_plan()
-        else:
-            plan = (getattr(tenant_profile, 'plan', None) or 'free')
-
-        required_plan = meta.get('required_plan')
-        if required_plan:
-            return requested if self._plan_meets_requirement(plan, required_plan) else FALLBACK_THEME
-
-        if str(plan).lower() in ('pro', 'premium', 'enterprise', 'agency'):
-            return requested
-
-        if meta.get('premium', False):
-            return FALLBACK_THEME
-
-        return requested
+        return requested if self._theme_access_allowed(tenant_profile, meta) else FALLBACK_THEME
 
     def render(self, tenant_profile, template_name: str, **context) -> str:
         """
@@ -361,36 +400,7 @@ class ThemeEngine:
             return False
         if not meta.get('catalog_active', True):
             return False
-        if getattr(tenant_profile, 'is_administrator', False) or has_administrator_access(tenant_profile):
-            return True
-        # Use effective_plan() so subscription upgrades are reflected immediately.
-        if callable(getattr(tenant_profile, 'effective_plan', None)):
-            plan = tenant_profile.effective_plan()
-        else:
-            plan = (getattr(tenant_profile, 'plan', None) or 'free')
-
-        features = {}
-        if callable(getattr(tenant_profile, 'plan_features', None)):
-            try:
-                features = tenant_profile.plan_features() or {}
-            except Exception:
-                features = {}
-
-        # Trial-limit editor can make the whole theme switcher default-only.
-        if theme_id != DEFAULT_THEME and features and not features.get('theme_customization', False):
-            return False
-
-        # Premium themes require premium_themes unless a higher plan requirement
-        # grants access through the legacy requirement check below.
-        if meta.get('premium', False) and features and not features.get('premium_themes', False):
-            return False
-
-        required_plan = meta.get('required_plan')
-        if required_plan:
-            return self._plan_meets_requirement(plan, required_plan)
-        if str(plan).lower() in ('pro', 'premium', 'enterprise', 'agency'):
-            return True
-        return not meta.get('premium', False)
+        return self._theme_access_allowed(tenant_profile, meta)
 
 
 def get_theme_engine() -> ThemeEngine:

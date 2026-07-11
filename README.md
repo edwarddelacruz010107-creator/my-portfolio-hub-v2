@@ -178,7 +178,7 @@ The Superadmin media/uploads view was also updated to support broader cross-tena
 
 ## Available Themes
 
-MyPortfolioHub uses a curated set of four distinct production themes. Retired and duplicate variants are intentionally excluded from the registry.
+MyPortfolioHub uses a curated set of five distinct production themes. Retired and duplicate variants are intentionally excluded from the registry.
 
 | Theme ID | Display Name | Plan Requirement |
 |---|---|---|
@@ -186,12 +186,14 @@ MyPortfolioHub uses a curated set of four distinct production themes. Retired an
 | `developer_pro` | Developer Pro | Pro |
 | `blockform_brutal` | Blockform Brutal | Pro |
 | `schematic_spec` | Schematic Spec | Pro |
+| `developer_journal` | Single Portfolio — Developer Journal | Free / Trial and above |
 
 Theme folders must contain:
 
 ```text
 themes/<theme_id>/
 ├── theme.json
+├── SOURCE_ORIGINAL.html      # optional design source reference
 └── templates/
     └── index.html
 ```

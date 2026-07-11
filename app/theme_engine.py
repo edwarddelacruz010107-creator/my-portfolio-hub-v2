@@ -44,6 +44,7 @@ SUPPORTED_THEME_IDS = (
     'developer_pro',
     'blockform_brutal',
     'schematic_spec',
+    'developer_journal',
 )
 SUPPORTED_THEME_ID_SET = frozenset(SUPPORTED_THEME_IDS)
 

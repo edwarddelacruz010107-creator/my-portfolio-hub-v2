@@ -112,3 +112,20 @@ def test_settings_template_contains_username_editor():
     assert "url_for('admin.update_username')" in source
     assert 'Connected Sign-in Methods' in source
     assert 'Signing in with Google or GitHub does not ask' in source
+
+
+def test_oauth_account_setup_uses_polished_auth_layout():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    template = (root / 'app/templates/auth/oauth_account_setup.html').read_text(encoding='utf-8')
+    stylesheet = (root / 'app/static/css/oauth-account-setup.css').read_text(encoding='utf-8')
+    script = (root / 'app/static/js/oauth-account-setup.js').read_text(encoding='utf-8')
+
+    assert 'oauth-brand-panel' in template
+    assert 'oauth-form-panel' in template
+    assert 'get_flashed_messages' in template
+    assert 'data-password-match' in template
+    assert 'overflow-y:auto' in stylesheet
+    assert 'prefers-reduced-motion' in stylesheet
+    assert "localStorage.setItem('phPublicTheme'" in script

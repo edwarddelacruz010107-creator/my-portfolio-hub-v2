@@ -31,8 +31,8 @@ silently dropped data in production:
 
 `portfolio` is now a plain dict instead of SimpleNamespace (JSON-safe,
 `tojson`-safe). This is template-transparent: Jinja's `.` operator
-falls back from getattr to getitem, and all four curated themes
-(default, developer_pro, blockform_brutal, schematic_spec) use dot-access exclusively
+falls back from getattr to getitem, and all five curated themes
+(default, developer_pro, blockform_brutal, schematic_spec, developer_journal) use dot-access exclusively
 -- verified before making this change.
 """
 

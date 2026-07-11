@@ -247,6 +247,7 @@ def serialize_social_links(social: Any) -> dict:
         'youtube': get('youtube'),
         'dribbble': get('dribbble'),
         'behance': get('behance'),
+        'website': get('website') or get('website_url'),
     }
 
 

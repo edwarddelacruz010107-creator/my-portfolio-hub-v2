@@ -7,74 +7,108 @@
   <title>Finish account setup — MyPortfolioHub</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/oauth-account-setup.css', v='20260711') }}"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <script>(function(){try{var t=localStorage.getItem('phPublicTheme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/oauth-account-setup.css', v='20260711b') }}"/>
 </head>
 <body>
+  <a class="oauth-back" href="{{ url_for('root') }}" aria-label="Back to Portfolio Hub">
+    <span aria-hidden="true">←</span> Back to Portfolio Hub
+  </a>
+  <button class="oauth-theme-toggle" id="oauthThemeToggle" type="button" aria-label="Switch to light theme" aria-pressed="false">
+    <svg class="oauth-theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.7 15.2A8.5 8.5 0 0 1 8.8 3.3 8.5 8.5 0 1 0 20.7 15.2Z"/></svg>
+    <svg class="oauth-theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+  </button>
+
   <main class="oauth-setup-shell">
-    <section class="oauth-setup-card" aria-labelledby="setupTitle">
-      <div class="oauth-setup-brand">
-        <img src="{{ url_for('static', filename='img/brand/logo-mark.svg') }}" alt="" width="44" height="44"/>
-        <span>MyPortfolioHub</span>
+    <aside class="oauth-brand-panel" aria-label="MyPortfolioHub account setup">
+      <div class="oauth-brand-grid" aria-hidden="true"></div>
+      <div class="oauth-brand-content">
+        <a class="oauth-brand" href="{{ url_for('root') }}">
+          <span class="oauth-brand-mark"><img src="{{ url_for('static', filename='img/brand/logo-mark.svg') }}" alt="" width="30" height="30"/></span>
+          <span>MyPortfolioHub</span>
+        </a>
+        <p class="oauth-eyebrow">SECURE ACCOUNT ACCESS</p>
+        <h1>One account.<br><span>Two ways to sign in.</span></h1>
+        <p class="oauth-brand-copy">Keep the convenience of {{ provider }} and add a private local sign-in for reliable access to your portfolio workspace.</p>
+        <ul class="oauth-benefits">
+          <li><span>✓</span><div><strong>Your email is verified</strong><small>{{ provider }} has already confirmed your identity.</small></div></li>
+          <li><span>✓</span><div><strong>Your portfolio stays connected</strong><small>No duplicate account or workspace will be created.</small></div></li>
+          <li><span>✓</span><div><strong>You stay in control</strong><small>Use either {{ provider }} or your username and password.</small></div></li>
+        </ul>
       </div>
+    </aside>
 
-      <div class="oauth-setup-provider" aria-label="Connected provider">
-        <span class="oauth-setup-provider__dot"></span>
-        {{ provider }} account verified
-      </div>
-
-      <div class="oauth-setup-heading">
-        <p class="oauth-setup-eyebrow">ONE-TIME ACCOUNT SETUP</p>
-        <h1 id="setupTitle">Choose how you will sign in locally.</h1>
-        <p>
-          Your email is already verified through {{ provider }}. Choose a unique username
-          and create a password so you can also access your account when OAuth is unavailable.
-        </p>
-      </div>
-
-      <form method="POST" class="oauth-setup-form" novalidate>
-        {{ form.hidden_tag() }}
-
-        <div class="oauth-field">
-          {{ form.username.label }}
-          <div class="oauth-input-wrap">
-            <span class="oauth-input-icon" aria-hidden="true">@</span>
-            {{ form.username(class='oauth-input', autocomplete='username', spellcheck='false') }}
-          </div>
-          <small>3–64 characters. Letters, numbers, periods, underscores, and hyphens only.</small>
-          {% for error in form.username.errors %}<p class="oauth-error">{{ error }}</p>{% endfor %}
+    <section class="oauth-form-panel" aria-labelledby="setupTitle">
+      <div class="oauth-form-inner">
+        <div class="oauth-mobile-brand">
+          <span class="oauth-brand-mark"><img src="{{ url_for('static', filename='img/brand/logo-mark.svg') }}" alt="" width="28" height="28"/></span>
+          <span>MyPortfolioHub</span>
         </div>
 
-        <div class="oauth-field">
-          {{ form.password.label }}
-          <div class="oauth-input-wrap">
-            <span class="oauth-input-icon" aria-hidden="true">●</span>
-            {{ form.password(class='oauth-input', autocomplete='new-password', data_password_input='password') }}
-            <button type="button" class="oauth-password-toggle" data-password-toggle="password" aria-label="Show password">Show</button>
-          </div>
-          <small>Use a strong password that meets the platform security rules.</small>
-          {% for error in form.password.errors %}<p class="oauth-error">{{ error }}</p>{% endfor %}
+        <div class="oauth-setup-provider" aria-label="Connected provider">
+          <span class="oauth-setup-provider__dot" aria-hidden="true"></span>
+          {{ provider }} account verified
         </div>
 
-        <div class="oauth-field">
-          {{ form.confirm_password.label }}
-          <div class="oauth-input-wrap">
-            <span class="oauth-input-icon" aria-hidden="true">●</span>
-            {{ form.confirm_password(class='oauth-input', autocomplete='new-password', data_password_input='confirm') }}
-            <button type="button" class="oauth-password-toggle" data-password-toggle="confirm" aria-label="Show confirmation password">Show</button>
+        <header class="oauth-setup-heading">
+          <p class="oauth-setup-eyebrow">ONE-TIME ACCOUNT SETUP</p>
+          <h2 id="setupTitle">Create your local sign-in.</h2>
+          <p>Choose a unique username and a strong password. You can still continue with {{ provider }} whenever you prefer.</p>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, message in messages %}
+            <div class="oauth-flash oauth-flash--{{ category }}" role="alert">{{ message }}</div>
+          {% endfor %}
+        {% endwith %}
+
+        <form method="POST" class="oauth-setup-form" novalidate id="oauthSetupForm">
+          {{ form.hidden_tag() }}
+
+          <div class="oauth-field{% if form.username.errors %} has-error{% endif %}">
+            {{ form.username.label }}
+            <div class="oauth-input-wrap">
+              <span class="oauth-input-icon" aria-hidden="true">@</span>
+              {{ form.username(class='oauth-input', autocomplete='username', spellcheck='false', aria_describedby='usernameHelp') }}
+            </div>
+            <small id="usernameHelp">3–64 characters using letters, numbers, periods, underscores, or hyphens.</small>
+            {% for error in form.username.errors %}<p class="oauth-error" role="alert">{{ error }}</p>{% endfor %}
           </div>
-          {% for error in form.confirm_password.errors %}<p class="oauth-error">{{ error }}</p>{% endfor %}
+
+          <div class="oauth-field{% if form.password.errors %} has-error{% endif %}">
+            {{ form.password.label }}
+            <div class="oauth-input-wrap">
+              <span class="oauth-input-icon oauth-lock" aria-hidden="true"></span>
+              {{ form.password(class='oauth-input', autocomplete='new-password', data_password_input='password', aria_describedby='passwordHelp') }}
+              <button type="button" class="oauth-password-toggle" data-password-toggle="password" aria-label="Show password">Show</button>
+            </div>
+            <div class="oauth-password-strength" aria-hidden="true"><span data-strength-bar></span></div>
+            <small id="passwordHelp" data-strength-label>Use a strong password that meets the platform security rules.</small>
+            {% for error in form.password.errors %}<p class="oauth-error" role="alert">{{ error }}</p>{% endfor %}
+          </div>
+
+          <div class="oauth-field{% if form.confirm_password.errors %} has-error{% endif %}">
+            {{ form.confirm_password.label }}
+            <div class="oauth-input-wrap">
+              <span class="oauth-input-icon oauth-lock" aria-hidden="true"></span>
+              {{ form.confirm_password(class='oauth-input', autocomplete='new-password', data_password_input='confirm') }}
+              <button type="button" class="oauth-password-toggle" data-password-toggle="confirm" aria-label="Show confirmation password">Show</button>
+            </div>
+            <small class="oauth-match" data-password-match aria-live="polite"></small>
+            {% for error in form.confirm_password.errors %}<p class="oauth-error" role="alert">{{ error }}</p>{% endfor %}
+          </div>
+
+          {{ form.submit(class='oauth-submit') }}
+        </form>
+
+        <div class="oauth-setup-note">
+          <span class="oauth-note-icon" aria-hidden="true">✓</span>
+          <p><strong>Your {{ provider }} sign-in will keep working.</strong> This password is an additional private sign-in option and is never shared with {{ provider }}.</p>
         </div>
-
-        {{ form.submit(class='oauth-submit') }}
-      </form>
-
-      <div class="oauth-setup-note">
-        <strong>You will not be asked for this password when using {{ provider }}.</strong>
-        It is only an additional sign-in option for your MyPortfolioHub account.
       </div>
     </section>
   </main>
-  <script src="{{ url_for('static', filename='js/oauth-account-setup.js', v='20260711') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/oauth-account-setup.js', v='20260711b') }}" defer></script>
 </body>
 </html>

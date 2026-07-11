@@ -178,47 +178,57 @@ def _send_resend(cfg: dict, to: str, subject: str, html: str, text: str) -> tupl
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _send_mailersend(cfg: dict, to: str, subject: str, html: str, text: str) -> tuple[bool, str]:
+    import requests
+
     api_key = cfg['api_key']
     from_email = cfg['sender_email']
     from_name  = _clean_sender_name(cfg.get('sender_name', 'MyPortfolioHub'))
     reply_to   = cfg.get('reply_to') or _reply_to_for(from_email)
 
-    payload = json.dumps({
+    payload = {
         'from': {'email': from_email, 'name': from_name},
         'to':   [{'email': to}],
         'subject': subject,
         'html': html,
         'text': text,
         'reply_to': {'email': reply_to} if reply_to else None,
-    }).encode()
-
-    req = urllib.request.Request(
-        'https://api.mailersend.com/v1/email',
-        data=payload,
-        headers={
-            'Authorization': f'Bearer {api_key}',
-            'Content-Type':  'application/json',
-        },
-        method='POST',
-    )
+    }
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            if resp.status in (200, 202):
-                return True, ''
-            return False, f'MailerSend HTTP {resp.status}'
-    except urllib.error.HTTPError as e:
-        body = e.read(200).decode(errors='ignore')
-        if e.code == 401:
+        # urllib's default Python signature is rejected by some MailerSend edge
+        # configurations with Cloudflare 403/1010. requests provides a normal
+        # HTTPS client signature; the explicit product UA also makes support
+        # diagnostics deterministic.
+        response = requests.post(
+            'https://api.mailersend.com/v1/email',
+            json=payload,
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'User-Agent': 'MyPortfolioHub/1.0 (+https://myportfoliohub.online)',
+            },
+            timeout=20,
+        )
+        if response.status_code in (200, 202):
+            return True, ''
+
+        body = _safe_error(response.text, 200)
+        if response.status_code == 401:
             return False, 'MailerSend: invalid API key'
-        if e.code == 403 and ('1010' in body or 'error code: 1010' in body.lower()):
+        if response.status_code == 403 and ('1010' in body or 'error code: 1010' in body.lower()):
             return False, (
-                'MailerSend denied API access (403/1010). Check account approval, '
-                'API-token permissions, and sender-domain verification; enable SMTP or Resend as failover.'
+                'MailerSend edge denied this server (403/1010) even with a standard HTTPS client. '
+                'Contact MailerSend support or enable Resend as failover.'
             )
-        if e.code in (429, 503):
-            raise ConnectionError(f'MailerSend transient {e.code}')
-        return False, f'MailerSend HTTP {e.code}: {body}'
-    except (urllib.error.URLError, OSError, TimeoutError) as e:
+        if response.status_code == 403:
+            return False, (
+                'MailerSend refused email sending (HTTP 403). The key may validate but lack email-send '
+                'permission, the account may be awaiting approval, or the From address/domain is not approved.'
+            )
+        if response.status_code in (429, 503):
+            raise ConnectionError(f'MailerSend transient {response.status_code}')
+        return False, f'MailerSend HTTP {response.status_code}: {body}'
+    except requests.RequestException as e:
         raise ConnectionError(f'MailerSend network error: {e}')
 
 

@@ -31,6 +31,7 @@ def test_missing_project_placeholder_is_packaged():
 
 def test_mailersend_1010_has_actionable_diagnostic():
     source = (ROOT / 'app/services/email/superadmin_email_service.py').read_text()
-    assert "e.code == 403" in source
-    assert 'account approval' in source
-    assert 'sender-domain verification' in source
+    assert "response.status_code == 403" in source
+    assert "requests.post(" in source
+    assert "'User-Agent': 'MyPortfolioHub/1.0 (+https://myportfoliohub.online)'" in source
+    assert 'awaiting approval' in source

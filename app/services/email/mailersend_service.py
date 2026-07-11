@@ -387,6 +387,8 @@ def validate_mailersend_key(key: str) -> tuple[bool, str]:
             headers={
                 "Authorization": f"Bearer {key}",
                 "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": "MyPortfolioHub/1.0 (+https://myportfoliohub.online)",
             },
             timeout=15,
         )

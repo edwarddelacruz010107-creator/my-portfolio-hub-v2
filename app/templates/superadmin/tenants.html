@@ -4,12 +4,11 @@
 {% block page_title %}Tenant Management{% endblock %}
 
 {% block page_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/superadmin-tenants.css', v='20260711-compact-table') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/superadmin-tenants.css', v='20260711-actions-visible-v2') }}"/>
 {% endblock %}
 
 {% block content %}
-<div class="tenant-management-page">
-  <!-- Page header -->
+<div class="tenant-management-page" data-tenant-ui-version="actions-visible-v2">
   <div class="page-header tenant-page-header">
     <div class="page-header-left">
       <span class="tenant-page-eyebrow">
@@ -31,7 +30,6 @@
     </div>
   </div>
 
-  <!-- Stats -->
   <div class="tenant-stats-grid" aria-label="Tenant statistics">
     <div class="tenant-stat-card">
       <span class="tenant-stat-icon"><iconify-icon icon="lucide:users" width="18"></iconify-icon></span>
@@ -51,7 +49,6 @@
     </div>
   </div>
 
-  <!-- Search and filters: server-rendered, works without JavaScript -->
   <div class="tenant-filter-card">
     <form method="get" action="{{ url_for('superadmin.tenants') }}" class="tenant-filter-form">
       <div class="tenant-search-wrap">
@@ -88,182 +85,143 @@
   </div>
 
   {% if tenants.items %}
-  <div class="tenant-table-card">
-    <table class="tenant-table">
-      <colgroup>
-        <col class="tenant-col-identity"/>
-        <col class="tenant-col-owner"/>
-        <col class="tenant-col-subscription"/>
-        <col class="tenant-col-status"/>
-        <col class="tenant-col-activity"/>
-        <col class="tenant-col-actions"/>
-      </colgroup>
-      <thead>
-        <tr>
-          <th>Tenant</th>
-          <th>Owner &amp; country</th>
-          <th>Subscription</th>
-          <th>Status &amp; content</th>
-          <th>Activity</th>
-          <th class="tenant-th-actions">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for t in tenants.items %}
-        {% set plan_label = plan_label_map.get(t.tenant_slug, t.plan or 'Trial') if plan_label_map is defined else (t.plan or 'Trial') %}
-        {% set plan_class = plan_label|lower|replace(' ', '_') %}
-        {% set owner = tenant_owners.get(t.tenant_slug) if tenant_owners is defined else None %}
-        {% set country = country_map.get(t.tenant_slug) if country_map is defined else None %}
-        {% set trial_days = trial_days_remaining_map.get(t.tenant_slug) if trial_days_remaining_map is defined else None %}
-        {% set is_active = t.is_available if t.is_available is defined else True %}
-        {% set pcount = project_counts.get(t.tenant_slug, 0) if project_counts is defined else 0 %}
-        {% set da = days_active_map.get(t.tenant_slug) if days_active_map is defined else None %}
-        <tr class="tenant-table-row" data-tenant-id="{{ t.id }}">
-          <td class="tenant-identity-cell" data-label="Tenant">
-            <div class="tenant-identity">
-              <div class="tenant-avatar" aria-hidden="true">{{ (t.name or 'T')[0].upper() }}</div>
-              <div class="tenant-identity-copy">
-                <div class="tenant-name-line">
-                  <strong class="tenant-name-main">{{ t.name or 'Untitled Tenant' }}</strong>
-                  <span class="tenant-plan-badge plan-{{ plan_class }}">{{ 'Administrator' if plan_label == 'Administrator' else plan_label }}</span>
-                </div>
+  <div class="tenant-directory-list" aria-label="Tenant accounts">
+    {% for t in tenants.items %}
+      {% set plan_label = plan_label_map.get(t.tenant_slug, t.plan or 'Trial') if plan_label_map is defined else (t.plan or 'Trial') %}
+      {% set plan_class = plan_label|lower|replace(' ', '_') %}
+      {% set owner = tenant_owners.get(t.tenant_slug) if tenant_owners is defined else None %}
+      {% set country = country_map.get(t.tenant_slug) if country_map is defined else None %}
+      {% set trial_days = trial_days_remaining_map.get(t.tenant_slug) if trial_days_remaining_map is defined else None %}
+      {% set is_active = t.is_available if t.is_available is defined else True %}
+      {% set pcount = project_counts.get(t.tenant_slug, 0) if project_counts is defined else 0 %}
+      {% set da = days_active_map.get(t.tenant_slug) if days_active_map is defined else None %}
+
+      <article class="tenant-directory-card" data-tenant-id="{{ t.id }}">
+        <div class="tenant-card-topline">
+          <div class="tenant-identity">
+            <div class="tenant-avatar" aria-hidden="true">{{ (t.name or 'T')[0].upper() }}</div>
+            <div class="tenant-identity-copy">
+              <div class="tenant-name-line">
+                <strong class="tenant-name-main">{{ t.name or 'Untitled Tenant' }}</strong>
+                {% if plan_label == 'Administrator' %}
+                  <span class="tenant-plan-badge plan-administrator">Administrator</span>
+                {% endif %}
+              </div>
+              <div class="tenant-identity-subline">
                 <code class="tenant-slug-code">/{{ t.tenant_slug }}</code>
+                <span class="status-pill {% if is_active %}status-active{% else %}status-inactive{% endif %}">
+                  <span class="status-dot"></span>{{ 'Active' if is_active else 'Inactive' }}
+                </span>
               </div>
             </div>
-          </td>
+          </div>
 
-          <td class="tenant-owner-cell" data-label="Owner & country">
-            <div class="tenant-owner-stack">
-              {% if owner %}
-                <span class="tenant-owner-email" title="{{ owner.email }}">{{ owner.email }}</span>
-              {% elif t.email %}
-                <span class="tenant-owner-email" title="{{ t.email }}">{{ t.email }}</span>
-              {% else %}
-                <span class="text-dim">No owner email</span>
-              {% endif %}
-              {% if country %}
-                <span class="country-pill" title="Preferred billing currency: {{ country.currency }}">
-                  <span aria-hidden="true">{{ country.flag }}</span>
-                  <span>{{ country.name }}</span>
-                </span>
-              {% else %}
-                <span class="tenant-meta-muted"><iconify-icon icon="lucide:map-pin" width="12"></iconify-icon> Country not set</span>
-              {% endif %}
-            </div>
-          </td>
+          <div class="tenant-actions-primary" aria-label="Actions for {{ t.name or t.tenant_slug }}">
+            <a href="{{ tenant_portfolio_url(t.tenant_slug) }}" target="_blank" rel="noopener" class="tenant-action-btn" title="View portfolio">
+              <iconify-icon icon="lucide:external-link" width="15"></iconify-icon><span>View</span>
+            </a>
+            <a href="{{ url_for('superadmin.tenant_edit', tenant_id=t.id) }}" class="tenant-action-btn tenant-action-btn-accent" title="Edit tenant">
+              <iconify-icon icon="lucide:pencil" width="15"></iconify-icon><span>Edit</span>
+            </a>
+            {% if plan_label != 'Administrator' %}
+            <a href="{{ url_for('superadmin.subscription_manage', profile_id=t.id) }}" class="tenant-action-btn" title="Manage subscription">
+              <iconify-icon icon="lucide:calendar-cog" width="15"></iconify-icon><span>Plan</span>
+            </a>
+            {% endif %}
 
-          <td class="tenant-subscription-cell" data-label="Subscription">
-            <div class="tenant-subscription-stack">
+            <details class="tenant-action-menu">
+              <summary class="tenant-action-btn tenant-more-btn" title="More actions">
+                <iconify-icon icon="lucide:ellipsis" width="17"></iconify-icon><span>More</span>
+              </summary>
+              <div class="tenant-action-popover">
+                <div class="tenant-action-popover-title">Account actions</div>
+                <a href="{{ url_for('tenant.admin_root', tenant_slug=t.tenant_slug) }}" target="_blank" rel="noopener" class="tenant-menu-item">
+                  <iconify-icon icon="lucide:layout-dashboard" width="15"></iconify-icon><span>Open tenant admin</span>
+                </a>
+                <a href="{{ url_for('superadmin.send_message', tenant_slug=t.tenant_slug) }}" class="tenant-menu-item">
+                  <iconify-icon icon="lucide:mail" width="15"></iconify-icon><span>Send message</span>
+                </a>
+                <form method="post" action="{{ url_for('superadmin.tenant_reset_password', tenant_id=t.id) }}" class="tenant-menu-form" data-confirm="Reset the admin password for {{ (t.name or t.tenant_slug)|e }}? A temporary password will be generated.">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                  <button type="submit" class="tenant-menu-item">
+                    <iconify-icon icon="lucide:key-round" width="15"></iconify-icon><span>Reset password</span>
+                  </button>
+                </form>
+                <form method="post" action="{{ url_for('superadmin.impersonate_tenant', tenant_id=t.id) }}" class="tenant-menu-form" data-confirm="Continue as the admin for {{ (t.name or t.tenant_slug)|e }}?">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                  <button type="submit" class="tenant-menu-item">
+                    <iconify-icon icon="lucide:user-round-cog" width="15"></iconify-icon><span>Impersonate admin</span>
+                  </button>
+                </form>
+                <div class="tenant-menu-divider"></div>
+                <form method="post" action="{{ url_for('superadmin.tenant_toggle_suspend', tenant_id=t.id) }}" class="tenant-menu-form" data-confirm="{{ 'Suspend' if is_active else 'Restore' }} {{ (t.name or t.tenant_slug)|e }}?">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                  <button type="submit" class="tenant-menu-item {% if is_active %}tenant-menu-warning{% endif %}">
+                    <iconify-icon icon="{{ 'lucide:circle-slash-2' if is_active else 'lucide:circle-check-big' }}" width="15"></iconify-icon>
+                    <span>{{ 'Suspend tenant' if is_active else 'Restore tenant' }}</span>
+                  </button>
+                </form>
+                {% if t.tenant_slug != 'default' %}
+                <form method="post" action="{{ url_for('superadmin.tenant_delete', tenant_id=t.id) }}" class="tenant-menu-form" data-confirm="Permanently delete {{ (t.name or t.tenant_slug)|e }} and all associated data? This cannot be undone.">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                  <button type="submit" class="tenant-menu-item tenant-menu-danger">
+                    <iconify-icon icon="lucide:trash-2" width="15"></iconify-icon><span>Delete tenant</span>
+                  </button>
+                </form>
+                {% else %}
+                <div class="tenant-menu-item tenant-menu-disabled" aria-disabled="true">
+                  <iconify-icon icon="lucide:lock" width="15"></iconify-icon><span>Default tenant protected</span>
+                </div>
+                {% endif %}
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <div class="tenant-card-details">
+          <div class="tenant-detail-item">
+            <span class="tenant-detail-label">Owner</span>
+            <span class="tenant-detail-value tenant-owner-email" title="{{ owner.email if owner else (t.email or '') }}">
+              {% if owner %}{{ owner.email }}{% elif t.email %}{{ t.email }}{% else %}Not set{% endif %}
+            </span>
+          </div>
+
+          <div class="tenant-detail-item">
+            <span class="tenant-detail-label">Country</span>
+            <span class="tenant-detail-value">
+              {% if country %}<span class="country-pill"><span aria-hidden="true">{{ country.flag }}</span>{{ country.name }}</span>{% else %}<span class="tenant-meta-muted">Not set</span>{% endif %}
+            </span>
+          </div>
+
+          <div class="tenant-detail-item">
+            <span class="tenant-detail-label">Subscription</span>
+            <span class="tenant-detail-value tenant-subscription-inline">
               <span class="plan-tag plan-{{ plan_class }}">{{ 'Administrator' if plan_label == 'Administrator' else plan_label }}</span>
               {% if plan_label == 'Trial' %}
-                <span class="trial-days-pill {% if trial_days is not none and trial_days <= 2 %}trial-days-low{% endif %}">
-                  <iconify-icon icon="lucide:clock-3" width="12"></iconify-icon>
-                  {{ trial_days if trial_days is not none else 0 }}d left
-                </span>
-              {% else %}
-                <span class="tenant-meta-muted">No trial countdown</span>
+                <span class="trial-days-pill {% if trial_days is not none and trial_days <= 2 %}trial-days-low{% endif %}">{{ trial_days if trial_days is not none else 0 }}d left</span>
               {% endif %}
-            </div>
-          </td>
+            </span>
+          </div>
 
-          <td class="tenant-status-cell" data-label="Status & content">
-            <div class="tenant-status-stack">
-              <span class="status-pill {% if is_active %}status-active{% else %}status-inactive{% endif %}">
-                <span class="status-dot"></span>{{ 'Active' if is_active else 'Inactive' }}
-              </span>
-              <span class="tenant-project-count">
-                <iconify-icon icon="lucide:folder-kanban" width="13"></iconify-icon>
-                {{ pcount }} project{{ '' if pcount == 1 else 's' }}
-              </span>
-            </div>
-          </td>
+          <div class="tenant-detail-item">
+            <span class="tenant-detail-label">Projects</span>
+            <span class="tenant-detail-value"><iconify-icon icon="lucide:folder-kanban" width="13"></iconify-icon>{{ pcount }} project{{ '' if pcount == 1 else 's' }}</span>
+          </div>
 
-          <td class="tenant-activity-cell" data-label="Activity">
-            <div class="tenant-activity-stack">
-              {% if t.updated_at %}
-                <span class="tenant-activity-date" title="{{ t.updated_at.strftime('%Y-%m-%d %H:%M UTC') }}">
-                  <iconify-icon icon="lucide:calendar-days" width="13"></iconify-icon>
-                  {{ t.updated_at.strftime('%b %d, %Y') }}
-                </span>
-              {% else %}
-                <span class="tenant-meta-muted">Never updated</span>
-              {% endif %}
-              {% if da is not none %}
-                <span class="tenant-meta-muted">{{ da }} day{{ '' if da == 1 else 's' }} active</span>
-              {% endif %}
-            </div>
-          </td>
+          <div class="tenant-detail-item">
+            <span class="tenant-detail-label">Last updated</span>
+            <span class="tenant-detail-value">
+              {% if t.updated_at %}{{ t.updated_at.strftime('%b %d, %Y') }}{% else %}Never{% endif %}
+            </span>
+          </div>
 
-          <td class="tenant-actions-cell" data-label="Actions">
-            <div class="tenant-actions-primary">
-              <a href="{{ tenant_portfolio_url(t.tenant_slug) }}" target="_blank" rel="noopener" class="tenant-icon-btn" title="View portfolio" aria-label="View {{ t.name or t.tenant_slug }} portfolio">
-                <iconify-icon icon="lucide:external-link" width="16"></iconify-icon>
-              </a>
-              <a href="{{ url_for('superadmin.tenant_edit', tenant_id=t.id) }}" class="tenant-icon-btn tenant-icon-btn-accent" title="Edit tenant" aria-label="Edit {{ t.name or t.tenant_slug }}">
-                <iconify-icon icon="lucide:pencil" width="16"></iconify-icon>
-              </a>
-              {% if plan_label != 'Administrator' %}
-              <a href="{{ url_for('superadmin.subscription_manage', profile_id=t.id) }}" class="tenant-icon-btn" title="Manage subscription" aria-label="Manage {{ t.name or t.tenant_slug }} subscription">
-                <iconify-icon icon="lucide:calendar-cog" width="16"></iconify-icon>
-              </a>
-              {% endif %}
-
-              <details class="tenant-action-menu">
-                <summary class="tenant-icon-btn" title="More actions" aria-label="More actions for {{ t.name or t.tenant_slug }}">
-                  <iconify-icon icon="lucide:ellipsis" width="18"></iconify-icon>
-                </summary>
-                <div class="tenant-action-popover">
-                  <div class="tenant-action-popover-title">Account actions</div>
-                  <a href="{{ url_for('tenant.admin_root', tenant_slug=t.tenant_slug) }}" target="_blank" rel="noopener" class="tenant-menu-item">
-                    <iconify-icon icon="lucide:layout-dashboard" width="15"></iconify-icon><span>Open tenant admin</span>
-                  </a>
-                  <a href="{{ url_for('superadmin.send_message', tenant_slug=t.tenant_slug) }}" class="tenant-menu-item">
-                    <iconify-icon icon="lucide:mail" width="15"></iconify-icon><span>Send message</span>
-                  </a>
-
-                  <form method="post" action="{{ url_for('superadmin.tenant_reset_password', tenant_id=t.id) }}" class="tenant-menu-form" data-confirm="Reset the admin password for {{ (t.name or t.tenant_slug)|e }}? A temporary password will be generated.">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <button type="submit" class="tenant-menu-item">
-                      <iconify-icon icon="lucide:key-round" width="15"></iconify-icon><span>Reset password</span>
-                    </button>
-                  </form>
-
-                  <form method="post" action="{{ url_for('superadmin.impersonate_tenant', tenant_id=t.id) }}" class="tenant-menu-form" data-confirm="Continue as the admin for {{ (t.name or t.tenant_slug)|e }}?">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <button type="submit" class="tenant-menu-item">
-                      <iconify-icon icon="lucide:user-round-cog" width="15"></iconify-icon><span>Impersonate admin</span>
-                    </button>
-                  </form>
-
-                  <div class="tenant-menu-divider"></div>
-                  <form method="post" action="{{ url_for('superadmin.tenant_toggle_suspend', tenant_id=t.id) }}" class="tenant-menu-form" data-confirm="{{ 'Suspend' if is_active else 'Restore' }} {{ (t.name or t.tenant_slug)|e }}?">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <button type="submit" class="tenant-menu-item {% if is_active %}tenant-menu-warning{% endif %}">
-                      <iconify-icon icon="{{ 'lucide:circle-slash-2' if is_active else 'lucide:circle-check-big' }}" width="15"></iconify-icon>
-                      <span>{{ 'Suspend tenant' if is_active else 'Restore tenant' }}</span>
-                    </button>
-                  </form>
-
-                  {% if t.tenant_slug != 'default' %}
-                  <form method="post" action="{{ url_for('superadmin.tenant_delete', tenant_id=t.id) }}" class="tenant-menu-form" data-confirm="Permanently delete {{ (t.name or t.tenant_slug)|e }} and all associated data? This cannot be undone.">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <button type="submit" class="tenant-menu-item tenant-menu-danger">
-                      <iconify-icon icon="lucide:trash-2" width="15"></iconify-icon><span>Delete tenant</span>
-                    </button>
-                  </form>
-                  {% else %}
-                  <div class="tenant-menu-item tenant-menu-disabled" aria-disabled="true">
-                    <iconify-icon icon="lucide:lock" width="15"></iconify-icon><span>Default tenant protected</span>
-                  </div>
-                  {% endif %}
-                </div>
-              </details>
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+          <div class="tenant-detail-item">
+            <span class="tenant-detail-label">Days active</span>
+            <span class="tenant-detail-value">{% if da is not none %}{{ da }} day{{ '' if da == 1 else 's' }}{% else %}—{% endif %}</span>
+          </div>
+        </div>
+      </article>
+    {% endfor %}
   </div>
 
   {% if tenants.pages > 1 %}
@@ -314,5 +272,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/superadmin-tenants.js', v='20260711-compact-table') }}" defer></script>
+<script src="{{ url_for('static', filename='js/superadmin-tenants.js', v='20260711-actions-visible-v2') }}" defer></script>
 {% endblock %}

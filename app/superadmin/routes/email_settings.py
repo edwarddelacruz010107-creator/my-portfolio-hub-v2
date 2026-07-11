@@ -342,8 +342,22 @@ def email_settings():
             except smtplib.SMTPAuthenticationError:
                 hint = ' For Gmail, use an App Password (not your account password).' if 'gmail' in host.lower() else ''
                 return jsonify({'ok': False, 'message': f'Authentication failed — check your username and password.{hint}'})
-            except (TimeoutError, OSError) as e:
-                return jsonify({'ok': False, 'message': f'Connection to {host}:{port} timed out or was refused. Check the host and port.'})
+            except (TimeoutError, OSError):
+                if host.lower() == 'smtp.gmail.com' and port == 587 and enc != 'ssl':
+                    try:
+                        with smtplib.SMTP_SSL(host, 465, context=_ssl.create_default_context(), timeout=15) as s:
+                            s.login(username, password)
+                        return jsonify({
+                            'ok': True,
+                            'message': '✓ Gmail authenticated through SSL port 465 because this server blocks STARTTLS port 587. Change Port to 465 and Encryption to SSL, then Save SMTP.',
+                            'suggested_port': 465,
+                            'suggested_encryption': 'ssl',
+                        })
+                    except smtplib.SMTPAuthenticationError:
+                        return jsonify({'ok': False, 'message': 'Gmail was reached on SSL port 465, but authentication failed. Use a 16-character Google App Password, not your normal password.'})
+                    except (TimeoutError, OSError):
+                        return jsonify({'ok': False, 'message': 'This hosting server blocks Gmail SMTP on both ports 587 and 465. Your password was not tested. Configure Resend or MailerSend (HTTPS) or ask the host to allow outbound SMTP.'})
+                return jsonify({'ok': False, 'message': f'Connection to {host}:{port} timed out or was refused before authentication. The password was not tested; check your hosting provider\'s outbound SMTP policy.'})
             except smtplib.SMTPConnectError as e:
                 return jsonify({'ok': False, 'message': f'Could not connect to {host}:{port}. Verify the host is correct.'})
             except Exception as e:

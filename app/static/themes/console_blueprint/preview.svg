@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0D1117"/><stop offset="1" stop-color="#17242A"/></linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#E3B341"/><stop offset="1" stop-color="#3FD1C4"/></linearGradient>
+  </defs>
+  <rect width="1200" height="675" rx="28" fill="url(#bg)"/>
+  <rect x="62" y="44" width="1076" height="62" rx="14" fill="#141A21" stroke="#2A323C"/>
+  <circle cx="94" cy="75" r="8" fill="#3FD1C4"/><text x="115" y="82" fill="#D7DBE0" font-family="monospace" font-weight="700" font-size="24">jedc.journal</text>
+  <text x="777" y="82" fill="#8A93A0" font-family="sans-serif" font-size="18">About   Journey   Projects   Contact</text>
+  <rect x="62" y="140" width="510" height="448" rx="20" fill="#141A21" stroke="#2A323C"/>
+  <rect x="96" y="177" width="225" height="34" rx="17" fill="#123331" stroke="#3FD1C4"/><circle cx="120" cy="194" r="7" fill="#5FD98A"/><text x="140" y="201" fill="#3FD1C4" font-family="monospace" font-size="15">OPEN TO OPPORTUNITIES</text>
+  <text x="96" y="278" fill="#D7DBE0" font-family="monospace" font-size="47" font-weight="700">BUILD SOFTWARE</text><text x="96" y="337" fill="#D7DBE0" font-family="monospace" font-size="47" font-weight="700">THAT ACTUALLY</text><text x="96" y="396" fill="#E3B341" font-family="monospace" font-size="47" font-weight="700">SHIPS.</text>
+  <text x="96" y="448" fill="#8A93A0" font-family="sans-serif" font-size="19">A living portfolio styled like a developer commit log.</text>
+  <rect x="96" y="493" width="142" height="48" rx="8" fill="#E3B341"/><text x="124" y="524" fill="#1B1206" font-family="sans-serif" font-size="18" font-weight="700">View projects</text>
+  <rect x="262" y="493" width="132" height="48" rx="8" fill="none" stroke="#2A323C"/><text x="291" y="524" fill="#D7DBE0" font-family="sans-serif" font-size="18">Contact</text>
+  <rect x="610" y="140" width="528" height="254" rx="20" fill="#141A21" stroke="#2A323C"/>
+  <rect x="610" y="140" width="528" height="50" rx="20" fill="#1A2129"/><circle cx="642" cy="165" r="7" fill="#EC6A5E"/><circle cx="666" cy="165" r="7" fill="#F4BF4F"/><circle cx="690" cy="165" r="7" fill="#61C454"/><text x="720" y="171" fill="#8A93A0" font-family="monospace" font-size="14">developer@portfolio: ~/about</text>
+  <text x="642" y="228" fill="#3FD1C4" font-family="monospace" font-size="18">$ whoami</text><text x="642" y="261" fill="#8A93A0" font-family="monospace" font-size="17">Portfolio Owner — Software Developer</text><text x="642" y="310" fill="#3FD1C4" font-family="monospace" font-size="18">$ cat status.txt</text><text x="642" y="343" fill="#8A93A0" font-family="monospace" font-size="17">Available for work</text>
+  <rect x="610" y="426" width="528" height="162" rx="20" fill="#141A21" stroke="#2A323C"/>
+  <text x="640" y="461" fill="#3FD1C4" font-family="monospace" font-size="16">⎇ main</text><line x1="658" y1="491" x2="658" y2="556" stroke="#2A323C" stroke-width="4"/><circle cx="658" cy="500" r="9" fill="#3FD1C4"/><circle cx="658" cy="550" r="9" fill="#E3B341"/><text x="688" y="505" fill="#D7DBE0" font-family="sans-serif" font-size="18" font-weight="700">Started building professional projects</text><text x="688" y="530" fill="#8A93A0" font-family="sans-serif" font-size="15">Experience entries become a commit timeline.</text><text x="688" y="558" fill="#D7DBE0" font-family="sans-serif" font-size="18" font-weight="700">Current role and milestones</text>
+  <rect x="62" y="620" width="1076" height="5" rx="3" fill="url(#glow)"/>
+</svg>

@@ -93,28 +93,38 @@ def _send_smtp(cfg: dict, to: str, subject: str, html: str, text: str) -> tuple[
     msg.attach(MIMEText(text, 'plain', 'utf-8'))
     msg.attach(MIMEText(html,  'html',  'utf-8'))
 
-    try:
-        if enc == 'ssl' or port == 465:
+    def _deliver(selected_port: int, selected_enc: str) -> None:
+        if selected_enc == 'ssl' or selected_port == 465:
             ctx = ssl.create_default_context()
-            with smtplib.SMTP_SSL(host, port, context=ctx, timeout=_SMTP_TIMEOUT) as s:
+            with smtplib.SMTP_SSL(host, selected_port, context=ctx, timeout=_SMTP_TIMEOUT) as s:
                 s.login(username, password)
                 s.sendmail(from_email, [to], msg.as_string())
-        elif enc == 'none':
-            with smtplib.SMTP(host, port, timeout=_SMTP_TIMEOUT) as s:
+        elif selected_enc == 'none':
+            with smtplib.SMTP(host, selected_port, timeout=_SMTP_TIMEOUT) as s:
                 s.login(username, password)
                 s.sendmail(from_email, [to], msg.as_string())
-        else:  # tls (STARTTLS default)
-            with smtplib.SMTP(host, port, timeout=_SMTP_TIMEOUT) as s:
+        else:
+            with smtplib.SMTP(host, selected_port, timeout=_SMTP_TIMEOUT) as s:
                 s.ehlo(); s.starttls(context=ssl.create_default_context()); s.ehlo()
                 s.login(username, password)
                 s.sendmail(from_email, [to], msg.as_string())
+
+    try:
+        _deliver(port, enc)
         return True, ''
     except smtplib.SMTPAuthenticationError:
         return False, 'SMTP authentication failed'
     except smtplib.SMTPRecipientsRefused:
         return False, 'Recipient refused'
-    except _TRANSIENT_SMTP as e:
-        raise  # let caller retry
+    except _TRANSIENT_SMTP:
+        # Some hosts block outbound STARTTLS/587 while allowing Gmail's
+        # implicit-TLS endpoint. Use the documented equivalent route for
+        # Gmail only; credentials and sender remain unchanged.
+        if host.lower() == 'smtp.gmail.com' and port == 587 and enc != 'ssl':
+            _deliver(465, 'ssl')
+            logger.info('[SAEmail] Gmail STARTTLS/587 unavailable; delivered through SSL/465')
+            return True, ''
+        raise  # let caller retry/provider failover
     except smtplib.SMTPException as e:
         return False, f'SMTP error: {str(e)[:120]}'
 

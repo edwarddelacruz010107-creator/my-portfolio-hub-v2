@@ -187,6 +187,8 @@ MyPortfolioHub uses a curated set of five distinct production themes. Retired an
 | `blockform_brutal` | Blockform Brutal | Pro |
 | `schematic_spec` | Schematic Spec | Pro |
 | `developer_journal` | Single Portfolio — Developer Journal | Free / Trial and above |
+| `console_blueprint` | Console Blueprint | Free / Trial and above |
+| `terminal_green` | Terminal Green | Free / Trial and above |
 
 Theme folders must contain:
 

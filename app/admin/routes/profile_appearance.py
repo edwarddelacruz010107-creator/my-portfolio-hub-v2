@@ -164,10 +164,8 @@ def seo_settings():
         form.seo_indexable.data = bool(getattr(profile, 'seo_indexable', True))
 
     if form.validate_on_submit():
-        if form.remove_og_image.data and profile.og_image:
-            delete_image(profile.og_image, 'profiles')
-            profile.og_image = ''
-
+        upload_warning = None
+        replacement_uploaded = False
         if is_upload_file(form.og_image.data):
             new_image, upload_error = save_image(
                 form.og_image.data,
@@ -176,11 +174,20 @@ def seo_settings():
                 quality=88,
             )
             if new_image:
-                if profile.og_image:
-                    delete_image(profile.og_image, 'profiles')
+                previous_image = profile.og_image
                 profile.og_image = new_image
+                replacement_uploaded = True
+                if previous_image and previous_image != new_image:
+                    delete_image(previous_image, 'profiles')
             elif upload_error:
-                flash(upload_error, 'warning')
+                upload_warning = upload_error
+
+        # A replacement takes precedence over the remove checkbox. More
+        # importantly, the current production image is not deleted until a
+        # replacement has been validated and stored successfully.
+        if form.remove_og_image.data and profile.og_image and not replacement_uploaded and not upload_warning:
+            delete_image(profile.og_image, 'profiles')
+            profile.og_image = ''
 
         profile.meta_title = (form.meta_title.data or '').strip()
         profile.meta_description = (form.meta_description.data or '').strip()
@@ -196,7 +203,10 @@ def seo_settings():
             logger.debug('Could not clear portfolio cache after SEO update', exc_info=True)
 
         log_activity('update', 'seo', profile.name or profile.tenant_slug, 'Portfolio SEO settings updated')
-        flash('SEO settings saved.', 'success')
+        if upload_warning:
+            flash(f'SEO text settings saved, but the share image was not changed: {upload_warning}', 'warning')
+        else:
+            flash('SEO settings saved.', 'success')
         return redirect(url_for('admin.seo_settings'))
 
     return render_template('admin/seo.html', form=form, profile=profile)

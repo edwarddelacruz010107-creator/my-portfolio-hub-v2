@@ -299,6 +299,12 @@
       if (panel) panel.className = `smtp-result show ${result.ok ? 'ok' : 'err'}`;
       if (icon) icon.textContent = result.ok ? '✓' : '✗';
       if (message) message.textContent = result.message || 'SMTP test completed.';
+      if (result.suggested_port && result.suggested_encryption) {
+        const portInput = document.getElementById('smtpPort');
+        const encryptionSelect = form.querySelector('[name="smtp_encryption"]');
+        if (portInput) portInput.value = String(result.suggested_port);
+        if (encryptionSelect) encryptionSelect.value = result.suggested_encryption;
+      }
       toast(result.message || 'SMTP test completed.', Boolean(result.ok));
     } catch (error) {
       if (panel) panel.className = 'smtp-result show err';

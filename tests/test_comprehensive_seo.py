@@ -139,7 +139,7 @@ def test_robots_and_sitemap_expose_public_content_only(app):
 
 def test_active_themes_use_central_portfolio_seo_partial():
     root = Path(__file__).resolve().parents[1]
-    for theme_id in ("default", "developer_pro", "blockform_brutal", "schematic_spec", "developer_journal"):
+    for theme_id in ("default", "developer_pro", "blockform_brutal", "schematic_spec", "developer_journal", "console_blueprint", "terminal_green"):
         source = (root / "themes" / theme_id / "templates" / "index.html").read_text(encoding="utf-8")
         assert "{% include 'partials/_portfolio_seo.html' %}" in source
         assert source.count('rel="canonical"') == 0

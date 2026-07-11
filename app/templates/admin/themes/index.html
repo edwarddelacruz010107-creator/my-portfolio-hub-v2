@@ -549,6 +549,14 @@
   background: var(--accent-bg);
   transform: scale(1.05);
 }
+.btn-preview-icon.is-disabled,
+.btn-preview-icon.is-disabled:hover {
+  border-color: var(--border-light);
+  color: var(--text-faint);
+  background: transparent;
+  cursor: not-allowed;
+  transform: none;
+}
 .btn-preview-icon svg {
   width: 17px;
   height: 17px;
@@ -926,17 +934,31 @@
             </button>
           {% endif %}
 
-          <a href="{{ url_for('admin.preview_theme', theme_id=theme.id) }}"
-             class="btn-preview-icon"
-             target="_blank" rel="noopener"
-             aria-label="Preview {{ theme.name }}"
-             title="Preview {{ theme.name }}">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M2.25 12s3.5-6.75 9.75-6.75S21.75 12 21.75 12 18.25 18.75 12 18.75 2.25 12 2.25 12Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M12 15.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span class="sr-only">Preview {{ theme.name }}</span>
-          </a>
+          {% if theme._can_use %}
+            <a href="{{ url_for('admin.preview_theme', theme_id=theme.id) }}"
+               class="btn-preview-icon"
+               target="_blank" rel="noopener"
+               aria-label="Preview {{ theme.name }}"
+               title="Preview {{ theme.name }}">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M2.25 12s3.5-6.75 9.75-6.75S21.75 12 21.75 12 18.25 18.75 12 18.75 2.25 12 2.25 12Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M12 15.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span class="sr-only">Preview {{ theme.name }}</span>
+            </a>
+          {% else %}
+            <button type="button"
+                    class="btn-preview-icon is-disabled"
+                    disabled
+                    aria-label="Preview locked for {{ theme.name }}"
+                    title="Your current plan cannot preview this theme">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="5" y="10" width="14" height="10" rx="2" stroke-width="1.8"/>
+                <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span class="sr-only">Preview locked for {{ theme.name }}</span>
+            </button>
+          {% endif %}
         </div>
       </div>
     </div>

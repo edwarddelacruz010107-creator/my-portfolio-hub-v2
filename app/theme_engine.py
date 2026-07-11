@@ -259,6 +259,50 @@ class ThemeEngine:
     # only ever cares about this 3-tier ladder.
     _PLAN_RANK = {'free': 0, 'basic': 0, 'starter': 0, 'trial': 0, 'pro': 1, 'premium': 1, 'enterprise': 2, 'business': 2, 'agency': 2, 'administrator': 99, 'admin': 99}
 
+    def _effective_plan_for_theme_access(self, tenant_profile) -> str:
+        """Resolve the current plan from the same source used by admin gates."""
+        if callable(getattr(tenant_profile, 'effective_plan', None)):
+            return tenant_profile.effective_plan()
+        return getattr(tenant_profile, 'plan', None) or 'free'
+
+    def _plan_features_for_theme_access(self, tenant_profile, plan: str) -> dict:
+        """Return editable plan settings even for objects without plan_features()."""
+        if callable(getattr(tenant_profile, 'plan_features', None)):
+            try:
+                features = tenant_profile.plan_features() or {}
+                if features:
+                    return features
+            except Exception:
+                pass
+        try:
+            from app.models.core import get_plan_features
+            return get_plan_features(plan) or {}
+        except Exception:
+            return {}
+
+    def _theme_allowed_by_plan(self, tenant_profile, theme_id: str, meta: dict) -> bool:
+        """Central plan gate used by picker, apply route, preview, and renderer."""
+        if not meta:
+            return False
+        if not meta.get('catalog_active', True):
+            return False
+        if getattr(tenant_profile, 'is_administrator', False) or has_administrator_access(tenant_profile):
+            return True
+
+        plan = self._effective_plan_for_theme_access(tenant_profile)
+        features = self._plan_features_for_theme_access(tenant_profile, plan)
+
+        if theme_id != DEFAULT_THEME and not bool(features.get('theme_customization', False)):
+            return False
+        if meta.get('premium', False) and not bool(features.get('premium_themes', False)):
+            return False
+
+        required_plan = meta.get('required_plan')
+        if required_plan:
+            return self._plan_meets_requirement(plan, required_plan)
+
+        return True
+
     def _plan_meets_requirement(self, plan: str, required_plan: Optional[str]) -> bool:
         if is_administrator_plan(plan):
             return True
@@ -297,24 +341,7 @@ class ThemeEngine:
         if getattr(tenant_profile, 'is_administrator', False) or has_administrator_access(tenant_profile):
             return requested
 
-        # Use effective_plan() so subscription-based upgrades (e.g. tenant upgraded
-        # to PRO via billing while profile.plan column is still 'Basic') are honoured.
-        if callable(getattr(tenant_profile, 'effective_plan', None)):
-            plan = tenant_profile.effective_plan()
-        else:
-            plan = (getattr(tenant_profile, 'plan', None) or 'free')
-
-        required_plan = meta.get('required_plan')
-        if required_plan:
-            return requested if self._plan_meets_requirement(plan, required_plan) else FALLBACK_THEME
-
-        if str(plan).lower() in ('pro', 'premium', 'enterprise', 'agency'):
-            return requested
-
-        if meta.get('premium', False):
-            return FALLBACK_THEME
-
-        return requested
+        return requested if self._theme_allowed_by_plan(tenant_profile, requested, meta) else FALLBACK_THEME
 
     def render(self, tenant_profile, template_name: str, **context) -> str:
         """
@@ -359,38 +386,7 @@ class ThemeEngine:
         meta = self.registry.get(theme_id)
         if not meta:
             return False
-        if not meta.get('catalog_active', True):
-            return False
-        if getattr(tenant_profile, 'is_administrator', False) or has_administrator_access(tenant_profile):
-            return True
-        # Use effective_plan() so subscription upgrades are reflected immediately.
-        if callable(getattr(tenant_profile, 'effective_plan', None)):
-            plan = tenant_profile.effective_plan()
-        else:
-            plan = (getattr(tenant_profile, 'plan', None) or 'free')
-
-        features = {}
-        if callable(getattr(tenant_profile, 'plan_features', None)):
-            try:
-                features = tenant_profile.plan_features() or {}
-            except Exception:
-                features = {}
-
-        # Trial-limit editor can make the whole theme switcher default-only.
-        if theme_id != DEFAULT_THEME and features and not features.get('theme_customization', False):
-            return False
-
-        # Premium themes require premium_themes unless a higher plan requirement
-        # grants access through the legacy requirement check below.
-        if meta.get('premium', False) and features and not features.get('premium_themes', False):
-            return False
-
-        required_plan = meta.get('required_plan')
-        if required_plan:
-            return self._plan_meets_requirement(plan, required_plan)
-        if str(plan).lower() in ('pro', 'premium', 'enterprise', 'agency'):
-            return True
-        return not meta.get('premium', False)
+        return self._theme_allowed_by_plan(tenant_profile, theme_id, meta)
 
 
 def get_theme_engine() -> ThemeEngine:

@@ -480,21 +480,7 @@ def create_app(config_name: str = 'default') -> Flask:
     login_manager.login_view             = 'auth.login'
     login_manager.login_message          = 'Please log in to access the admin panel.'
     login_manager.login_message_category = 'warning'
-    # PROD-FIX (silent superadmin logout on Email & Forms save, 2026-07):
-    # 'strong' recomputes an identity hash from (remote_addr, User-Agent) on
-    # EVERY request and calls session.clear() + logout_user() internally —
-    # inside Flask-Login itself, before TenantGuard or any app code runs —
-    # on any mismatch. Behind Render's edge/LB, the resolved remote_addr can
-    # drift between the page-load GET and a later POST (autoscaling,
-    # connection re-pooling, backend rehydration) even with ProxyFix
-    # correctly configured, since ProxyFix only fixes *which* IP is used —
-    # it doesn't guarantee Render presents the same one on every hop.
-    # This produces exactly the reported symptom: page loads fine, Save
-    # silently 302s to /superadmin/login with no error surfaced anywhere.
-    # 'basic' still marks hijacked-looking sessions as non-fresh (so
-    # @fresh_login_required-gated actions still re-prompt for credentials)
-    # but no longer force-logs-out on ordinary proxy IP variance.
-    login_manager.session_protection     = 'basic'
+    login_manager.session_protection     = 'strong'
 
     # Explicit unauthorized handler: ensure unauthenticated access always
     # redirects to the canonical auth login page (tests expect '/auth/login' in Location).

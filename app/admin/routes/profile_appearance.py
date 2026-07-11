@@ -384,6 +384,10 @@ def preview_theme(theme_id):
 
     profile = _load_tenant_profile()
     tenant_slug = _active_tenant_slug()
+    if not profile:
+        abort(404)
+    if not engine.can_use_theme(profile, theme_id):
+        abort(403)
 
     all_projects = _tenant_slug_filter(project_repository.query).filter_by(status='published').all()
     skills = _tenant_slug_filter(skill_repository.query).order_by(Skill.category.asc(), Skill.order.asc()).all()
@@ -429,11 +433,11 @@ def preview_theme(theme_id):
     # shim object carries the override through resolve_theme() unchanged.
     preview_profile = SimpleNamespace(
         selected_theme=theme_id,
-        is_administrator=True,  # preview always bypasses the plan gate visually...
-        plan=getattr(profile, 'plan', 'free') if profile else 'free',
+        is_administrator=False,
+        plan=getattr(profile, 'plan', 'free'),
+        effective_plan=profile.effective_plan,
+        plan_features=profile.plan_features,
     )
-    # Preview is read-only: allow tenants to inspect locked themes.
-    # The apply_theme() route remains the permanent plan gate.
 
     rendered_preview = engine.render(
         preview_profile,

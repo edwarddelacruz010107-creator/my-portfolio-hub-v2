@@ -495,8 +495,9 @@ def email_settings():
             db.session.commit()
 
             # Fresh-read verification — bypass identity map
+            config_id = cfg.id
             db.session.remove()
-            v = global_email_config_repository.get_fresh_by_id(1)
+            v = global_email_config_repository.get_fresh_by_id(config_id)
             configured = bool(v.has_superadmin_mailersend or v.has_mailersend) if v else False
             _ms_log.info('[MS SAVE] Verified — configured=%s (user=%s)', configured, current_user.username)
 
@@ -593,8 +594,9 @@ def email_settings():
             # Discard session entirely, re-fetch from DB, verify persistence.
             # This is the critical step that prevents stale ORM cache from
             # returning a false 'not configured' state on the next status poll.
+            config_id = cfg.id
             db.session.remove()
-            verified_cfg = global_email_config_repository.get_fresh_by_id(1)
+            verified_cfg = global_email_config_repository.get_fresh_by_id(config_id)
 
             if verified_cfg is None:
                 _smtp_log.error('[SMTP SAVE] Post-commit read returned None — DB integrity issue')
@@ -663,8 +665,9 @@ def email_settings():
             _rs_log.info('[RS SAVE] Committing (user=%s)', current_user.username)
             db.session.commit()
 
+            config_id = cfg.id
             db.session.remove()
-            v = global_email_config_repository.get_fresh_by_id(1)
+            v = global_email_config_repository.get_fresh_by_id(config_id)
             configured = bool(v.has_sa_resend) if v else False
             _rs_log.info('[RS SAVE] Verified — configured=%s (user=%s)', configured, current_user.username)
 
@@ -776,7 +779,7 @@ def email_provider_diagnostics():
 
     cfg = GlobalEmailConfig.get(fresh=True)
 
-    # Test decryptability without exposing the value
+    # Test decryptability without exposing either secret value.
     smtp_decryptable = False
     smtp_decrypt_error = None
     raw_blob = cfg.get_sa_smtp_password_blob()
@@ -788,6 +791,15 @@ def email_provider_diagnostics():
             smtp_decrypt_error = type(e).__name__
 
     fernet_key_set = bool(_os_diag.environ.get('FERNET_KEY', '').strip())
+
+    resend_blob = cfg.get_sa_resend_api_key_blob()
+    resend_decryptable = False
+    resend_decrypt_error = None
+    if resend_blob:
+        try:
+            resend_decryptable = bool(decrypt_secret(resend_blob))
+        except Exception as exc:
+            resend_decrypt_error = type(exc).__name__
 
     return jsonify({
         'ok': True,
@@ -802,6 +814,15 @@ def email_provider_diagnostics():
             'encrypted_password_decryptable': smtp_decryptable,
             'decrypt_error': smtp_decrypt_error,
             'has_sa_smtp': bool(cfg.has_sa_smtp),
+        },
+        'resend': {
+            'sender_email': cfg.sa_resend_sender_email or '',
+            'sender_name': cfg.sa_resend_sender_name or '',
+            'active': bool(cfg.sa_resend_active),
+            'encrypted_key_blob_exists': bool(resend_blob),
+            'encrypted_key_decryptable': resend_decryptable,
+            'decrypt_error': resend_decrypt_error,
+            'has_sa_resend': bool(cfg.has_sa_resend),
         },
         'fernet_key_set': fernet_key_set,
         'priority': cfg.get_sa_provider_priority(),

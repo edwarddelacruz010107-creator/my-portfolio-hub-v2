@@ -1863,11 +1863,15 @@ class GlobalEmailConfig(db.Model):
 
     def get_sa_resend_api_key_blob(self) -> str:
         """Return the encrypted Resend key without Boolean-testing ORM clauses."""
+        raw = self.__dict__.get('_sa_resend_api_key')
+        if isinstance(raw, str):
+            return raw.strip()
         try:
             from sqlalchemy import inspect as sa_inspect
-            raw = sa_inspect(self).attrs._sa_resend_api_key.value
+            state = sa_inspect(self).attrs._sa_resend_api_key
+            raw = state.value
         except Exception:
-            raw = self.__dict__.get('_sa_resend_api_key', '')
+            raw = ''
         return raw.strip() if isinstance(raw, str) else ''
 
     @sa_resend_api_key.setter

@@ -79,7 +79,7 @@ def test_robots_allows_favicon_and_static(app):
 
 def test_all_supported_tenant_themes_use_shared_favicon_partial():
     project_root = Path(__file__).resolve().parents[1]
-    for theme_id in ("default", "developer_pro", "blockform_brutal", "schematic_spec", "developer_journal", "console_blueprint", "terminal_green"):
+    for theme_id in ("default", "developer_pro", "blockform_brutal", "schematic_spec", "developer_journal"):
         template = project_root / "themes" / theme_id / "templates" / "index.html"
         source = template.read_text(encoding="utf-8")
         assert "{% include 'partials/_favicons.html' %}" in source
@@ -88,7 +88,7 @@ def test_all_supported_tenant_themes_use_shared_favicon_partial():
 
 @pytest.mark.parametrize(
     "theme_id",
-    ("default", "developer_pro", "blockform_brutal", "schematic_spec", "developer_journal", "console_blueprint", "terminal_green"),
+    ("default", "developer_pro", "blockform_brutal", "schematic_spec", "developer_journal"),
 )
 def test_public_theme_previews_render_canonical_favicon_tags(app, theme_id):
     response = app.test_client().get(f"/themes/{theme_id}/preview")

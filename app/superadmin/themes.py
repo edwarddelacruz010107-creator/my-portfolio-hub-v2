@@ -218,7 +218,7 @@ def theme_catalog_sync():
             'success',
         )
     else:
-        flash('Theme catalog already matches the curated four-theme set.', 'info')
+        flash('Theme catalog already matches the curated theme set.', 'info')
     return redirect(url_for('superadmin.theme_catalog'))
 
 

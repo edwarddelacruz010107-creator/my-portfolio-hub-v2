@@ -244,6 +244,18 @@ class BaseConfig:
     PAYMONGO_SECRET_KEY      = os.environ.get('PAYMONGO_SECRET_KEY', '')
     PAYMONGO_WEBHOOK_SECRET  = os.environ.get('PAYMONGO_WEBHOOK_SECRET', '')
 
+    # Dodo Payments hosted subscription checkout
+    DODO_PAYMENTS_ENABLED = os.getenv('DODO_PAYMENTS_ENABLED', 'false').lower() in ('1', 'true', 'yes', 'on')
+    DODO_PAYMENTS_MODE = os.getenv('DODO_PAYMENTS_MODE', 'test').lower()
+    DODO_PAYMENTS_API_KEY = os.getenv('DODO_PAYMENTS_API_KEY', '')
+    DODO_PAYMENTS_WEBHOOK_SECRET = os.getenv('DODO_PAYMENTS_WEBHOOK_SECRET', '')
+    DODO_BASIC_MONTHLY_PRODUCT_ID = os.getenv('DODO_BASIC_MONTHLY_PRODUCT_ID', '')
+    DODO_BASIC_YEARLY_PRODUCT_ID = os.getenv('DODO_BASIC_YEARLY_PRODUCT_ID', '')
+    DODO_PRO_MONTHLY_PRODUCT_ID = os.getenv('DODO_PRO_MONTHLY_PRODUCT_ID', '')
+    DODO_PRO_YEARLY_PRODUCT_ID = os.getenv('DODO_PRO_YEARLY_PRODUCT_ID', '')
+    DODO_ENTERPRISE_MONTHLY_PRODUCT_ID = os.getenv('DODO_ENTERPRISE_MONTHLY_PRODUCT_ID', '')
+    DODO_ENTERPRISE_YEARLY_PRODUCT_ID = os.getenv('DODO_ENTERPRISE_YEARLY_PRODUCT_ID', '')
+
     WEB3FORMS_ACCESS_KEY     = os.environ.get('WEB3FORMS_ACCESS_KEY', '')
     # ADMIN_EMAIL: destination for the default/root-tenant contact form and
     # as a fallback notification address. Read via current_app.config in
@@ -544,13 +556,3 @@ def get_config(env=None):
     return config.get(env, config['default'])
 
 # Dodo Payments hosted subscription checkout
-DODO_PAYMENTS_ENABLED = os.getenv('DODO_PAYMENTS_ENABLED', 'false').lower() in ('1', 'true', 'yes', 'on')
-DODO_PAYMENTS_MODE = os.getenv('DODO_PAYMENTS_MODE', 'test').lower()
-DODO_PAYMENTS_API_KEY = os.getenv('DODO_PAYMENTS_API_KEY', '')
-DODO_PAYMENTS_WEBHOOK_SECRET = os.getenv('DODO_PAYMENTS_WEBHOOK_SECRET', '')
-DODO_BASIC_MONTHLY_PRODUCT_ID = os.getenv('DODO_BASIC_MONTHLY_PRODUCT_ID', '')
-DODO_BASIC_YEARLY_PRODUCT_ID = os.getenv('DODO_BASIC_YEARLY_PRODUCT_ID', '')
-DODO_PRO_MONTHLY_PRODUCT_ID = os.getenv('DODO_PRO_MONTHLY_PRODUCT_ID', '')
-DODO_PRO_YEARLY_PRODUCT_ID = os.getenv('DODO_PRO_YEARLY_PRODUCT_ID', '')
-DODO_ENTERPRISE_MONTHLY_PRODUCT_ID = os.getenv('DODO_ENTERPRISE_MONTHLY_PRODUCT_ID', '')
-DODO_ENTERPRISE_YEARLY_PRODUCT_ID = os.getenv('DODO_ENTERPRISE_YEARLY_PRODUCT_ID', '')

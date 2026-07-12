@@ -131,11 +131,33 @@ def billing_payment_methods():
         PaymentMethod.display_order.asc(),
         PaymentMethod.name.asc(),
     ).all()
+    dodo_product_keys = (
+        'DODO_BASIC_MONTHLY_PRODUCT_ID',
+        'DODO_BASIC_YEARLY_PRODUCT_ID',
+        'DODO_PRO_MONTHLY_PRODUCT_ID',
+        'DODO_PRO_YEARLY_PRODUCT_ID',
+        'DODO_ENTERPRISE_MONTHLY_PRODUCT_ID',
+        'DODO_ENTERPRISE_YEARLY_PRODUCT_ID',
+    )
+    dodo_products_configured = sum(
+        1 for key in dodo_product_keys if current_app.config.get(key)
+    )
+    dodo_api_configured = bool(current_app.config.get('DODO_PAYMENTS_API_KEY'))
+    dodo_webhook_configured = bool(current_app.config.get('DODO_PAYMENTS_WEBHOOK_SECRET'))
+    dodo_env_enabled = bool(current_app.config.get('DODO_PAYMENTS_ENABLED'))
+
     return render_template(
         'superadmin/billing_payment_methods.html',
         methods=methods,
         paymongo_enabled=is_paymongo_enabled(),
         paymongo_configured=bool(current_app.config.get('PAYMONGO_SECRET_KEY')),
+        dodo_enabled=(dodo_env_enabled and dodo_api_configured),
+        dodo_env_enabled=dodo_env_enabled,
+        dodo_api_configured=dodo_api_configured,
+        dodo_webhook_configured=dodo_webhook_configured,
+        dodo_mode=current_app.config.get('DODO_PAYMENTS_MODE', 'test'),
+        dodo_products_configured=dodo_products_configured,
+        dodo_products_total=len(dodo_product_keys),
         page_title='Payment Methods',
     )
 

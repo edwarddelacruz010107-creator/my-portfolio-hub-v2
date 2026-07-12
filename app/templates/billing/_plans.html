@@ -203,12 +203,12 @@
   <div class="paymongo-notice">
     <div class="paymongo-badge">
       <span>⚡</span>
-      <strong>Instant activation via Secure Checkout</strong>
+      <strong>Instant activation via {{ automated_gateway_name|default("Secure Checkout") }}</strong>
     </div>
     <p class="pm-desc">Pay online and your subscription activates automatically.</p>
     <a href="#" id="paymongoBtn" class="btn btn-success" style="margin-top:1rem">
       <iconify-icon icon="lucide:credit-card" width="16"></iconify-icon>
-      Pay with Secure Checkout
+      Pay with {{ automated_gateway_name|default("Secure Checkout") }}
     </a>
   </div>
   {% endif %}

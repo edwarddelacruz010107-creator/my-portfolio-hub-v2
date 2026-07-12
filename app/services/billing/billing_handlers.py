@@ -255,6 +255,8 @@ def billing_plans_context(profile, *, tenant_slug: str | None, billing_routes: d
         tenant_slug=tenant_slug,
         billing_routes=billing_routes,
         paymongo_enabled=paymongo_enabled,
+        automated_gateway_name=('Dodo Payments' if is_dodo_enabled() else 'PayMongo'),
+        dodo_enabled=is_dodo_enabled(),
         payment_methods=manual_methods,
         manual_payment_enabled=bool(manual_methods),
         show_billing_tabs=False,

@@ -1,13 +1,13 @@
 """add Dodo Payments subscription identifiers
 
 Revision ID: 0055
-Revises: 0054
+Revises: 0054_oauth_local_account_setup
 """
 from alembic import op
 import sqlalchemy as sa
 
 revision = '0055'
-down_revision = '0054'
+down_revision = '0054_oauth_local_account_setup'
 branch_labels = None
 depends_on = None
 

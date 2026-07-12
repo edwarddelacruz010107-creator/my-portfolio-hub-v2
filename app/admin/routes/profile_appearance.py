@@ -150,6 +150,63 @@ def edit_profile():
         profile_completion=get_profile_completion(profile),
     )
 
+
+@admin.route('/profile/photo/live-save', methods=['POST'])
+@admin_required
+@limiter.limit('12 per minute')
+def profile_photo_live_save():
+    """Upload and publish the tenant profile photo without saving the full form."""
+    profile = _load_tenant_profile()
+    if not profile:
+        return jsonify(success=False, error='Create your profile before uploading a photo.'), 404
+
+    uploaded = request.files.get('profile_image')
+    if not is_upload_file(uploaded):
+        return jsonify(success=False, error='Choose a JPG, PNG, or WebP image.'), 400
+
+    try:
+        plan_features = _active_tenant_plan_features()
+        max_uploads = plan_features.get('max_media_uploads')
+        if max_uploads is not None and not profile.profile_image and _tenant_media_upload_count() >= max_uploads:
+            return jsonify(
+                success=False,
+                error=(
+                    f'Your current plan ({_active_tenant_plan_name()}) allows up to '
+                    f'{max_uploads} uploads. Remove an existing asset or upgrade.'
+                ),
+            ), 403
+
+        new_image, upload_error = save_image(uploaded, 'profiles', max_size=(800, 800), quality=90)
+        if not new_image:
+            return jsonify(success=False, error=upload_error or 'The photo could not be saved.'), 400
+
+        old_image = profile.profile_image
+        profile.profile_image = new_image
+        db.session.commit()
+
+        if old_image and old_image != new_image:
+            delete_image(old_image, 'profiles')
+
+        try:
+            from app import cache
+            cache.delete(f'portfolio_page:{profile.tenant_slug}')
+        except Exception:
+            logger.debug('Could not clear portfolio cache after profile photo update', exc_info=True)
+
+        from app.services.media.upload_storage import build_upload_url
+        image_url = build_upload_url(new_image, 'profiles') or ''
+        log_activity('update', 'profile_photo', profile.name or profile.tenant_slug, 'Profile photo updated')
+        return jsonify(
+            success=True,
+            message='Profile photo published everywhere.',
+            image_url=image_url,
+            filename=new_image,
+        )
+    except Exception:
+        db.session.rollback()
+        logger.exception('Live profile photo upload failed for tenant %s', getattr(profile, 'tenant_slug', 'unknown'))
+        return jsonify(success=False, error='The photo could not be saved. Please try again.'), 500
+
 @admin.route('/seo', methods=['GET', 'POST'])
 @admin_required
 def seo_settings():
@@ -210,6 +267,86 @@ def seo_settings():
         return redirect(url_for('admin.seo_settings'))
 
     return render_template('admin/seo.html', form=form, profile=profile)
+
+
+@admin.route('/seo/live-save', methods=['POST'])
+@admin_required
+@limiter.limit('30 per minute')
+def seo_live_save():
+    """Persist SEO fields and social image without a full-page reload.
+
+    CSRFProtect validates the X-CSRFToken header for JSON requests and the
+    normal form token for multipart uploads. The tenant profile is always
+    resolved from the authenticated session, never from client-supplied IDs.
+    """
+    profile = _load_tenant_profile()
+    if not profile:
+        return jsonify(success=False, error='Create your profile before configuring SEO.'), 404
+
+    action = (request.form.get('action') or '').strip().lower()
+    payload = request.get_json(silent=True) if request.is_json else None
+    payload = payload or {}
+    if not action:
+        action = str(payload.get('action') or 'fields').strip().lower()
+
+    try:
+        if action == 'image':
+            uploaded = request.files.get('og_image')
+            if not is_upload_file(uploaded):
+                return jsonify(success=False, error='Choose a JPG, PNG, or WebP image.'), 400
+            new_image, upload_error = save_image(uploaded, 'profiles', max_size=(1600, 900), quality=88)
+            if not new_image:
+                return jsonify(success=False, error=upload_error or 'The image could not be saved.'), 400
+            old_image = profile.og_image
+            profile.og_image = new_image
+            db.session.commit()
+            if old_image and old_image != new_image:
+                delete_image(old_image, 'profiles')
+            from app.services.media.upload_storage import build_upload_url
+            image_url = build_upload_url(new_image, 'profiles') or ''
+            message = 'Social share image published.'
+
+        elif action == 'remove_image':
+            old_image = profile.og_image
+            profile.og_image = ''
+            db.session.commit()
+            if old_image:
+                delete_image(old_image, 'profiles')
+            image_url = ''
+            message = 'Social share image removed.'
+
+        else:
+            allowed = {
+                'meta_title': 200,
+                'meta_description': 300,
+                'seo_keywords': 300,
+                'profile_image_alt': 200,
+            }
+            for field, max_length in allowed.items():
+                if field in payload:
+                    setattr(profile, field, str(payload.get(field) or '').strip()[:max_length])
+            if 'seo_indexable' in payload:
+                profile.seo_indexable = bool(payload.get('seo_indexable'))
+            db.session.commit()
+            image_url = None
+            message = 'SEO changes saved.'
+
+        try:
+            from app import cache
+            cache.delete(f'portfolio_page:{profile.tenant_slug}')
+        except Exception:
+            logger.debug('Could not clear portfolio cache after live SEO update', exc_info=True)
+
+        return jsonify(
+            success=True,
+            message=message,
+            image_url=image_url,
+            saved_at=datetime.now(timezone.utc).isoformat(),
+        )
+    except Exception:
+        db.session.rollback()
+        logger.exception('Live SEO save failed for tenant %s', getattr(profile, 'tenant_slug', 'unknown'))
+        return jsonify(success=False, error='The changes could not be saved. Please try again.'), 500
 
 def _persist_theme_selection(profile: Profile, theme_id: str) -> Profile:
     """Persist a theme selection on every duplicate row for the same tenant.

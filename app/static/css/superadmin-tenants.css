@@ -198,7 +198,7 @@
 
 .tenant-directory-card:hover {
   border-color: rgba(99, 102, 241, .33);
-  transform: translateY(-1px);
+  /* Keep action overlays independent from transformed ancestors. */
 }
 
 .tenant-card-topline {
@@ -289,7 +289,7 @@
   justify-content: flex-end;
   gap: .42rem;
   flex: 0 0 auto;
-  min-width: max-content;
+  min-width: 0;
   overflow: visible;
 }
 
@@ -542,4 +542,36 @@ html[data-theme="light"] .tenant-menu-item:hover { color: #0f172a; background: #
     transform: translateX(-50%);
   }
   .tenant-pagination { flex-wrap: wrap; justify-content: center; }
+}
+
+
+
+/* True body-level overlay. JavaScript moves the open panel under <body>, so it
+   cannot widen the tenant list or be clipped by cards, grids, or scroll areas. */
+.tenant-action-popover.tenant-action-popover--portal {
+  position: fixed !important;
+  right: auto !important;
+  bottom: auto !important;
+  z-index: 100000 !important;
+  display: block;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transform: none !important;
+  box-sizing: border-box;
+}
+
+.tenant-management-page,
+.tenant-directory-list,
+.tenant-directory-card,
+.tenant-card-topline,
+.tenant-card-details {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.tenant-management-page { overflow-x: clip; }
+
+@supports not (overflow: clip) {
+  .tenant-management-page { overflow-x: hidden; }
 }

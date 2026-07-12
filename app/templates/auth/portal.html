@@ -44,7 +44,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
   
   <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
-  <script>(function(){var t=null;try{t=localStorage.getItem('phPublicTheme');}catch(e){} if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}})();</script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">(function(){var t=null;try{t=localStorage.getItem('phPublicTheme');}catch(e){} if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}})();</script>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
 
@@ -504,7 +504,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
   (function () {
     var tabsEl = document.getElementById('portalTabs');
     var tabs   = document.querySelectorAll('.portal-tab');

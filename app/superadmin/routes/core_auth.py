@@ -12,6 +12,7 @@ import re
 import secrets
 import string
 import time
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone, timedelta
 from functools import wraps
 
@@ -227,19 +228,212 @@ def dashboard():
         .all()
     )
 
-    # Read currency symbol from BILLING_PLANS (set in Plan Settings by superadmin)
+    # Currency and revenue analytics use the same normalization rules as the
+    # dedicated subscription analytics page. Gateway charges may be localized
+    # (for example PHP 65.98 for a USD 1.00 product), so raw provider amounts
+    # must never be rendered under the plan-settings currency symbol.
     _any_plan = next(iter(BILLING_PLANS.values()), {})
     currency_symbol = _any_plan.get('currency_symbol', '$') or '$'
+    currency_code = (_any_plan.get('currency_code', 'USD') or 'USD').upper()
+
+    def _configured_plan_amount(sub):
+        plan_key = normalize_plan_name(getattr(sub, 'plan', None) or '')
+        plan_data = BILLING_PLANS.get(plan_key) or BILLING_PLANS.get(getattr(sub, 'plan', None)) or {}
+        cycle = str(getattr(sub, 'billing_cycle', 'monthly') or 'monthly').lower()
+        if cycle in ('yearly', 'annual', 'annually', 'year'):
+            value = plan_data.get('price_yearly', plan_data.get('base_price_yearly_usd'))
+        else:
+            value = plan_data.get('price_monthly', plan_data.get('base_price_usd', plan_data.get('price')))
+        try:
+            return float(Decimal(str(value or 0)))
+        except (InvalidOperation, TypeError, ValueError):
+            return 0.0
+
+    def _normalized_subscription_amount(sub):
+        """Return revenue in the Plan Settings currency.
+
+        Dodo may store the localized checkout amount (for example PHP 65.98)
+        in ``amount_paid`` while older rows have no reliable currency snapshot.
+        For automated subscriptions, the configured plan price is therefore
+        the authoritative analytics amount. This prevents a localized charge
+        from being displayed as USD 65.98 when the plan price is USD 1.00.
+        """
+        provider = str(getattr(sub, 'payment_provider', '') or '').strip().lower()
+        is_dodo = provider == 'dodo' or bool(getattr(sub, 'dodo_subscription_id', None))
+        is_paymongo = (
+            provider == 'paymongo'
+            or bool(getattr(sub, 'paymongo_subscription_id', None))
+            or str(getattr(sub, 'payment_method', '') or '').strip().lower() == 'paymongo'
+        )
+
+        configured = _configured_plan_amount(sub)
+        if (is_dodo or is_paymongo) and configured > 0:
+            return configured
+
+        raw = float(getattr(sub, 'amount_paid', 0) or 0)
+        source_currency = str(getattr(sub, 'provider_currency', '') or '').upper()
+        if source_currency and source_currency != currency_code.upper():
+            return configured if configured > 0 else 0.0
+        return raw
+
+    all_subscriptions = Subscription.query.all()
+    provider_revenue = {'dodo': 0.0, 'paymongo': 0.0, 'manual': 0.0}
+    provider_active = {'dodo': 0, 'paymongo': 0, 'manual': 0}
+    monthly_recurring_revenue = 0.0
+
+    for sub in all_subscriptions:
+        if str(getattr(sub, 'plan', '') or '').strip().lower() == 'administrator':
+            continue
+        provider = (
+            'dodo' if getattr(sub, 'payment_provider', '') == 'dodo' or getattr(sub, 'dodo_subscription_id', None)
+            else 'paymongo' if getattr(sub, 'payment_provider', '') == 'paymongo' or getattr(sub, 'paymongo_subscription_id', None) or getattr(sub, 'payment_method', '') == 'paymongo'
+            else 'manual'
+        )
+        if getattr(sub, 'status', '') == 'active':
+            provider_active[provider] += 1
+            recurring = _configured_plan_amount(sub) or _normalized_subscription_amount(sub)
+            if str(getattr(sub, 'billing_cycle', 'monthly') or 'monthly').lower() in ('yearly', 'annual', 'annually', 'year'):
+                recurring = recurring / 12.0
+            monthly_recurring_revenue += recurring
+        if provider in ('dodo', 'paymongo'):
+            provider_revenue[provider] += _normalized_subscription_amount(sub)
+
+    approved_manual = PaymentSubmission.query.filter(
+        PaymentSubmission.status.in_(['approved', 'paid', 'completed'])
+    ).all()
+    for payment in approved_manual:
+        payment_currency = str(getattr(payment, 'currency_code', '') or '').upper()
+        if currency_code == 'USD' and getattr(payment, 'amount_usd', None) is not None:
+            provider_revenue['manual'] += float(payment.amount_usd or 0)
+        elif not payment_currency or payment_currency == currency_code:
+            provider_revenue['manual'] += float(payment.amount_paid or 0)
+
+    recorded_revenue = round(sum(provider_revenue.values()), 2)
+    active_rate = round((active_tenants / total_tenants * 100), 1) if total_tenants else 0.0
+    churn_rate = round((expired_accounts / max(len(all_subscriptions), 1)) * 100, 1)
+
+    # Six complete/current calendar months for compact trend charts.
+    def _month_floor(value):
+        return datetime(value.year, value.month, 1, tzinfo=timezone.utc)
+
+    def _shift_month(value, delta):
+        absolute = value.year * 12 + (value.month - 1) + delta
+        return datetime(absolute // 12, absolute % 12 + 1, 1, tzinfo=timezone.utc)
+
+    current_month = _month_floor(today)
+    month_starts = [_shift_month(current_month, offset) for offset in range(-5, 1)]
+    revenue_by_month = [0.0 for _ in month_starts]
+    tenants_by_month = [0 for _ in month_starts]
+
+    for sub in all_subscriptions:
+        created = getattr(sub, 'created_at', None)
+        if not created:
+            continue
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        for idx, start in enumerate(month_starts):
+            end = _shift_month(start, 1)
+            if start <= created < end and (getattr(sub, 'payment_provider', '') in ('dodo', 'paymongo') or getattr(sub, 'dodo_subscription_id', None) or getattr(sub, 'paymongo_subscription_id', None)):
+                revenue_by_month[idx] += _normalized_subscription_amount(sub)
+                break
+
+    for payment in approved_manual:
+        created = getattr(payment, 'reviewed_at', None) or getattr(payment, 'submitted_at', None)
+        if not created:
+            continue
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        value = float(payment.amount_usd or 0) if currency_code == 'USD' and getattr(payment, 'amount_usd', None) is not None else float(payment.amount_paid or 0)
+        for idx, start in enumerate(month_starts):
+            if start <= created < _shift_month(start, 1):
+                revenue_by_month[idx] += value
+                break
+
+    try:
+        all_tenants_for_growth = tenant_repository.query.all()
+        for tenant in all_tenants_for_growth:
+            created = getattr(tenant, 'created_at', None)
+            if not created:
+                continue
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            for idx, start in enumerate(month_starts):
+                if start <= created < _shift_month(start, 1):
+                    tenants_by_month[idx] += 1
+                    break
+    except Exception:
+        pass
+
+    chart_max = max(revenue_by_month) if revenue_by_month else 0
+    revenue_chart = []
+    for idx, (start, value) in enumerate(zip(month_starts, revenue_by_month)):
+        x = 8 + (idx * (84 / max(len(month_starts) - 1, 1)))
+        y = 84 - ((value / chart_max) * 66 if chart_max else 0)
+        revenue_chart.append({
+            'label': start.strftime('%b'),
+            'value': round(value, 2),
+            'x': round(x, 2),
+            'y': round(y, 2),
+        })
+    revenue_polyline = ' '.join(f"{point['x']},{point['y']}" for point in revenue_chart)
+    revenue_area = f"8,90 {revenue_polyline} 92,90" if revenue_polyline else ''
+    tenant_chart_max = max(tenants_by_month) if tenants_by_month else 0
+    tenant_growth_chart = [
+        {
+            'label': start.strftime('%b'),
+            'value': value,
+            'height': round((value / tenant_chart_max) * 100, 1) if tenant_chart_max else 0,
+        }
+        for start, value in zip(month_starts, tenants_by_month)
+    ]
+
+    provider_total = sum(provider_revenue.values())
+    provider_mix = {
+        key: {
+            'amount': round(value, 2),
+            'active': provider_active.get(key, 0),
+            'share': round((value / provider_total * 100), 1) if provider_total else 0.0,
+        }
+        for key, value in provider_revenue.items()
+    }
 
     stats = {
-        'total_tenants':    total_tenants,
-        'active_tenants':   active_tenants,
-        'revenue':          revenue,
-        'currency_symbol':  currency_symbol,
+        'total_tenants': total_tenants,
+        'active_tenants': active_tenants,
+        'active_rate': active_rate,
+        'revenue': recorded_revenue,
+        'mrr': round(monthly_recurring_revenue, 2),
+        'currency_symbol': currency_symbol,
+        'currency_code': currency_code,
         'pending_payments': pending_payments,
         'expiring_accounts': expiring_accounts,
         'expired_accounts': expired_accounts,
+        'churn_rate': churn_rate,
     }
+
+    # Shared source of truth: Platform Overview uses the exact same billing,
+    # provider, MRR, churn, and trend calculations as Subscription Monitor.
+    from app.services.analytics.dashboard_analytics_service import build_superadmin_analytics
+    analytics = build_superadmin_analytics()
+    shared = analytics['metrics']
+    stats.update({
+        'total_tenants': shared['total_tenants'],
+        'active_tenants': shared['active_tenants'],
+        'active_rate': shared['active_rate'],
+        'revenue': shared['total_revenue'],
+        'mrr': shared['mrr'],
+        'currency_symbol': analytics['currency_symbol'],
+        'currency_code': analytics['currency_code'],
+        'pending_payments': shared['total_pending'],
+        'expiring_accounts': shared['expiring_30'],
+        'expired_accounts': shared['total_expired'] + shared['total_cancelled'],
+        'churn_rate': shared['churn_rate'],
+    })
+    provider_mix = analytics['provider_mix']
+    revenue_chart = analytics['revenue_chart']
+    revenue_polyline = analytics['revenue_polyline']
+    revenue_area = analytics['revenue_area']
+    tenant_growth_chart = analytics['tenant_growth_chart']
 
     # ── Monitoring: superadmin-only ops data ─────────────────────────────────
     heartbeat_state: dict = {}
@@ -313,6 +507,12 @@ def dashboard():
         heartbeat_state=heartbeat_state,
         recent_tenant_plan_labels=recent_tenant_plan_labels,
         recent_tenant_trial_days=recent_tenant_trial_days,
+        provider_mix=provider_mix,
+        revenue_chart=revenue_chart,
+        revenue_polyline=revenue_polyline,
+        revenue_area=revenue_area,
+        tenant_growth_chart=tenant_growth_chart,
+        analytics=analytics,
     )
 
 def _dashboard_export(tenants, export_format, q, status_filter, plan_filter):

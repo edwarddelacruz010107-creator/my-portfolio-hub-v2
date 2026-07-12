@@ -968,7 +968,7 @@
         </div>
 
         <div class="contact-form-card" data-reveal style="--d:100ms">
-          <form id="contactForm" method="post" action="{{ url_for('public.contact') }}" data-fallback-url="{{ url_for('public.contact') }}" onsubmit="this.querySelector('button[type=submit]').disabled=true;">
+          <form id="contactForm" method="post" action="{{ url_for('public.contact') }}" data-fallback-url="{{ url_for('public.contact') }}">
             {{ contact_form.csrf_token }}
             <div style="display:none;">{{ contact_form.honeypot() }}</div>
             <div class="form-row">
@@ -1000,6 +1000,7 @@
               {{ contact_form.message(id='fmessage', placeholder='Tell us a bit about what you need...', class='') }}
             </div>
             <button type="submit" class="btn-mph btn-primary btn-block ripple-wrap">Send Message <i class="bi bi-send" aria-hidden="true"></i></button>
+            <div class="contact-form-status" id="contactFormStatus" role="status" aria-live="polite"></div>
           </form>
         </div>
       </div>
@@ -1036,6 +1037,21 @@
           {% if profile and profile.social_links.facebook %}
               <a href="{{ profile.social_links.facebook }}" class="social-btn" aria-label="Facebook" target="_blank" rel="noopener">
                   <iconify-icon icon="lucide:facebook" width="18"></iconify-icon>
+              </a>
+          {% endif %}
+          {% if profile and profile.social_links.instagram %}
+              <a href="{{ profile.social_links.instagram }}" class="social-btn" aria-label="Instagram" title="Instagram" target="_blank" rel="noopener noreferrer">
+                  <iconify-icon icon="lucide:instagram" width="18"></iconify-icon>
+              </a>
+          {% endif %}
+          {% if profile and profile.social_links.youtube %}
+              <a href="{{ profile.social_links.youtube }}" class="social-btn" aria-label="YouTube" title="YouTube" target="_blank" rel="noopener noreferrer">
+                  <iconify-icon icon="lucide:youtube" width="18"></iconify-icon>
+              </a>
+          {% endif %}
+          {% if profile and profile.social_links.dribbble %}
+              <a href="{{ profile.social_links.dribbble }}" class="social-btn" aria-label="Dribbble" title="Dribbble" target="_blank" rel="noopener noreferrer">
+                  <iconify-icon icon="lucide:dribbble" width="18"></iconify-icon>
               </a>
           {% endif %}
           {% if profile and profile.social_links.website %}

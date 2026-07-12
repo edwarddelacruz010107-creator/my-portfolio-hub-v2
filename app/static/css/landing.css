@@ -1466,6 +1466,27 @@ section { position: relative; padding: 120px 0; }
   box-shadow: none;
 }
 
+.contact-form-status {
+  display: none;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  border: 1px solid transparent;
+}
+.contact-form-status.show { display: block; }
+.contact-form-status.success {
+  color: #7dd3a7;
+  background: rgba(16,185,129,0.12);
+  border-color: rgba(16,185,129,0.28);
+}
+.contact-form-status.error {
+  color: #fca5a5;
+  background: rgba(239,68,68,0.12);
+  border-color: rgba(239,68,68,0.28);
+}
+
 .form-note { font-size: 0.78rem; color: var(--text-lo); margin-top: 12px; }
 
 /* =============================================================

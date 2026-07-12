@@ -12,7 +12,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&display=swap" rel="stylesheet"/>
   <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
 
   <!-- ② DESIGN SYSTEM (tokens first) -->
@@ -29,6 +29,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/settings-cms.css') }}"/>
   {% block extra_css %}{% endblock %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard-mobile.css', v='20260711-mobile-drawer') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/typography-consistency.css', v='20260712-type-system-v1') }}"/>
   {% block page_css %}{% endblock %}
 </head>
 <body class="admin-body">
@@ -131,12 +132,6 @@
          {% if request.endpoint == 'superadmin.subscription_monitor' %}aria-current="page"{% endif %}>
         <span class="nav-icon"><iconify-icon icon="lucide:bar-chart-3" width="17"></iconify-icon></span>
         Sub Monitor
-      </a>
-      <a href="{{ url_for('superadmin.billing_overview') }}"
-         class="nav-item {% if request.endpoint == 'superadmin.billing_overview' %}active{% endif %}"
-         {% if request.endpoint == 'superadmin.billing_overview' %}aria-current="page"{% endif %}>
-        <span class="nav-icon"><iconify-icon icon="lucide:credit-card" width="17"></iconify-icon></span>
-        Subscriptions
       </a>
       <a href="{{ url_for('superadmin.subscription_settings') }}"
          class="nav-item {% if request.endpoint == 'superadmin.subscription_settings' %}active{% endif %}"

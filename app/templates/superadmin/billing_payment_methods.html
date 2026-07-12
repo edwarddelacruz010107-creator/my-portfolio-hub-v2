@@ -6,7 +6,7 @@
 <div class="page-header page-header-premium">
   <div class="page-header-left">
     <h1 class="page-heading">Payment Methods</h1>
-    <p class="page-subtext">Manage GCash, Maya, bank transfer, PayMongo display, and other manual payment options for tenants.</p>
+    <p class="page-subtext">Manage Dodo Payments, PayMongo, GCash, Maya, bank transfer, and other payment options for tenants.</p>
   </div>
   <div class="page-header-right" style="display:flex;gap:0.5rem;flex-wrap:wrap">
     <a href="{{ url_for('superadmin.billing_submissions') }}" class="btn btn-outline">
@@ -17,6 +17,53 @@
       <iconify-icon icon="lucide:plus" width="16"></iconify-icon>
       Add Method
     </a>
+  </div>
+</div>
+
+<div class="instruction-card" style="margin-bottom:1.5rem;border:2px solid {% if dodo_enabled %}rgba(16,185,129,0.35){% elif dodo_env_enabled %}rgba(245,158,11,0.35){% else %}rgba(255,255,255,0.1){% endif %}">
+  <div class="instruction-card-top">
+    <div>
+      <div class="instruction-method">Primary Subscription Checkout</div>
+      <h2 class="instruction-title">🟢 Dodo Payments</h2>
+    </div>
+    <span class="status-pill {% if dodo_enabled %}status-active{% else %}status-inactive{% endif %}">
+      <span class="status-dot"></span>
+      {{ 'Active' if dodo_enabled else 'Inactive' }}
+    </span>
+  </div>
+  <p class="instruction-copy">
+    {% if dodo_enabled %}
+      Dodo Payments is available for hosted subscription checkout, renewals, and verified webhook activation.
+    {% elif not dodo_env_enabled %}
+      Set <code>DODO_PAYMENTS_ENABLED=true</code> in Render to enable Dodo Payments.
+    {% elif not dodo_api_configured %}
+      The Dodo API key is missing. Set <code>DODO_PAYMENTS_API_KEY</code> in Render.
+    {% else %}
+      Dodo Payments is partially configured. Complete the missing settings below.
+    {% endif %}
+  </p>
+  <div class="instruction-details">
+    <div class="instruction-row"><span class="instruction-label">Mode</span><span class="instruction-value">{{ dodo_mode|upper }}</span></div>
+    <div class="instruction-row"><span class="instruction-label">API key</span><span class="instruction-value">{{ 'Configured' if dodo_api_configured else 'Missing' }}</span></div>
+    <div class="instruction-row"><span class="instruction-label">Webhook secret</span><span class="instruction-value">{{ 'Configured' if dodo_webhook_configured else 'Missing' }}</span></div>
+    <div class="instruction-row"><span class="instruction-label">Products</span><span class="instruction-value">{{ dodo_products_configured }}/{{ dodo_products_total }} configured</span></div>
+  </div>
+  <div class="instruction-card-footer" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-top:0.75rem">
+    <form method="post" action="{{ url_for('superadmin.billing_dodo_toggle') }}" style="margin:0">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn {{ 'btn-danger' if dodo_admin_enabled else 'btn-primary' }} btn-sm"
+              {% if not dodo_admin_enabled and (not dodo_env_enabled or not dodo_api_configured) %}disabled title="Complete Render configuration first"{% endif %}>
+        {{ 'Deactivate Dodo' if dodo_admin_enabled else 'Activate Dodo' }}
+      </button>
+    </form>
+    {% if dodo_enabled and dodo_webhook_configured and dodo_products_configured == dodo_products_total %}
+      <span class="btn btn-outline btn-sm" style="pointer-events:none">Ready for checkout</span>
+    {% elif dodo_admin_enabled %}
+      <span class="btn btn-ghost btn-sm" style="pointer-events:none">Complete Render configuration</span>
+    {% else %}
+      <span class="btn btn-ghost btn-sm" style="pointer-events:none">Disabled by Superadmin</span>
+    {% endif %}
+    <span class="instruction-note">Webhook: <code>/webhooks/dodo</code></span>
   </div>
 </div>
 
@@ -117,7 +164,7 @@
 <div class="empty-state-card">
   <div class="empty-state-content">
     <h3>No payment methods configured</h3>
-    <p class="page-subtext">Add GCash, Maya, bank transfer, or other methods so tenants can pay manually when PayMongo is unavailable.</p>
+    <p class="page-subtext">Add GCash, Maya, bank transfer, or other methods so tenants can pay manually when automated checkout is unavailable.</p>
     <a href="{{ url_for('superadmin.billing_payment_method_new') }}" class="btn btn-primary">Add first method</a>
   </div>
 </div>

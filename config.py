@@ -112,6 +112,9 @@ class BaseConfig:
     TOTP_VALID_WINDOW        = int(os.environ.get('TOTP_VALID_WINDOW', '1'))
     OTP_EXPIRATION_SECONDS   = int(os.environ.get('OTP_EXPIRATION_SECONDS', '600'))
     OTP_MAX_ATTEMPTS         = int(os.environ.get('OTP_MAX_ATTEMPTS', '5'))
+    # Public account-creation email verification OTPs are intentionally short.
+    # Password recovery/admin OTPs still use GlobalEmailConfig.otp_expiry_minutes.
+    SIGNUP_OTP_TTL_MINUTES   = int(os.environ.get('SIGNUP_OTP_TTL_MINUTES', '3'))
     # Post-OTP-verification reset token (short-lived bridge to the Set New
     # Password form) — separate from the OTP itself, which uses the
     # SuperAdmin-configured GlobalEmailConfig.otp_expiry_minutes.
@@ -240,6 +243,18 @@ class BaseConfig:
     PAYMONGO_PUBLIC_KEY      = os.environ.get('PAYMONGO_PUBLIC_KEY', '')
     PAYMONGO_SECRET_KEY      = os.environ.get('PAYMONGO_SECRET_KEY', '')
     PAYMONGO_WEBHOOK_SECRET  = os.environ.get('PAYMONGO_WEBHOOK_SECRET', '')
+
+    # Dodo Payments hosted subscription checkout
+    DODO_PAYMENTS_ENABLED = os.getenv('DODO_PAYMENTS_ENABLED', 'false').lower() in ('1', 'true', 'yes', 'on')
+    DODO_PAYMENTS_MODE = os.getenv('DODO_PAYMENTS_MODE', 'test').lower()
+    DODO_PAYMENTS_API_KEY = os.getenv('DODO_PAYMENTS_API_KEY', '')
+    DODO_PAYMENTS_WEBHOOK_SECRET = os.getenv('DODO_PAYMENTS_WEBHOOK_SECRET', '')
+    DODO_BASIC_MONTHLY_PRODUCT_ID = os.getenv('DODO_BASIC_MONTHLY_PRODUCT_ID', '')
+    DODO_BASIC_YEARLY_PRODUCT_ID = os.getenv('DODO_BASIC_YEARLY_PRODUCT_ID', '')
+    DODO_PRO_MONTHLY_PRODUCT_ID = os.getenv('DODO_PRO_MONTHLY_PRODUCT_ID', '')
+    DODO_PRO_YEARLY_PRODUCT_ID = os.getenv('DODO_PRO_YEARLY_PRODUCT_ID', '')
+    DODO_ENTERPRISE_MONTHLY_PRODUCT_ID = os.getenv('DODO_ENTERPRISE_MONTHLY_PRODUCT_ID', '')
+    DODO_ENTERPRISE_YEARLY_PRODUCT_ID = os.getenv('DODO_ENTERPRISE_YEARLY_PRODUCT_ID', '')
 
     WEB3FORMS_ACCESS_KEY     = os.environ.get('WEB3FORMS_ACCESS_KEY', '')
     # ADMIN_EMAIL: destination for the default/root-tenant contact form and
@@ -539,3 +554,5 @@ def get_config(env=None):
     if env is None:
         env = os.environ.get('FLASK_ENV', 'development')
     return config.get(env, config['default'])
+
+# Dodo Payments hosted subscription checkout

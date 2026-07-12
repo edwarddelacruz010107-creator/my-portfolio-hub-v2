@@ -1,0 +1,206 @@
+/* MyPortfolioHub — dashboard typography & component consistency
+   Keeps the existing Syne + DM Sans identity while enforcing one UI scale. */
+
+:root {
+  --ui-display: var(--font-display, 'Syne', sans-serif);
+  --ui-body: var(--font-body, 'DM Sans', sans-serif);
+  --ui-title-xl: clamp(2rem, 3vw, 2.65rem);
+  --ui-title-lg: clamp(1.55rem, 2vw, 2rem);
+  --ui-title-md: 1.25rem;
+  --ui-title-sm: 1.05rem;
+  --ui-body-size: 0.9375rem;
+  --ui-caption-size: 0.78rem;
+  --ui-label-size: 0.72rem;
+  --ui-control-h: 42px;
+  --ui-card-radius: 18px;
+}
+
+.admin-body,
+.admin-body input,
+.admin-body select,
+.admin-body textarea,
+.admin-body button,
+.admin-body table {
+  font-family: var(--ui-body);
+}
+
+.admin-body {
+  font-size: var(--ui-body-size);
+  line-height: 1.55;
+  font-weight: 400;
+  font-feature-settings: "kern" 1, "liga" 1, "tnum" 1;
+  text-rendering: optimizeLegibility;
+}
+
+/* Display type is reserved for identity and hierarchy, never long copy. */
+.admin-body :is(.page-title, .hero-title, .dashboard-title, .section-heading, .logo-text),
+.admin-body :is(h1, h2).display-heading {
+  font-family: var(--ui-display);
+  text-wrap: balance;
+}
+
+.admin-body :is(.page-title, .dashboard-title, .content-header h1, .page-header h1, .hero-content h1) {
+  font-size: var(--ui-title-xl);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  font-weight: 700;
+}
+
+.admin-body :is(.section-title, .section-heading, .dashboard-section-title) {
+  font-family: var(--ui-display);
+  font-size: var(--ui-title-lg);
+  line-height: 1.16;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+}
+
+.admin-body :is(.panel-header h2, .card-header h2, .card-title, .metric-card h3, .dash-panel h2) {
+  font-family: var(--ui-display);
+  font-size: var(--ui-title-sm);
+  line-height: 1.25;
+  letter-spacing: -0.014em;
+  font-weight: 650;
+}
+
+.admin-body :is(.page-subtitle, .page-description, .content-header p, .section-description, .card-description, .metric-description) {
+  font-family: var(--ui-body);
+  font-size: 0.93rem;
+  line-height: 1.6;
+  font-weight: 400;
+  color: var(--text-muted);
+  max-width: 72ch;
+}
+
+/* Navigation */
+.admin-body .nav-label {
+  font-family: var(--ui-body);
+  font-size: 0.68rem;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.105em;
+  text-transform: uppercase;
+}
+
+.admin-body .nav-item {
+  min-height: 40px;
+  font-family: var(--ui-body);
+  font-size: 0.875rem;
+  line-height: 1.2;
+  font-weight: 500;
+  letter-spacing: -0.006em;
+}
+
+.admin-body .nav-item.active { font-weight: 650; }
+.admin-body .sidebar-logo .logo-text { font-weight: 700; letter-spacing: -0.018em; }
+.admin-body :is(.sa-identity-name, .sidebar-tenant-name) { font-weight: 600; }
+
+/* Labels and metadata */
+.admin-body :is(.stat-label, .metric-label, .eyebrow, .overline, .table-label, .form-label, label:not(.switch):not(.checkbox-label)) {
+  font-family: var(--ui-body);
+  font-size: var(--ui-label-size);
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: 0.075em;
+}
+
+.admin-body :is(.stat-label, .metric-label, .eyebrow, .overline, .table-label) {
+  text-transform: uppercase;
+}
+
+.admin-body :is(.stat-value, .metric-value, .kpi-value, .analytics-value, .big-number) {
+  font-family: var(--ui-display);
+  font-size: clamp(1.75rem, 3vw, 2.55rem);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.admin-body :is(.caption, .helper-text, .form-hint, .meta, .muted, small) {
+  font-family: var(--ui-body);
+  font-size: var(--ui-caption-size);
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+/* Controls */
+.admin-body :is(.btn, button.btn, .button, .action-btn) {
+  min-height: var(--ui-control-h);
+  padding-inline: 1rem;
+  border-radius: 10px;
+  font-family: var(--ui-body);
+  font-size: 0.875rem;
+  line-height: 1;
+  font-weight: 650;
+  letter-spacing: -0.006em;
+  gap: 0.5rem;
+}
+
+.admin-body :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  font-family: var(--ui-body);
+  font-size: 0.91rem;
+  line-height: 1.45;
+  font-weight: 450;
+  letter-spacing: -0.004em;
+}
+
+.admin-body :is(input:not([type="checkbox"]):not([type="radio"]), select) {
+  min-height: var(--ui-control-h);
+}
+
+/* Cards and panels use a shared visual rhythm without changing page logic. */
+.admin-body :is(.dash-panel, .panel, .card, .stat-card, .metric-card, .analytics-card) {
+  border-radius: var(--ui-card-radius);
+}
+
+.admin-body :is(.dash-panel, .panel, .card, .stat-card, .metric-card, .analytics-card) > :is(.panel-header, .card-header) {
+  margin-bottom: 1rem;
+}
+
+/* Tables */
+.admin-body table {
+  font-size: 0.86rem;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.admin-body thead th {
+  font-size: 0.69rem;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+
+.admin-body tbody td { font-weight: 450; }
+.admin-body tbody tr { min-height: 52px; }
+
+/* Badges */
+.admin-body :is(.badge, .status-badge, .pill, .chip, .nav-badge, .sidebar-plan-badge) {
+  font-family: var(--ui-body);
+  font-size: 0.7rem;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+}
+
+/* Prevent headings inside dense controls and table cells from becoming oversized. */
+.admin-body :is(td, th, .btn, .nav-item, .badge, .chip) :is(h1, h2, h3, h4) {
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --ui-title-xl: 1.82rem;
+    --ui-title-lg: 1.38rem;
+    --ui-body-size: 0.9rem;
+    --ui-card-radius: 16px;
+  }
+
+  .admin-body :is(.btn, button.btn, .button, .action-btn) {
+    min-height: 40px;
+    font-size: 0.84rem;
+  }
+}

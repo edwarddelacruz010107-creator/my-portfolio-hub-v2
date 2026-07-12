@@ -164,10 +164,10 @@
                   <input type="hidden" name="asset_field" value="{{ asset.field or '' }}"/>
                   <button type="submit"
                           class="upload-delete-btn"
-                          aria-label="Delete {{ asset.label }} for {{ asset.description or 'this record' }}"
-                          onclick="return confirm('Delete photo?\n\nThis removes the uploaded file from your portfolio records. This action cannot be undone.')">
-                    <iconify-icon icon="lucide:trash-2" width="15" aria-hidden="true"></iconify-icon>
-                    <span>Delete</span>
+                          aria-label="{% if asset.exists %}Delete{% else %}Remove missing reference for{% endif %} {{ asset.label }} for {{ asset.description or 'this record' }}"
+                          onclick="return confirm('{% if asset.exists %}Delete photo?\n\nThis removes the uploaded file from your portfolio records. This action cannot be undone.{% else %}Remove missing file reference?\n\nThe physical file is already missing. This only clears the broken database reference so you can upload a replacement.{% endif %}')">
+                    <iconify-icon icon="{% if asset.exists %}lucide:trash-2{% else %}lucide:unlink{% endif %}" width="15" aria-hidden="true"></iconify-icon>
+                    <span>{% if asset.exists %}Delete{% else %}Remove reference{% endif %}</span>
                   </button>
                 </form>
               </td>

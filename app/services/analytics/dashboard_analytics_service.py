@@ -21,6 +21,7 @@ from app.models.portfolio import (
     normalize_plan_name,
 )
 from app.utils import get_public_billing_plans
+from app.services.billing.currency import currency_context
 from app.system_plan import is_administrator_plan
 
 _YEARLY = {"yearly", "annual", "annually", "year"}
@@ -73,9 +74,20 @@ def _aware(value: datetime | None) -> datetime | None:
 def build_superadmin_analytics(*, months: int = 6) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
     plans = get_public_billing_plans()
-    first_plan = next(iter(plans.values()), {})
-    currency_symbol = first_plan.get("currency_symbol", "$") or "$"
-    currency_code = str(first_plan.get("currency_code", "USD") or "USD").upper()
+
+    # Analytics must use the reporting/display currency configured in Plan
+    # Settings, not the first plan dictionary. Some legacy plan rows can carry
+    # a converted numeric price while still retaining a stale "$" symbol.
+    # Reading the shared currency service keeps Platform Overview, Subscription
+    # Monitor, charts, and provider totals on the same currency and symbol.
+    try:
+        reporting_currency = currency_context()
+        currency_symbol = reporting_currency.get("symbol") or "$"
+        currency_code = str(reporting_currency.get("display_currency") or "USD").upper()
+    except Exception:
+        first_plan = next(iter(plans.values()), {})
+        currency_symbol = first_plan.get("currency_symbol", "$") or "$"
+        currency_code = str(first_plan.get("currency_code", "USD") or "USD").upper()
 
     # One current active subscription per tenant/provider/external subscription.
     active_rows = Subscription.query.filter_by(status="active").order_by(
@@ -88,8 +100,13 @@ def build_superadmin_analytics(*, months: int = 6) -> dict[str, Any]:
             continue
         provider = _provider(sub)
         external = getattr(sub, "dodo_subscription_id", None) or getattr(sub, "paymongo_subscription_id", None)
-        tenant_key = getattr(sub, "tenant_id", None) or getattr(sub, "profile_id", None) or getattr(sub, "id", None)
-        unique_active.setdefault((provider, external or tenant_key), sub)
+        tenant_key = getattr(sub, "tenant_id", None) or getattr(sub, "profile_id", None)
+        # Revenue/MRR is tenant-based. Webhook retries or checkout retries can create
+        # more than one provider subscription row for the same tenant. Count only
+        # the newest active row per tenant and provider. Use the external ID only
+        # when no tenant/profile ownership key is available.
+        dedupe_identity = tenant_key if tenant_key is not None else (external or getattr(sub, "id", None))
+        unique_active.setdefault((provider, dedupe_identity), sub)
 
     provider_revenue = {"dodo": 0.0, "paymongo": 0.0, "manual": 0.0}
     provider_active = {"dodo": 0, "paymongo": 0, "manual": 0}
@@ -198,12 +215,13 @@ def build_superadmin_analytics(*, months: int = 6) -> dict[str, Any]:
             continue
         provider = _provider(sub)
         external = getattr(sub, "dodo_subscription_id", None) or getattr(sub, "paymongo_subscription_id", None)
-        tenant_key = getattr(sub, "tenant_id", None) or getattr(sub, "profile_id", None) or sub.id
+        tenant_key = getattr(sub, "tenant_id", None) or getattr(sub, "profile_id", None)
         created = _aware(getattr(sub, "created_at", None) or getattr(sub, "started_at", None))
         if not created:
             continue
         month_key = created.strftime("%Y-%m")
-        dedupe_key = (provider, external or tenant_key, month_key)
+        dedupe_identity = tenant_key if tenant_key is not None else (external or sub.id)
+        dedupe_key = (provider, dedupe_identity, month_key)
         if dedupe_key in seen_historical:
             continue
         seen_historical.add(dedupe_key)

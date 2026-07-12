@@ -268,6 +268,13 @@ def create_app(config_name: str = 'default') -> Flask:
         static_folder='static',
     )
 
+    # Canonical user-facing billing plan label. The database keeps legacy
+    # codes such as ``starter`` and ``business`` for compatibility, but those
+    # internal values must never leak into tenant or superadmin UI.
+    from app.utils import normalize_plan_name as _normalize_plan_name
+    app.jinja_env.filters['plan_display'] = _normalize_plan_name
+    app.jinja_env.globals['plan_display'] = _normalize_plan_name
+
     # Compatibility: allow tests (and legacy code) to assign to `request.endpoint`.
     # Older Flask versions exposed a writable endpoint attribute; modern
     # `Request.endpoint` is a read-only property. Monkeypatch the class to

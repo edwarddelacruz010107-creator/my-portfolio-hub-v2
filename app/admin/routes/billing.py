@@ -44,6 +44,7 @@ from app.models.portfolio import Subscription
 from app.system_plan import ADMINISTRATOR_PLAN, has_administrator_access, is_administrator_plan
 from app.services.billing import subscription_access_status
 from app.services.billing.currency import get_currency_settings
+from app.services.billing.dodo_service import is_dodo_enabled
 from app.services.billing.trial_history import ensure_profile_trial_history
 from app.services.billing_handlers import (
     billing_payment_context,
@@ -121,7 +122,7 @@ def billing_index():
         is_administrator_plan=is_admin_plan,
         administrator_plan=ADMINISTRATOR_PLAN,
         tenant_slug=tenant,
-        paymongo_enabled=(is_paymongo_enabled() and get_currency_settings().get('display_currency') == 'PHP'),
+        paymongo_enabled=(is_dodo_enabled() or (is_paymongo_enabled() and get_currency_settings().get('display_currency') == 'PHP')),
         billing_routes={
             'overview': 'admin.billing_index',
             'plans':    'admin.billing_plans',
@@ -161,7 +162,7 @@ def billing_plans():
         'history':  'admin.billing_history',
         'payment':  'admin.billing_payment',
     }
-    paymongo_enabled = is_paymongo_enabled() and get_currency_settings().get('display_currency') == 'PHP'
+    paymongo_enabled = is_dodo_enabled() or (is_paymongo_enabled() and get_currency_settings().get('display_currency') == 'PHP')
 
     if form.validate_on_submit() or request.method == 'POST':
         response, exc = handle_billing_plans_post(

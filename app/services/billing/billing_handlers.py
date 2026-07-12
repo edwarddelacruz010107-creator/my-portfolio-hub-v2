@@ -34,6 +34,7 @@ from app.forms import PaymentUploadForm, PlanSelectionForm
 from app.models.portfolio import normalize_plan_name
 from app.models import Subscription
 from app.services.billing import get_or_create_pending_subscription, initiate_checkout, subscription_access_status
+from app.services.billing.dodo_service import is_dodo_enabled, create_checkout_session
 from app.services.billing import discount_checkout, discount_service
 from app.services.billing.currency import (
     currency_context, currency_symbol, format_money, get_currency_settings,
@@ -336,7 +337,7 @@ def handle_billing_plans_post(
         flash('Failed to save plan selection. Please try again.', 'danger')
         return None, exc
 
-    if action == 'checkout' and paymongo_enabled:
+    if action == 'checkout' and (is_dodo_enabled() or paymongo_enabled):
         base_url = current_app.config.get('APP_BASE_URL', '').rstrip('/')
         slug = tenant_slug or 'default'
         if base_url:
@@ -351,17 +352,27 @@ def handle_billing_plans_post(
                 success_url = f'/{slug}/billing/plans?status=success'
                 cancel_url  = f'/{slug}/billing/plans?status=cancelled'
 
+        if is_dodo_enabled():
+            result = create_checkout_session(
+                profile=profile, subscription=sub, plan=selected_plan,
+                billing_cycle=billing_cycle, return_url=success_url, cancel_url=cancel_url,
+            )
+            if result.ok and result.checkout_url:
+                sub.payment_provider = 'dodo'
+                sub.dodo_checkout_session_id = result.session_id
+                sub.payment_method = 'dodo'
+                db.session.commit()
+                return redirect(result.checkout_url), None
+            flash(result.error or 'Could not start Dodo Payments checkout.', 'warning')
+            return None, None
+
         checkout_url, error = initiate_checkout(
-            db.session,
-            profile,
-            selected_plan,
-            billing_cycle=billing_cycle,
-            success_url=success_url,
-            cancel_url=cancel_url,
+            db.session, profile, selected_plan, billing_cycle=billing_cycle,
+            success_url=success_url, cancel_url=cancel_url,
         )
         if checkout_url:
             return redirect(checkout_url), None
-        flash(error or 'Could not start PayMongo checkout. Try a manual payment method instead.', 'warning')
+        flash(error or 'Could not start automated checkout. Try a manual payment method instead.', 'warning')
         return None, None
 
     if action == 'manual' or action.startswith('method_'):

@@ -97,3 +97,4 @@ slug==2.0
 # black>=23.12.0
 # flake8>=6.1.0
 # bandit>=1.7.5
+standardwebhooks>=1.0.0,<2.0.0

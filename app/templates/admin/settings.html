@@ -54,6 +54,53 @@
       </div>
     </section>
 
+    <section class="account-settings-card account-settings-card--region" id="region-currency">
+      <div class="account-card-heading">
+        <span class="account-card-icon"><iconify-icon icon="lucide:globe-2" width="19"></iconify-icon></span>
+        <div><h2>Region &amp; Currency</h2><p>Choose your billing country and the currency used to display subscription prices.</p></div>
+      </div>
+
+      <form method="POST" action="{{ url_for('admin.update_region_currency') }}" class="account-settings-form" id="regionCurrencyForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="account-field-row region-currency-fields">
+          <div class="account-field">
+            <label for="country_code">Country</label>
+            <select class="form-input" id="country_code" name="country_code" required>
+              {% for country in country_options %}
+              <option value="{{ country.code }}" data-currency="{{ country.currency }}" {% if country.code == selected_country.code %}selected{% endif %}>{{ country.flag }} {{ country.name }}</option>
+              {% endfor %}
+            </select>
+            <small>This is your private account and billing region, not your public portfolio location.</small>
+          </div>
+          <div class="account-field">
+            <label for="preferred_currency">Billing display currency</label>
+            <select class="form-input" id="preferred_currency" name="preferred_currency" {% if auto_currency %}disabled{% endif %}>
+              {% for code, item in supported_currencies.items() %}
+              <option value="{{ code }}" {% if code == selected_currency %}selected{% endif %}>{{ code }} — {{ item.name }}</option>
+              {% endfor %}
+            </select>
+            <small>Checkout recalculates the final amount securely from the USD base price.</small>
+          </div>
+        </div>
+
+        <label class="region-auto-toggle">
+          <input type="checkbox" id="auto_currency" name="auto_currency" value="1" {% if auto_currency %}checked{% endif %}>
+          <span><strong>Automatically select currency from country</strong><small>Changing country will suggest its normal billing currency.</small></span>
+        </label>
+
+        <div class="region-currency-preview" aria-live="polite">
+          <div><span>Billing region</span><strong id="regionCountryPreview">{{ selected_country.flag }} {{ selected_country.name }}</strong></div>
+          <div><span>Display currency</span><strong id="regionCurrencyPreview">{{ selected_currency }}</strong></div>
+          <div><span>Current exchange rate</span><strong>
+            {% if tenant_currency.fx.available %}1 USD = {{ '%.6g'|format(tenant_currency.fx.rate) }} {{ tenant_currency.display_currency }}{% else %}Rate unavailable — USD fallback{% endif %}
+          </strong></div>
+        </div>
+
+        <p class="account-info-note"><iconify-icon icon="lucide:shield-check" width="15"></iconify-icon> Saving this setting does not change an existing paid invoice or historical payment amount.</p>
+        <button type="submit" class="btn btn-primary"><iconify-icon icon="lucide:save" width="16"></iconify-icon> Save Region &amp; Currency</button>
+      </form>
+    </section>
+
     <section class="account-settings-card">
       <div class="account-card-heading">
         <span class="account-card-icon"><iconify-icon icon="lucide:link-2" width="19"></iconify-icon></span>
@@ -168,5 +215,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/account-settings.js', v='20260711') }}" defer></script>
+<script src="{{ url_for('static', filename='js/account-settings.js', v='20260712-region') }}" defer></script>
 {% endblock %}

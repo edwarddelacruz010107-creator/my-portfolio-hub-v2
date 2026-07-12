@@ -736,6 +736,14 @@ class Subscription(db.Model):
     paymongo_subscription_id = db.Column(db.String(255), nullable=True, unique=True, index=True)
     paymongo_payment_id      = db.Column(db.String(255), nullable=True, unique=True, index=True)
 
+    # Dodo Payments provider identifiers
+    payment_provider          = db.Column(db.String(30), nullable=True, index=True)
+    dodo_checkout_session_id  = db.Column(db.String(255), nullable=True, index=True)
+    dodo_customer_id          = db.Column(db.String(255), nullable=True, index=True)
+    dodo_subscription_id      = db.Column(db.String(255), nullable=True, unique=True, index=True)
+    dodo_payment_id           = db.Column(db.String(255), nullable=True, index=True)
+    provider_currency         = db.Column(db.String(3), nullable=True)
+
     started_at      = db.Column(db.DateTime(timezone=True), nullable=True)
     expires_at      = db.Column(db.DateTime(timezone=True), nullable=True)
     cancelled_at    = db.Column(db.DateTime(timezone=True), nullable=True)

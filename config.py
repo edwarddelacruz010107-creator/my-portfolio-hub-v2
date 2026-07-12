@@ -112,6 +112,9 @@ class BaseConfig:
     TOTP_VALID_WINDOW        = int(os.environ.get('TOTP_VALID_WINDOW', '1'))
     OTP_EXPIRATION_SECONDS   = int(os.environ.get('OTP_EXPIRATION_SECONDS', '600'))
     OTP_MAX_ATTEMPTS         = int(os.environ.get('OTP_MAX_ATTEMPTS', '5'))
+    # Public account-creation email verification OTPs are intentionally short.
+    # Password recovery/admin OTPs still use GlobalEmailConfig.otp_expiry_minutes.
+    SIGNUP_OTP_TTL_MINUTES   = int(os.environ.get('SIGNUP_OTP_TTL_MINUTES', '3'))
     # Post-OTP-verification reset token (short-lived bridge to the Set New
     # Password form) — separate from the OTP itself, which uses the
     # SuperAdmin-configured GlobalEmailConfig.otp_expiry_minutes.

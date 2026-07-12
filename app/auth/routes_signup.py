@@ -36,12 +36,14 @@ from app.services.auth.complete_signup_service import (
     create_or_refresh_pending_signup,
     get_active_pending_signup_by_email,
     get_latest_pending_signup_by_email,
+    get_pending_signup_otp_remaining_seconds,
     get_pending_signup_resend_cooldown_remaining,
     resend_pending_signup_otp,
     send_pending_signup_otp,
     verify_pending_signup_otp,
     complete_pending_signup,
 )
+from app.services.auth.signup_otp_email_service import get_signup_otp_ttl_minutes
 from app.services.auth.email_policy import resolve_email_for_login
 
 logger = logging.getLogger(__name__)
@@ -85,6 +87,8 @@ def _render_verify_email_page(
     """Render the verification page with backend-authoritative resend state."""
     pending = get_active_pending_signup_by_email(email) if email else None
     resend_remaining = get_pending_signup_resend_cooldown_remaining(pending)
+    otp_remaining = get_pending_signup_otp_remaining_seconds(pending)
+    otp_ttl_seconds = max(60, get_signup_otp_ttl_minutes() * 60)
     return (
         render_template(
             'auth/verify_email_sent.html',
@@ -93,6 +97,8 @@ def _render_verify_email_page(
             signup_state=signup_state,
             resend_cooldown_remaining=resend_remaining,
             resend_cooldown_seconds=60,
+            otp_remaining_seconds=otp_remaining if pending is not None else otp_ttl_seconds,
+            otp_ttl_seconds=otp_ttl_seconds,
         ),
         status_code,
     )
@@ -207,7 +213,16 @@ def verify_email(token: str):
 @limiter.limit('10 per minute')
 def verify_email_sent():
     email = (request.args.get('email') or request.form.get('email') or '').strip().lower()
-    form = EmailOTPForm()
+    formdata = request.form
+    if request.method == 'POST':
+        formdata = request.form.copy()
+        code = (formdata.get('code') or '').strip()
+        if not code:
+            digit_values = ''.join(formdata.getlist('code_digit'))
+            code = ''.join(ch for ch in digit_values if ch.isdigit())[:6]
+            if code:
+                formdata.setlist('code', [code])
+    form = EmailOTPForm(formdata=formdata if request.method == 'POST' else None)
 
     if request.method == 'POST' and form.validate_on_submit():
         pending = get_active_pending_signup_by_email(email) if email else None

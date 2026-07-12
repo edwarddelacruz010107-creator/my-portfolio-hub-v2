@@ -1039,6 +1039,21 @@
                   <iconify-icon icon="lucide:facebook" width="18"></iconify-icon>
               </a>
           {% endif %}
+          {% if profile and profile.social_links.instagram %}
+              <a href="{{ profile.social_links.instagram }}" class="social-btn" aria-label="Instagram" title="Instagram" target="_blank" rel="noopener noreferrer">
+                  <iconify-icon icon="lucide:instagram" width="18"></iconify-icon>
+              </a>
+          {% endif %}
+          {% if profile and profile.social_links.youtube %}
+              <a href="{{ profile.social_links.youtube }}" class="social-btn" aria-label="YouTube" title="YouTube" target="_blank" rel="noopener noreferrer">
+                  <iconify-icon icon="lucide:youtube" width="18"></iconify-icon>
+              </a>
+          {% endif %}
+          {% if profile and profile.social_links.dribbble %}
+              <a href="{{ profile.social_links.dribbble }}" class="social-btn" aria-label="Dribbble" title="Dribbble" target="_blank" rel="noopener noreferrer">
+                  <iconify-icon icon="lucide:dribbble" width="18"></iconify-icon>
+              </a>
+          {% endif %}
           {% if profile and profile.social_links.website %}
               <a href="{{ profile.social_links.website }}" class="social-link" aria-label="Website" target="_blank" rel="noopener">
                   <iconify-icon icon="lucide:external-link" width="18"></iconify-icon>

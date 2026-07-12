@@ -82,21 +82,104 @@ logger = logging.getLogger(__name__)
 @superadmin.route('/billing')
 @superadmin_required
 def billing_overview():
-    """Subscription dashboard: MRR, active subs, webhook log, tenant billing table."""
+    """Subscription analytics with provider-separated recorded revenue."""
     metrics = compute_billing_metrics()
-    tenants = [tenant_billing_summary(p) for p in profile_repository.query.order_by(Profile.tenant_slug).all()]
+    plans = get_public_billing_plans()
+    first_plan = next(iter(plans.values()), {})
+    currency_symbol = first_plan.get('currency_symbol', '$') or '$'
+    currency_code = first_plan.get('currency_code', 'USD') or 'USD'
+
+    profiles = profile_repository.query.order_by(Profile.tenant_slug).all()
+    tenants = []
+    for profile in profiles:
+        row = tenant_billing_summary(profile)
+        sub = profile.current_subscription() if profile else None
+        row.update({
+            'profile': profile,
+            'subscription': sub,
+            'next_billing': getattr(sub, 'expires_at', None) if sub else None,
+            'payment_provider': (
+                'dodo' if sub and (getattr(sub, 'payment_provider', '') == 'dodo' or getattr(sub, 'dodo_subscription_id', None))
+                else 'paymongo' if sub and (getattr(sub, 'payment_provider', '') == 'paymongo' or getattr(sub, 'paymongo_subscription_id', None) or getattr(sub, 'payment_method', '') == 'paymongo')
+                else 'manual' if sub else 'none'
+            ),
+        })
+        plan_data = plans.get(row.get('plan')) or plans.get(normalize_plan_name(row.get('plan'))) or {}
+        row['plan_price_label'] = plan_data.get('price_label', '')
+        tenants.append(row)
+
+    all_subs = Subscription.query.all()
+    manual_approved = PaymentSubmission.query.filter(
+        PaymentSubmission.status.in_(['approved', 'paid', 'completed'])
+    ).all()
+
+    provider_revenue = {'dodo': 0.0, 'paymongo': 0.0, 'manual': 0.0}
+    provider_active = {'dodo': 0, 'paymongo': 0, 'manual': 0}
+    for sub in all_subs:
+        if is_administrator_plan(getattr(sub, 'plan', None)):
+            continue
+        provider = (
+            'dodo' if getattr(sub, 'payment_provider', '') == 'dodo' or getattr(sub, 'dodo_subscription_id', None)
+            else 'paymongo' if getattr(sub, 'payment_provider', '') == 'paymongo' or getattr(sub, 'paymongo_subscription_id', None) or getattr(sub, 'payment_method', '') == 'paymongo'
+            else 'manual'
+        )
+        if getattr(sub, 'status', '') == 'active':
+            provider_active[provider] += 1
+        if provider in ('dodo', 'paymongo'):
+            provider_revenue[provider] += float(getattr(sub, 'amount_paid', 0) or 0)
+
+    # Manual revenue is sourced from approved proof-of-payment records to avoid
+    # counting pending submissions or relying on a subscription snapshot alone.
+    provider_revenue['manual'] = sum(float(p.amount_paid or 0) for p in manual_approved)
+
+    total_recorded_revenue = round(sum(provider_revenue.values()), 2)
+    revenue_share = {
+        key: round((value / total_recorded_revenue * 100), 1) if total_recorded_revenue else 0
+        for key, value in provider_revenue.items()
+    }
+
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
     recent_webhooks = (
         webhook_event_repository.query
         .order_by(WebhookEvent.received_at.desc())
         .limit(25)
         .all()
     )
+    recent_count = WebhookEvent.query.filter(WebhookEvent.received_at >= thirty_days_ago).count()
+    processed_count = WebhookEvent.query.filter(
+        WebhookEvent.received_at >= thirty_days_ago,
+        WebhookEvent.processed.is_(True),
+    ).count()
+    webhook_health = round((processed_count / recent_count * 100), 1) if recent_count else 100.0
+
+    # Bridge old/new metric key names so the dashboard remains stable.
+    metrics.update({
+        'active_count': metrics.get('total_active', 0),
+        'pending_count': metrics.get('total_pending', 0),
+        'trial_count': metrics.get('total_trial', 0),
+        'expired_count': metrics.get('total_expired', 0),
+        'cancelled_count': metrics.get('total_cancelled', 0),
+        'churn_rate': round(
+            (metrics.get('total_cancelled', 0) / max(metrics.get('total_active', 0) + metrics.get('total_cancelled', 0), 1)) * 100,
+            1,
+        ),
+        'last_webhook': recent_webhooks[0] if recent_webhooks else None,
+    })
+
     return render_template(
         'superadmin/billing_overview.html',
         metrics=metrics,
         tenants=tenants,
         recent_webhooks=recent_webhooks,
-        billing_plans=get_public_billing_plans(),
+        billing_plans=plans,
+        currency_symbol=currency_symbol,
+        currency_code=currency_code,
+        provider_revenue=provider_revenue,
+        provider_active=provider_active,
+        revenue_share=revenue_share,
+        total_recorded_revenue=total_recorded_revenue,
+        webhook_health=webhook_health,
+        webhook_recent_count=recent_count,
         page_title='Subscription Overview',
     )
 

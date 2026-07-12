@@ -13,3 +13,46 @@
 .region-currency-preview strong { overflow-wrap:anywhere; }
 #regionCurrencyForm select:disabled { opacity:.72; cursor:not-allowed; }
 @media (max-width:760px) { .region-currency-preview { grid-template-columns:1fr; } }
+
+/* Native country/currency select visibility fix (Windows/Chromium dark UI) */
+#regionCurrencyForm select.form-input {
+  color-scheme: dark;
+  color: var(--text, #f8fafc);
+  background-color: var(--surface-2, #151d2f);
+  border-color: var(--border, rgba(148,163,184,.22));
+  -webkit-text-fill-color: var(--text, #f8fafc);
+}
+#regionCurrencyForm select.form-input option,
+#regionCurrencyForm select.form-input optgroup {
+  color: #f8fafc;
+  background: #111827;
+  -webkit-text-fill-color: #f8fafc;
+}
+#regionCurrencyForm select.form-input option:checked {
+  color: #ffffff;
+  background: #4f46e5;
+}
+#regionCurrencyForm select.form-input:focus {
+  color: #ffffff;
+  background-color: #151d2f;
+}
+#regionCurrencyForm select.form-input:disabled {
+  color: #cbd5e1;
+  background-color: #111827;
+  -webkit-text-fill-color: #cbd5e1;
+}
+@media (prefers-color-scheme: light) {
+  #regionCurrencyForm select.form-input {
+    color-scheme: light;
+  }
+  #regionCurrencyForm select.form-input option,
+  #regionCurrencyForm select.form-input optgroup {
+    color: #111827;
+    background: #ffffff;
+    -webkit-text-fill-color: #111827;
+  }
+  #regionCurrencyForm select.form-input option:checked {
+    color: #ffffff;
+    background: #4f46e5;
+  }
+}

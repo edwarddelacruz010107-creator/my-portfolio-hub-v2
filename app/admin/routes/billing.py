@@ -130,6 +130,47 @@ def billing_index():
         },
     )
 
+@admin.route('/billing/dodo/return')
+@admin_required
+def dodo_checkout_return():
+    """Hidden checkout return endpoint for a smooth dashboard UX.
+
+    This route never activates a subscription. Dodo's verified webhook is the
+    only authority that may change paid access.
+    """
+    outcome = (request.args.get('outcome') or request.args.get('status') or 'processing').lower()
+    if outcome not in {'success', 'cancelled', 'failed', 'processing'}:
+        outcome = 'processing'
+    return redirect(url_for('admin.dashboard', payment=outcome))
+
+
+@admin.route('/billing/subscription-status')
+@admin_required
+def billing_subscription_status():
+    """Return the tenant's local subscription state for dashboard polling."""
+    profile = _load_tenant_profile()
+    if profile is None:
+        return jsonify({'status': 'unknown'}), 404
+    sub = profile.current_subscription()
+    raw = str(getattr(sub, 'status', '') or getattr(sub, 'payment_status', '') or '').lower()
+    active_values = {'active', 'paid', 'trialing'}
+    failed_values = {'failed', 'expired', 'cancelled', 'canceled', 'past_due'}
+    if raw in active_values:
+        status = 'active'
+    elif raw in failed_values:
+        status = 'failed'
+    else:
+        status = 'processing'
+    plan_raw = str(getattr(sub, 'plan', '') or getattr(profile, 'plan', '') or 'Basic').lower()
+    plan = {'starter': 'Basic', 'basic': 'Basic', 'pro': 'Pro', 'business': 'Enterprise', 'enterprise': 'Enterprise'}.get(plan_raw, plan_raw.title())
+    return jsonify({
+        'status': status,
+        'plan': plan,
+        'billing_cycle': getattr(sub, 'billing_cycle', None) if sub else None,
+        'current_period_end': getattr(sub, 'current_period_end', None).isoformat() if sub and getattr(sub, 'current_period_end', None) else None,
+    })
+
+
 @admin.route('/billing/plans', methods=['GET', 'POST'])
 @admin_required
 def billing_plans():

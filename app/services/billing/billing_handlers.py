@@ -342,7 +342,19 @@ def handle_billing_plans_post(
     if action == 'checkout' and (is_dodo_enabled() or paymongo_enabled):
         base_url = current_app.config.get('APP_BASE_URL', '').rstrip('/')
         slug = tenant_slug or 'default'
-        if base_url:
+
+        # Studio checkout uses a hidden return endpoint that immediately sends
+        # the tenant back to the dashboard with a clear payment-state banner.
+        # The redirect is UX only; verified webhooks remain authoritative.
+        if (return_endpoint or '').startswith('admin.'):
+            try:
+                success_url = url_for('admin.dodo_checkout_return', outcome='success', _external=True)
+                cancel_url = url_for('admin.dodo_checkout_return', outcome='cancelled', _external=True)
+            except Exception:
+                root = base_url or ''
+                success_url = f'{root}/studio/billing/dodo/return?outcome=success'
+                cancel_url = f'{root}/studio/billing/dodo/return?outcome=cancelled'
+        elif base_url:
             success_url = f'{base_url}/{slug}/billing/plans?status=success'
             cancel_url  = f'{base_url}/{slug}/billing/plans?status=cancelled'
         else:

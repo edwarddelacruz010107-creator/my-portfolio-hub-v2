@@ -543,3 +543,19 @@ html[data-theme="light"] .tenant-menu-item:hover { color: #0f172a; background: #
   }
   .tenant-pagination { flex-wrap: wrap; justify-content: center; }
 }
+
+/* Viewport-safe action menu: avoids card clipping and off-screen overflow. */
+.tenant-action-popover.tenant-action-popover--fixed {
+  position: fixed;
+  right: auto;
+  z-index: 9999;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transform: none;
+}
+.tenant-action-menu[open] > summary::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+}

@@ -869,9 +869,9 @@ def _send_tenant_otp(
     order with automatic failover — same chain used by the tenant's contact
     form and "Send Test Email" button).
 
-    Falls back to the global MailerSend/SMTP path (send_otp_email) only when
-    the tenant has no active providers configured yet, so a brand-new tenant
-    isn't locked out of password recovery before they've set anything up.
+    Falls back to the SuperAdmin Email & Forms provider chain, then the global
+    MailerSend/SMTP path (send_otp_email), so a brand-new tenant is not locked
+    out of password recovery before they've set anything up.
 
     Returns (sent: bool, delivery_note: str) for logging.
     """
@@ -895,15 +895,39 @@ def _send_tenant_otp(
                     return True, 'tenant_email_services'
                 logger.warning(
                     '[TENANT RESET] tenant Email Services delivery failed tenant_id=%s err=%s '
-                    '— falling back to global MailerSend/SMTP',
+                    '— falling back to superadmin Email & Forms',
                     tenant_id, err,
                 )
         except Exception as exc:
             logger.warning(
                 '[TENANT RESET] tenant Email Services lookup failed tenant_id=%s err=%s '
-                '— falling back to global MailerSend/SMTP',
+                '— falling back to superadmin Email & Forms',
                 tenant_id, exc,
             )
+
+    try:
+        from app.services.superadmin_email_service import send_otp as _multi_send
+        sa_ok, sa_err = _multi_send(
+            email=recipient_email,
+            otp=otp,
+            portal='tenant',
+            ip_address=ip_address,
+            ttl_minutes=ttl_minutes,
+        )
+        logger.info('[TENANT RESET][provider] superadmin_email_service result ok=%s err=%r', sa_ok, sa_err)
+        if sa_ok:
+            return True, 'superadmin_email_service'
+        logger.warning(
+            '[TENANT RESET][provider] superadmin_email_service failed err=%s '
+            '— falling back to global send_otp_email()',
+            sa_err,
+        )
+    except Exception as exc:
+        logger.warning(
+            '[TENANT RESET][provider] superadmin_email_service import/call failed: %s '
+            '— falling back to global send_otp_email()',
+            exc,
+        )
 
     sent = send_otp_email(
         recipient_email=recipient_email,

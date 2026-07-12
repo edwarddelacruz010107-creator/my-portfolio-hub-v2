@@ -37,7 +37,7 @@ from app.services.auth.complete_signup_service import (
     get_active_pending_signup_by_email,
     get_latest_pending_signup_by_email,
     get_pending_signup_resend_cooldown_remaining,
-    issue_pending_signup_otp,
+    resend_pending_signup_otp,
     send_pending_signup_otp,
     verify_pending_signup_otp,
     complete_pending_signup,
@@ -65,14 +65,13 @@ def _issue_and_send_otp(user: User) -> bool:
 
 def _issue_and_send_pending_signup_otp(pending_signup: PendingSignup) -> bool:
     """Issue a fresh OTP for a pending signup and email it."""
-    raw_otp = issue_pending_signup_otp(
+    ok = resend_pending_signup_otp(
         pending_signup,
         ip_address=_get_ip(),
         user_agent=request.headers.get('User-Agent'),
     )
-    ok = send_pending_signup_otp(pending_signup, raw_otp)
     if not ok:
-        logger.error('Pending signup OTP generated but delivery failed for pending_signup_id=%s', pending_signup.id)
+        logger.error('Pending signup OTP delivery failed for pending_signup_id=%s', pending_signup.id)
     return ok
 
 
@@ -337,7 +336,7 @@ def resend_verification():
         return redirect(url_for('auth.verify_email_sent', email=email))
 
     try:
-        raw_otp = issue_pending_signup_otp(
+        sent = resend_pending_signup_otp(
             pending,
             ip_address=_get_ip(),
             user_agent=request.headers.get('User-Agent'),
@@ -347,22 +346,16 @@ def resend_verification():
         flash(str(exc), 'warning')
         return redirect(url_for('auth.verify_email_sent', email=email))
     except Exception:
-        logger.exception('Signup OTP resend failed while issuing OTP pending_signup_id=%s email=%s', pending.id, email)
-        flash('We could not prepare a new verification code. Please try again later.', 'warning')
+        logger.exception('Signup OTP resend failed pending_signup_id=%s email=%s', pending.id, email)
+        flash('We could not send a new verification code. Your previous code is still valid until it expires.', 'warning')
         return redirect(url_for('auth.verify_email_sent', email=email))
-
-    try:
-        sent = send_pending_signup_otp(pending, raw_otp)
-    except Exception:
-        logger.exception('Signup OTP resend delivery crashed pending_signup_id=%s email=%s', pending.id, email)
-        sent = False
 
     if sent:
         logger.info('Signup OTP resend sent successfully pending_signup_id=%s email=%s', pending.id, email)
         flash('A fresh verification code has been emailed to you.', 'success')
     else:
         logger.error('Signup OTP resend delivery failed pending_signup_id=%s email=%s', pending.id, email)
-        flash('We could not send the verification code. Please contact support or try again later.', 'warning')
+        flash('We could not send a new verification code. Your previous code is still valid until it expires.', 'warning')
     return redirect(url_for('auth.verify_email_sent', email=email))
 
 

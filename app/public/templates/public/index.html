@@ -968,7 +968,7 @@
         </div>
 
         <div class="contact-form-card" data-reveal style="--d:100ms">
-          <form id="contactForm" method="post" action="{{ url_for('public.contact') }}" data-fallback-url="{{ url_for('public.contact') }}" onsubmit="this.querySelector('button[type=submit]').disabled=true;">
+          <form id="contactForm" method="post" action="{{ url_for('public.contact') }}" data-fallback-url="{{ url_for('public.contact') }}">
             {{ contact_form.csrf_token }}
             <div style="display:none;">{{ contact_form.honeypot() }}</div>
             <div class="form-row">
@@ -1000,6 +1000,7 @@
               {{ contact_form.message(id='fmessage', placeholder='Tell us a bit about what you need...', class='') }}
             </div>
             <button type="submit" class="btn-mph btn-primary btn-block ripple-wrap">Send Message <i class="bi bi-send" aria-hidden="true"></i></button>
+            <div class="contact-form-status" id="contactFormStatus" role="status" aria-live="polite"></div>
           </form>
         </div>
       </div>

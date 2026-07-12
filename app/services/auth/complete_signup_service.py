@@ -357,6 +357,54 @@ def issue_pending_signup_otp(
     return raw_otp
 
 
+def resend_pending_signup_otp(
+    pending_signup: PendingSignup,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+    otp_ttl_minutes: int = DEFAULT_OTP_TTL_MINUTES,
+) -> bool:
+    """Send a fresh pending-signup OTP without invalidating the old one first.
+
+    The old resend flow committed the new OTP before delivery. In production,
+    a transient email-provider failure meant the old code stopped working and
+    the user got a cooldown even though no new email arrived. Here delivery is
+    attempted first; only an accepted send replaces the stored OTP/cooldown.
+    """
+    if pending_signup is None:
+        raise PendingSignupError('Signup session not found.')
+    if pending_signup.is_expired:
+        raise PendingSignupError('Signup session has expired. Please start again.')
+
+    remaining = get_pending_signup_resend_cooldown_remaining(pending_signup)
+    if remaining > 0:
+        logger.info(
+            'Pending signup OTP resend blocked by cooldown pending_signup_id=%s remaining=%s',
+            pending_signup.id,
+            remaining,
+        )
+        raise PendingSignupError(f'Please wait {remaining} seconds before requesting another code.')
+
+    raw_otp = generate_otp()
+    if not send_pending_signup_otp(pending_signup, raw_otp):
+        logger.error(
+            'Pending signup OTP resend delivery failed before DB refresh pending_signup_id=%s',
+            pending_signup.id,
+        )
+        return False
+
+    pending_signup.set_otp(raw_otp, otp_ttl_minutes)
+    pending_signup.ip_address = ip_address
+    pending_signup.user_agent = user_agent
+    db.session.add(pending_signup)
+    db.session.commit()
+    logger.info(
+        'Pending signup OTP resent and refreshed pending_signup_id=%s ttl_minutes=%s',
+        pending_signup.id,
+        otp_ttl_minutes,
+    )
+    return True
+
+
 def send_pending_signup_otp(pending_signup: PendingSignup, raw_otp: str) -> bool:
     try:
         from app.services.auth.signup_otp_email_service import (
@@ -484,4 +532,3 @@ def complete_pending_signup(
     log_security_event('signup_local', user, f'Signup from {ip_address}', 'info')
     logger.info('REGISTER: completed signup user id=%s tenant=%s', user.id, tenant.slug)
     return user
-

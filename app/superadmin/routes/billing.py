@@ -11,6 +11,7 @@ import logging
 import re
 import secrets
 import string
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone, timedelta
 from functools import wraps
 
@@ -115,6 +116,40 @@ def billing_overview():
 
     provider_revenue = {'dodo': 0.0, 'paymongo': 0.0, 'manual': 0.0}
     provider_active = {'dodo': 0, 'paymongo': 0, 'manual': 0}
+
+    def _configured_plan_amount(sub):
+        """Return the plan amount in the dashboard display currency.
+
+        Automated gateways can charge in a localized currency (for example
+        PHP 65.98 for a USD 1.00 product).  The legacy ``amount_paid`` column
+        does not store an exchange-rate snapshot, so displaying that raw value
+        with a USD symbol produces a false $65.98 total.  For provider charges
+        recorded in a different currency, use the configured plan amount as the
+        stable base-currency value shown in analytics.
+        """
+        plan_key = normalize_plan_name(getattr(sub, 'plan', None) or '')
+        plan_data = plans.get(plan_key) or plans.get(getattr(sub, 'plan', None)) or {}
+        cycle = str(getattr(sub, 'billing_cycle', 'monthly') or 'monthly').lower()
+        if cycle in ('yearly', 'annual', 'annually', 'year'):
+            value = plan_data.get('price_yearly', plan_data.get('base_price_yearly_usd'))
+        else:
+            value = plan_data.get('price_monthly', plan_data.get('base_price_usd', plan_data.get('price')))
+        try:
+            return float(Decimal(str(value or 0)))
+        except (InvalidOperation, TypeError, ValueError):
+            return 0.0
+
+    def _normalized_subscription_amount(sub):
+        raw = float(getattr(sub, 'amount_paid', 0) or 0)
+        source_currency = str(getattr(sub, 'provider_currency', '') or '').upper()
+        # Same-currency snapshots are safe to show directly.  Missing currency
+        # values are treated as the configured display currency for backward
+        # compatibility with older PayMongo rows.
+        if not source_currency or source_currency == currency_code.upper():
+            return raw
+        configured = _configured_plan_amount(sub)
+        return configured if configured > 0 else raw
+
     for sub in all_subs:
         if is_administrator_plan(getattr(sub, 'plan', None)):
             continue
@@ -126,11 +161,26 @@ def billing_overview():
         if getattr(sub, 'status', '') == 'active':
             provider_active[provider] += 1
         if provider in ('dodo', 'paymongo'):
-            provider_revenue[provider] += float(getattr(sub, 'amount_paid', 0) or 0)
+            provider_revenue[provider] += _normalized_subscription_amount(sub)
 
-    # Manual revenue is sourced from approved proof-of-payment records to avoid
-    # counting pending submissions or relying on a subscription snapshot alone.
-    provider_revenue['manual'] = sum(float(p.amount_paid or 0) for p in manual_approved)
+    # Manual submissions already retain both the local amount and its USD
+    # snapshot.  Prefer the value matching the dashboard currency so a PHP
+    # proof-of-payment is never rendered with a USD symbol.
+    manual_total = 0.0
+    for payment in manual_approved:
+        payment_currency = str(getattr(payment, 'currency_code', '') or '').upper()
+        if currency_code.upper() == 'USD' and getattr(payment, 'amount_usd', None) is not None:
+            manual_total += float(payment.amount_usd or 0)
+        elif not payment_currency or payment_currency == currency_code.upper():
+            manual_total += float(payment.amount_paid or 0)
+        else:
+            # No reliable cross-currency snapshot for this historical record.
+            # Use its USD snapshot when available; otherwise exclude it rather
+            # than reporting a misleading amount under the wrong symbol.
+            amount_usd = getattr(payment, 'amount_usd', None)
+            if amount_usd is not None and currency_code.upper() == 'USD':
+                manual_total += float(amount_usd or 0)
+    provider_revenue['manual'] = manual_total
 
     total_recorded_revenue = round(sum(provider_revenue.values()), 2)
     revenue_share = {

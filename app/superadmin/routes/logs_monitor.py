@@ -193,88 +193,169 @@ def logs():
 @superadmin.route('/subscription-monitor')
 @superadmin_required
 def subscription_monitor():
-    """
-    Monitoring dashboard: Expiring in 7d, 30d, Expired, Pending, Revenue.
-    """
+    """Unified subscription analytics and renewal monitor."""
     from datetime import datetime, timezone, timedelta
-    from app.models.portfolio import Subscription, SubscriptionNotification
+    from decimal import Decimal, InvalidOperation
     from sqlalchemy import func
+    from app.models.portfolio import (
+        Subscription, SubscriptionNotification, PaymentSubmission,
+        WebhookEvent, Profile, normalize_plan_name,
+    )
+    from app.utils import get_public_billing_plans
+    from app.system_plan import is_administrator_plan
 
     now = datetime.now(timezone.utc)
+    plans = get_public_billing_plans()
+    first_plan = next(iter(plans.values()), {})
+    currency_symbol = first_plan.get('currency_symbol', '$') or '$'
+    currency_code = (first_plan.get('currency_code', 'USD') or 'USD').upper()
 
-    # Build queries with computed days_left as Python-side attribute
     def _add_days_left(subs):
-        for s in subs:
-            exp = s.expires_at
+        for sub in subs:
+            exp = sub.expires_at
             if exp:
                 if exp.tzinfo is None:
                     exp = exp.replace(tzinfo=timezone.utc)
-                s.days_left = (exp - now).days
+                sub.days_left = (exp - now).days
             else:
-                s.days_left = None
+                sub.days_left = None
         return subs
 
-    horizon_7  = now + timedelta(days=7)
+    horizon_7 = now + timedelta(days=7)
     horizon_30 = now + timedelta(days=30)
+    expiring_7_q = subscription_repository.query.filter(
+        Subscription.status == 'active',
+        Subscription.expires_at.between(now, horizon_7),
+    ).order_by(Subscription.expires_at.asc())
+    expiring_30_q = subscription_repository.query.filter(
+        Subscription.status == 'active',
+        Subscription.expires_at.between(now, horizon_30),
+    ).order_by(Subscription.expires_at.asc())
+    expired_q = subscription_repository.query.filter_by(status='expired').order_by(
+        Subscription.expires_at.desc()
+    ).limit(50)
 
-    expiring_7_q = (
-        subscription_repository.query
-        .filter(Subscription.status == 'active')
-        .filter(Subscription.expires_at.between(now, horizon_7))
-        .order_by(Subscription.expires_at.asc())
-    )
-    expiring_30_q = (
-        subscription_repository.query
-        .filter(Subscription.status == 'active')
-        .filter(Subscription.expires_at.between(now, horizon_30))
-        .order_by(Subscription.expires_at.asc())
-    )
-    expired_q = (
-        subscription_repository.query
-        .filter(Subscription.status == 'expired')
-        .order_by(Subscription.expires_at.desc())
-        .limit(50)
-    )
-
-    # Eager-load for display
-    expiring_7  = _add_days_left(expiring_7_q.all())
+    expiring_7 = _add_days_left(expiring_7_q.all())
     expiring_30 = _add_days_left(expiring_30_q.all())
-    expired     = expired_q.all()
+    expired = expired_q.all()
 
-    # Metrics
-    total_active   = subscription_repository.query.filter_by(status='active').count()
-    total_expiring = expiring_7_q.count()
-    total_expired  = subscription_repository.query.filter_by(status='expired').count()
-    total_pending  = subscription_repository.query.filter_by(status='pending').count()
-    revenue_row    = db.session.query(func.sum(Subscription.amount_paid)).filter_by(status='active').scalar()
-    total_revenue  = float(revenue_row or 0)
+    def _provider(sub):
+        raw = str(getattr(sub, 'payment_provider', '') or '').lower()
+        if raw == 'dodo' or getattr(sub, 'dodo_subscription_id', None):
+            return 'dodo'
+        if raw == 'paymongo' or getattr(sub, 'paymongo_subscription_id', None) or str(getattr(sub, 'payment_method', '') or '').lower() == 'paymongo':
+            return 'paymongo'
+        return 'manual'
+
+    def _configured_amount(sub):
+        key = normalize_plan_name(getattr(sub, 'plan', None) or '')
+        data = plans.get(key) or plans.get(getattr(sub, 'plan', None)) or {}
+        cycle = str(getattr(sub, 'billing_cycle', 'monthly') or 'monthly').lower()
+        value = data.get('price_yearly', data.get('base_price_yearly_usd')) if cycle in ('yearly','annual','annually','year') else data.get('price_monthly', data.get('base_price_usd', data.get('price')))
+        try:
+            return float(Decimal(str(value or 0)))
+        except (InvalidOperation, TypeError, ValueError):
+            return 0.0
+
+    # Keep only one current active subscription per tenant/provider. Duplicate
+    # webhook rows must not double-count a single customer subscription.
+    active_rows = Subscription.query.filter_by(status='active').order_by(
+        Subscription.updated_at.desc() if hasattr(Subscription, 'updated_at') else Subscription.id.desc(),
+        Subscription.id.desc(),
+    ).all()
+    unique_active = {}
+    for sub in active_rows:
+        if is_administrator_plan(getattr(sub, 'plan', None)):
+            continue
+        provider = _provider(sub)
+        tenant_key = getattr(sub, 'tenant_id', None) or getattr(sub, 'profile_id', None) or getattr(sub, 'id', None)
+        external = getattr(sub, 'dodo_subscription_id', None) or getattr(sub, 'paymongo_subscription_id', None)
+        key = (provider, external or tenant_key)
+        unique_active.setdefault(key, sub)
+
+    provider_revenue = {'dodo': 0.0, 'paymongo': 0.0, 'manual': 0.0}
+    provider_active = {'dodo': 0, 'paymongo': 0, 'manual': 0}
+    provider_original = {'dodo': [], 'paymongo': [], 'manual': []}
+    mrr = 0.0
+    for sub in unique_active.values():
+        provider = _provider(sub)
+        amount = _configured_amount(sub)
+        provider_revenue[provider] += amount
+        provider_active[provider] += 1
+        monthly = amount / 12.0 if str(getattr(sub, 'billing_cycle', 'monthly') or 'monthly').lower() in ('yearly','annual','annually','year') else amount
+        mrr += monthly
+        raw_amount = float(getattr(sub, 'amount_paid', 0) or 0)
+        raw_currency = str(getattr(sub, 'provider_currency', '') or '').upper()
+        if raw_amount and raw_currency and raw_currency != currency_code:
+            provider_original[provider].append({'amount': raw_amount, 'currency': raw_currency})
+
+    # Approved manual submissions are counted once by record id.
+    approved_manual = PaymentSubmission.query.filter(
+        PaymentSubmission.status.in_(['approved', 'paid', 'completed'])
+    ).all()
+    manual_seen = set()
+    manual_total = 0.0
+    for payment in approved_manual:
+        key = getattr(payment, 'provider_payment_id', None) or getattr(payment, 'transaction_reference', None) or payment.id
+        if key in manual_seen:
+            continue
+        manual_seen.add(key)
+        if currency_code == 'USD' and getattr(payment, 'amount_usd', None) is not None:
+            manual_total += float(payment.amount_usd or 0)
+        elif str(getattr(payment, 'currency_code', '') or '').upper() in ('', currency_code):
+            manual_total += float(getattr(payment, 'amount_paid', 0) or 0)
+    provider_revenue['manual'] = manual_total
+
+    total_active = len(unique_active)
+    total_expired = Subscription.query.filter_by(status='expired').count()
+    total_pending_checkout = Subscription.query.filter_by(status='pending').count()
+    total_pending_review = PaymentSubmission.query.filter_by(status='pending').count()
+    total_pending = total_pending_checkout + total_pending_review
+    total_trial = Profile.query.filter(func.lower(Profile.plan) == 'trial').count()
+    total_revenue = round(sum(provider_revenue.values()), 2)
+    revenue_share = {k: round(v / total_revenue * 100, 1) if total_revenue else 0 for k, v in provider_revenue.items()}
+
+    recent_webhooks = WebhookEvent.query.order_by(WebhookEvent.received_at.desc()).limit(20).all()
+    since = now - timedelta(days=30)
+    webhook_count = WebhookEvent.query.filter(WebhookEvent.received_at >= since).count()
+    webhook_processed = WebhookEvent.query.filter(WebhookEvent.received_at >= since, WebhookEvent.processed.is_(True)).count()
+    webhook_health = round(webhook_processed / webhook_count * 100, 1) if webhook_count else 100.0
 
     metrics = {
-        'total_active':   total_active,
-        'total_expiring': total_expiring,
-        'total_expired':  total_expired,
-        'total_pending':  total_pending,
-        'total_revenue':  total_revenue,
+        'total_active': total_active,
+        'total_expiring': expiring_7_q.count(),
+        'total_expired': total_expired,
+        'total_pending': total_pending,
+        'total_pending_review': total_pending_review,
+        'total_pending_checkout': total_pending_checkout,
+        'total_trial': total_trial,
+        'total_revenue': total_revenue,
+        'mrr': round(mrr, 2),
+        'arr': round(mrr * 12, 2),
     }
 
-    recent_notifications = (
-        subscription_notification_repository.query
-        .filter(SubscriptionNotification.notification_type != 'manual')
-        .order_by(SubscriptionNotification.created_at.desc())
-        .limit(30)
-        .all()
-    )
+    recent_notifications = subscription_notification_repository.query.filter(
+        SubscriptionNotification.notification_type != 'manual'
+    ).order_by(SubscriptionNotification.created_at.desc()).limit(30).all()
 
-    # Patch .count() onto list objects for template compatibility
     class _CountList(list):
         def count(self): return len(self)
-    expiring_7  = _CountList(expiring_7)
+    expiring_7 = _CountList(expiring_7)
     expiring_30 = _CountList(expiring_30)
-    expired     = _CountList(expired)
+    expired = _CountList(expired)
 
     return render_template(
         'superadmin/subscription_monitor.html',
         metrics=metrics,
+        provider_revenue=provider_revenue,
+        provider_active=provider_active,
+        provider_original=provider_original,
+        revenue_share=revenue_share,
+        currency_symbol=currency_symbol,
+        currency_code=currency_code,
+        recent_webhooks=recent_webhooks,
+        webhook_health=webhook_health,
+        webhook_count=webhook_count,
         expiring_7=expiring_7,
         expiring_30=expiring_30,
         expired=expired,

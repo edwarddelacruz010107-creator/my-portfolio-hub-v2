@@ -83,171 +83,8 @@ logger = logging.getLogger(__name__)
 @superadmin.route('/billing')
 @superadmin_required
 def billing_overview():
-    """Subscription analytics with provider-separated recorded revenue."""
-    metrics = compute_billing_metrics()
-    plans = get_public_billing_plans()
-    first_plan = next(iter(plans.values()), {})
-    currency_symbol = first_plan.get('currency_symbol', '$') or '$'
-    currency_code = first_plan.get('currency_code', 'USD') or 'USD'
-
-    profiles = profile_repository.query.order_by(Profile.tenant_slug).all()
-    tenants = []
-    for profile in profiles:
-        row = tenant_billing_summary(profile)
-        sub = profile.current_subscription() if profile else None
-        row.update({
-            'profile': profile,
-            'subscription': sub,
-            'next_billing': getattr(sub, 'expires_at', None) if sub else None,
-            'payment_provider': (
-                'dodo' if sub and (getattr(sub, 'payment_provider', '') == 'dodo' or getattr(sub, 'dodo_subscription_id', None))
-                else 'paymongo' if sub and (getattr(sub, 'payment_provider', '') == 'paymongo' or getattr(sub, 'paymongo_subscription_id', None) or getattr(sub, 'payment_method', '') == 'paymongo')
-                else 'manual' if sub else 'none'
-            ),
-        })
-        plan_data = plans.get(row.get('plan')) or plans.get(normalize_plan_name(row.get('plan'))) or {}
-        row['plan_price_label'] = plan_data.get('price_label', '')
-        tenants.append(row)
-
-    all_subs = Subscription.query.all()
-    manual_approved = PaymentSubmission.query.filter(
-        PaymentSubmission.status.in_(['approved', 'paid', 'completed'])
-    ).all()
-
-    provider_revenue = {'dodo': 0.0, 'paymongo': 0.0, 'manual': 0.0}
-    provider_active = {'dodo': 0, 'paymongo': 0, 'manual': 0}
-
-    def _configured_plan_amount(sub):
-        """Return the plan amount in the dashboard display currency.
-
-        Automated gateways can charge in a localized currency (for example
-        PHP 65.98 for a USD 1.00 product).  The legacy ``amount_paid`` column
-        does not store an exchange-rate snapshot, so displaying that raw value
-        with a USD symbol produces a false $65.98 total.  For provider charges
-        recorded in a different currency, use the configured plan amount as the
-        stable base-currency value shown in analytics.
-        """
-        plan_key = normalize_plan_name(getattr(sub, 'plan', None) or '')
-        plan_data = plans.get(plan_key) or plans.get(getattr(sub, 'plan', None)) or {}
-        cycle = str(getattr(sub, 'billing_cycle', 'monthly') or 'monthly').lower()
-        if cycle in ('yearly', 'annual', 'annually', 'year'):
-            value = plan_data.get('price_yearly', plan_data.get('base_price_yearly_usd'))
-        else:
-            value = plan_data.get('price_monthly', plan_data.get('base_price_usd', plan_data.get('price')))
-        try:
-            return float(Decimal(str(value or 0)))
-        except (InvalidOperation, TypeError, ValueError):
-            return 0.0
-
-    def _normalized_subscription_amount(sub):
-        """Return revenue in the Plan Settings currency.
-
-        Dodo may store the localized checkout amount (for example PHP 65.98)
-        in ``amount_paid`` while older rows have no reliable currency snapshot.
-        For automated subscriptions, the configured plan price is therefore
-        the authoritative analytics amount. This prevents a localized charge
-        from being displayed as USD 65.98 when the plan price is USD 1.00.
-        """
-        provider = str(getattr(sub, 'payment_provider', '') or '').strip().lower()
-        is_dodo = provider == 'dodo' or bool(getattr(sub, 'dodo_subscription_id', None))
-        is_paymongo = (
-            provider == 'paymongo'
-            or bool(getattr(sub, 'paymongo_subscription_id', None))
-            or str(getattr(sub, 'payment_method', '') or '').strip().lower() == 'paymongo'
-        )
-
-        configured = _configured_plan_amount(sub)
-        if (is_dodo or is_paymongo) and configured > 0:
-            return configured
-
-        raw = float(getattr(sub, 'amount_paid', 0) or 0)
-        source_currency = str(getattr(sub, 'provider_currency', '') or '').upper()
-        if source_currency and source_currency != currency_code.upper():
-            return configured if configured > 0 else 0.0
-        return raw
-
-    for sub in all_subs:
-        if is_administrator_plan(getattr(sub, 'plan', None)):
-            continue
-        provider = (
-            'dodo' if getattr(sub, 'payment_provider', '') == 'dodo' or getattr(sub, 'dodo_subscription_id', None)
-            else 'paymongo' if getattr(sub, 'payment_provider', '') == 'paymongo' or getattr(sub, 'paymongo_subscription_id', None) or getattr(sub, 'payment_method', '') == 'paymongo'
-            else 'manual'
-        )
-        if getattr(sub, 'status', '') == 'active':
-            provider_active[provider] += 1
-        if provider in ('dodo', 'paymongo'):
-            provider_revenue[provider] += _normalized_subscription_amount(sub)
-
-    # Manual submissions already retain both the local amount and its USD
-    # snapshot.  Prefer the value matching the dashboard currency so a PHP
-    # proof-of-payment is never rendered with a USD symbol.
-    manual_total = 0.0
-    for payment in manual_approved:
-        payment_currency = str(getattr(payment, 'currency_code', '') or '').upper()
-        if currency_code.upper() == 'USD' and getattr(payment, 'amount_usd', None) is not None:
-            manual_total += float(payment.amount_usd or 0)
-        elif not payment_currency or payment_currency == currency_code.upper():
-            manual_total += float(payment.amount_paid or 0)
-        else:
-            # No reliable cross-currency snapshot for this historical record.
-            # Use its USD snapshot when available; otherwise exclude it rather
-            # than reporting a misleading amount under the wrong symbol.
-            amount_usd = getattr(payment, 'amount_usd', None)
-            if amount_usd is not None and currency_code.upper() == 'USD':
-                manual_total += float(amount_usd or 0)
-    provider_revenue['manual'] = manual_total
-
-    total_recorded_revenue = round(sum(provider_revenue.values()), 2)
-    revenue_share = {
-        key: round((value / total_recorded_revenue * 100), 1) if total_recorded_revenue else 0
-        for key, value in provider_revenue.items()
-    }
-
-    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
-    recent_webhooks = (
-        webhook_event_repository.query
-        .order_by(WebhookEvent.received_at.desc())
-        .limit(25)
-        .all()
-    )
-    recent_count = WebhookEvent.query.filter(WebhookEvent.received_at >= thirty_days_ago).count()
-    processed_count = WebhookEvent.query.filter(
-        WebhookEvent.received_at >= thirty_days_ago,
-        WebhookEvent.processed.is_(True),
-    ).count()
-    webhook_health = round((processed_count / recent_count * 100), 1) if recent_count else 100.0
-
-    # Bridge old/new metric key names so the dashboard remains stable.
-    metrics.update({
-        'active_count': metrics.get('total_active', 0),
-        'pending_count': metrics.get('total_pending', 0),
-        'trial_count': metrics.get('total_trial', 0),
-        'expired_count': metrics.get('total_expired', 0),
-        'cancelled_count': metrics.get('total_cancelled', 0),
-        'churn_rate': round(
-            (metrics.get('total_cancelled', 0) / max(metrics.get('total_active', 0) + metrics.get('total_cancelled', 0), 1)) * 100,
-            1,
-        ),
-        'last_webhook': recent_webhooks[0] if recent_webhooks else None,
-    })
-
-    return render_template(
-        'superadmin/billing_overview.html',
-        metrics=metrics,
-        tenants=tenants,
-        recent_webhooks=recent_webhooks,
-        billing_plans=plans,
-        currency_symbol=currency_symbol,
-        currency_code=currency_code,
-        provider_revenue=provider_revenue,
-        provider_active=provider_active,
-        revenue_share=revenue_share,
-        total_recorded_revenue=total_recorded_revenue,
-        webhook_health=webhook_health,
-        webhook_recent_count=recent_count,
-        page_title='Subscription Overview',
-    )
+    """Legacy analytics URL; the unified dashboard now lives in Subscription Monitor."""
+    return redirect(url_for('superadmin.subscription_monitor'), code=302)
 
 @superadmin.route('/billing/sync/<int:profile_id>', methods=['POST'])
 @superadmin_required
@@ -255,7 +92,7 @@ def billing_sync_tenant(profile_id):
     profile = profile_repository.get_or_404(profile_id)
     ok, message = sync_subscription_from_paymongo(profile)
     flash(message, 'success' if ok else 'warning')
-    return redirect(url_for('superadmin.billing_overview'))
+    return redirect(url_for('superadmin.subscription_monitor'))
 
 @superadmin.route('/billing/activate/<int:profile_id>', methods=['POST'])
 @superadmin_required
@@ -270,7 +107,7 @@ def billing_force_activate(profile_id):
     else:
         ok, message = force_activate_subscription(profile, plan, actor=current_user.username)
         flash(message or f'Subscription force-activated for {profile.tenant_slug}.', 'success' if ok else 'warning')
-    return redirect(url_for('superadmin.billing_overview'))
+    return redirect(url_for('superadmin.subscription_monitor'))
 
 @superadmin.route('/billing/payment-methods')
 @superadmin_required

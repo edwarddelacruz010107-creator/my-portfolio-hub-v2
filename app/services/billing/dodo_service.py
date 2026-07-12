@@ -45,14 +45,43 @@ def _base_url() -> str:
 
 
 def product_id_for(plan: str, billing_cycle: str) -> str | None:
-    key = f"DODO_{plan.upper().replace(' ', '_')}_{billing_cycle.upper()}_PRODUCT_ID"
+    """Resolve a Dodo product ID using the app's canonical plan aliases.
+
+    MyPortfolioHub stores the Basic plan internally as ``starter`` while the
+    Render/Dodo environment variables use ``BASIC``. Normalize that mismatch
+    here so checkout never looks for a non-existent
+    ``DODO_STARTER_*_PRODUCT_ID`` variable.
+    """
+    normalized_plan = str(plan or "").strip().lower().replace(" ", "_")
+    normalized_cycle = str(billing_cycle or "").strip().lower()
+
+    plan_env_aliases = {
+        "starter": "BASIC",
+        "basic": "BASIC",
+        "pro": "PRO",
+        "business": "ENTERPRISE",
+        "enterprise": "ENTERPRISE",
+    }
+    cycle_env_aliases = {
+        "month": "MONTHLY",
+        "monthly": "MONTHLY",
+        "year": "YEARLY",
+        "annual": "YEARLY",
+        "annually": "YEARLY",
+        "yearly": "YEARLY",
+    }
+
+    env_plan = plan_env_aliases.get(normalized_plan, normalized_plan.upper())
+    env_cycle = cycle_env_aliases.get(normalized_cycle, normalized_cycle.upper())
+    key = f"DODO_{env_plan}_{env_cycle}_PRODUCT_ID"
     return current_app.config.get(key) or os.getenv(key)
 
 
 def create_checkout_session(*, profile, subscription, plan: str, billing_cycle: str, return_url: str, cancel_url: str) -> DodoCheckoutResult:
     product_id = product_id_for(plan, billing_cycle)
     if not product_id:
-        return DodoCheckoutResult(False, error=f"Dodo product is not configured for {plan} {billing_cycle}.")
+        display_plan = {"starter": "Basic", "basic": "Basic", "pro": "Pro", "business": "Enterprise", "enterprise": "Enterprise"}.get(str(plan).lower(), str(plan).title())
+        return DodoCheckoutResult(False, error=f"Dodo product is not configured for {display_plan} {billing_cycle}.")
 
     tenant = getattr(profile, "tenant", None)
     owner = getattr(tenant, "owner", None)

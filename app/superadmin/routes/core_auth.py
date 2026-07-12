@@ -250,12 +250,31 @@ def dashboard():
             return 0.0
 
     def _normalized_subscription_amount(sub):
+        """Return revenue in the Plan Settings currency.
+
+        Dodo may store the localized checkout amount (for example PHP 65.98)
+        in ``amount_paid`` while older rows have no reliable currency snapshot.
+        For automated subscriptions, the configured plan price is therefore
+        the authoritative analytics amount. This prevents a localized charge
+        from being displayed as USD 65.98 when the plan price is USD 1.00.
+        """
+        provider = str(getattr(sub, 'payment_provider', '') or '').strip().lower()
+        is_dodo = provider == 'dodo' or bool(getattr(sub, 'dodo_subscription_id', None))
+        is_paymongo = (
+            provider == 'paymongo'
+            or bool(getattr(sub, 'paymongo_subscription_id', None))
+            or str(getattr(sub, 'payment_method', '') or '').strip().lower() == 'paymongo'
+        )
+
+        configured = _configured_plan_amount(sub)
+        if (is_dodo or is_paymongo) and configured > 0:
+            return configured
+
         raw = float(getattr(sub, 'amount_paid', 0) or 0)
         source_currency = str(getattr(sub, 'provider_currency', '') or '').upper()
-        if not source_currency or source_currency == currency_code:
-            return raw
-        configured = _configured_plan_amount(sub)
-        return configured if configured > 0 else raw
+        if source_currency and source_currency != currency_code.upper():
+            return configured if configured > 0 else 0.0
+        return raw
 
     all_subscriptions = Subscription.query.all()
     provider_revenue = {'dodo': 0.0, 'paymongo': 0.0, 'manual': 0.0}

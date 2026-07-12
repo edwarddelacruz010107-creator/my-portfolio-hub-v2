@@ -73,12 +73,13 @@
       {% else %}
         {% if active_tenant_slug == 'default' or not active_tenant_slug %}plan-badge--admin{% else %}plan-badge--default{% endif %}
       {% endif %}">
-      {% if _tenant_state == 'trial' %}⏱ Trial · {{ profile.trial_days_remaining() }}d
+      {% set _paid_plan = profile.effective_plan()|plan_display %}
+      {% if _sub == 'active' %}✓ {{ _paid_plan }} Plan
+      {% elif _sub == 'pending' %}◉ {{ _paid_plan if _paid_plan in ('Basic', 'Pro', 'Enterprise', 'Administrator') else 'Basic' }} Pending
+      {% elif _tenant_state == 'trial' %}⏱ Trial · {{ profile.trial_days_remaining() }}d
       {% elif _tenant_state == 'grace' %}⚠ Trial ending soon
       {% elif _tenant_state == 'readonly' %}🔒 Readonly Mode
       {% elif _tenant_state == 'suspended' %}⛔ Suspended
-      {% elif _sub == 'active' %}✓ {{ profile.effective_plan() }} Plan
-      {% elif _sub == 'pending' %}◉ Pending
       {% elif _sub in ('expired','cancelled') %}
         {% if active_tenant_slug == 'default' or not active_tenant_slug %}◈ Admin{% else %}✕ Expired{% endif %}
       {% else %}
@@ -280,7 +281,12 @@
       {% set _sub_status = profile.subscription_status %}
       {% set _tenant_state = profile.tenant.subscription_state if profile.tenant else (profile.subscription_status or 'trial') %}
       <div class="topbar-license-pill">
-        {% if _tenant_state == 'trial' %}
+        {% set _top_plan = profile.effective_plan()|plan_display %}
+        {% if _sub_status == 'active' %}
+          <span class="license-pill license-active">{{ _top_plan }} Plan</span>
+        {% elif _sub_status == 'pending' %}
+          <span class="license-pill license-pending">{{ _top_plan if _top_plan in ('Basic', 'Pro', 'Enterprise', 'Administrator') else 'Basic' }} Pending</span>
+        {% elif _tenant_state == 'trial' %}
           <span class="license-pill license-trial">Trial · {{ profile.trial_days_remaining() }}d</span>
         {% elif _tenant_state == 'grace' %}
           <span class="license-pill license-grace">Trial ending soon</span>
@@ -288,10 +294,6 @@
           <span class="license-pill license-unlicensed">Readonly Mode</span>
         {% elif _tenant_state == 'suspended' %}
           <span class="license-pill license-unlicensed">Suspended</span>
-        {% elif _sub_status == 'active' %}
-          <span class="license-pill license-active">Licensed</span>
-        {% elif _sub_status == 'pending' %}
-          <span class="license-pill license-pending">Pending</span>
         {% elif _sub_status in ('expired','cancelled') %}
           {% if active_tenant_slug == 'default' or not active_tenant_slug %}
             <span class="license-pill license-admin">Administrator</span>

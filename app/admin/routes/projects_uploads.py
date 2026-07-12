@@ -363,7 +363,8 @@ def uploads():
 
     project_images = (
         _tenant_slug_filter(project_repository.query)
-        .filter(Project.image != None)
+        .filter(Project.image.isnot(None))
+        .filter(db.func.trim(Project.image) != '')
         .order_by(Project.created_at.desc())
         .all()
     )
@@ -515,15 +516,43 @@ def delete_upload():
     if asset_type in {'project', 'comparison'}:
         project = _require_tenant_object(db.session.get(Project, asset_id))
         field_name = asset_field if asset_field in {'image', 'before_image', 'after_image'} else 'image'
-        media_value = getattr(project, field_name, '') if project else ''
-        if project and media_value:
-            delete_image(media_value, 'projects')
+
+        if project is None:
+            flash('Project not found or you do not have permission to modify it.', 'danger')
+            return redirect(url_for('admin.uploads'))
+
+        # A media-library row may point to a file that disappeared after a
+        # deployment, storage migration, or manual cleanup. Removing the
+        # database reference must therefore succeed even when the physical
+        # file no longer exists.
+        media_value = (getattr(project, field_name, '') or '').strip()
+        try:
+            if media_value:
+                delete_image(media_value, 'projects')
             setattr(project, field_name, '')
             db.session.commit()
-            log_activity('delete', 'project', project.title, f'Deleted project media: {field_name}')
-            flash(f'Image removed from project "{project.title}".', 'success')
-        else:
-            flash('Project image not found.', 'warning')
+            _clear_portfolio_cache(project.tenant_slug)
+            log_activity(
+                'delete',
+                'project',
+                project.title,
+                f'Removed project media reference: {field_name}',
+            )
+            if media_value:
+                flash(
+                    f'Image reference removed from project "{project.title}". You can upload a replacement anytime.',
+                    'success',
+                )
+            else:
+                flash('The empty image reference was cleaned up.', 'success')
+        except Exception:
+            db.session.rollback()
+            logger.exception(
+                'Could not remove project media reference project_id=%s field=%s',
+                asset_id,
+                field_name,
+            )
+            flash('The image reference could not be removed. Please try again.', 'danger')
         return redirect(url_for('admin.uploads'))
 
     if asset_type == 'seo':

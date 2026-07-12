@@ -26,7 +26,17 @@ class DodoCheckoutResult:
 
 
 def is_dodo_enabled() -> bool:
-    return bool(current_app.config.get("DODO_PAYMENTS_ENABLED", False) and current_app.config.get("DODO_PAYMENTS_API_KEY"))
+    """Require Render configuration plus the persistent Superadmin toggle."""
+    env_enabled = bool(current_app.config.get("DODO_PAYMENTS_ENABLED", False))
+    api_configured = bool(current_app.config.get("DODO_PAYMENTS_API_KEY"))
+    if not (env_enabled and api_configured):
+        return False
+    try:
+        from app.utils import is_dodo_payments_admin_enabled
+        return is_dodo_payments_admin_enabled(default=True)
+    except Exception:
+        logger.exception("Could not read Dodo Payments admin toggle")
+        return False
 
 
 def _base_url() -> str:
@@ -76,10 +86,16 @@ def create_checkout_session(*, profile, subscription, plan: str, billing_cycle: 
             json=payload,
             timeout=20,
         )
-        data = response.json() if response.content else {}
+        try:
+            data = response.json() if response.content else {}
+        except ValueError:
+            data = {"message": response.text[:500]}
         if not response.ok:
             logger.error("Dodo checkout failed status=%s response=%s", response.status_code, data)
-            return DodoCheckoutResult(False, error=data.get("message") or data.get("error") or "Dodo checkout could not be created.")
+            details = data.get("message") or data.get("error") or data.get("detail")
+            if isinstance(details, dict):
+                details = details.get("message") or str(details)
+            return DodoCheckoutResult(False, error=str(details or f"Dodo checkout failed ({response.status_code})."))
         checkout_url = data.get("checkout_url")
         if not checkout_url:
             return DodoCheckoutResult(False, error="Dodo returned no checkout URL.")

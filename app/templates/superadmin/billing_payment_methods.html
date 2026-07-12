@@ -48,11 +48,20 @@
     <div class="instruction-row"><span class="instruction-label">Webhook secret</span><span class="instruction-value">{{ 'Configured' if dodo_webhook_configured else 'Missing' }}</span></div>
     <div class="instruction-row"><span class="instruction-label">Products</span><span class="instruction-value">{{ dodo_products_configured }}/{{ dodo_products_total }} configured</span></div>
   </div>
-  <div class="instruction-card-footer" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.75rem">
+  <div class="instruction-card-footer" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-top:0.75rem">
+    <form method="post" action="{{ url_for('superadmin.billing_dodo_toggle') }}" style="margin:0">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn {{ 'btn-danger' if dodo_admin_enabled else 'btn-primary' }} btn-sm"
+              {% if not dodo_admin_enabled and (not dodo_env_enabled or not dodo_api_configured) %}disabled title="Complete Render configuration first"{% endif %}>
+        {{ 'Deactivate Dodo' if dodo_admin_enabled else 'Activate Dodo' }}
+      </button>
+    </form>
     {% if dodo_enabled and dodo_webhook_configured and dodo_products_configured == dodo_products_total %}
       <span class="btn btn-outline btn-sm" style="pointer-events:none">Ready for checkout</span>
-    {% else %}
+    {% elif dodo_admin_enabled %}
       <span class="btn btn-ghost btn-sm" style="pointer-events:none">Complete Render configuration</span>
+    {% else %}
+      <span class="btn btn-ghost btn-sm" style="pointer-events:none">Disabled by Superadmin</span>
     {% endif %}
     <span class="instruction-note">Webhook: <code>/webhooks/dodo</code></span>
   </div>

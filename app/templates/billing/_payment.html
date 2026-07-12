@@ -1,4 +1,4 @@
-{% set _plan = (subscription.plan if subscription else profile.plan or 'Basic')|plan_display %}
+{% set _plan = subscription.plan if subscription else profile.plan or 'Basic' %}
 <div class="payment-page" id="paymentCheckout"
      data-quote-url="{{ quote_url }}"
      data-billing-cycle="{{ billing_cycle }}">

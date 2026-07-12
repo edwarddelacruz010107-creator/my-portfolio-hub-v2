@@ -132,6 +132,12 @@
         <span class="nav-icon"><iconify-icon icon="lucide:bar-chart-3" width="17"></iconify-icon></span>
         Sub Monitor
       </a>
+      <a href="{{ url_for('superadmin.billing_overview') }}"
+         class="nav-item {% if request.endpoint == 'superadmin.billing_overview' %}active{% endif %}"
+         {% if request.endpoint == 'superadmin.billing_overview' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:credit-card" width="17"></iconify-icon></span>
+        Subscriptions
+      </a>
       <a href="{{ url_for('superadmin.subscription_settings') }}"
          class="nav-item {% if request.endpoint == 'superadmin.subscription_settings' %}active{% endif %}"
          {% if request.endpoint == 'superadmin.subscription_settings' %}aria-current="page"{% endif %}>

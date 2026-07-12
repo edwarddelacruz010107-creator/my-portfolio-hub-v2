@@ -349,29 +349,6 @@
               <h2>{{ profile_display_name }}</h2>
             </div>
           </div>
-          {% set owner_socials = [
-            ('github', 'GitHub', 'lucide:github'),
-            ('linkedin', 'LinkedIn', 'lucide:linkedin'),
-            ('facebook', 'Facebook', 'lucide:facebook'),
-            ('twitter', 'X / Twitter', 'lucide:twitter'),
-            ('instagram', 'Instagram', 'lucide:instagram'),
-            ('youtube', 'YouTube', 'lucide:youtube'),
-            ('dribbble', 'Dribbble', 'lucide:dribbble'),
-            ('website', 'Website', 'lucide:globe-2')
-          ] %}
-          {% if profile and profile.social_links %}
-          <div class="project-owner-socials" aria-label="Portfolio owner social links">
-            {% for key, label, icon in owner_socials %}
-              {% set href = profile.social_links.get(key) %}
-              {% if href %}
-              <a href="{{ href }}" target="_blank" rel="noopener noreferrer" class="project-owner-social-link" aria-label="Open {{ label }}" title="{{ label }}">
-                <iconify-icon icon="{{ icon }}" width="17" aria-hidden="true"></iconify-icon>
-                <span>{{ label }}</span>
-              </a>
-              {% endif %}
-            {% endfor %}
-          </div>
-          {% endif %}
           <a href="{{ portfolio_href }}" class="project-author-link">
             Visit portfolio
             <iconify-icon icon="lucide:arrow-right" width="15" aria-hidden="true"></iconify-icon>
@@ -908,36 +885,6 @@ img.project-author-avatar {
 .project-share-actions .project-detail-btn { flex: 1 1 130px; }
 .project-share-copy-btn.is-copied { color: #6ee7b7; border-color: rgba(16,185,129,0.26); background: rgba(16,185,129,0.11); }
 .project-author-card__top { display: flex; align-items: center; gap: 0.8rem; }
-.project-owner-socials {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem;
-  margin-top: 1rem;
-}
-.project-owner-social-link {
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.48rem;
-  min-height: 40px;
-  padding: 0.62rem 0.72rem;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 12px;
-  background: rgba(255,255,255,0.035);
-  color: var(--text-muted, #a7b0c0);
-  font-size: 0.77rem;
-  font-weight: 800;
-  text-decoration: none;
-  transition: transform .2s ease, border-color .2s ease, color .2s ease, background .2s ease;
-}
-.project-owner-social-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-owner-social-link:hover {
-  transform: translateY(-2px);
-  border-color: rgba(129,140,248,0.30);
-  background: rgba(129,140,248,0.10);
-  color: var(--text, #f8fafc);
-}
 .project-author-link { width: 100%; margin-top: 1rem; }
 .project-related-section {
   margin-top: 3rem;

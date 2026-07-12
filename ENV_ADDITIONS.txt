@@ -51,16 +51,3 @@ FREECURRENCYAPI_KEY=your-regenerated-freecurrencyapi-key
 # Optional alternative providers:
 # CURRENCY_PROVIDER=frankfurter
 # CURRENCYAPI_KEY=your-currencyapi-key
-
-# Dodo Payments (start in test mode)
-DODO_PAYMENTS_ENABLED=true
-DODO_PAYMENTS_MODE=test
-DODO_PAYMENTS_API_KEY=
-DODO_PAYMENTS_WEBHOOK_SECRET=
-DODO_BASIC_MONTHLY_PRODUCT_ID=
-DODO_BASIC_YEARLY_PRODUCT_ID=
-DODO_PRO_MONTHLY_PRODUCT_ID=
-DODO_PRO_YEARLY_PRODUCT_ID=
-DODO_ENTERPRISE_MONTHLY_PRODUCT_ID=
-DODO_ENTERPRISE_YEARLY_PRODUCT_ID=
-# Webhook URL: https://myportfoliohub.online/webhooks/dodo

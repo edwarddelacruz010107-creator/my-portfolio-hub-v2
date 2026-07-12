@@ -36,14 +36,12 @@ from app.services.auth.complete_signup_service import (
     create_or_refresh_pending_signup,
     get_active_pending_signup_by_email,
     get_latest_pending_signup_by_email,
-    get_pending_signup_otp_remaining_seconds,
     get_pending_signup_resend_cooldown_remaining,
-    resend_pending_signup_otp,
+    issue_pending_signup_otp,
     send_pending_signup_otp,
     verify_pending_signup_otp,
     complete_pending_signup,
 )
-from app.services.auth.signup_otp_email_service import get_signup_otp_ttl_minutes
 from app.services.auth.email_policy import resolve_email_for_login
 
 logger = logging.getLogger(__name__)
@@ -67,13 +65,14 @@ def _issue_and_send_otp(user: User) -> bool:
 
 def _issue_and_send_pending_signup_otp(pending_signup: PendingSignup) -> bool:
     """Issue a fresh OTP for a pending signup and email it."""
-    ok = resend_pending_signup_otp(
+    raw_otp = issue_pending_signup_otp(
         pending_signup,
         ip_address=_get_ip(),
         user_agent=request.headers.get('User-Agent'),
     )
+    ok = send_pending_signup_otp(pending_signup, raw_otp)
     if not ok:
-        logger.error('Pending signup OTP delivery failed for pending_signup_id=%s', pending_signup.id)
+        logger.error('Pending signup OTP generated but delivery failed for pending_signup_id=%s', pending_signup.id)
     return ok
 
 
@@ -87,8 +86,6 @@ def _render_verify_email_page(
     """Render the verification page with backend-authoritative resend state."""
     pending = get_active_pending_signup_by_email(email) if email else None
     resend_remaining = get_pending_signup_resend_cooldown_remaining(pending)
-    otp_remaining = get_pending_signup_otp_remaining_seconds(pending)
-    otp_ttl_seconds = max(60, get_signup_otp_ttl_minutes() * 60)
     return (
         render_template(
             'auth/verify_email_sent.html',
@@ -97,8 +94,6 @@ def _render_verify_email_page(
             signup_state=signup_state,
             resend_cooldown_remaining=resend_remaining,
             resend_cooldown_seconds=60,
-            otp_remaining_seconds=otp_remaining if pending is not None else otp_ttl_seconds,
-            otp_ttl_seconds=otp_ttl_seconds,
         ),
         status_code,
     )
@@ -213,16 +208,7 @@ def verify_email(token: str):
 @limiter.limit('10 per minute')
 def verify_email_sent():
     email = (request.args.get('email') or request.form.get('email') or '').strip().lower()
-    formdata = request.form
-    if request.method == 'POST':
-        formdata = request.form.copy()
-        code = (formdata.get('code') or '').strip()
-        if not code:
-            digit_values = ''.join(formdata.getlist('code_digit'))
-            code = ''.join(ch for ch in digit_values if ch.isdigit())[:6]
-            if code:
-                formdata.setlist('code', [code])
-    form = EmailOTPForm(formdata=formdata if request.method == 'POST' else None)
+    form = EmailOTPForm()
 
     if request.method == 'POST' and form.validate_on_submit():
         pending = get_active_pending_signup_by_email(email) if email else None
@@ -351,7 +337,7 @@ def resend_verification():
         return redirect(url_for('auth.verify_email_sent', email=email))
 
     try:
-        sent = resend_pending_signup_otp(
+        raw_otp = issue_pending_signup_otp(
             pending,
             ip_address=_get_ip(),
             user_agent=request.headers.get('User-Agent'),
@@ -361,16 +347,22 @@ def resend_verification():
         flash(str(exc), 'warning')
         return redirect(url_for('auth.verify_email_sent', email=email))
     except Exception:
-        logger.exception('Signup OTP resend failed pending_signup_id=%s email=%s', pending.id, email)
-        flash('We could not send a new verification code. Your previous code is still valid until it expires.', 'warning')
+        logger.exception('Signup OTP resend failed while issuing OTP pending_signup_id=%s email=%s', pending.id, email)
+        flash('We could not prepare a new verification code. Please try again later.', 'warning')
         return redirect(url_for('auth.verify_email_sent', email=email))
+
+    try:
+        sent = send_pending_signup_otp(pending, raw_otp)
+    except Exception:
+        logger.exception('Signup OTP resend delivery crashed pending_signup_id=%s email=%s', pending.id, email)
+        sent = False
 
     if sent:
         logger.info('Signup OTP resend sent successfully pending_signup_id=%s email=%s', pending.id, email)
         flash('A fresh verification code has been emailed to you.', 'success')
     else:
         logger.error('Signup OTP resend delivery failed pending_signup_id=%s email=%s', pending.id, email)
-        flash('We could not send a new verification code. Your previous code is still valid until it expires.', 'warning')
+        flash('We could not send the verification code. Please contact support or try again later.', 'warning')
     return redirect(url_for('auth.verify_email_sent', email=email))
 
 

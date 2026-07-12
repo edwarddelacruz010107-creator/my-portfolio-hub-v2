@@ -47,12 +47,6 @@ SUPPORTED_THEME_IDS = (
     'developer_journal',
 )
 SUPPORTED_THEME_ID_SET = frozenset(SUPPORTED_THEME_IDS)
-BUILTIN_PREMIUM_THEME_REQUIREMENTS = {
-    'developer_pro': 'pro',
-    'blockform_brutal': 'pro',
-    'schematic_spec': 'pro',
-    'developer_journal': 'pro',
-}
 
 # Theme ids are directory names. Whitelist strictly -- this is the
 # single choke point that prevents path traversal regardless of where
@@ -140,15 +134,6 @@ class ThemeRegistry:
                 meta['install_count']  = entry.install_count or 0
             except Exception:
                 pass
-        builtin_required_plan = BUILTIN_PREMIUM_THEME_REQUIREMENTS.get(theme_id)
-        if builtin_required_plan:
-            # Production can already have ThemeCatalogEntry rows created from
-            # older metadata. Keep built-in paid themes from being downgraded
-            # to "Free" by stale catalog overrides.
-            meta['premium'] = True
-            current_required = str(meta.get('required_plan') or '').strip().lower()
-            if current_required in ('', 'free', 'basic', 'starter', 'trial'):
-                meta['required_plan'] = builtin_required_plan
         else:
             meta.setdefault('sort_order', 0)
         return meta

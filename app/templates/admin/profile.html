@@ -18,7 +18,7 @@
     <!-- Left: Avatar + quick stats -->
     <div class="form-sidebar">
       <div class="avatar-upload-card">
-        <div class="avatar-preview" id="avatarPreview" role="button" tabindex="0" aria-label="Choose profile photo">
+        <div class="avatar-preview" id="avatarPreview">
           {% set admin_profile_image_url = profile.profile_image|upload_url('profiles') if profile and profile.profile_image else '' %}
           {% if admin_profile_image_url %}
             <img src="{{ admin_profile_image_url }}" alt="{{ profile.profile_image_alt or (profile.name ~ ' profile photo') }}" id="avatarImg"/>
@@ -30,12 +30,11 @@
             <img src="" alt="" id="avatarImg" class="hidden-field"/>
           {% endif %}
         </div>
-        <label class="upload-btn" id="profilePhotoButton" for="profile_image_input">
-          <span id="profilePhotoButtonText">↑ Upload Photo</span>
+        <label class="upload-btn" for="profile_image_input">
+          ↑ Upload Photo
         </label>
         {{ form.profile_image(id="profile_image_input", class_="hidden-field",
-           accept="image/jpeg,image/png,image/webp") }}
-        <div id="profilePhotoStatus" class="profile-photo-status" aria-live="polite">Choose a photo to publish it automatically.</div>
+           onchange="previewAvatar(this)") }}
         <p class="upload-hint">JPG, PNG, WebP · Max 5MB<br>Recommended: 400×400px</p>
       </div>
 
@@ -180,117 +179,20 @@
   </div>
 </form>
 
-<style>
-.avatar-preview { cursor:pointer; position:relative; }
-.avatar-preview.is-dragging { outline:2px dashed var(--accent, #6c63ff); outline-offset:5px; }
-.avatar-preview.is-uploading::after {
-  content:""; position:absolute; inset:0; border-radius:inherit;
-  background:rgba(8,12,24,.62); backdrop-filter:blur(2px);
-}
-.avatar-preview.is-uploading::before {
-  content:""; position:absolute; z-index:2; width:28px; height:28px;
-  border:3px solid rgba(255,255,255,.35); border-top-color:#fff; border-radius:50%;
-  animation:profilePhotoSpin .75s linear infinite;
-}
-@keyframes profilePhotoSpin { to { transform:rotate(360deg); } }
-.profile-photo-status { min-height:1.25rem; margin-top:.65rem; font-size:.78rem; color:var(--text-muted); text-align:center; }
-.profile-photo-status.is-saving { color:#a5b4fc; }
-.profile-photo-status.is-success { color:#34d399; }
-.profile-photo-status.is-error { color:#fb7185; }
-</style>
 <script>
-(() => {
-  const input = document.getElementById('profile_image_input');
-  const preview = document.getElementById('avatarPreview');
-  const image = document.getElementById('avatarImg');
-  const placeholder = document.getElementById('avatarPlaceholder');
-  const status = document.getElementById('profilePhotoStatus');
-  const buttonText = document.getElementById('profilePhotoButtonText');
-  const endpoint = {{ url_for('admin.profile_photo_live_save')|tojson }};
-  const csrfToken = {{ form.csrf_token.current_token|tojson }};
-  let localPreviewUrl = null;
-
-  function setStatus(message, state = '') {
-    status.textContent = message;
-    status.className = 'profile-photo-status' + (state ? ` is-${state}` : '');
+function previewAvatar(input) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.getElementById('avatarImg');
+      const ph = document.getElementById('avatarPlaceholder');
+      img.src = e.target.result;
+      img.style.display = 'block';
+      if (ph) ph.style.display = 'none';
+    };
+    reader.readAsDataURL(input.files[0]);
   }
-
-  function showPreview(file) {
-    if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
-    localPreviewUrl = URL.createObjectURL(file);
-    image.src = localPreviewUrl;
-    image.style.display = 'block';
-    image.classList.remove('hidden-field');
-    if (placeholder) placeholder.style.display = 'none';
-  }
-
-  async function publishPhoto(file) {
-    if (!file) return;
-    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowed.includes(file.type)) {
-      setStatus('Use a JPG, PNG, or WebP image.', 'error');
-      input.value = '';
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setStatus('The image must be 5 MB or smaller.', 'error');
-      input.value = '';
-      return;
-    }
-
-    showPreview(file);
-    preview.classList.add('is-uploading');
-    input.disabled = true;
-    buttonText.textContent = 'Uploading…';
-    setStatus('Uploading and publishing your photo…', 'saving');
-
-    const data = new FormData();
-    data.append('profile_image', file, file.name);
-    data.append('csrf_token', csrfToken);
-
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {'X-CSRFToken': csrfToken, 'Accept': 'application/json'},
-        body: data,
-        credentials: 'same-origin'
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.success) throw new Error(result.error || 'Upload failed.');
-
-      if (result.image_url) {
-        image.src = result.image_url + (result.image_url.includes('?') ? '&' : '?') + 'v=' + Date.now();
-      }
-      setStatus(result.message || 'Profile photo published everywhere.', 'success');
-      buttonText.textContent = '↻ Replace Photo';
-    } catch (error) {
-      setStatus(error.message || 'The photo could not be saved.', 'error');
-      buttonText.textContent = '↑ Try Again';
-    } finally {
-      preview.classList.remove('is-uploading');
-      input.disabled = false;
-      input.value = '';
-    }
-  }
-
-  input.addEventListener('change', () => publishPhoto(input.files && input.files[0]));
-  preview.addEventListener('click', () => !input.disabled && input.click());
-  preview.addEventListener('keydown', event => {
-    if ((event.key === 'Enter' || event.key === ' ') && !input.disabled) {
-      event.preventDefault(); input.click();
-    }
-  });
-  ['dragenter', 'dragover'].forEach(name => preview.addEventListener(name, event => {
-    event.preventDefault(); preview.classList.add('is-dragging');
-  }));
-  ['dragleave', 'drop'].forEach(name => preview.addEventListener(name, event => {
-    event.preventDefault(); preview.classList.remove('is-dragging');
-  }));
-  preview.addEventListener('drop', event => {
-    const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
-    publishPhoto(file);
-  });
-})();
+}
 </script>
 {% endblock %}
 

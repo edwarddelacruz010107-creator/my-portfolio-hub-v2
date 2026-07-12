@@ -6,8 +6,8 @@
   "version": "1.1.0",
   "description": "A polished light-and-dark developer portfolio styled like a living commit journal. Fully connected to profile data, projects, skills, services, experience, certificates, testimonials, social links, resume, billing navigation, SEO, and the tenant contact backend.",
   "author": "Pypy Project + MyPortfolioHub",
-  "premium": true,
-  "required_plan": "pro",
+  "premium": false,
+  "required_plan": null,
   "preview_image": "/static/themes/developer_journal/preview.svg",
   "supports_dark_mode": true,
   "supports_light_mode": true,
@@ -31,7 +31,7 @@
     "professional",
     "responsive",
     "cms-bound",
-    "premium"
+    "free"
   ],
   "color_scheme": {
     "primary": "#9A6B14",

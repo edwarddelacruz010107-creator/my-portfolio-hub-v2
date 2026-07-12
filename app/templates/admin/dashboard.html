@@ -3,30 +3,6 @@
 {% block page_title %}Dashboard{% endblock %}
 
 {% block content %}
-{% set payment_state = request.args.get('payment') %}
-{% if payment_state %}
-<section class="payment-result-card payment-result-{{ payment_state }}" id="paymentResultCard" aria-live="polite">
-  <div class="payment-result-icon">
-    <iconify-icon icon="{% if payment_state == 'success' or payment_state == 'processing' %}lucide:loader-circle{% elif payment_state == 'cancelled' %}lucide:x-circle{% else %}lucide:alert-circle{% endif %}" width="22"></iconify-icon>
-  </div>
-  <div class="payment-result-copy">
-    <strong id="paymentResultTitle">
-      {% if payment_state == 'success' or payment_state == 'processing' %}Confirming your payment…
-      {% elif payment_state == 'cancelled' %}Checkout cancelled
-      {% else %}Payment could not be completed{% endif %}
-    </strong>
-    <p id="paymentResultText">
-      {% if payment_state == 'success' or payment_state == 'processing' %}Your checkout was received. We are waiting for secure webhook confirmation; this usually takes only a few seconds.
-      {% elif payment_state == 'cancelled' %}No subscription change was made. Your current access remains unchanged.
-      {% else %}Your current plan was not changed. You can safely try again from Billing.{% endif %}
-    </p>
-  </div>
-  <div class="payment-result-actions">
-    <a href="{{ url_for('admin.billing_index') }}" class="btn btn-secondary">Manage billing</a>
-    {% if payment_state in ('success', 'processing') %}<button type="button" class="btn btn-primary" id="refreshPaymentStatus">Refresh status</button>{% endif %}
-  </div>
-</section>
-{% endif %}
 <div class="dashboard-grid">
 
   {# ── Hero Card ───────────────────────────────────────── #}
@@ -39,15 +15,10 @@
           {% set _ss = subscription_status %}
           {% set _tenant_state = tenant_context.subscription_state if tenant_context else (_ss or 'trial') %}
           {% set _plan = tenant_context.plan if tenant_context else profile.effective_plan() %}
-          {% set _plan_label = _plan|plan_display %}
-          {% set _plan_is_real = _plan_label in ('Basic', 'Pro', 'Enterprise', 'Administrator') %}
-          <span class="badge-status badge-{{ 'active' if _ss == 'active' else _tenant_state }}"
+          {% set _plan_is_real = _plan in ('Basic', 'Pro', 'Enterprise', 'Administrator') %}
+          <span class="badge-status badge-{{ _tenant_state }}"
                 style="font-size:0.55em;vertical-align:middle;margin-left:0.5rem">
-            {% if _ss == 'active' and _plan_is_real %}
-              {{ _plan_label }} Plan · Active
-            {% elif _ss == 'pending' %}
-              {{ _plan_label if _plan_is_real else 'Basic' }} · Pending
-            {% elif _tenant_state == 'trial' %}
+            {% if _tenant_state == 'trial' %}
               Trial · {{ trial_days_left }}d left
             {% elif _tenant_state == 'grace' %}
               Trial ending soon
@@ -55,6 +26,10 @@
               Readonly Mode
             {% elif _tenant_state == 'suspended' %}
               Suspended
+            {% elif _ss == 'active' and _plan_is_real %}
+              {{ _plan }} Plan · Active
+            {% elif _ss == 'pending' %}
+              {{ _plan if _plan_is_real else 'Basic' }} · Pending
             {% elif _ss in ('expired', 'cancelled') %}
               Expired — <a href="{{ url_for('admin.billing_index') }}" style="color:inherit">Renew</a>
             {% else %}
@@ -81,7 +56,7 @@
           New Project
         </a>
         <a href="{{ url_for('admin.edit_profile') }}" class="btn btn-ghost">Edit Profile</a>
-        <a href="{{ url_for('admin.billing_index') }}" class="btn btn-secondary">{% if subscription_status == 'active' %}Manage Plan{% else %}Upgrade Plan{% endif %}</a>
+        <a href="{{ url_for('admin.billing_index') }}" class="btn btn-secondary">Upgrade Plan</a>
         <a href="{{ url_for('admin.activity') }}" class="btn btn-secondary">Activity</a>
       </div>
     </div>
@@ -432,51 +407,4 @@
 
 
 </div>
-
-{% if payment_state %}
-<style>
-.payment-result-card{display:flex;align-items:center;gap:14px;padding:16px 18px;margin:0 0 18px;border:1px solid rgba(99,102,241,.35);border-radius:16px;background:linear-gradient(135deg,rgba(79,70,229,.13),rgba(15,23,42,.76));box-shadow:0 12px 35px rgba(0,0,0,.12)}
-.payment-result-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:rgba(99,102,241,.16);color:#a5b4fc;flex:0 0 auto}.payment-result-success .payment-result-icon,.payment-result-processing .payment-result-icon{animation:paymentSpin 1.2s linear infinite}.payment-result-copy{flex:1}.payment-result-copy strong{display:block;font-size:1rem}.payment-result-copy p{margin:4px 0 0;color:var(--text-muted,#94a3b8);line-height:1.45}.payment-result-actions{display:flex;gap:8px;flex-wrap:wrap}@keyframes paymentSpin{to{transform:rotate(360deg)}}
-.payment-result-active{border-color:rgba(16,185,129,.42);background:linear-gradient(135deg,rgba(16,185,129,.14),rgba(15,23,42,.76))}.payment-result-active .payment-result-icon{color:#34d399;animation:none}.payment-result-failed{border-color:rgba(239,68,68,.4)}
-@media(max-width:760px){.payment-result-card{align-items:flex-start;flex-wrap:wrap}.payment-result-actions{width:100%}}
-</style>
-<script>
-(() => {
-  const initial = {{ payment_state|tojson }};
-  if (!['success','processing'].includes(initial)) return;
-  const card=document.getElementById('paymentResultCard');
-  const title=document.getElementById('paymentResultTitle');
-  const text=document.getElementById('paymentResultText');
-  const button=document.getElementById('refreshPaymentStatus');
-  let attempts=0, timer=null;
-  async function checkStatus(){
-    attempts++;
-    try{
-      const response=await fetch({{ url_for('admin.billing_subscription_status')|tojson }},{headers:{'Accept':'application/json'},credentials:'same-origin'});
-      if(!response.ok) throw new Error('status request failed');
-      const data=await response.json();
-      if(data.status==='active'){
-        clearInterval(timer); card.className='payment-result-card payment-result-active';
-        card.querySelector('iconify-icon').setAttribute('icon','lucide:badge-check');
-        title.textContent=`Welcome to ${data.plan || 'your new plan'}!`;
-        text.textContent='Your subscription is active and paid features are now available.';
-        if(button) button.remove();
-        setTimeout(()=>history.replaceState({},'',location.pathname),1200);
-      }else if(data.status==='failed'){
-        clearInterval(timer); card.className='payment-result-card payment-result-failed';
-        card.querySelector('iconify-icon').setAttribute('icon','lucide:alert-circle');
-        title.textContent='Payment was not confirmed';
-        text.textContent='Your current plan remains unchanged. Please try again from Billing.';
-        if(button) button.textContent='Try again';
-      }else if(attempts>=12){
-        clearInterval(timer); title.textContent='Payment received — activation pending';
-        text.textContent='Confirmation is taking longer than usual. You may continue using the dashboard and check Billing again shortly.';
-      }
-    }catch(e){ if(attempts>=12) clearInterval(timer); }
-  }
-  if(button) button.addEventListener('click',checkStatus);
-  checkStatus(); timer=setInterval(checkStatus,5000);
-})();
-</script>
-{% endif %}
 {% endblock %}

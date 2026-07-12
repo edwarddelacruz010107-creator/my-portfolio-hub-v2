@@ -2,193 +2,206 @@
 {% block title %}Platform Overview{% endblock %}
 {% block page_title %}Platform Overview{% endblock %}
 
-
-{% block extra_css %}
-<style>
-  .overview-shell{display:grid;gap:1.35rem}
-  .overview-hero{position:relative;overflow:hidden;border:1px solid rgba(129,140,248,.22);background:linear-gradient(135deg,rgba(79,70,229,.14),rgba(15,23,42,.78) 52%,rgba(16,185,129,.06));border-radius:24px;padding:2rem}
-  .overview-hero:after{content:"";position:absolute;right:-80px;top:-100px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,.2),transparent 68%);pointer-events:none}
-  .overview-hero__top{display:flex;align-items:flex-start;justify-content:space-between;gap:1.5rem;position:relative;z-index:1}
-  .overview-kicker{display:inline-flex;align-items:center;gap:.5rem;font-size:.72rem;letter-spacing:.13em;text-transform:uppercase;color:#a5b4fc;font-weight:700}
-  .overview-kicker:before{content:"";width:7px;height:7px;border-radius:50%;background:#34d399;box-shadow:0 0 0 5px rgba(52,211,153,.1)}
-  .overview-hero h1{margin:.65rem 0 .45rem;font-size:clamp(2rem,4vw,3.2rem);letter-spacing:-.05em}
-  .overview-hero p{max-width:680px;color:var(--text-muted);margin:0;line-height:1.65}
-  .overview-meta{display:flex;align-items:center;gap:.55rem;margin-top:1rem;color:var(--text-dim);font-size:.78rem}
-  .overview-meta span{display:inline-flex;align-items:center;gap:.35rem}
-  .overview-actions{display:flex;gap:.65rem;flex-wrap:wrap;justify-content:flex-end}
-  .overview-filter{border:1px solid var(--border);border-radius:18px;background:var(--bg-2);padding:1rem}
-  .overview-filter .filter-row{grid-template-columns:minmax(250px,1.5fr) repeat(2,minmax(150px,.7fr)) auto}
-  .overview-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.85rem}
-  .metric-card{position:relative;overflow:hidden;min-height:154px;border:1px solid var(--border);border-radius:18px;background:linear-gradient(180deg,rgba(22,31,50,.97),rgba(17,24,39,.97));padding:1rem 1rem .95rem;display:flex;flex-direction:column;justify-content:space-between}
-  .metric-card:before{content:"";position:absolute;inset:0 0 auto 0;height:2px;background:var(--metric-accent,#6366f1);opacity:.9}
-  .metric-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem}
-  .metric-label{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);font-weight:700}
-  .metric-icon{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:color-mix(in srgb,var(--metric-accent,#6366f1) 12%,transparent);color:var(--metric-accent,#818cf8)}
-  .metric-value{font-size:1.8rem;font-family:var(--font-display);font-weight:700;letter-spacing:-.04em;color:var(--text-primary)}
-  .metric-note{font-size:.74rem;color:var(--text-dim);line-height:1.45}
-  .metric-chip{display:inline-flex;align-items:center;gap:.3rem;width:max-content;margin-top:.45rem;padding:.24rem .5rem;border-radius:999px;font-size:.68rem;background:rgba(52,211,153,.1);color:#34d399;border:1px solid rgba(52,211,153,.15)}
-  .analytics-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(300px,.85fr);gap:1rem}
-  .analytics-card{border:1px solid var(--border);border-radius:20px;background:var(--bg-2);padding:1.25rem;min-width:0}
-  .analytics-card__head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1.1rem}
-  .analytics-card__head h2{font-size:1rem;margin:.3rem 0 0}
-  .analytics-card__head p{font-size:.75rem;color:var(--text-dim);margin:.25rem 0 0}
-  .analytics-period{font-size:.7rem;color:#a5b4fc;border:1px solid rgba(129,140,248,.2);background:rgba(99,102,241,.08);padding:.35rem .55rem;border-radius:999px;white-space:nowrap}
-  .revenue-chart{height:245px;position:relative;padding:.5rem .4rem 1.8rem}
-  .revenue-chart svg{width:100%;height:100%;overflow:visible}
-  .chart-grid-line{stroke:rgba(148,163,184,.12);stroke-width:.45}
-  .chart-axis{display:flex;justify-content:space-between;color:var(--text-dim);font-size:.68rem;margin-top:-.2rem;padding:0 .45rem}
-  .chart-tooltip-value{font-size:4px;fill:#e5e7eb;font-weight:700}
-  .chart-tooltip-bg{fill:rgba(15,23,42,.9);stroke:rgba(129,140,248,.25);stroke-width:.3}
-  .tenant-bars{height:180px;display:flex;align-items:flex-end;gap:.65rem;padding:.75rem .15rem .15rem}
-  .tenant-bar-item{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:.55rem;height:100%}
-  .tenant-bar-track{width:100%;height:135px;border-radius:10px 10px 6px 6px;background:rgba(148,163,184,.06);display:flex;align-items:flex-end;overflow:hidden}
-  .tenant-bar-fill{width:100%;min-height:4px;border-radius:10px 10px 0 0;background:linear-gradient(180deg,#818cf8,#4f46e5);box-shadow:0 0 18px rgba(99,102,241,.18)}
-  .tenant-bar-value{font-size:.68rem;color:var(--text-muted);font-weight:700}
-  .tenant-bar-label{font-size:.67rem;color:var(--text-dim)}
-  .insight-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem}
-  .provider-list{display:grid;gap:.75rem}
-  .provider-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:.75rem;padding:.75rem;border-radius:14px;border:1px solid rgba(148,163,184,.1);background:rgba(15,23,42,.35)}
-  .provider-dot{width:9px;height:9px;border-radius:50%;background:var(--provider-color)}
-  .provider-name{font-size:.82rem;font-weight:650}.provider-sub{font-size:.68rem;color:var(--text-dim);margin-top:.1rem}
-  .provider-amount{text-align:right;font-family:var(--font-display);font-weight:700}.provider-share{font-size:.66rem;color:var(--text-dim);margin-top:.1rem}
-  .donut-wrap{display:flex;align-items:center;gap:1.4rem;min-height:180px}
-  .donut{width:145px;aspect-ratio:1;border-radius:50%;position:relative;background:conic-gradient(#818cf8 0 var(--plan-a),#34d399 var(--plan-a) calc(var(--plan-a) + var(--plan-b)),#f59e0b calc(var(--plan-a) + var(--plan-b)) calc(var(--plan-a) + var(--plan-b) + var(--plan-c)),#64748b 0)}
-  .donut:after{content:"";position:absolute;inset:22px;border-radius:50%;background:var(--bg-2);border:1px solid var(--border)}
-  .donut-center{position:absolute;inset:0;display:grid;place-items:center;z-index:1;text-align:center}.donut-center strong{font-size:1.5rem}.donut-center span{display:block;font-size:.65rem;color:var(--text-dim);margin-top:.1rem}
-  .legend{display:grid;gap:.55rem;flex:1}.legend-row{display:flex;align-items:center;justify-content:space-between;gap:.75rem;font-size:.76rem}.legend-key{display:flex;align-items:center;gap:.5rem;color:var(--text-muted)}
-  .legend-swatch{width:8px;height:8px;border-radius:50%}.legend-value{font-weight:700;color:var(--text-primary)}
-  .section-divider{height:1px;background:var(--border);margin:.1rem 0}
-  @media(max-width:1280px){.overview-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
-  @media(max-width:980px){.analytics-grid,.insight-grid{grid-template-columns:1fr}.overview-filter .filter-row{grid-template-columns:1fr 1fr}.overview-filter .filter-row input{grid-column:1/-1}}
-  @media(max-width:720px){.overview-hero{padding:1.35rem}.overview-hero__top{flex-direction:column}.overview-actions{justify-content:flex-start}.overview-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.overview-filter .filter-row{grid-template-columns:1fr}.overview-filter .filter-row input{grid-column:auto}.donut-wrap{flex-direction:column}.metric-card{min-height:138px}}
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="dashboard-grid">
 
-  <div class="overview-shell">
-    <section class="overview-hero">
-      <div class="overview-hero__top">
-        <div>
-          <span class="overview-kicker">Live platform intelligence</span>
-          <h1>Platform Overview</h1>
-          <p>A focused view of growth, recurring revenue, subscription health, and the operational signals that need attention.</p>
-          <div class="overview-meta">
-            <span><iconify-icon icon="lucide:database" width="13"></iconify-icon> Live database metrics</span>
-            <span>•</span>
-            <span>{{ stats.currency_code }} reporting</span>
-          </div>
-        </div>
-        <div class="overview-actions">
-          <a href="{{ url_for('superadmin.tenant_new') }}" class="btn btn-primary"><iconify-icon icon="lucide:user-plus" width="15"></iconify-icon>New Tenant</a>
-          <a href="{{ url_for('superadmin.billing_overview') }}" class="btn btn-secondary"><iconify-icon icon="lucide:chart-no-axes-combined" width="15"></iconify-icon>Billing Analytics</a>
-          <a href="{{ url_for('root') }}" class="btn btn-ghost" target="_blank">View Site</a>
+  {# ── Hero ───────────────────────────────────────────── #}
+  <div class="dashboard-hero">
+    <div class="hero-card">
+      <div class="hero-copy">
+        <span class="section-tag">SuperAdmin — Control Center</span>
+        <h1>Platform Overview</h1>
+        <p>Monitor tenant activity, revenue, and platform health in real time.</p>
+      </div>
+      <div class="hero-actions">
+        <a href="{{ url_for('superadmin.tenant_new') }}" class="btn btn-primary">
+          <iconify-icon icon="lucide:user-plus" width="15"></iconify-icon>
+          New Tenant
+        </a>
+        <a href="{{ url_for('superadmin.settings') }}" class="btn btn-ghost">Settings</a>
+        <a href="{{ url_for('root') }}" class="btn btn-secondary" target="_blank">View Public Site</a>
+      </div>
+    </div>
+  </div>
+
+  {# ── Filter Panel ────────────────────────────────────── #}
+  <div class="dashboard-filter-panel">
+    <form method="get" class="dashboard-filter-form">
+      <div class="filter-row">
+        <input type="search" name="q" value="{{ q }}" placeholder="Search tenants, slug, or email" class="form-input" />
+        <select name="status" class="form-select">
+          <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Statuses</option>
+          <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+        </select>
+        <select name="plan" class="form-select">
+          <option value="all" {% if plan_filter == 'all' %}selected{% endif %}>All Plans</option>
+          {% for plan_name in plan_breakdown.keys()|sort %}
+            <option value="{{ plan_name }}" {% if plan_filter == plan_name %}selected{% endif %}>{{ plan_name }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary">
+          <iconify-icon icon="lucide:filter" width="14"></iconify-icon>
+          Apply
+        </button>
+      </div>
+      <div class="filter-actions">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="exportDashboard('csv')">
+          <iconify-icon icon="lucide:download" width="13"></iconify-icon>
+          Export CSV
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="exportDashboard('excel')">
+          <iconify-icon icon="lucide:table" width="13"></iconify-icon>
+          Export Excel
+        </button>
+      </div>
+    </form>
+  </div>
+
+  {# ── Stats Row ────────────────────────────────────────── #}
+  <div class="stats-row" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
+
+    <div class="stat-card-v2">
+      <div class="stat-header">
+        <div class="stat-icon-wrap info">
+          <iconify-icon icon="lucide:users" width="18"></iconify-icon>
         </div>
       </div>
-    </section>
+      <div class="stat-big">{{ stats.total_tenants }}</div>
+      <div class="stat-name">Total Tenants</div>
+      <div class="stat-footer"><span class="stat-sub">Platform profiles</span></div>
+    </div>
 
-    <section class="overview-filter">
-      <form method="get" class="dashboard-filter-form">
-        <div class="filter-row">
-          <input type="search" name="q" value="{{ q }}" placeholder="Search tenant, slug, or owner email" class="form-input" />
-          <select name="status" class="form-select">
-            <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All statuses</option>
-            <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
-            <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
-          </select>
-          <select name="plan" class="form-select">
-            <option value="all" {% if plan_filter == 'all' %}selected{% endif %}>All plans</option>
-            {% for plan_name in plan_breakdown.keys()|sort %}<option value="{{ plan_name }}" {% if plan_filter == plan_name %}selected{% endif %}>{{ plan_name }}</option>{% endfor %}
-          </select>
-          <button type="submit" class="btn btn-primary"><iconify-icon icon="lucide:sliders-horizontal" width="14"></iconify-icon>Apply</button>
+    <div class="stat-card-v2">
+      <div class="stat-header">
+        <div class="stat-icon-wrap success">
+          <iconify-icon icon="lucide:user-check" width="18"></iconify-icon>
         </div>
-        <div class="filter-actions">
-          <button type="button" class="btn btn-ghost btn-sm" onclick="exportDashboard('csv')"><iconify-icon icon="lucide:download" width="13"></iconify-icon>CSV</button>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="exportDashboard('excel')"><iconify-icon icon="lucide:sheet" width="13"></iconify-icon>Excel</button>
+      </div>
+      <div class="stat-big">{{ stats.active_tenants }}</div>
+      <div class="stat-name">Active Tenants</div>
+      <div class="stat-footer">
+        {% if stats.total_tenants > 0 %}
+        <span class="trend trend-up">
+          {{ ((stats.active_tenants / stats.total_tenants) * 100) | round | int }}% active
+        </span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="stat-card-v2" style="border-color:rgba(16,185,129,0.2);background:linear-gradient(135deg,var(--bg-2),rgba(16,185,129,0.04))">
+      <div class="stat-header">
+        <div class="stat-icon-wrap success">
+          <iconify-icon icon="lucide:dollar-sign" width="18"></iconify-icon>
         </div>
-      </form>
-    </section>
+      </div>
+      <div class="stat-big">{{ stats.currency_symbol }}{{ '%.0f'|format(stats.revenue) }}</div>
+      <div class="stat-name">Revenue</div>
+      <div class="stat-footer">
+        <span class="stat-sub">Active subscriptions</span>
+      </div>
+    </div>
 
-    <section class="overview-metrics">
-      <article class="metric-card" style="--metric-accent:#818cf8">
-        <div class="metric-head"><span class="metric-label">Monthly recurring revenue</span><span class="metric-icon"><iconify-icon icon="lucide:badge-dollar-sign" width="17"></iconify-icon></span></div>
-        <div><div class="metric-value">{{ stats.currency_symbol }}{{ '%.2f'|format(stats.mrr) }}</div><div class="metric-note">Normalized monthly value of active subscriptions</div></div>
-      </article>
-      <article class="metric-card" style="--metric-accent:#34d399">
-        <div class="metric-head"><span class="metric-label">Active tenants</span><span class="metric-icon"><iconify-icon icon="lucide:users-round" width="17"></iconify-icon></span></div>
-        <div><div class="metric-value">{{ stats.active_tenants }}<span style="font-size:.9rem;color:var(--text-dim)"> / {{ stats.total_tenants }}</span></div><span class="metric-chip">{{ stats.active_rate }}% active</span></div>
-      </article>
-      <article class="metric-card" style="--metric-accent:#22d3ee">
-        <div class="metric-head"><span class="metric-label">Recorded revenue</span><span class="metric-icon"><iconify-icon icon="lucide:wallet-cards" width="17"></iconify-icon></span></div>
-        <div><div class="metric-value">{{ stats.currency_symbol }}{{ '%.2f'|format(stats.revenue) }}</div><div class="metric-note">Dodo, PayMongo, and approved manual payments</div></div>
-      </article>
-      <article class="metric-card" style="--metric-accent:#f59e0b">
-        <div class="metric-head"><span class="metric-label">Pending payments</span><span class="metric-icon"><iconify-icon icon="lucide:clock-3" width="17"></iconify-icon></span></div>
-        <div><div class="metric-value">{{ stats.pending_payments }}</div><div class="metric-note">Manual submissions awaiting review</div></div>
-      </article>
-      <article class="metric-card" style="--metric-accent:#fb7185">
-        <div class="metric-head"><span class="metric-label">Expiring soon</span><span class="metric-icon"><iconify-icon icon="lucide:calendar-clock" width="17"></iconify-icon></span></div>
-        <div><div class="metric-value">{{ stats.expiring_accounts }}</div><div class="metric-note">Subscriptions ending within 30 days</div></div>
-      </article>
-      <article class="metric-card" style="--metric-accent:#f87171">
-        <div class="metric-head"><span class="metric-label">Churn signal</span><span class="metric-icon"><iconify-icon icon="lucide:activity" width="17"></iconify-icon></span></div>
-        <div><div class="metric-value">{{ stats.churn_rate }}%</div><div class="metric-note">{{ stats.expired_accounts }} expired or cancelled subscriptions</div></div>
-      </article>
-    </section>
-
-    <section class="analytics-grid">
-      <article class="analytics-card">
-        <div class="analytics-card__head"><div><span class="section-tag">Revenue trend</span><h2>Recorded payments over time</h2><p>Six-month provider-normalized revenue view</p></div><span class="analytics-period">Last 6 months</span></div>
-        <div class="revenue-chart">
-          <svg viewBox="0 0 100 94" preserveAspectRatio="none" role="img" aria-label="Six month revenue trend">
-            {% for y in [18,40,62,84] %}<line x1="4" y1="{{ y }}" x2="96" y2="{{ y }}" class="chart-grid-line" />{% endfor %}
-            <defs><linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#818cf8" stop-opacity=".32"/><stop offset="100%" stop-color="#818cf8" stop-opacity="0"/></linearGradient></defs>
-            {% if revenue_area %}<polygon points="{{ revenue_area }}" fill="url(#revenueFill)"/>{% endif %}
-            {% if revenue_polyline %}<polyline points="{{ revenue_polyline }}" fill="none" stroke="#818cf8" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>{% endif %}
-            {% for point in revenue_chart %}
-              <circle cx="{{ point.x }}" cy="{{ point.y }}" r="1.5" fill="#0f172a" stroke="#a5b4fc" stroke-width=".65" vector-effect="non-scaling-stroke"/>
-              {% if point.value > 0 %}<g transform="translate({{ point.x - 7 }},{{ [point.y - 10, 2]|max }})"><rect width="14" height="7" rx="2" class="chart-tooltip-bg"/><text x="7" y="4.8" text-anchor="middle" class="chart-tooltip-value">{{ stats.currency_symbol }}{{ '%.0f'|format(point.value) }}</text></g>{% endif %}
-            {% endfor %}
-          </svg>
-          <div class="chart-axis">{% for point in revenue_chart %}<span>{{ point.label }}</span>{% endfor %}</div>
+    <div class="stat-card-v2">
+      <div class="stat-header">
+        <div class="stat-icon-wrap warn">
+          <iconify-icon icon="lucide:clock" width="18"></iconify-icon>
         </div>
-      </article>
+      </div>
+      <div class="stat-big">{{ stats.pending_payments }}</div>
+      <div class="stat-name">Pending Payments</div>
+      <div class="stat-footer"><span class="stat-sub">Awaiting review</span></div>
+    </div>
 
-      <article class="analytics-card">
-        <div class="analytics-card__head"><div><span class="section-tag">Tenant growth</span><h2>New accounts</h2><p>Monthly tenant registrations</p></div></div>
-        <div class="tenant-bars">
-          {% for item in tenant_growth_chart %}
-          <div class="tenant-bar-item"><span class="tenant-bar-value">{{ item.value }}</span><div class="tenant-bar-track"><div class="tenant-bar-fill" style="height:{{ item.height if item.height > 0 else 3 }}%"></div></div><span class="tenant-bar-label">{{ item.label }}</span></div>
-          {% endfor %}
+    <div class="stat-card-v2">
+      <div class="stat-header">
+        <div class="stat-icon-wrap warn">
+          <iconify-icon icon="lucide:alert-triangle" width="18"></iconify-icon>
         </div>
-      </article>
-    </section>
+      </div>
+      <div class="stat-big">{{ stats.expiring_accounts }}</div>
+      <div class="stat-name">Expiring Soon</div>
+      <div class="stat-footer"><span class="stat-sub">Due in 30 days</span></div>
+    </div>
 
-    <section class="insight-grid">
-      <article class="analytics-card">
-        <div class="analytics-card__head"><div><span class="section-tag">Payment mix</span><h2>Revenue by provider</h2><p>Clear separation across collection channels</p></div><a href="{{ url_for('superadmin.billing_overview') }}" class="btn btn-sm btn-ghost">Details</a></div>
-        <div class="provider-list">
-          {% set providers = [('dodo','Dodo Payments','#34d399','lucide:zap'),('paymongo','PayMongo','#818cf8','lucide:credit-card'),('manual','Manual Payments','#f59e0b','lucide:receipt-text')] %}
-          {% for key,name,color,icon in providers %}{% set row = provider_mix[key] %}
-          <div class="provider-row" style="--provider-color:{{ color }}"><span class="provider-dot"></span><div><div class="provider-name">{{ name }}</div><div class="provider-sub">{{ row.active }} active subscription{{ '' if row.active == 1 else 's' }}</div></div><div class="provider-amount">{{ stats.currency_symbol }}{{ '%.2f'|format(row.amount) }}<div class="provider-share">{{ row.share }}%</div></div></div>
-          {% endfor %}
+    <div class="stat-card-v2">
+      <div class="stat-header">
+        <div class="stat-icon-wrap danger">
+          <iconify-icon icon="lucide:x-circle" width="18"></iconify-icon>
         </div>
-      </article>
+      </div>
+      <div class="stat-big">{{ stats.expired_accounts }}</div>
+      <div class="stat-name">Expired</div>
+      <div class="stat-footer"><span class="stat-sub">Past-due subscriptions</span></div>
+    </div>
 
-      <article class="analytics-card">
-        <div class="analytics-card__head"><div><span class="section-tag">Portfolio mix</span><h2>Plan distribution</h2><p>Current tenant access levels</p></div></div>
+  </div>
+
+  {# ── Charts Row ───────────────────────────────────────── #}
+  <div class="dashboard-cols">
+
+    <div class="dash-panel">
+      <div class="panel-header">
+        <div>
+          <span class="section-tag">Analytics</span>
+          <h2>Plan Breakdown</h2>
+        </div>
+      </div>
+      {% if plan_breakdown %}
         {% set total_plans = plan_breakdown.values()|sum %}
-        {% set sorted_plans = plan_breakdown.items()|list %}
-        {% set pa = ((sorted_plans[0][1] / total_plans * 100) if total_plans and sorted_plans|length > 0 else 0) %}
-        {% set pb = ((sorted_plans[1][1] / total_plans * 100) if total_plans and sorted_plans|length > 1 else 0) %}
-        {% set pc = ((sorted_plans[2][1] / total_plans * 100) if total_plans and sorted_plans|length > 2 else 0) %}
-        <div class="donut-wrap">
-          <div class="donut" style="--plan-a:{{ pa }}%;--plan-b:{{ pb }}%;--plan-c:{{ pc }}%"><div class="donut-center"><div><strong>{{ total_plans }}</strong><span>tenants</span></div></div></div>
-          <div class="legend">{% for plan_name,count in plan_breakdown.items() %}<div class="legend-row"><span class="legend-key"><span class="legend-swatch" style="background:{{ ['#818cf8','#34d399','#f59e0b','#64748b','#fb7185'][loop.index0 % 5] }}"></span>{{ plan_name }}</span><span class="legend-value">{{ count }}</span></div>{% endfor %}</div>
+        <div style="display:flex;flex-direction:column;gap:0.25rem">
+          {% for plan_name, count in plan_breakdown.items() %}
+          <div class="chart-bar-row">
+            <span class="chart-bar-label">{{ plan_name }}</span>
+            <div class="chart-bar-track">
+              <div class="chart-bar-fill" style="width:{{ (count / total_plans * 100) if total_plans else 0 }}%"></div>
+            </div>
+            <span class="chart-bar-val">{{ count }}</span>
+          </div>
+          {% endfor %}
         </div>
-      </article>
-    </section>
+      {% else %}
+        <div class="empty-state-v2" style="padding:2rem">
+          <div class="empty-icon"><iconify-icon icon="lucide:pie-chart" width="24"></iconify-icon></div>
+          <p>No plan data yet</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="dash-panel">
+      <div class="panel-header">
+        <div>
+          <span class="section-tag">Analytics</span>
+          <h2>Subscription Status</h2>
+        </div>
+      </div>
+      {% if subscription_status %}
+        {% set total_status = subscription_status.values()|sum %}
+        <div style="display:flex;flex-direction:column;gap:0.25rem">
+          {% for status_name, count in subscription_status.items() %}
+          {% set pct = ((count / total_status * 100) if total_status else 0) | round | int %}
+          <div class="chart-bar-row">
+            <span class="chart-bar-label">{{ status_name | title }}</span>
+            <div class="chart-bar-track">
+              <div class="chart-bar-fill"
+                   style="width:{{ pct }}%;
+                   background:{% if status_name == 'active' %}linear-gradient(90deg,var(--success),#34d399)
+                   {% elif status_name == 'expired' %}linear-gradient(90deg,var(--danger),#f87171)
+                   {% elif status_name == 'pending' %}linear-gradient(90deg,var(--warn),#fbbf24)
+                   {% else %}linear-gradient(90deg,var(--accent),var(--accent-light)){% endif %}">
+              </div>
+            </div>
+            <span class="chart-bar-val">{{ count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state-v2" style="padding:2rem">
+          <div class="empty-icon"><iconify-icon icon="lucide:bar-chart-2" width="24"></iconify-icon></div>
+          <p>No subscription data yet</p>
+        </div>
+      {% endif %}
+    </div>
   </div>
 
   {# ── Recent Tenants + Payments ─────────────────────────── #}

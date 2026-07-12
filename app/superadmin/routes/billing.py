@@ -11,7 +11,6 @@ import logging
 import re
 import secrets
 import string
-from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone, timedelta
 from functools import wraps
 
@@ -53,8 +52,7 @@ from app.services.manual_billing import (
     set_default_payment_method,
 )
 from app.services.tenant_admin import delete_tenant_completely
-from app.utils import (is_paymongo_enabled, set_paymongo_enabled,
-                       is_dodo_payments_admin_enabled, set_dodo_payments_admin_enabled)
+from app.utils import is_paymongo_enabled, set_paymongo_enabled
 from app.models import User
 from app.models.portfolio import (Profile, PaymentMethod, PaymentSubmission, Subscription, WebhookEvent,
                                    ActivityLog, Project, Inquiry, Tenant, PaymentInstruction, PAID_PLAN_NAMES,
@@ -83,8 +81,23 @@ logger = logging.getLogger(__name__)
 @superadmin.route('/billing')
 @superadmin_required
 def billing_overview():
-    """Legacy analytics URL; the unified dashboard now lives in Subscription Monitor."""
-    return redirect(url_for('superadmin.subscription_monitor'), code=302)
+    """Subscription dashboard: MRR, active subs, webhook log, tenant billing table."""
+    metrics = compute_billing_metrics()
+    tenants = [tenant_billing_summary(p) for p in profile_repository.query.order_by(Profile.tenant_slug).all()]
+    recent_webhooks = (
+        webhook_event_repository.query
+        .order_by(WebhookEvent.received_at.desc())
+        .limit(25)
+        .all()
+    )
+    return render_template(
+        'superadmin/billing_overview.html',
+        metrics=metrics,
+        tenants=tenants,
+        recent_webhooks=recent_webhooks,
+        billing_plans=get_public_billing_plans(),
+        page_title='Subscription Overview',
+    )
 
 @superadmin.route('/billing/sync/<int:profile_id>', methods=['POST'])
 @superadmin_required
@@ -92,7 +105,7 @@ def billing_sync_tenant(profile_id):
     profile = profile_repository.get_or_404(profile_id)
     ok, message = sync_subscription_from_paymongo(profile)
     flash(message, 'success' if ok else 'warning')
-    return redirect(url_for('superadmin.subscription_monitor'))
+    return redirect(url_for('superadmin.billing_overview'))
 
 @superadmin.route('/billing/activate/<int:profile_id>', methods=['POST'])
 @superadmin_required
@@ -107,7 +120,7 @@ def billing_force_activate(profile_id):
     else:
         ok, message = force_activate_subscription(profile, plan, actor=current_user.username)
         flash(message or f'Subscription force-activated for {profile.tenant_slug}.', 'success' if ok else 'warning')
-    return redirect(url_for('superadmin.subscription_monitor'))
+    return redirect(url_for('superadmin.billing_overview'))
 
 @superadmin.route('/billing/payment-methods')
 @superadmin_required
@@ -118,63 +131,13 @@ def billing_payment_methods():
         PaymentMethod.display_order.asc(),
         PaymentMethod.name.asc(),
     ).all()
-    dodo_product_keys = (
-        'DODO_BASIC_MONTHLY_PRODUCT_ID',
-        'DODO_BASIC_YEARLY_PRODUCT_ID',
-        'DODO_PRO_MONTHLY_PRODUCT_ID',
-        'DODO_PRO_YEARLY_PRODUCT_ID',
-        'DODO_ENTERPRISE_MONTHLY_PRODUCT_ID',
-        'DODO_ENTERPRISE_YEARLY_PRODUCT_ID',
-    )
-    dodo_products_configured = sum(
-        1 for key in dodo_product_keys if current_app.config.get(key)
-    )
-    dodo_api_configured = bool(current_app.config.get('DODO_PAYMENTS_API_KEY'))
-    dodo_webhook_configured = bool(current_app.config.get('DODO_PAYMENTS_WEBHOOK_SECRET'))
-    dodo_env_enabled = bool(current_app.config.get('DODO_PAYMENTS_ENABLED'))
-    dodo_admin_enabled = is_dodo_payments_admin_enabled(default=True)
-    dodo_ready = bool(dodo_env_enabled and dodo_admin_enabled and dodo_api_configured)
-
     return render_template(
         'superadmin/billing_payment_methods.html',
         methods=methods,
         paymongo_enabled=is_paymongo_enabled(),
         paymongo_configured=bool(current_app.config.get('PAYMONGO_SECRET_KEY')),
-        dodo_enabled=dodo_ready,
-        dodo_admin_enabled=dodo_admin_enabled,
-        dodo_env_enabled=dodo_env_enabled,
-        dodo_api_configured=dodo_api_configured,
-        dodo_webhook_configured=dodo_webhook_configured,
-        dodo_mode=current_app.config.get('DODO_PAYMENTS_MODE', 'test'),
-        dodo_products_configured=dodo_products_configured,
-        dodo_products_total=len(dodo_product_keys),
         page_title='Payment Methods',
     )
-
-@superadmin.route('/billing/dodo/toggle', methods=['POST'])
-@superadmin_required
-def billing_dodo_toggle():
-    """Enable or disable tenant Dodo checkout without changing Render secrets."""
-    env_enabled = bool(current_app.config.get('DODO_PAYMENTS_ENABLED'))
-    api_configured = bool(current_app.config.get('DODO_PAYMENTS_API_KEY'))
-    currently = is_dodo_payments_admin_enabled(default=True)
-
-    if not currently and not (env_enabled and api_configured):
-        flash('Dodo Payments cannot be activated until its Render configuration is complete.', 'warning')
-        return redirect(url_for('superadmin.billing_payment_methods'))
-
-    try:
-        set_dodo_payments_admin_enabled(not currently)
-    except Exception:
-        flash('Dodo Payments status could not be changed. Please check the server logs.', 'danger')
-        return redirect(url_for('superadmin.billing_payment_methods'))
-
-    from app.utils import log_billing_event
-    state = 'enabled' if not currently else 'disabled'
-    log_billing_event('dodo_toggle', 'global', f'Dodo Payments checkout {state} by {current_user.username}')
-    flash(f'Dodo Payments checkout {state}.', 'success')
-    return redirect(url_for('superadmin.billing_payment_methods'))
-
 
 @superadmin.route('/billing/paymongo/toggle', methods=['POST'])
 @superadmin_required

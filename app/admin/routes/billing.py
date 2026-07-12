@@ -44,7 +44,6 @@ from app.models.portfolio import Subscription
 from app.system_plan import ADMINISTRATOR_PLAN, has_administrator_access, is_administrator_plan
 from app.services.billing import subscription_access_status
 from app.services.billing.currency import get_currency_settings
-from app.services.billing.dodo_service import is_dodo_enabled
 from app.services.billing.trial_history import ensure_profile_trial_history
 from app.services.billing_handlers import (
     billing_payment_context,
@@ -122,54 +121,13 @@ def billing_index():
         is_administrator_plan=is_admin_plan,
         administrator_plan=ADMINISTRATOR_PLAN,
         tenant_slug=tenant,
-        paymongo_enabled=(is_dodo_enabled() or (is_paymongo_enabled() and get_currency_settings().get('display_currency') == 'PHP')),
+        paymongo_enabled=(is_paymongo_enabled() and get_currency_settings().get('display_currency') == 'PHP'),
         billing_routes={
             'overview': 'admin.billing_index',
             'plans':    'admin.billing_plans',
             'history':  'admin.billing_history',
         },
     )
-
-@admin.route('/billing/dodo/return')
-@admin_required
-def dodo_checkout_return():
-    """Hidden checkout return endpoint for a smooth dashboard UX.
-
-    This route never activates a subscription. Dodo's verified webhook is the
-    only authority that may change paid access.
-    """
-    outcome = (request.args.get('outcome') or request.args.get('status') or 'processing').lower()
-    if outcome not in {'success', 'cancelled', 'failed', 'processing'}:
-        outcome = 'processing'
-    return redirect(url_for('admin.dashboard', payment=outcome))
-
-
-@admin.route('/billing/subscription-status')
-@admin_required
-def billing_subscription_status():
-    """Return the tenant's local subscription state for dashboard polling."""
-    profile = _load_tenant_profile()
-    if profile is None:
-        return jsonify({'status': 'unknown'}), 404
-    sub = profile.current_subscription()
-    raw = str(getattr(sub, 'status', '') or getattr(sub, 'payment_status', '') or '').lower()
-    active_values = {'active', 'paid', 'trialing'}
-    failed_values = {'failed', 'expired', 'cancelled', 'canceled', 'past_due'}
-    if raw in active_values:
-        status = 'active'
-    elif raw in failed_values:
-        status = 'failed'
-    else:
-        status = 'processing'
-    plan_raw = str(getattr(sub, 'plan', '') or getattr(profile, 'plan', '') or 'Basic').lower()
-    plan = {'starter': 'Basic', 'basic': 'Basic', 'pro': 'Pro', 'business': 'Enterprise', 'enterprise': 'Enterprise'}.get(plan_raw, plan_raw.title())
-    return jsonify({
-        'status': status,
-        'plan': plan,
-        'billing_cycle': getattr(sub, 'billing_cycle', None) if sub else None,
-        'current_period_end': getattr(sub, 'current_period_end', None).isoformat() if sub and getattr(sub, 'current_period_end', None) else None,
-    })
-
 
 @admin.route('/billing/plans', methods=['GET', 'POST'])
 @admin_required
@@ -203,7 +161,7 @@ def billing_plans():
         'history':  'admin.billing_history',
         'payment':  'admin.billing_payment',
     }
-    paymongo_enabled = is_dodo_enabled() or (is_paymongo_enabled() and get_currency_settings().get('display_currency') == 'PHP')
+    paymongo_enabled = is_paymongo_enabled() and get_currency_settings().get('display_currency') == 'PHP'
 
     if form.validate_on_submit() or request.method == 'POST':
         response, exc = handle_billing_plans_post(

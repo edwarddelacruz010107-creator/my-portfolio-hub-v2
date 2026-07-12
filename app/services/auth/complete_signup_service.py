@@ -27,7 +27,7 @@ from app.services.billing.trial_history import ensure_trial_subscription_record
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_OTP_TTL_MINUTES = 3
+DEFAULT_OTP_TTL_MINUTES = 10
 PENDING_SIGNUP_LIFETIME_HOURS = 24
 OTP_RESEND_COOLDOWN_SECONDS = 60
 MAX_OTP_ATTEMPTS = 5
@@ -177,36 +177,6 @@ def get_pending_signup_resend_cooldown_remaining(pending_signup: PendingSignup |
         return 0
 
 
-def get_pending_signup_otp_remaining_seconds(pending_signup: PendingSignup | None) -> int:
-    """Return seconds until the current signup OTP expires."""
-    if pending_signup is None:
-        return 0
-    try:
-        expires_at = ensure_utc_aware(getattr(pending_signup, 'otp_expires_at', None))
-        if expires_at is None:
-            return 0
-        return max(0, int((expires_at - utc_now()).total_seconds()))
-    except Exception:
-        logger.debug(
-            'get_pending_signup_otp_remaining_seconds: failed for pending_signup_id=%s',
-            getattr(pending_signup, 'id', None),
-            exc_info=True,
-        )
-        return 0
-
-
-def _resolve_signup_otp_ttl_minutes(value: int | None = None) -> int:
-    if value is not None:
-        return max(1, int(value))
-    try:
-        from app.services.auth.signup_otp_email_service import get_signup_otp_ttl_minutes
-
-        return get_signup_otp_ttl_minutes(DEFAULT_OTP_TTL_MINUTES)
-    except Exception:
-        logger.debug('Could not resolve signup OTP TTL, using default', exc_info=True)
-        return DEFAULT_OTP_TTL_MINUTES
-
-
 def _find_active_pending_username_conflict(username: str, email: str) -> PendingSignup | None:
     username = (username or '').strip()
     normalized_email = _normalized_pending_email(email)
@@ -236,7 +206,7 @@ def create_or_refresh_pending_signup(
     password: str,
     ip_address: str | None = None,
     user_agent: str | None = None,
-    otp_ttl_minutes: int | None = None,
+    otp_ttl_minutes: int = DEFAULT_OTP_TTL_MINUTES,
     expires_hours: int = PENDING_SIGNUP_LIFETIME_HOURS,
 ) -> tuple[PendingSignup, str | None, str]:
     """Create or safely refresh a pending signup.
@@ -259,7 +229,6 @@ def create_or_refresh_pending_signup(
         raise PendingSignupError(str(exc))
 
     now = utc_now()
-    otp_ttl_minutes = _resolve_signup_otp_ttl_minutes(otp_ttl_minutes)
     had_expired_for_email = False
     for row in _pending_query_for_email(email).filter_by(email_verified=False).all():
         if row.is_expired:
@@ -330,7 +299,7 @@ def create_pending_signup(
     password: str,
     ip_address: str | None = None,
     user_agent: str | None = None,
-    otp_ttl_minutes: int | None = None,
+    otp_ttl_minutes: int = DEFAULT_OTP_TTL_MINUTES,
     expires_hours: int = PENDING_SIGNUP_LIFETIME_HOURS,
 ) -> tuple[PendingSignup, str]:
     """Compatibility wrapper for older callers.
@@ -358,7 +327,7 @@ def issue_pending_signup_otp(
     pending_signup: PendingSignup,
     ip_address: str | None = None,
     user_agent: str | None = None,
-    otp_ttl_minutes: int | None = None,
+    otp_ttl_minutes: int = DEFAULT_OTP_TTL_MINUTES,
 ) -> str:
     if pending_signup is None:
         raise PendingSignupError('Signup session not found.')
@@ -374,7 +343,6 @@ def issue_pending_signup_otp(
         )
         raise PendingSignupError(f'Please wait {remaining} seconds before requesting another code.')
 
-    otp_ttl_minutes = _resolve_signup_otp_ttl_minutes(otp_ttl_minutes)
     raw_otp = generate_otp()
     pending_signup.set_otp(raw_otp, otp_ttl_minutes)
     pending_signup.ip_address = ip_address
@@ -387,55 +355,6 @@ def issue_pending_signup_otp(
         otp_ttl_minutes,
     )
     return raw_otp
-
-
-def resend_pending_signup_otp(
-    pending_signup: PendingSignup,
-    ip_address: str | None = None,
-    user_agent: str | None = None,
-    otp_ttl_minutes: int | None = None,
-) -> bool:
-    """Send a fresh pending-signup OTP without invalidating the old one first.
-
-    The old resend flow committed the new OTP before delivery. In production,
-    a transient email-provider failure meant the old code stopped working and
-    the user got a cooldown even though no new email arrived. Here delivery is
-    attempted first; only an accepted send replaces the stored OTP/cooldown.
-    """
-    if pending_signup is None:
-        raise PendingSignupError('Signup session not found.')
-    if pending_signup.is_expired:
-        raise PendingSignupError('Signup session has expired. Please start again.')
-
-    remaining = get_pending_signup_resend_cooldown_remaining(pending_signup)
-    if remaining > 0:
-        logger.info(
-            'Pending signup OTP resend blocked by cooldown pending_signup_id=%s remaining=%s',
-            pending_signup.id,
-            remaining,
-        )
-        raise PendingSignupError(f'Please wait {remaining} seconds before requesting another code.')
-
-    otp_ttl_minutes = _resolve_signup_otp_ttl_minutes(otp_ttl_minutes)
-    raw_otp = generate_otp()
-    if not send_pending_signup_otp(pending_signup, raw_otp):
-        logger.error(
-            'Pending signup OTP resend delivery failed before DB refresh pending_signup_id=%s',
-            pending_signup.id,
-        )
-        return False
-
-    pending_signup.set_otp(raw_otp, otp_ttl_minutes)
-    pending_signup.ip_address = ip_address
-    pending_signup.user_agent = user_agent
-    db.session.add(pending_signup)
-    db.session.commit()
-    logger.info(
-        'Pending signup OTP resent and refreshed pending_signup_id=%s ttl_minutes=%s',
-        pending_signup.id,
-        otp_ttl_minutes,
-    )
-    return True
 
 
 def send_pending_signup_otp(pending_signup: PendingSignup, raw_otp: str) -> bool:
@@ -565,3 +484,4 @@ def complete_pending_signup(
     log_security_event('signup_local', user, f'Signup from {ip_address}', 'info')
     logger.info('REGISTER: completed signup user id=%s tenant=%s', user.id, tenant.slug)
     return user
+

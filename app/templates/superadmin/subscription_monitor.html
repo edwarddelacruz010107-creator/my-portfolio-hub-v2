@@ -75,8 +75,8 @@
       </div>
     </div>
     <div class="stat-big" style="font-size:1.35rem;">{{ metrics.total_revenue|billing_money }}</div>
-    <div class="stat-name">Normalized Active Value</div>
-    <div class="stat-footer"><span class="stat-sub">One current subscription per tenant</span></div>
+    <div class="stat-name">Total Revenue</div>
+    <div class="stat-footer"><span class="stat-sub">All time collected</span></div>
   </div>
 
   <div class="stat-card-v2">
@@ -112,43 +112,6 @@
     <div class="stat-footer"><span class="stat-sub">Active trials</span></div>
   </div>
 
-</div>
-
-<div class="provider-panel">
-  <div class="provider-panel__head">
-    <div>
-      <span class="section-tag">Revenue by provider</span>
-      <h2>Current subscription value</h2>
-      <p>Normalized to {{ currency_code }}. Duplicate webhook records are counted once per active tenant subscription.</p>
-    </div>
-    <div class="provider-total">
-      <strong>{{ currency_symbol }}{{ '%.2f'|format(metrics.total_revenue) }}</strong>
-      <span>normalized active value</span>
-    </div>
-  </div>
-  <div class="provider-grid">
-    {% for key, label, icon in [('dodo','Dodo Payments','lucide:zap'), ('paymongo','PayMongo','lucide:credit-card'), ('manual','Manual Payments','lucide:receipt-text')] %}
-    <article class="provider-card provider-card--{{ key }}">
-      <div class="provider-card__top">
-        <div class="provider-card__name"><iconify-icon icon="{{ icon }}" width="18"></iconify-icon><span>{{ label }}</span></div>
-        <span class="provider-count">{{ provider_active[key] }} active</span>
-      </div>
-      <div class="provider-card__amount">{{ currency_symbol }}{{ '%.2f'|format(provider_revenue[key]) }} <small>{{ currency_code }}</small></div>
-      {% if provider_original[key] %}
-      <div class="provider-original">
-        Provider collected:
-        {% for item in provider_original[key][:2] %}
-          <strong>{{ item.currency }} {{ '%.2f'|format(item.amount) }}</strong>{% if not loop.last %}, {% endif %}
-        {% endfor %}
-      </div>
-      {% else %}
-      <div class="provider-original">No cross-currency collection recorded</div>
-      {% endif %}
-      <div class="provider-bar"><span style="width:{{ revenue_share[key] }}%"></span></div>
-      <div class="provider-share">{{ revenue_share[key] }}% of normalized value</div>
-    </article>
-    {% endfor %}
-  </div>
 </div>
 
 {# ── Expiring in 7 Days ───────────────────────────────────────────────────── #}
@@ -511,30 +474,6 @@
 .plan-pill--expired {
   background: rgba(239,68,68,.12); color: #fca5a5;
 }
-
-/* ── Unified provider analytics ─────────────────────────────────────────── */
-.provider-panel { margin: 0 0 2rem; padding: 1.4rem; border: 1px solid var(--border-color, #26324a); border-radius: 20px; background: var(--card-bg, #111a2b); }
-.provider-panel__head { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; margin-bottom:1.2rem; }
-.provider-panel__head h2 { margin:.35rem 0 .25rem; font-size:1.15rem; }
-.provider-panel__head p { margin:0; color:var(--text-muted,#8d98ad); font-size:.82rem; }
-.provider-total { text-align:right; display:flex; flex-direction:column; }
-.provider-total strong { font-size:1.35rem; color:var(--text-primary,#f5f7fb); }
-.provider-total span { font-size:.72rem; color:var(--text-muted,#8d98ad); }
-.provider-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.85rem; }
-.provider-card { position:relative; overflow:hidden; padding:1.15rem; border:1px solid var(--border-color,#26324a); border-radius:16px; background:rgba(255,255,255,.018); }
-.provider-card::before { content:''; position:absolute; inset:0 auto 0 0; width:3px; background:#6d74ff; }
-.provider-card--dodo::before { background:#34d399; } .provider-card--manual::before { background:#f59e0b; }
-.provider-card__top,.provider-card__name { display:flex; align-items:center; justify-content:space-between; gap:.55rem; }
-.provider-card__name { justify-content:flex-start; font-weight:700; }
-.provider-count { font-size:.7rem; color:var(--text-muted,#8d98ad); padding:.25rem .5rem; border:1px solid var(--border-color,#26324a); border-radius:999px; }
-.provider-card__amount { margin:.9rem 0 .35rem; font-size:1.65rem; font-weight:800; letter-spacing:-.035em; }
-.provider-card__amount small { font-size:.7rem; color:var(--text-muted,#8d98ad); letter-spacing:.04em; }
-.provider-original,.provider-share { color:var(--text-muted,#8d98ad); font-size:.75rem; min-height:1.15rem; }
-.provider-original strong { color:var(--text-primary,#f5f7fb); }
-.provider-bar { height:6px; margin:.9rem 0 .5rem; border-radius:999px; background:rgba(148,163,184,.12); overflow:hidden; }
-.provider-bar span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#6d74ff,#8b5cf6); }
-.provider-card--dodo .provider-bar span { background:#34d399; } .provider-card--manual .provider-bar span { background:#f59e0b; }
-@media (max-width:900px){ .provider-grid{grid-template-columns:1fr;} .provider-panel__head{align-items:flex-start;flex-direction:column;} .provider-total{text-align:left;} }
 
 /* ── Days pill ───────────────────────────────────────────────────────────── */
 .days-pill {

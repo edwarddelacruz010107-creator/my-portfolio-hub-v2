@@ -29,7 +29,7 @@
     <ul class="plan-features">
       <li>No trial expiration</li>
       <li>No payment required</li>
-      <li>No Secure Checkout checkout</li>
+      <li>No PayMongo checkout</li>
       <li>Hidden from public pricing and tenant plan selection</li>
     </ul>
     <span class="badge-status badge-active" style="align-self:flex-start;margin-top:auto">Protected System Plan</span>
@@ -203,19 +203,13 @@
   <div class="paymongo-notice">
     <div class="paymongo-badge">
       <span>⚡</span>
-      <strong>Instant activation via {{ automated_gateway_name|default("Secure Checkout") }}</strong>
+      <strong>Instant activation via PayMongo</strong>
     </div>
     <p class="pm-desc">Pay online and your subscription activates automatically.</p>
-    <form method="post" id="automatedCheckoutForm" style="margin-top:1rem">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="action" value="checkout">
-      <input type="hidden" name="plan" id="checkoutPlanInput" value="">
-      <input type="hidden" name="billing_cycle" id="checkoutCycleInput" value="monthly">
-      <button type="submit" id="paymongoBtn" class="btn btn-success">
-        <iconify-icon icon="lucide:credit-card" width="16"></iconify-icon>
-        Pay with {{ automated_gateway_name|default("Secure Checkout") }}
-      </button>
-    </form>
+    <a href="#" id="paymongoBtn" class="btn btn-success" style="margin-top:1rem">
+      <iconify-icon icon="lucide:credit-card" width="16"></iconify-icon>
+      Pay with PayMongo
+    </a>
   </div>
   {% endif %}
 
@@ -312,7 +306,7 @@
 .cycle-toggle input{accent-color:#6366f1}
 .cycle-save-badge{font-size:0.68rem;padding:0.1rem 0.4rem;border-radius:10px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7}
 
-/* Secure Checkout notice */
+/* PayMongo notice */
 .paymongo-notice{padding:1.1rem 1.25rem;background:rgba(16,185,129,0.07);border:1px solid rgba(16,185,129,0.25);border-radius:12px;margin-bottom:1rem}
 .paymongo-badge{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem;font-size:0.95rem}
 .pm-desc{color:var(--text-muted);font-size:0.85rem;margin:0}
@@ -394,6 +388,6 @@
 .currency-rate-note{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin:-.5rem 0 1.25rem;padding:.65rem .85rem;border:1px solid rgba(99,102,241,.2);border-radius:10px;background:rgba(99,102,241,.06);font-size:.82rem;color:var(--text-muted)}
 .currency-rate-note strong{color:var(--text-primary,#e0e7ff)}
 </style>
-<script src="{{ url_for('static', filename='js/billing-plans.js') }}?v=20260712.1" defer></script>
+<script src="{{ url_for('static', filename='js/billing-plans.js') }}?v=20260710.2" defer></script>
 
 {% endif %}

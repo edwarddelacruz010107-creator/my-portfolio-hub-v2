@@ -14,7 +14,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SIGNUP_OTP_TTL_MINUTES = 3
+DEFAULT_SIGNUP_OTP_TTL_MINUTES = 10
 _SIGNUP_OTP_SUBJECT = "Your MyPortfolioHub verification code"
 
 
@@ -26,18 +26,18 @@ class SignupOtpDeliveryResult:
 
 
 def get_signup_otp_ttl_minutes(default: int = DEFAULT_SIGNUP_OTP_TTL_MINUTES) -> int:
-    """Resolve public signup OTP expiry.
+    """Resolve OTP expiry from SuperAdmin Email & Forms settings.
 
-    Signup verification is a short-lived public flow, so it is controlled by
-    SIGNUP_OTP_TTL_MINUTES instead of the password-recovery OTP setting.
+    Falls back to `default` when the singleton row is unavailable so signup does
+    not crash if email settings have not been initialized yet.
     """
     try:
-        from flask import current_app
+        from app.models.core import GlobalEmailConfig
 
-        configured = current_app.config.get("SIGNUP_OTP_TTL_MINUTES")
-        return max(1, int(configured or default))
+        cfg = GlobalEmailConfig.get(fresh=True)
+        return max(1, int(getattr(cfg, "otp_expiry_minutes", None) or default))
     except Exception:
-        logger.debug("signup_otp: could not resolve SIGNUP_OTP_TTL_MINUTES", exc_info=True)
+        logger.debug("signup_otp: could not resolve GlobalEmailConfig OTP TTL", exc_info=True)
         return default
 
 

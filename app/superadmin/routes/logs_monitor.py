@@ -193,36 +193,91 @@ def logs():
 @superadmin.route('/subscription-monitor')
 @superadmin_required
 def subscription_monitor():
-    """Unified subscription analytics and renewal monitor."""
-    from app.services.analytics.dashboard_analytics_service import build_superadmin_analytics
+    """
+    Monitoring dashboard: Expiring in 7d, 30d, Expired, Pending, Revenue.
+    """
+    from datetime import datetime, timezone, timedelta
     from app.models.portfolio import Subscription, SubscriptionNotification
+    from sqlalchemy import func
 
-    analytics = build_superadmin_analytics()
-    recent_notifications = subscription_notification_repository.query.filter(
-        SubscriptionNotification.notification_type != 'manual'
-    ).order_by(SubscriptionNotification.created_at.desc()).limit(30).all()
+    now = datetime.now(timezone.utc)
 
+    # Build queries with computed days_left as Python-side attribute
+    def _add_days_left(subs):
+        for s in subs:
+            exp = s.expires_at
+            if exp:
+                if exp.tzinfo is None:
+                    exp = exp.replace(tzinfo=timezone.utc)
+                s.days_left = (exp - now).days
+            else:
+                s.days_left = None
+        return subs
+
+    horizon_7  = now + timedelta(days=7)
+    horizon_30 = now + timedelta(days=30)
+
+    expiring_7_q = (
+        subscription_repository.query
+        .filter(Subscription.status == 'active')
+        .filter(Subscription.expires_at.between(now, horizon_7))
+        .order_by(Subscription.expires_at.asc())
+    )
+    expiring_30_q = (
+        subscription_repository.query
+        .filter(Subscription.status == 'active')
+        .filter(Subscription.expires_at.between(now, horizon_30))
+        .order_by(Subscription.expires_at.asc())
+    )
+    expired_q = (
+        subscription_repository.query
+        .filter(Subscription.status == 'expired')
+        .order_by(Subscription.expires_at.desc())
+        .limit(50)
+    )
+
+    # Eager-load for display
+    expiring_7  = _add_days_left(expiring_7_q.all())
+    expiring_30 = _add_days_left(expiring_30_q.all())
+    expired     = expired_q.all()
+
+    # Metrics
+    total_active   = subscription_repository.query.filter_by(status='active').count()
+    total_expiring = expiring_7_q.count()
+    total_expired  = subscription_repository.query.filter_by(status='expired').count()
+    total_pending  = subscription_repository.query.filter_by(status='pending').count()
+    revenue_row    = db.session.query(func.sum(Subscription.amount_paid)).filter_by(status='active').scalar()
+    total_revenue  = float(revenue_row or 0)
+
+    metrics = {
+        'total_active':   total_active,
+        'total_expiring': total_expiring,
+        'total_expired':  total_expired,
+        'total_pending':  total_pending,
+        'total_revenue':  total_revenue,
+    }
+
+    recent_notifications = (
+        subscription_notification_repository.query
+        .filter(SubscriptionNotification.notification_type != 'manual')
+        .order_by(SubscriptionNotification.created_at.desc())
+        .limit(30)
+        .all()
+    )
+
+    # Patch .count() onto list objects for template compatibility
     class _CountList(list):
-        def count(self):
-            return len(self)
+        def count(self): return len(self)
+    expiring_7  = _CountList(expiring_7)
+    expiring_30 = _CountList(expiring_30)
+    expired     = _CountList(expired)
 
     return render_template(
         'superadmin/subscription_monitor.html',
-        metrics=analytics['metrics'],
-        provider_revenue=analytics['provider_revenue'],
-        provider_active=analytics['provider_active'],
-        provider_original=analytics['provider_original'],
-        revenue_share=analytics['revenue_share'],
-        provider_mix=analytics['provider_mix'],
-        currency_symbol=analytics['currency_symbol'],
-        currency_code=analytics['currency_code'],
-        recent_webhooks=analytics['recent_webhooks'],
-        webhook_health=analytics['webhook_health'],
-        webhook_count=analytics['webhook_count'],
-        expiring_7=_CountList(analytics['expiring_7']),
-        expiring_30=_CountList(analytics['expiring_30']),
-        expired=_CountList(Subscription.query.filter_by(status='expired').order_by(Subscription.expires_at.desc()).limit(50).all()),
+        metrics=metrics,
+        expiring_7=expiring_7,
+        expiring_30=expiring_30,
+        expired=expired,
         recent_notifications=recent_notifications,
-        now=analytics['generated_at'],
-        analytics=analytics,
+        now=now,
     )

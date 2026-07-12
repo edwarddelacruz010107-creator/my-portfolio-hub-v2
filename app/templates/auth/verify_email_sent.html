@@ -23,7 +23,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
   <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
-  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">(function(){var t=null;try{t=localStorage.getItem('phPublicTheme');}catch(e){} if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}})();</script>
+  <script>(function(){var t=null;try{t=localStorage.getItem('phPublicTheme');}catch(e){} if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}})();</script>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     :root {
@@ -72,11 +72,6 @@
     }
     .otp-card p.sub { color: var(--text-muted); font-size: 0.9rem; line-height: 1.55; margin: 0 0 1.75rem; text-align: center; }
     .otp-card p.sub strong { color: var(--text); font-weight: 600; }
-    .otp-expiry {
-      display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem;
-      color: var(--accent-l); font-weight: 800; white-space: nowrap;
-    }
-    .otp-expiry.is-expired { color: #fca5a5; }
 
     .portal-flash { display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.8rem 1rem; border-radius: 10px; font-size: 0.85rem; margin-bottom: 1rem; }
     .portal-flash-danger  { background: rgba(239,68,68,0.1);  border: 1px solid rgba(239,68,68,0.2);  color: #fca5a5; }
@@ -139,11 +134,7 @@
     <h1>Check your inbox</h1>
     <p class="sub">
       {% if email %}We sent a 6-digit code to <strong>{{ email }}</strong>.{% else %}We sent a 6-digit code to your email.{% endif %}
-      It expires in
-      <span class="otp-expiry" id="otpExpiryCountdown"
-            data-otp-remaining="{{ otp_remaining_seconds|default(180)|int }}"
-            data-otp-total="{{ otp_ttl_seconds|default(180)|int }}">3:00</span>
-      — enter it below.
+      It expires shortly — enter it below.
     </p>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -159,12 +150,10 @@
     <form method="post" action="{{ url_for('auth.verify_email_sent') }}" id="otpForm" novalidate>
       {{ form.hidden_tag() }}
       <input type="hidden" name="email" value="{{ email }}"/>
-      {{ form.code(id="otp-hidden-code", type="hidden") }}
+      <input type="hidden" id="otp-hidden-code" name="code" value=""/>
       <div class="otp-boxes" id="otpBoxes">
         {% for i in range(6) %}
-        <input type="text" name="code_digit" inputmode="numeric" pattern="[0-9]*" maxlength="1"
-               autocomplete="one-time-code" aria-label="Verification code digit {{ i + 1 }}"
-               {% if i == 0 %}autofocus{% endif %}/>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="one-time-code" {% if i == 0 %}autofocus{% endif %}/>
         {% endfor %}
       </div>
       {% for e in form.code.errors %}
@@ -209,7 +198,7 @@
     {% endif %}
   </div>
 
-  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
+  <script>
     (function () {
       var boxes = Array.prototype.slice.call(document.querySelectorAll('#otpBoxes input'));
       var hidden = document.getElementById('otp-hidden-code');
@@ -252,43 +241,6 @@
           submitBtn.disabled = true;
           submitBtn.innerHTML = '<iconify-icon icon="lucide:loader-2" width="16"></iconify-icon> Verifying…';
         });
-      }
-
-      // ── OTP expiry countdown ────────────────────────────────────────
-      var expiryEl = document.getElementById('otpExpiryCountdown');
-      var expiryTimer = null;
-
-      function formatSeconds(seconds) {
-        seconds = Math.max(0, parseInt(seconds, 10) || 0);
-        var minutes = Math.floor(seconds / 60);
-        var rest = seconds % 60;
-        return minutes + ':' + String(rest).padStart(2, '0');
-      }
-
-      function renderExpiry(remaining) {
-        if (!expiryEl) return;
-        expiryEl.textContent = formatSeconds(remaining);
-        expiryEl.classList.toggle('is-expired', remaining <= 0);
-        if (remaining <= 0) {
-          expiryEl.textContent = 'expired';
-          if (submitBtn) submitBtn.disabled = true;
-          if (resendHelp) {
-            resendHelp.textContent = 'This code expired. Request a fresh code to continue.';
-            resendHelp.classList.add('is-ready');
-          }
-        }
-      }
-
-      function startExpiryCountdown() {
-        if (!expiryEl) return;
-        var remaining = parseSeconds(expiryEl.getAttribute('data-otp-remaining'), 180);
-        renderExpiry(remaining);
-        if (remaining <= 0) return;
-        expiryTimer = setInterval(function () {
-          remaining -= 1;
-          renderExpiry(remaining);
-          if (remaining <= 0 && expiryTimer) clearInterval(expiryTimer);
-        }, 1000);
       }
 
       // ── Resend cooldown ───────────────────────────────────────────────
@@ -348,7 +300,6 @@
       if (resendBtn) {
         startCooldown(resendBtn.getAttribute('data-initial-remaining'));
       }
-      startExpiryCountdown();
 
       var resendForm = document.getElementById('resendForm');
       if (resendForm && resendBtn) {

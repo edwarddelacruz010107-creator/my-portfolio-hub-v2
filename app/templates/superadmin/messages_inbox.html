@@ -7,7 +7,7 @@
   <div class="page-header-left">
     <h1 class="page-heading page-heading-lg">Messages</h1>
     <p class="page-subtext page-subtext-muted">
-      Landing inquiries, tenant conversations, and platform notifications—organized in one inbox.
+      Conversations with tenant admins. Reply to threads or broadcast new messages.
     </p>
   </div>
   <div class="page-header-right" style="display:flex;gap:.75rem;">
@@ -19,22 +19,18 @@
 </div>
 
 {# ── Tab bar ─────────────────────────────────────────────────────────────── #}
-<div class="tab-bar message-tabs" style="margin-bottom:1.5rem;">
-  <a href="{{ url_for('superadmin.messages_inbox', tab='all', q=search) }}" class="tab-item {{ 'tab-active' if tab=='all' else '' }}">All</a>
-  <a href="{{ url_for('superadmin.messages_inbox', tab='landing', q=search) }}" class="tab-item {{ 'tab-active' if tab=='landing' else '' }}">
-    <iconify-icon icon="lucide:globe-2" width="14"></iconify-icon> Landing Contact
-    {% if landing_count %}<span class="badge-count badge-soft">{{ landing_count }}</span>{% endif %}
+<div class="tab-bar" style="margin-bottom:1.5rem;">
+  <a href="{{ url_for('superadmin.messages_inbox', tab='all', q=search) }}"
+     class="tab-item {{ 'tab-active' if tab=='all' else '' }}">All</a>
+  <a href="{{ url_for('superadmin.messages_inbox', tab='from_tenants', q=search) }}"
+     class="tab-item {{ 'tab-active' if tab=='from_tenants' else '' }}">From Tenants</a>
+  <a href="{{ url_for('superadmin.messages_inbox', tab='sent', q=search) }}"
+     class="tab-item {{ 'tab-active' if tab=='sent' else '' }}">Sent by Me</a>
+  <a href="{{ url_for('superadmin.messages_inbox', tab='unread', q=search) }}"
+     class="tab-item {{ 'tab-active' if tab=='unread' else '' }}">
+    Unread
+    {% if unread_total %}<span class="badge-count">{{ unread_total }}</span>{% endif %}
   </a>
-  <a href="{{ url_for('superadmin.messages_inbox', tab='tenant_conversations', q=search) }}" class="tab-item {{ 'tab-active' if tab=='tenant_conversations' else '' }}">
-    <iconify-icon icon="lucide:users" width="14"></iconify-icon> Tenant Messages
-    {% if tenant_count %}<span class="badge-count badge-soft">{{ tenant_count }}</span>{% endif %}
-  </a>
-  <a href="{{ url_for('superadmin.messages_inbox', tab='platform', q=search) }}" class="tab-item {{ 'tab-active' if tab=='platform' else '' }}">
-    <iconify-icon icon="lucide:bell-ring" width="14"></iconify-icon> Alerts &amp; Notifications
-    {% if platform_count %}<span class="badge-count badge-soft">{{ platform_count }}</span>{% endif %}
-  </a>
-  <a href="{{ url_for('superadmin.messages_inbox', tab='sent', q=search) }}" class="tab-item {{ 'tab-active' if tab=='sent' else '' }}">Sent by Me</a>
-  <a href="{{ url_for('superadmin.messages_inbox', tab='unread', q=search) }}" class="tab-item {{ 'tab-active' if tab=='unread' else '' }}">Unread{% if unread_total %}<span class="badge-count">{{ unread_total }}</span>{% endif %}</a>
 </div>
 
 {# ── Search bar ──────────────────────────────────────────────────────────── #}
@@ -66,14 +62,7 @@
     <a href="{{ url_for('superadmin.message_thread', msg_id=msg.id) }}"
        class="message-row {{ 'message-row--unread' if msg.thread_unread_super > 0 else '' }}">
       <span>
-        {% set is_landing = msg.submission_id and msg.submission_id.startswith('landing:') %}
-        {% set member = recognized_accounts.get((msg.email or '')|lower) if recognized_accounts is defined and is_landing else none %}
-        {% if is_landing %}
-          <span class="tenant-slug-pill source-landing"><iconify-icon icon="lucide:globe-2" width="12"></iconify-icon> Landing</span>
-          {% if member and not member.is_superadmin %}<small class="member-match">Member · /{{ member.tenant_slug }}</small>{% else %}<small class="guest-match">External visitor</small>{% endif %}
-        {% else %}
-          <span class="tenant-slug-pill">{{ msg.tenant_slug }}</span>
-        {% endif %}
+        <span class="tenant-slug-pill">{{ msg.tenant_slug }}</span>
       </span>
       <span>
         <span class="fw-600">{{ msg.name }}</span><br>
@@ -92,8 +81,7 @@
       </span>
       <span>
         {% if msg.submission_id and msg.submission_id.startswith('landing:') %}
-          {% set member = recognized_accounts.get((msg.email or '')|lower) if recognized_accounts is defined else none %}
-          {% if member and not member.is_superadmin %}<span class="tag-sm tag-success">Replyable member</span>{% else %}<span class="tag-sm tag-muted">Email only</span>{% endif %}
+          <span class="tag-sm tag-primary">Landing Page</span>
         {% elif msg.thread_unread_super > 0 %}
           <span class="tag-sm tag-accent">New Reply</span>
         {% elif msg.sender == 'superadmin' %}
@@ -135,11 +123,11 @@
 </div>
 
 <style>
-.tab-bar{display:flex;overflow-x:auto;scrollbar-width:thin;gap:.25rem;border-bottom:1px solid var(--border);padding-bottom:0}
+.tab-bar{display:flex;gap:.25rem;border-bottom:1px solid var(--border);padding-bottom:0}
 .tab-item{padding:.5rem 1rem;font-size:.85rem;font-weight:600;color:var(--text-muted);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s;display:flex;align-items:center;gap:.4rem}
 .tab-item:hover{color:var(--text);border-bottom-color:var(--accent)}
 .tab-active{color:var(--accent);border-bottom-color:var(--accent)!important}
-.badge-soft{background:rgba(99,102,241,.14)!important;color:var(--accent)!important}.member-match,.guest-match{display:block;margin-top:5px;font-size:.68rem}.member-match{color:#34d399}.guest-match{color:var(--text-muted)}.source-landing{display:inline-flex;align-items:center;gap:4px}.badge-count{background:var(--accent);color:#fff;border-radius:999px;font-size:.7rem;font-weight:700;padding:1px 6px;line-height:1.4}
+.badge-count{background:var(--accent);color:#fff;border-radius:999px;font-size:.7rem;font-weight:700;padding:1px 6px;line-height:1.4}
 .search-row{display:flex;gap:.75rem;align-items:center}
 .search-input-wrap{position:relative;flex:1}
 .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted)}

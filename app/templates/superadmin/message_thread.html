@@ -35,20 +35,6 @@
   </div>
 </div>
 
-{% if is_landing_contact %}
-<div class="contact-source-card {{ 'contact-source-card--member' if recognized_user and not recognized_user.is_superadmin else 'contact-source-card--guest' }}">
-  <div class="contact-source-icon"><iconify-icon icon="{{ 'lucide:user-check' if recognized_user and not recognized_user.is_superadmin else 'lucide:user-round-x' }}" width="20"></iconify-icon></div>
-  <div>
-    <strong>{{ 'Registered tenant recognized' if recognized_user and not recognized_user.is_superadmin else 'External landing-page visitor' }}</strong>
-    {% if recognized_user and not recognized_user.is_superadmin %}
-      <p>This email belongs to <code>/{{ recognized_user.tenant_slug }}</code>. Your reply will appear in that tenant’s Messages inbox.</p>
-    {% else %}
-      <p>This email is not connected to a tenant account, so internal reply is disabled. Reply externally to <a href="mailto:{{ msg.email|e }}">{{ msg.email }}</a>.</p>
-    {% endif %}
-  </div>
-</div>
-{% endif %}
-
 {# ── Thread ──────────────────────────────────────────────────────────────── #}
 <div class="thread-wrap">
 
@@ -94,7 +80,6 @@
   {% endfor %}
 
   {# Reply form #}
-  {% if can_reply %}
   <div class="reply-compose">
     <div class="reply-compose-avatar avatar-super">
       <iconify-icon icon="lucide:shield" width="16"></iconify-icon>
@@ -130,13 +115,6 @@
       </form>
     </div>
   </div>
-  {% else %}
-  <div class="reply-disabled-card">
-    <iconify-icon icon="lucide:mail" width="18"></iconify-icon>
-    <div><strong>Internal reply unavailable</strong><span>Send an external email to {{ msg.email }} instead.</span></div>
-    <a class="btn btn-secondary btn-sm" href="mailto:{{ msg.email|e }}">Open email app</a>
-  </div>
-  {% endif %}
 
 </div>
 
@@ -146,7 +124,7 @@
 .thread-meta{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.35rem;font-size:.85rem}
 .meta-sep{color:var(--border)}
 .tenant-slug-pill{display:inline-block;padding:2px 8px;border-radius:6px;background:rgba(99,102,241,.12);color:var(--accent);font-size:.75rem;font-weight:700;font-family:monospace}
-.contact-source-card{display:flex;gap:.8rem;align-items:flex-start;max-width:820px;margin:0 auto 1.2rem;padding:1rem 1.1rem;border:1px solid var(--border);border-radius:14px;background:var(--bg-card,rgba(255,255,255,.04))}.contact-source-card--member{border-color:rgba(16,185,129,.28);background:rgba(16,185,129,.06)}.contact-source-card--guest{border-color:rgba(245,158,11,.25);background:rgba(245,158,11,.05)}.contact-source-icon{flex:0 0 38px;width:38px;height:38px;display:grid;place-items:center;border-radius:11px;background:rgba(99,102,241,.12);color:var(--accent)}.contact-source-card p{margin:.25rem 0 0;color:var(--text-muted);font-size:.82rem;line-height:1.5}.contact-source-card a{color:var(--accent-light)}.reply-disabled-card{display:flex;align-items:center;gap:.8rem;padding:1rem;border:1px dashed var(--border);border-radius:13px}.reply-disabled-card div{display:flex;flex-direction:column;gap:.15rem;flex:1}.reply-disabled-card span{font-size:.78rem;color:var(--text-muted)}.thread-wrap{display:flex;flex-direction:column;gap:1.25rem;max-width:820px;margin:0 auto}
+.thread-wrap{display:flex;flex-direction:column;gap:1.25rem;max-width:820px;margin:0 auto}
 .bubble-wrap{display:flex;gap:.85rem;align-items:flex-start}
 .bubble-right{flex-direction:row-reverse}
 .bubble-avatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}

@@ -32,7 +32,7 @@
 {% if license_status == 'active' %}
 <div class="alert alert-success" style="margin-bottom:1.5rem">
   <iconify-icon icon="lucide:check-circle" width="16"></iconify-icon>
-  <strong>License Active</strong> — Your {{ (subscription.plan if subscription else 'plan')|plan_display }} plan is activated
+  <strong>License Active</strong> — Your {{ subscription.plan if subscription else 'plan' }} plan is activated
   {% if license_expires_at %}until <strong>{{ license_expires_at.strftime('%b %d, %Y') }}</strong>{% endif %}.
 </div>
 {% elif license_status == 'awaiting_activation' %}
@@ -66,7 +66,7 @@
       </div>
       <div class="detail-row">
         <span>Plan</span>
-        <strong>{{ (subscription.plan if subscription else plan_details.label)|plan_display }}</strong>
+        <strong>{{ subscription.plan if subscription else plan_details.label }}</strong>
       </div>
       <div class="detail-row">
         <span>Amount</span>
@@ -143,7 +143,7 @@
     {% if license_status == 'active' %}
     <div class="activation-success">
       <iconify-icon icon="lucide:shield-check" width="48" style="color:var(--success)"></iconify-icon>
-      <p>Your <strong>{{ (subscription.plan if subscription else current_plan)|plan_display }}</strong> plan is active.</p>
+      <p>Your <strong>{{ subscription.plan if subscription else current_plan }}</strong> plan is active.</p>
       <a href="{{ url_for('admin.dashboard') }}" class="btn btn-primary btn-sm">Go to Dashboard</a>
     </div>
 

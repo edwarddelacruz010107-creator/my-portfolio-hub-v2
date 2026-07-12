@@ -323,20 +323,7 @@
     contactForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const submitBtn = contactForm.querySelector('button[type="submit"]');
-      const statusBox = document.getElementById('contactFormStatus');
-      const originalHTML = submitBtn.dataset.originalHtml || submitBtn.innerHTML;
-      submitBtn.dataset.originalHtml = originalHTML;
-
-      const setContactStatus = (type, message) => {
-        if (!statusBox) return;
-        statusBox.className = `contact-form-status show ${type}`;
-        statusBox.textContent = message;
-      };
-
-      if (statusBox) {
-        statusBox.className = 'contact-form-status';
-        statusBox.textContent = '';
-      }
+      const originalHTML = submitBtn.innerHTML;
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<span class="loading">Sending…</span>';
 
@@ -350,17 +337,13 @@
       try {
         const resp = await fetch(url, {
           method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-          },
+          headers: { 'Accept': 'application/json' },
           body: formData,
           credentials: 'same-origin',
         });
 
         const json = await resp.json().catch(() => ({}));
-        if (resp.ok && json.status !== 'error') {
-          setContactStatus('success', json.message || 'Message sent. We will reply by email soon.');
+        if (resp.ok) {
           submitBtn.innerHTML = '<i class="bi bi-check2" aria-hidden="true"></i> Message sent';
           contactForm.reset();
           setTimeout(() => {
@@ -370,12 +353,12 @@
         } else {
           submitBtn.disabled = false;
           submitBtn.innerHTML = originalHTML;
-          setContactStatus('error', json.error || json.message || 'Failed to send message. Please try again.');
+          alert(json.error || json.message || 'Failed to send message. Please try again.');
         }
       } catch (err) {
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalHTML;
-        setContactStatus('error', 'Network error. Please try again later.');
+        alert('Network error. Please try again later.');
       }
     });
   }

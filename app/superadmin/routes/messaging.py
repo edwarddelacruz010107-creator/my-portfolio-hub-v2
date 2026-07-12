@@ -21,7 +21,7 @@ from flask import (
 from urllib.parse import urlparse
 from flask_login import current_user, logout_user, login_required
 from pathlib import Path
-from sqlalchemy import or_, func, and_
+from sqlalchemy import or_, func
 from werkzeug.utils import secure_filename
 
 from app.auth import _handle_login
@@ -203,9 +203,7 @@ def messages_inbox():
 
     query = inquiry_repository.query
 
-    if tab == 'landing':
-        query = query.filter(Inquiry.submission_id.like('landing:%'))
-    elif tab == 'from_tenants':
+    if tab == 'from_tenants':
         # Threads where tenant has replied (has at least one 'tenant' direction reply)
         # OR original message was sent by tenant/visitor
         replied_ids = db.session.query(InquiryReply.inquiry_id).filter_by(
@@ -216,23 +214,6 @@ def messages_inbox():
                 Inquiry.sender.in_(['tenant', 'visitor']),
                 Inquiry.id.in_(replied_ids),
             )
-        )
-    elif tab == 'tenant_conversations':
-        query = query.filter(
-            db.or_(
-                Inquiry.sender == 'tenant',
-                and_(Inquiry.sender == 'visitor', ~Inquiry.submission_id.like('landing:%')),
-            )
-        )
-    elif tab == 'platform':
-        query = query.filter(
-            Inquiry.sender == 'superadmin',
-            db.or_(
-                Inquiry.subject.ilike('[Alert]%'),
-                Inquiry.subject.ilike('[Billing Update]%'),
-                Inquiry.subject.ilike('[Maintenance Notice]%'),
-                Inquiry.subject.ilike('[Account Reminder]%'),
-            ),
         )
     elif tab == 'sent':
         query = query.filter_by(sender='superadmin')
@@ -261,37 +242,8 @@ def messages_inbox():
         .paginate(page=page, per_page=25, error_out=False)
     )
 
-    # Unread counts for tab badges and source-specific navigation.
-    base_query = inquiry_repository.query
-    unread_total = base_query.filter(Inquiry.thread_unread_super > 0).count()
-    landing_count = base_query.filter(Inquiry.submission_id.like('landing:%')).count()
-    tenant_count = base_query.filter(Inquiry.sender == 'tenant').count()
-    platform_count = base_query.filter(
-        Inquiry.sender == 'superadmin',
-        db.or_(
-            Inquiry.subject.ilike('[Alert]%'),
-            Inquiry.subject.ilike('[Billing Update]%'),
-            Inquiry.subject.ilike('[Maintenance Notice]%'),
-            Inquiry.subject.ilike('[Account Reminder]%'),
-        ),
-    ).count()
-
-    # Resolve landing-contact addresses to actual tenant accounts without
-    # changing the stored submission. This lets the UI clearly distinguish
-    # replyable member conversations from external visitor mail.
-    recognized_accounts = {}
-    landing_emails = {
-        (item.email or '').strip().lower()
-        for item in msgs.items
-        if item.submission_id and item.submission_id.startswith('landing:') and item.email
-    }
-    if landing_emails:
-        users = User.query.filter(func.lower(User.email).in_(landing_emails)).all()
-        for user in users:
-            key = (user.email or '').strip().lower()
-            current = recognized_accounts.get(key)
-            if current is None or (current.is_superadmin and not user.is_superadmin):
-                recognized_accounts[key] = user
+    # Unread counts for tab badges
+    unread_total = inquiry_repository.query.filter(Inquiry.thread_unread_super > 0).count()
 
     return render_template(
         'superadmin/messages_inbox.html',
@@ -299,10 +251,6 @@ def messages_inbox():
         tab=tab,
         search=search,
         unread_total=unread_total,
-        landing_count=landing_count,
-        tenant_count=tenant_count,
-        platform_count=platform_count,
-        recognized_accounts=recognized_accounts,
         page_title='Messages Inbox',
     )
 
@@ -323,34 +271,10 @@ def message_thread(msg_id):
 
     form = ReplyForm()
 
-    is_landing_contact = bool(msg.submission_id and msg.submission_id.startswith('landing:'))
-    recognized_user = None
-    if is_landing_contact and msg.email:
-        recognized_user = (
-            User.query
-            .filter(func.lower(User.email) == msg.email.strip().lower())
-            .order_by(User.is_superadmin.asc(), User.id.asc())
-            .first()
-        )
-    can_reply = (not is_landing_contact) or bool(recognized_user and not recognized_user.is_superadmin)
-
     if form.validate_on_submit():
-        if not can_reply:
-            flash('This landing-page sender is not a registered tenant. Use their email address for an external reply.', 'warning')
-            return redirect(url_for('superadmin.message_thread', msg_id=msg.id))
-
-        # A recognized landing contact becomes a tenant conversation. Keep the
-        # landing source marker for auditing while routing all replies to the
-        # member's real tenant inbox.
-        reply_tenant_slug = msg.tenant_slug
-        if is_landing_contact and recognized_user:
-            reply_tenant_slug = recognized_user.tenant_slug
-            msg.tenant_slug = recognized_user.tenant_slug
-            msg.tenant_id = recognized_user.tenant_id
-
         reply = InquiryReply(
             inquiry_id  = msg.id,
-            tenant_slug = reply_tenant_slug,
+            tenant_slug = msg.tenant_slug,
             direction   = 'superadmin',
             sender_name = current_user.username,
             message     = form.message.data.strip(),
@@ -389,9 +313,6 @@ def message_thread(msg_id):
         msg=msg,
         replies=replies,
         form=form,
-        is_landing_contact=is_landing_contact,
-        recognized_user=recognized_user,
-        can_reply=can_reply,
         page_title=f'Thread — {msg.subject or "No subject"}',
     )
 

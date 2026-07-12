@@ -779,40 +779,6 @@ def set_paymongo_enabled(value: bool) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DODO PAYMENTS TOGGLE  (persisted in PlatformSetting)
-# ─────────────────────────────────────────────────────────────────────────────
-
-_DODO_PAYMENTS_KEY = "dodo_payments_enabled"
-
-
-def is_dodo_payments_admin_enabled(*, default: bool = True) -> bool:
-    """Return the Superadmin-controlled Dodo Payments state."""
-    try:
-        from app.models.portfolio import PlatformSetting
-        return bool(PlatformSetting.get_bool(_DODO_PAYMENTS_KEY, default=default))
-    except Exception:
-        logger.exception("is_dodo_payments_admin_enabled check failed")
-        return default
-
-
-def set_dodo_payments_admin_enabled(value: bool) -> None:
-    """Persist the Superadmin Dodo Payments toggle."""
-    try:
-        from app import db
-        from app.models.portfolio import PlatformSetting
-        PlatformSetting.set_bool(_DODO_PAYMENTS_KEY, value)
-        db.session.commit()
-    except Exception:
-        logger.exception("set_dodo_payments_admin_enabled failed")
-        try:
-            from app import db
-            db.session.rollback()
-        except Exception:
-            pass
-        raise
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 # EMAIL
 # ─────────────────────────────────────────────────────────────────────────────
 

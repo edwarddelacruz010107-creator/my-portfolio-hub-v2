@@ -13,9 +13,6 @@
     var yearNotes = Array.prototype.slice.call(document.querySelectorAll('.plan-yearly-note'));
     var payLinks = Array.prototype.slice.call(document.querySelectorAll('.js-pay-btn'));
     var pmBtn = document.getElementById('paymongoBtn');
-    var checkoutForm = document.getElementById('automatedCheckoutForm');
-    var checkoutPlanInput = document.getElementById('checkoutPlanInput');
-    var checkoutCycleInput = document.getElementById('checkoutCycleInput');
 
     function selectedCard() {
       return document.querySelector('.plan-card-v2.selected');
@@ -49,9 +46,13 @@
         else url.searchParams.delete('plan');
         link.href = url.toString();
       });
-      if (checkoutPlanInput) checkoutPlanInput.value = plan;
-      if (checkoutCycleInput) checkoutCycleInput.value = cycle;
-      if (pmBtn) pmBtn.disabled = !plan;
+      if (pmBtn) {
+        var pmUrl = new URL(pmBtn.href, window.location.origin);
+        pmUrl.searchParams.set('action', 'checkout');
+        pmUrl.searchParams.set('billing_cycle', cycle);
+        if (plan) pmUrl.searchParams.set('plan', plan);
+        pmBtn.href = pmUrl.toString();
+      }
     }
 
     function updateSummary() {
@@ -114,23 +115,6 @@
       stepPayment.style.display = 'none';
     }
     applyCycle(selectedCycle());
-
-    if (checkoutForm) {
-      checkoutForm.addEventListener('submit', function (event) {
-        var plan = selectedPlan();
-        if (!plan) {
-          event.preventDefault();
-          return;
-        }
-        if (checkoutPlanInput) checkoutPlanInput.value = plan;
-        if (checkoutCycleInput) checkoutCycleInput.value = selectedCycle();
-        if (pmBtn) {
-          pmBtn.disabled = true;
-          pmBtn.setAttribute('aria-busy', 'true');
-          pmBtn.textContent = 'Opening secure checkout…';
-        }
-      });
-    }
 
     var promoBanner = document.getElementById('promoBanner');
     if (promoBanner && promoBanner.getAttribute('data-expires')) {

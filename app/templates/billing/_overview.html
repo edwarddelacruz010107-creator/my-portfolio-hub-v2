@@ -1,4 +1,4 @@
-{# Billing overview — Secure Checkout automated subscriptions (v3.4) #}
+{# Billing overview — PayMongo automated subscriptions (v3.4) #}
 {% macro billing_route(endpoint) -%}
   {%- if endpoint.startswith('tenant.') and tenant_slug is defined and tenant_slug -%}
     {{ url_for(endpoint, tenant_slug=tenant_slug) }}
@@ -15,7 +15,7 @@
     {% if is_admin_plan %}
     <p>This protected system portfolio has full platform access. No checkout, payment, or trial countdown is required.</p>
     {% else %}
-    <p>Manage your plan and pay securely via Secure Checkout. Subscriptions activate automatically.</p>
+    <p>Manage your plan and pay securely via PayMongo. Subscriptions activate automatically.</p>
     {% endif %}
   </div>
 </div>
@@ -26,13 +26,13 @@
 {% set is_trial = status == 'trial' %}
 {% set is_grace = status == 'grace' %}
 {% set is_pending = status == 'pending' %}
-{# CRIT-08 FIX: 'pending' previously always meant "Secure Checkout checkout not
+{# CRIT-08 FIX: 'pending' previously always meant "PayMongo checkout not
    finished" in this template's copy, because payment_method on the
    Subscription row was silently defaulting to 'manual' for every
-   Secure Checkout-initiated checkout too (fixed at the source in
+   PayMongo-initiated checkout too (fixed at the source in
    initiate_checkout()). Now that payment_method is trustworthy, split
    the pending message so tenants with a manual submission awaiting
-   superadmin review aren't told to go "complete a Secure Checkout checkout"
+   superadmin review aren't told to go "complete a PayMongo checkout"
    they never started. #}
 {% set is_pending_paymongo = is_pending and sub and sub.payment_method == 'paymongo' %}
 {% set is_pending_manual = is_pending and not is_pending_paymongo %}
@@ -43,7 +43,7 @@
   <div>
     <div class="sub-status-label">Current Plan</div>
     <div class="sub-status-name">
-      {{ 'Administrator' if is_admin_plan else ('Trial' if is_trial else ((sub.plan if sub else profile.plan or 'Basic')|plan_display)) }}
+      {{ 'Administrator' if is_admin_plan else ('Trial' if is_trial else (sub.plan if sub else profile.plan or 'Basic')) }}
       <span class="badge-status
         {% if is_admin_plan %}badge-active
         {% elif is_active %}badge-active
@@ -85,7 +85,7 @@
       {% endif %}
       {% if sub.paymongo_payment_id %}
       <div class="sub-meta-item">
-        <span class="sub-meta-key">Secure Checkout</span>
+        <span class="sub-meta-key">PayMongo</span>
         <span class="sub-meta-val" style="font-family:monospace;font-size:0.8rem">{{ sub.paymongo_payment_id[:16] }}…</span>
       </div>
       {% endif %}
@@ -99,7 +99,7 @@
       {% if not is_admin_plan %}
       <div class="sub-meta-item">
         <span class="sub-meta-key">Processor</span>
-        <span class="sub-meta-val">⚡ Secure Checkout</span>
+        <span class="sub-meta-val">⚡ PayMongo</span>
       </div>
       {% endif %}
     </div>
@@ -131,7 +131,7 @@
 {% elif is_pending_paymongo %}
 <div class="alert alert-info" style="margin-bottom:1.5rem">
   <iconify-icon icon="lucide:credit-card" width="16"></iconify-icon>
-  <span>Complete your Secure Checkout checkout to activate your subscription.</span>
+  <span>Complete your PayMongo checkout to activate your subscription.</span>
 </div>
 {% elif is_pending_manual %}
 <div class="alert alert-info" style="margin-bottom:1.5rem">
@@ -157,7 +157,7 @@
       <span class="section-tag">Available Plans</span>
       <h2>Choose Your Plan</h2>
     </div>
-    <div class="paymongo-badge-sm"><span>⚡</span> Secure Checkout</div>
+    <div class="paymongo-badge-sm"><span>⚡</span> PayMongo</div>
   </div>
   {% if is_admin_plan %}
   <div class="plan-card-v2 selected" style="max-width:460px">
@@ -166,7 +166,7 @@
     <div class="plan-desc">All premium themes, Pro/Enterprise features, custom branding, email services, certificates, badges, analytics, and marketplace access are unlocked.</div>
     <ul class="plan-features">
       <li>No trial expiration</li>
-      <li>No Secure Checkout checkout</li>
+      <li>No PayMongo checkout</li>
       <li>Internal system plan only</li>
     </ul>
     <span class="badge-status badge-active" style="align-self:flex-start;margin-top:auto">Protected System Plan</span>

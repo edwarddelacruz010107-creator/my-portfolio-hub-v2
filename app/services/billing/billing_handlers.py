@@ -34,7 +34,6 @@ from app.forms import PaymentUploadForm, PlanSelectionForm
 from app.models.portfolio import normalize_plan_name
 from app.models import Subscription
 from app.services.billing import get_or_create_pending_subscription, initiate_checkout, subscription_access_status
-from app.services.billing.dodo_service import is_dodo_enabled, create_checkout_session
 from app.services.billing import discount_checkout, discount_service
 from app.services.billing.currency import (
     currency_context, currency_symbol, format_money, get_currency_settings,
@@ -255,8 +254,6 @@ def billing_plans_context(profile, *, tenant_slug: str | None, billing_routes: d
         tenant_slug=tenant_slug,
         billing_routes=billing_routes,
         paymongo_enabled=paymongo_enabled,
-        automated_gateway_name=('Dodo Payments' if is_dodo_enabled() else 'PayMongo'),
-        dodo_enabled=is_dodo_enabled(),
         payment_methods=manual_methods,
         manual_payment_enabled=bool(manual_methods),
         show_billing_tabs=False,
@@ -339,22 +336,10 @@ def handle_billing_plans_post(
         flash('Failed to save plan selection. Please try again.', 'danger')
         return None, exc
 
-    if action == 'checkout' and (is_dodo_enabled() or paymongo_enabled):
+    if action == 'checkout' and paymongo_enabled:
         base_url = current_app.config.get('APP_BASE_URL', '').rstrip('/')
         slug = tenant_slug or 'default'
-
-        # Studio checkout uses a hidden return endpoint that immediately sends
-        # the tenant back to the dashboard with a clear payment-state banner.
-        # The redirect is UX only; verified webhooks remain authoritative.
-        if (return_endpoint or '').startswith('admin.'):
-            try:
-                success_url = url_for('admin.dodo_checkout_return', outcome='success', _external=True)
-                cancel_url = url_for('admin.dodo_checkout_return', outcome='cancelled', _external=True)
-            except Exception:
-                root = base_url or ''
-                success_url = f'{root}/studio/billing/dodo/return?outcome=success'
-                cancel_url = f'{root}/studio/billing/dodo/return?outcome=cancelled'
-        elif base_url:
+        if base_url:
             success_url = f'{base_url}/{slug}/billing/plans?status=success'
             cancel_url  = f'{base_url}/{slug}/billing/plans?status=cancelled'
         else:
@@ -366,27 +351,17 @@ def handle_billing_plans_post(
                 success_url = f'/{slug}/billing/plans?status=success'
                 cancel_url  = f'/{slug}/billing/plans?status=cancelled'
 
-        if is_dodo_enabled():
-            result = create_checkout_session(
-                profile=profile, subscription=sub, plan=selected_plan,
-                billing_cycle=billing_cycle, return_url=success_url, cancel_url=cancel_url,
-            )
-            if result.ok and result.checkout_url:
-                sub.payment_provider = 'dodo'
-                sub.dodo_checkout_session_id = result.session_id
-                sub.payment_method = 'dodo'
-                db.session.commit()
-                return redirect(result.checkout_url), None
-            flash(result.error or 'Could not start Dodo Payments checkout.', 'warning')
-            return None, None
-
         checkout_url, error = initiate_checkout(
-            db.session, profile, selected_plan, billing_cycle=billing_cycle,
-            success_url=success_url, cancel_url=cancel_url,
+            db.session,
+            profile,
+            selected_plan,
+            billing_cycle=billing_cycle,
+            success_url=success_url,
+            cancel_url=cancel_url,
         )
         if checkout_url:
             return redirect(checkout_url), None
-        flash(error or 'Could not start automated checkout. Try a manual payment method instead.', 'warning')
+        flash(error or 'Could not start PayMongo checkout. Try a manual payment method instead.', 'warning')
         return None, None
 
     if action == 'manual' or action.startswith('method_'):

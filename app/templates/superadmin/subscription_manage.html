@@ -99,7 +99,7 @@
       </div>
       <div class="sub-summary" style="margin-top:1rem">
         <div class="sub-summary-row"><span>Tenant slug</span><strong>{{ profile.tenant_slug }}</strong></div>
-        <div class="sub-summary-row"><span>Current plan</span><strong>{{ (subscription.plan if subscription else profile.plan or 'Trial')|plan_display }}</strong></div>
+        <div class="sub-summary-row"><span>Current plan</span><strong>{{ subscription.plan if subscription else profile.plan or 'Trial' }}</strong></div>
         <div class="sub-summary-row"><span>Current status</span><strong>{{ subscription.status_label if subscription else 'No subscription' }}</strong></div>
         <div class="sub-summary-row"><span>Started</span><strong>{{ subscription.started_at.strftime('%Y-%m-%d %H:%M UTC') if subscription and subscription.started_at else '—' }}</strong></div>
         <div class="sub-summary-row"><span>Expires</span><strong>{{ subscription.expires_at.strftime('%Y-%m-%d %H:%M UTC') if subscription and subscription.expires_at else '—' }}</strong></div>

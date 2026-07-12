@@ -76,7 +76,7 @@
   <div>
     <div class="sub-status-label">Current Plan</div>
     <div class="sub-status-name">
-      {{ 'Administrator' if is_admin_plan else ('Trial' if is_trial else ((sub.plan if sub else profile.plan or 'Basic')|plan_display)) }}
+      {{ 'Administrator' if is_admin_plan else ('Trial' if is_trial else (sub.plan if sub else profile.plan or 'Basic')) }}
       <span class="badge-status
         {% if is_admin_plan %}badge-active
         {% elif is_active %}badge-active

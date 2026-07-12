@@ -411,6 +411,30 @@ def dashboard():
         'churn_rate': churn_rate,
     }
 
+    # Shared source of truth: Platform Overview uses the exact same billing,
+    # provider, MRR, churn, and trend calculations as Subscription Monitor.
+    from app.services.analytics.dashboard_analytics_service import build_superadmin_analytics
+    analytics = build_superadmin_analytics()
+    shared = analytics['metrics']
+    stats.update({
+        'total_tenants': shared['total_tenants'],
+        'active_tenants': shared['active_tenants'],
+        'active_rate': shared['active_rate'],
+        'revenue': shared['total_revenue'],
+        'mrr': shared['mrr'],
+        'currency_symbol': analytics['currency_symbol'],
+        'currency_code': analytics['currency_code'],
+        'pending_payments': shared['total_pending'],
+        'expiring_accounts': shared['expiring_30'],
+        'expired_accounts': shared['total_expired'] + shared['total_cancelled'],
+        'churn_rate': shared['churn_rate'],
+    })
+    provider_mix = analytics['provider_mix']
+    revenue_chart = analytics['revenue_chart']
+    revenue_polyline = analytics['revenue_polyline']
+    revenue_area = analytics['revenue_area']
+    tenant_growth_chart = analytics['tenant_growth_chart']
+
     # ── Monitoring: superadmin-only ops data ─────────────────────────────────
     heartbeat_state: dict = {}
     try:
@@ -488,6 +512,7 @@ def dashboard():
         revenue_polyline=revenue_polyline,
         revenue_area=revenue_area,
         tenant_growth_chart=tenant_growth_chart,
+        analytics=analytics,
     )
 
 def _dashboard_export(tenants, export_format, q, status_filter, plan_filter):

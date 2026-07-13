@@ -1838,6 +1838,41 @@ import click
 def register_cli_commands(app):
     """Register all Flask CLI commands on the app instance."""
 
+    @app.cli.command("reset-financial-data")
+    @click.option(
+        "--confirm",
+        required=True,
+        help="Required confirmation phrase: RESET-FINANCIAL-DATA",
+    )
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        help="Show what would be reset without changing the database.",
+    )
+    def reset_financial_data_command(confirm: str, dry_run: bool):
+        """Reset test revenue/payment history before production launch."""
+        from app.services.billing.financial_reset_service import (
+            preview_financial_reset,
+            reset_financial_data,
+        )
+
+        expected = "RESET-FINANCIAL-DATA"
+        if confirm != expected:
+            raise click.ClickException(
+                f"Confirmation did not match. Re-run with --confirm {expected}"
+            )
+
+        result = preview_financial_reset() if dry_run else reset_financial_data()
+        action = "Would reset" if dry_run else "Reset complete"
+        click.echo(f"{action}:")
+        click.echo(f"  payment submissions: {result.payment_submissions_deleted}")
+        click.echo(f"  webhook events: {result.webhook_events_deleted}")
+        click.echo(f"  billing notifications: {result.billing_notifications_deleted}")
+        click.echo(f"  non-admin subscriptions: {result.subscriptions_deleted}")
+        click.echo(f"  tenants returned to trial: {result.tenants_reset_to_trial}")
+        click.echo(f"  profiles returned to trial: {result.profiles_reset_to_trial}")
+        click.echo(f"  administrator tenants preserved: {result.protected_administrator_tenants}")
+
     @app.cli.group('media')
     def media_cli():
         """Audit and clean tenant media reference fields."""

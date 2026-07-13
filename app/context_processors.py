@@ -116,6 +116,7 @@ def _load_globals(app):
     unread_superadmin_messages = 0
     profile_completion         = 0
     active_tenant_slug         = None
+    notification_count         = 0
 
     try:
         from flask import session
@@ -170,6 +171,15 @@ def _load_globals(app):
             ).count()
             active_tenant_slug = tenant_slug
 
+            # Dashboard notification count (likes, renewals, alerts, etc.).
+            try:
+                tenant_id_for_notifications = getattr(profile, 'tenant_id', None) or getattr(current_user, 'tenant_id', None)
+                if tenant_id_for_notifications is not None:
+                    from app.services.notification_service import get_unread_count
+                    notification_count = get_unread_count(int(tenant_id_for_notifications))
+            except Exception:
+                notification_count = 0
+
             # If 'default' slug produced no profile, log once (fresh install).
             if profile is None and tenant_slug == _DEFAULT_TENANT_SLUG:
                 logger.debug(
@@ -217,6 +227,7 @@ def _load_globals(app):
         web3forms_access_key=app.config.get('WEB3FORMS_ACCESS_KEY'),
         heartbeat_state=heartbeat_state,
         active_tenant_slug=active_tenant_slug,
+        notification_count=notification_count,
     )
 
 

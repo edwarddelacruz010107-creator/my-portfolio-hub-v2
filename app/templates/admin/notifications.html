@@ -35,6 +35,7 @@
           {% elif n.notification_type == 'expired' %}❌
           {% elif n.notification_type == 'renewed' %}✅
           {% elif n.notification_type == 'activated' %}🎉
+          {% elif n.notification_type == 'project_like' %}♥
           {% else %}📢{% endif %}
         </div>
         <div class="notification-body">
@@ -79,6 +80,7 @@
 .notification-icon {
   font-size:1.4rem; flex-shrink:0; width:2rem; text-align:center; padding-top:2px;
 }
+.notif-type-project_like { color:#fb7185; }
 .notification-body { flex:1; min-width:0; }
 .notification-title { font-weight:600; font-size:.9rem; margin-bottom:.25rem; }
 .notification-message { font-size:.85rem; color:var(--text-muted,#666); white-space:pre-line; }

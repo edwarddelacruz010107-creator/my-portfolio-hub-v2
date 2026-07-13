@@ -24,7 +24,24 @@
   {% block extra_css %}{% endblock %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard-mobile.css', v='20260711-mobile-drawer') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/typography-consistency.css', v='20260712-type-system-v1') }}"/>
-  </head>
+  
+<style>
+.topbar-notification-bell {
+  position: relative; width: 40px; height: 40px; display: inline-flex;
+  align-items: center; justify-content: center; border-radius: 12px;
+  color: var(--text-secondary); border: 1px solid var(--border-color);
+  background: var(--surface-2); transition: .2s ease;
+}
+.topbar-notification-bell:hover { color: var(--text-primary); border-color: var(--primary); transform: translateY(-1px); }
+.topbar-notification-badge {
+  position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px;
+  padding: 0 5px; border-radius: 999px; display: inline-flex; align-items: center;
+  justify-content: center; background: #ef4444; color: #fff; font-size: 10px;
+  font-weight: 700; line-height: 1; border: 2px solid var(--bg-primary, #0b0f17);
+}
+.topbar-notification-badge.is-hidden { display: none; }
+</style>
+</head>
 <body class="admin-body">
 
 <!-- Skip navigation -->
@@ -311,6 +328,18 @@
       </div>
       {% endif %}
 
+      {% if current_user.is_authenticated and not current_user.is_superadmin %}
+      <a href="{{ url_for('admin.notifications') }}"
+         class="topbar-notification-bell"
+         data-notification-bell
+         data-unread-url="{{ url_for('admin.api_notifications_unread_count') }}"
+         title="Notifications"
+         aria-label="Notifications{% if notification_count %}, {{ notification_count }} unread{% endif %}">
+        <iconify-icon icon="lucide:bell" width="18"></iconify-icon>
+        <span class="topbar-notification-badge{% if not notification_count %} is-hidden{% endif %}" data-notification-badge>{{ notification_count or 0 }}</span>
+      </a>
+      {% endif %}
+
       <!-- Premium animated theme toggle -->
       <button type="button"
               class="theme-toggle-pill"
@@ -402,6 +431,48 @@
 <script src="{{ url_for('static', filename='js/admin.js', v='20260710-toast-ui-fix') }}"></script>
 <script src="{{ url_for('static', filename='js/dashboard-motion.js') }}"></script>
 <script src="{{ url_for('static', filename='js/dashboard-shell.js', v='20260711-mobile-drawer') }}"></script>
+
+
+<script>
+(() => {
+  const bell = document.querySelector('[data-notification-bell]');
+  if (!bell) return;
+  const badge = bell.querySelector('[data-notification-badge]');
+  const endpoint = bell.dataset.unreadUrl;
+  let lastCount = Number(badge?.textContent || 0);
+
+  const refreshNotifications = async () => {
+    try {
+      const response = await fetch(endpoint, {
+        headers: {'Accept': 'application/json'},
+        credentials: 'same-origin',
+        cache: 'no-store'
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      const count = Number(data.unread_count || 0);
+      if (badge) {
+        badge.textContent = count > 99 ? '99+' : String(count);
+        badge.classList.toggle('is-hidden', count < 1);
+      }
+      bell.setAttribute('aria-label', count ? `Notifications, ${count} unread` : 'Notifications');
+      if (count > lastCount) {
+        bell.animate(
+          [{transform:'scale(1)'}, {transform:'scale(1.12)'}, {transform:'scale(1)'}],
+          {duration: 420, easing: 'ease-out'}
+        );
+      }
+      lastCount = count;
+    } catch (_) {}
+  };
+
+  refreshNotifications();
+  window.setInterval(refreshNotifications, 30000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshNotifications();
+  });
+})();
+</script>
 
 {% block extra_js %}{% endblock %}
 </body>

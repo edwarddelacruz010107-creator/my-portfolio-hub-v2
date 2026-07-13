@@ -493,6 +493,35 @@ def project_like(project_id: int):
         )
         return jsonify({'success': False, 'message': 'Unable to save reaction. Please try again.'}), 500
 
+    # Create a tenant-dashboard notification after the reaction is safely stored.
+    # This is best-effort and must never make the public like action fail.
+    try:
+        liker_tenant_id = getattr(current_user, 'tenant_id', None)
+        if liker_tenant_id != project.tenant_id:
+            from app.services.notification_service import create_notification
+
+            actor_name = (
+                getattr(current_user, 'username', None)
+                or getattr(current_user, 'email', None)
+                or 'Someone'
+            )
+            create_notification(
+                tenant_id=project.tenant_id,
+                notification_type='project_like',
+                title='Someone liked your project',
+                message=(
+                    f'{actor_name} liked “{project.title}”. '
+                    f'Your project now has {int(project.like_count or 0)} '
+                    f'like{"s" if int(project.like_count or 0) != 1 else ""}.'
+                ),
+                commit=True,
+            )
+    except Exception:
+        current_app.logger.exception(
+            'Project-like notification failed: project_id=%s tenant_id=%s liker_id=%s',
+            project.id, project.tenant_id, getattr(current_user, 'id', None),
+        )
+
     return jsonify({'success': True, 'liked': True, 'like_count': project.like_count})
 
 

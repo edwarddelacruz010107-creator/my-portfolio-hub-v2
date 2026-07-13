@@ -32,7 +32,7 @@ def create_notification(
     Create and optionally commit a SubscriptionNotification.
 
     notification_type:
-        reminder_7d | reminder_30d | expired | renewed | activated | manual
+        reminder_7d | reminder_30d | expired | renewed | activated | project_like | manual
     """
     try:
         from app import db
@@ -53,6 +53,11 @@ def create_notification(
             db.session.commit()
         return notif
     except Exception as exc:
+        try:
+            from app import db
+            db.session.rollback()
+        except Exception:
+            pass
         logger.error('create_notification failed: %s', exc)
         return None
 

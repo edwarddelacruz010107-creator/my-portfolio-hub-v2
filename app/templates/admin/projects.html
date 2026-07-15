@@ -139,7 +139,13 @@ async function togglePublish(id, btn) {
 function showToast(msg) {
   const t = document.createElement('div');
   t.className = 'toast toast-success';
-  t.innerHTML = `<span class="toast-icon">✓</span><span class="toast-msg">${msg}</span>`;
+  const icon = document.createElement('span');
+  icon.className = 'toast-icon';
+  icon.textContent = '✓';
+  const message = document.createElement('span');
+  message.className = 'toast-msg';
+  message.textContent = String(msg || '');
+  t.append(icon, message);
   document.body.appendChild(t);
   setTimeout(() => t.style.opacity = '0', 2500);
   setTimeout(() => t.remove(), 3000);

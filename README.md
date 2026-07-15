@@ -210,6 +210,18 @@ app/static/themes/
 
 ## Local Development Setup
 
+For Windows PowerShell, the supported fresh-install path is:
+
+```powershell
+.\setup-local.ps1 -Start
+```
+
+This applies both versioned Alembic histories, verifies both migration heads,
+creates the empty default workspace, and starts the app. It fixes the common
+`sqlite3.OperationalError: no such table: tenants` failure caused by starting
+against an empty SQLite file. The server now shows a controlled setup page in
+development and refuses to boot with an incomplete schema in production.
+
 ### 1. Create and activate a virtual environment
 
 ```bash
@@ -256,7 +268,8 @@ FLASK_ENV=development
 FLASK_DEBUG=True
 SECRET_KEY=replace-with-a-local-secret
 FERNET_KEY=replace-with-a-valid-fernet-key
-CORE_DATABASE_URL=sqlite:///portfolio_dev.db
+DEV_CORE_DATABASE_URL=sqlite:///storage/portfolio_core_dev.db
+DEV_TENANT_DATABASE_URL=sqlite:///storage/portfolio_tenant_dev.db
 ```
 
 Generate a valid Fernet key:
@@ -268,7 +281,8 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 ### 4. Run database migrations
 
 ```bash
-flask --app run.py db upgrade
+FLASK_ENV=development python -m flask --app run.py setup-local
+python -m flask --app run.py db-status
 ```
 
 ### 5. Start the development server
@@ -366,7 +380,8 @@ The script copies files found in old local upload roots into the configured `UPL
 Run migrations with:
 
 ```bash
-flask --app run.py db upgrade
+flask --app run.py db-upgrade-all
+flask --app run.py db-status
 ```
 
 Create a new migration after model changes:
@@ -537,18 +552,24 @@ Recommended manual checks before every release:
 
 ## Production Deployment Notes
 
+The canonical production target is the checked-in Docker image. It installs
+and updates the ClamAV engine during the image build, runs as a non-root user,
+uses `/readyz`, and fails startup when required secrets, schema heads, Redis,
+or the required malware scanner are unavailable.
+
 Recommended production flow:
 
-1. Provision PostgreSQL.
-2. Configure production environment variables.
-3. Configure Redis if available.
-4. Configure email provider DNS and credentials.
-5. Configure PayMongo only when billing is ready.
-6. Run migrations.
-7. Create or verify the Superadmin account.
-8. Run startup diagnostics.
-9. Test theme previews and contact forms.
-10. Disable temporary bootstrap flags after first deployment.
+1. Provision PostgreSQL and Redis; enable backups/PITR.
+2. Configure every secret marked `sync: false` in `render.yaml`.
+3. Configure durable object storage (`cloudinary` or `supabase`).
+4. Deploy `render.yaml`; its pre-deploy step applies and verifies both migration histories before creating the default workspace and Superadmin.
+5. Confirm `/livez` is 200 and `/readyz` is 200.
+6. Run the staging checklist in `PRODUCTION_RELEASE_CANDIDATE.md`.
+7. Remove `SUPERADMIN_PASSWORD` after first login and password rotation.
+
+Render does not permit changing an existing service's runtime in place. If an
+older service was created with the native Python runtime, create a new Docker
+service from this Blueprint, verify it, then move the custom domain.
 
 Production server command:
 
@@ -565,7 +586,9 @@ docker-compose.prod.yml
 render.yaml
 ```
 
-Review and adjust these files before deployment because environment names, database URLs, domain names, and startup flags depend on the target hosting setup.
+Do not replace the Docker runtime with a native runtime while
+`MALWARE_SCAN_REQUIRED=true`; the native runtime does not install ClamAV.
+See `PRODUCTION_RELEASE_CANDIDATE.md` for the promotion gates.
 
 ---
 

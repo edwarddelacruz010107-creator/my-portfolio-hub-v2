@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +24,8 @@ def evaluate() -> dict:
     js_files = list((ROOT / "app" / "static" / "js").rglob("*.js"))
     init = (ROOT / "app" / "__init__.py").read_text()
     compose = (ROOT / "docker-compose.prod.yml").read_text()
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    dockerignore = (ROOT / ".dockerignore").read_text()
 
     failures: list[str] = []
     warnings: list[str] = []
@@ -32,12 +35,9 @@ def evaluate() -> dict:
     ]
     if raw_forwarded:
         failures.append("raw_forwarding_header_consumers:" + ",".join(raw_forwarded))
-    script_sources = re.search(r'"script-src"\s*:\s*\[(.*?)\]', init, re.S).group(1)
-    style_sources = re.search(r'"style-src"\s*:\s*\[(.*?)\]', init, re.S).group(1)
-    if "unsafe-inline" in script_sources:
-        failures.append("script_src_allows_inline_blocks")
-    if "unsafe-inline" in style_sources:
-        failures.append("style_src_allows_inline_blocks")
+    csp_source = re.search(r"csp\s*=\s*\{(.*?)\n\}", init, re.S).group(1)
+    if "unsafe-inline" in csp_source:
+        failures.append("csp_allows_unsafe_inline")
     missing_nonce = []
     for path in templates:
         for tag in re.findall(r"<(?:script|style)\b[^>]*>", path.read_text(), re.I):
@@ -48,8 +48,44 @@ def evaluate() -> dict:
         failures.append("templates_missing_nonce:" + ",".join(sorted(missing_nonce)))
     if "POSTGRES_PASSWORD:-postgres" in compose:
         failures.append("compose_default_database_password")
+    for path, markers in (
+        (ROOT / "app" / "admin" / "blueprint.py", ("@admin.before_request", "def block_public_admin")),
+        (ROOT / "app" / "superadmin" / "blueprint.py", ("@superadmin.before_request", "def block_public_superadmin")),
+    ):
+        source = path.read_text()
+        if any(marker not in source for marker in markers):
+            failures.append(f"missing_blueprint_auth_guard:{path.relative_to(ROOT)}")
+    if "inspect_schema_state(db)" not in init or "raise RuntimeError(message)" not in init:
+        failures.append("missing_production_schema_startup_guard")
+    if "clamav" not in dockerfile or "freshclam --quiet" not in dockerfile:
+        failures.append("production_image_missing_malware_scanner")
+    if not re.search(r"^app/static/uploads/$", dockerignore, re.M):
+        failures.append("docker_image_does_not_exclude_runtime_uploads")
     if re.search(r"(?:eval\s*\(|new\s+Function\s*\(|document\.write\s*\()", "\n".join(p.read_text(errors="ignore") for p in js_files)):
         failures.append("dangerous_javascript_execution_sink")
+    create_all_lines = [
+        line.strip() for line in init.splitlines()
+        if re.match(r"\s*db\.create_all\(", line)
+    ]
+    if len(create_all_lines) != 2 or "if app.testing:" not in init:
+        failures.append("unversioned_schema_creation_outside_test_bootstrap")
+    remote_assets = []
+    for path in templates:
+        for match in re.finditer(r'<(?:script|link)\b[^>]+(?:src|href)=["\']https?://', path.read_text(), re.I):
+            remote_assets.append(str(path.relative_to(ROOT)))
+    if remote_assets:
+        failures.append("remote_executable_or_stylesheet_assets:" + ",".join(sorted(set(remote_assets))))
+    for vendor_name in (
+        "iconify-icon-1.0.7.min.js",
+        "portfolio-icon-collections-2026.07.js",
+    ):
+        if not (ROOT / "app" / "static" / "vendor" / "iconify" / vendor_name).is_file():
+            failures.append(f"missing_pinned_icon_asset:{vendor_name}")
+
+    sys.path.insert(0, str(ROOT / "tools"))
+    from dom_sink_gate import evaluate as evaluate_dom_sinks
+    dom_audit = evaluate_dom_sinks()
+    failures.extend(f"dom_audit:{failure}" for failure in dom_audit["failures"])
 
     handlers = _count(r"\son(?:click|change|input|submit|load|error|keyup|keydown|blur|focus)\s*=", templates)
     styles = _count(r"\sstyle\s*=", templates)
@@ -59,7 +95,7 @@ def evaluate() -> dict:
     if styles:
         warnings.append(f"legacy_style_attributes={styles}; owner=frontend; due=2026-08-15")
     if inner_html:
-        warnings.append(f"html_rendering_sinks={inner_html}; audited_registry_required")
+        warnings.append(f"html_rendering_sinks={inner_html}; locked_by_dom_sink_audit")
 
     return {
         "schema": "portfolio.release-gate.v1",
@@ -71,6 +107,7 @@ def evaluate() -> dict:
             "legacy_inline_handlers": handlers,
             "legacy_style_attributes": styles,
             "html_rendering_sinks": inner_html,
+            "dom_sink_inventory_sha256": dom_audit["actual_inventory_sha256"],
         },
     }
 

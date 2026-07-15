@@ -1168,12 +1168,21 @@ html[data-theme='light'] .sm-template-btn{
     if (summaryRecipient) summaryRecipient.textContent = tenantLabel;
     if (summaryType) summaryType.textContent = typeLabel;
     if (previewRecipient) previewRecipient.textContent = tenantLabel;
-    if (previewType) previewType.innerHTML = '<iconify-icon icon="' + typeIcon + '" width="12"></iconify-icon> ' + typeLabel;
+    if (previewType) {
+      const icon = document.createElement('iconify-icon');
+      icon.setAttribute('icon', typeIcon);
+      icon.setAttribute('width', '12');
+      previewType.replaceChildren(icon, document.createTextNode(' ' + typeLabel));
+    }
 
     if (summaryMode) {
-      summaryMode.innerHTML = isBroadcast
-        ? '<iconify-icon icon="lucide:radio-tower" width="13"></iconify-icon> Broadcast'
-        : '<iconify-icon icon="lucide:user" width="13"></iconify-icon> Direct';
+      const icon = document.createElement('iconify-icon');
+      icon.setAttribute('icon', isBroadcast ? 'lucide:radio-tower' : 'lucide:user');
+      icon.setAttribute('width', '13');
+      summaryMode.replaceChildren(
+        icon,
+        document.createTextNode(isBroadcast ? ' Broadcast' : ' Direct')
+      );
     }
 
     if (previewSubject) {

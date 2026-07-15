@@ -35,7 +35,10 @@
     if (loading) {
       button.dataset.originalHtml = button.innerHTML;
       button.disabled = true;
-      button.innerHTML = `<span class="spin" aria-hidden="true"></span> ${loadingText}`;
+      const spinner = document.createElement('span');
+      spinner.className = 'spin';
+      spinner.setAttribute('aria-hidden', 'true');
+      button.replaceChildren(spinner, document.createTextNode(' ' + String(loadingText)));
     } else {
       button.disabled = false;
       button.innerHTML = button.dataset.originalHtml || button.innerHTML;

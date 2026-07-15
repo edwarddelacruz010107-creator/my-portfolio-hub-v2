@@ -1381,3 +1381,9 @@
 @keyframes hero-editor-pulse {
   50% { opacity: .45; transform: scale(.82); }
 }
+/* Safe DOM-rendered provider test result. */
+.test-result-body {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}

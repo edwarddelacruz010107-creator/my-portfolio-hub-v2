@@ -32,6 +32,17 @@ for path, metadata in sorted(lock.get("packages", {}).items()):
     if path.startswith("node_modules/") and metadata.get("version"):
         components.append(component(path.removeprefix("node_modules/"), metadata["version"], "npm"))
 
+# These pinned npm artifacts are reduced into checked-in runtime assets rather
+# than installed into node_modules. They still belong in the release SBOM.
+for name, version in (
+    ("iconify-icon", "1.0.7"),
+    ("@iconify-json/lucide", "1.2.84"),
+    ("@iconify-json/logos", "1.2.10"),
+    ("@iconify-json/mdi", "1.2.3"),
+    ("@iconify-json/flat-color-icons", "1.2.2"),
+):
+    components.append(component(name, version, "npm"))
+
 components.sort(key=lambda item: item["purl"])
 serial_material = "\n".join(item["purl"] for item in components).encode()
 document = {
@@ -45,4 +56,3 @@ document = {
 OUT.parent.mkdir(parents=True, exist_ok=True)
 OUT.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n")
 print(f"wrote {OUT} ({len(components)} components)")
-

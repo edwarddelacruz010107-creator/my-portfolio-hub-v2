@@ -21,22 +21,22 @@
     var methodConfigs = {
       ewallet: {
         label: 'E-Wallet', icon: 'lucide:smartphone',
-        text: '<strong>E-wallet selected.</strong> Add the registered account name and mobile number.',
+        heading: 'E-wallet selected.', detail: ' Add the registered account name and mobile number.',
         visible: ['account_name', 'mobile_number']
       },
       bank: {
         label: 'Bank Transfer', icon: 'lucide:landmark',
-        text: '<strong>Bank transfer selected.</strong> Add the bank, account holder, and account number.',
+        heading: 'Bank transfer selected.', detail: ' Add the bank, account holder, and account number.',
         visible: ['account_name', 'account_number', 'bank_name']
       },
       paymongo: {
         label: 'PayMongo', icon: 'lucide:credit-card',
-        text: '<strong>PayMongo selected.</strong> Account details are optional because checkout is handled by the gateway.',
+        heading: 'PayMongo selected.', detail: ' Account details are optional because checkout is handled by the gateway.',
         visible: []
       },
       crypto: {
         label: 'Crypto', icon: 'lucide:bitcoin',
-        text: '<strong>Crypto selected.</strong> Use Account Number for the wallet address and explain the network in the instructions.',
+        heading: 'Crypto selected.', detail: ' Use Account Number for the wallet address and explain the network in the instructions.',
         visible: ['account_name', 'account_number']
       }
     };
@@ -49,12 +49,21 @@
       });
       if (context) {
         var p = qs(context, 'p');
-        if (p) p.innerHTML = config.text;
+        if (p) {
+          var strong = document.createElement('strong');
+          strong.textContent = config.heading;
+          p.replaceChildren(strong, document.createTextNode(config.detail));
+        }
       }
       var previewType = qs(root, '[data-preview-type]');
       var previewIcon = qs(root, '[data-preview-icon]');
       if (previewType) previewType.textContent = config.label;
-      if (previewIcon) previewIcon.innerHTML = '<iconify-icon icon="' + config.icon + '" width="23"></iconify-icon>';
+      if (previewIcon) {
+        var icon = document.createElement('iconify-icon');
+        icon.setAttribute('icon', config.icon);
+        icon.setAttribute('width', '23');
+        previewIcon.replaceChildren(icon);
+      }
     }
 
     function updatePreviewText() {
@@ -84,8 +93,13 @@
       reader.onload = function (event) {
         var src = event.target && event.target.result;
         if (!src) return;
-        if (uploadPreview) uploadPreview.innerHTML = '<img src="' + src + '" alt="Selected QR code preview">';
-        if (previewQr) previewQr.innerHTML = '<img src="' + src + '" alt="Selected QR code preview">';
+        [uploadPreview, previewQr].forEach(function (target) {
+          if (!target) return;
+          var image = document.createElement('img');
+          image.src = src;
+          image.alt = 'Selected QR code preview';
+          target.replaceChildren(image);
+        });
       };
       reader.readAsDataURL(file);
     }

@@ -141,6 +141,30 @@ def _tenant_baseline_contract():
             continue
         value = _literal(node.value)
         indexes = {row[0] for row in value}
+
+    # Later additive tenant revisions extend the baseline. The contract must
+    # compare models with the current migration head, not revision 0001 alone.
+    for path in sorted(TENANT_BASELINE_PATH.parent.glob("*.py")):
+        if path == TENANT_BASELINE_PATH:
+            continue
+        revision_tree = ast.parse(path.read_text(encoding="utf-8"))
+        upgrade = next(
+            (
+                node for node in revision_tree.body
+                if isinstance(node, ast.FunctionDef) and node.name == "upgrade"
+            ),
+            None,
+        )
+        if upgrade is None:
+            continue
+        for call in ast.walk(upgrade):
+            if not isinstance(call, ast.Call) or not isinstance(call.func, ast.Attribute):
+                continue
+            name = _literal(call.args[0]) if call.args else None
+            if call.func.attr == "create_index" and name:
+                indexes.add(name)
+            elif call.func.attr == "drop_index" and name:
+                indexes.discard(name)
     return tables, indexes
 
 

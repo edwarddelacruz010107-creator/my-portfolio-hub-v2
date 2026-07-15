@@ -159,6 +159,10 @@
 .review-modal-meta strong {
   color: var(--text-primary);
 }
+.review-amount-diff { font-weight: 600; }
+.review-amount-diff.is-short { color: #dc3545; }
+.review-amount-diff.is-over { color: #b58900; }
+.review-amount-diff.is-match { color: #198754; }
 .review-modal textarea {
   width: 100%;
   box-sizing: border-box;
@@ -600,6 +604,14 @@
   const reviewModalDesc   = document.getElementById('review-modal-desc');
   const reviewModalMeta   = document.getElementById('review-modal-meta');
 
+  function appendReviewLine(label, value, suffix) {
+    const strong = document.createElement('strong');
+    strong.textContent = label + ':';
+    reviewModalMeta.append(strong, document.createTextNode(' ' + String(value || '')));
+    if (suffix) reviewModalMeta.appendChild(suffix);
+    reviewModalMeta.appendChild(document.createElement('br'));
+  }
+
   function openReviewModal(btn) {
     const action  = btn.dataset.reviewAction;   // 'approve' | 'reject'
     const url     = btn.dataset.reviewUrl;
@@ -631,27 +643,28 @@
     // at the point of approval — this is the actual decision moment, not
     // just the table row. Flag mismatches so a reviewer can't approve an
     // underpaid submission without seeing the discrepancy first.
-    let amountLine = `<strong>Amount Paid:</strong> ${amount}`;
+    reviewModalMeta.replaceChildren();
+    appendReviewLine('Tenant', tenant);
+    appendReviewLine('Plan', plan);
+    appendReviewLine('Amount Paid', amount);
     if (expected) {
       const paidNum = parseFloat((amount || '').replace(/[^\d.-]/g, '')) || 0;
       const expNum  = parseFloat(expected.replace(/[^\d.-]/g, '')) || 0;
       const diff = paidNum - expNum;
-      let flag = '';
+      const flag = document.createElement('span');
+      flag.className = 'review-amount-diff';
       if (diff < -0.01) {
-        flag = `<span style="color:#dc3545;font-weight:600"> ⚠ short by ${billingSymbol}${Math.abs(diff).toFixed(2)}</span>`;
+        flag.classList.add('is-short');
+        flag.textContent = ` ⚠ short by ${billingSymbol}${Math.abs(diff).toFixed(2)}`;
       } else if (diff > 0.01) {
-        flag = `<span style="color:#b58900;font-weight:600"> (over by ${billingSymbol}${diff.toFixed(2)})</span>`;
+        flag.classList.add('is-over');
+        flag.textContent = ` (over by ${billingSymbol}${diff.toFixed(2)})`;
       } else {
-        flag = `<span style="color:#198754"> ✓ matches</span>`;
+        flag.classList.add('is-match');
+        flag.textContent = ' ✓ matches';
       }
-      amountLine = `<strong>Amount Paid:</strong> ${amount}<br><strong>Expected:</strong> ${expected}${flag}`;
+      appendReviewLine('Expected', expected, flag);
     }
-
-    reviewModalMeta.innerHTML = `
-      <strong>Tenant:</strong> ${tenant}<br>
-      <strong>Plan:</strong> ${plan}<br>
-      ${amountLine}
-    `;
 
     reviewOverlay.classList.add('open');
     document.body.style.overflow = 'hidden';

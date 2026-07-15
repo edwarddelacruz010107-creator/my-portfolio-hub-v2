@@ -55,18 +55,24 @@ services:
     env_file: .env
     environment:
       FLASK_ENV:         ${FLASK_ENV:-production}
-      DATABASE_URL:      postgresql://portfolio:${DB_PASSWORD:-devpassword}@db:5432/portfolio_dev
+      CORE_DATABASE_URL: postgresql://portfolio:${DB_PASSWORD:-devpassword}@db:5432/portfolio_dev
       DB_SSLMODE:         disable
       REDIS_URL:         redis://redis:6379/0
       RATELIMIT_STORAGE_URL: redis://redis:6379/1
       PORT:              8000
       GUNICORN_WORKERS:  2
       GUNICORN_THREADS:  2
+      RUN_MIGRATIONS:    "true"
+      MALWARE_SCAN_REQUIRED: "true"
+      MALWARE_SCANNER_COMMAND: "clamscan --no-summary"
+      MALWARE_SCAN_TIMEOUT_SECONDS: "45"
+      MALWARE_SIGNATURE_DIRECTORY: "/var/lib/clamav"
+      MALWARE_SIGNATURE_MAX_AGE_HOURS: "24"
     ports:
       - "${HOST_PORT:-8000}:8000"
     volumes:
       # Persist uploaded images across container restarts
-      - ./static/uploads:/home/app/portfolio/static/uploads
+      - ./app/static/uploads:/app/app/static/uploads
     networks:
       - portfolio_net
     depends_on:
@@ -75,7 +81,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/heartbeat')\""]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz')\""]
       interval: 30s
       timeout: 10s
       start_period: 30s
@@ -89,7 +95,7 @@ services:
     env_file: .env
     environment:
       FLASK_ENV:    ${FLASK_ENV:-production}
-      DATABASE_URL: postgresql://portfolio:${DB_PASSWORD:-devpassword}@db:5432/portfolio_dev
+      CORE_DATABASE_URL: postgresql://portfolio:${DB_PASSWORD:-devpassword}@db:5432/portfolio_dev
       DB_SSLMODE: disable
     command: >
       sh -c "flask db-upgrade-all && echo 'Core and tenant migrations complete'"

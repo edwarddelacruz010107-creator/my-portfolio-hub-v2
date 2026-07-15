@@ -120,8 +120,13 @@ function showToast(msg, type) {
     const div = document.createElement('div');
     div.className = `toast toast-${type}`;
     div.setAttribute('data-auto-close', '');
-    div.innerHTML = `<span class="toast-icon">${type === 'success' ? '✓' : 'ℹ'}</span>
-                     <span class="toast-msg">${msg}</span>`;
+    const icon = document.createElement('span');
+    icon.className = 'toast-icon';
+    icon.textContent = type === 'success' ? '✓' : 'ℹ';
+    const message = document.createElement('span');
+    message.className = 'toast-msg';
+    message.textContent = String(msg || '');
+    div.append(icon, message);
     let container = document.querySelector('.flash-container');
     if (!container) {
         container = document.createElement('div');

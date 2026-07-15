@@ -24,7 +24,7 @@ storage/*.db
 storage/*.sqlite*
 
 # Uploaded customer data must never enter source control
-app/static/uploads/billing/
+app/static/uploads/
 instance/private_uploads/
 storage/private_uploads/
 

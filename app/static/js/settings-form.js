@@ -65,7 +65,9 @@
         kind = 'saved';
       }
       status.className = 'sticky-actions-status' + (kind ? ' is-' + kind : '');
-      status.innerHTML = '<span class="dot"></span>' + text;
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      status.replaceChildren(dot, document.createTextNode(text));
     }
 
     // ---- Inline field error rendering ---------------------------------

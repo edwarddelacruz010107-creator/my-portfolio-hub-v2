@@ -1,4 +1,4 @@
-# render.yaml — Portfolio CMS v5.3 PRODUCTION-READY (PATCHED)
+# render.yaml — Portfolio Hub canonical Docker production Blueprint
 # ═══════════════════════════════════════════════════════════════
 # FIXES vs. v5.0 render.yaml:
 #
@@ -24,8 +24,8 @@
 services:
   - type: web
     name: portfolio-cms
-    runtime: python
-    buildCommand: pip install -r requirements.txt
+    runtime: docker
+    dockerfilePath: ./Dockerfile
 
     # ── Deployment sequence — ORDER MATTERS ─────────────────────────
     # Step 1: Acquire the migration lock; migrate and verify both DB binds
@@ -40,18 +40,6 @@ services:
       flask db-upgrade-all &&
       flask ensure-default-tenant &&
       flask create-superadmin
-
-    startCommand: >
-      gunicorn
-      --bind 0.0.0.0:$PORT
-      --workers 1
-      --threads 4
-      --timeout 120
-      --keep-alive 5
-      --log-level info
-      --access-logfile -
-      --error-logfile -
-      wsgi:app
 
     plan: starter
     autoDeploy: true
@@ -73,12 +61,18 @@ services:
       - key: MALWARE_SCAN_REQUIRED
         value: "true"
       - key: MALWARE_SCANNER_COMMAND
-        value: "clamdscan --no-summary"
+        value: "clamscan --no-summary"
+      - key: MALWARE_SCAN_TIMEOUT_SECONDS
+        value: "45"
+      - key: MALWARE_SIGNATURE_DIRECTORY
+        value: "/var/lib/clamav"
+      - key: MALWARE_SIGNATURE_MAX_AGE_HOURS
+        value: "24"
 
       # ── Docker entrypoint controls ─────────────────────────────────
       # These are used when deploying with the Dockerfile.
       - key: RUN_MIGRATIONS
-        value: "true"
+        value: "false"
       - key: USE_ORM_BOOTSTRAP_ON_STARTUP
         value: "false"
       - key: CREATE_SUPERADMIN_ON_STARTUP

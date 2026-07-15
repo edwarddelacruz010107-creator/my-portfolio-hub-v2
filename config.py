@@ -41,6 +41,8 @@ Environment Variables Required:
 
 import os
 import logging
+import shlex
+import shutil
 from datetime import timedelta
 from pathlib import Path
 from urllib.parse import unquote
@@ -245,8 +247,12 @@ class BaseConfig:
         os.environ.get('MAX_PRIVATE_PROOF_DOWNLOAD_BYTES', str(10 * 1024 * 1024))
     )
     MALWARE_SCANNER_COMMAND = os.environ.get('MALWARE_SCANNER_COMMAND', '').strip()
-    MALWARE_SCAN_TIMEOUT_SECONDS = int(os.environ.get('MALWARE_SCAN_TIMEOUT_SECONDS', '15'))
+    MALWARE_SCAN_TIMEOUT_SECONDS = int(os.environ.get('MALWARE_SCAN_TIMEOUT_SECONDS', '45'))
     MALWARE_SCAN_REQUIRED = os.environ.get('MALWARE_SCAN_REQUIRED', 'false').lower() == 'true'
+    MALWARE_SIGNATURE_DIRECTORY = os.environ.get('MALWARE_SIGNATURE_DIRECTORY', '').strip()
+    MALWARE_SIGNATURE_MAX_AGE_HOURS = int(
+        os.environ.get('MALWARE_SIGNATURE_MAX_AGE_HOURS', '24')
+    )
     UPLOAD_QUARANTINE_FOLDER = os.environ.get(
         'UPLOAD_QUARANTINE_FOLDER',
         os.path.join(basedir, 'instance', 'upload_quarantine'),
@@ -491,6 +497,22 @@ class ProductionConfig(BaseConfig):
         missing = [v for v in always_required if not os.environ.get(v)]
         if app.config.get('MALWARE_SCAN_REQUIRED') and not app.config.get('MALWARE_SCANNER_COMMAND'):
             missing.append('MALWARE_SCANNER_COMMAND')
+        elif app.config.get('MALWARE_SCAN_REQUIRED'):
+            try:
+                scanner_argv = shlex.split(str(app.config['MALWARE_SCANNER_COMMAND']))
+            except ValueError:
+                scanner_argv = []
+            scanner_executable = scanner_argv[0] if scanner_argv else ''
+            if not scanner_executable or shutil.which(scanner_executable) is None:
+                missing.append(
+                    f'MALWARE_SCANNER_EXECUTABLE({scanner_executable or "empty command"})'
+                )
+            elif Path(scanner_executable).name == 'clamscan':
+                signature_directory = str(
+                    app.config.get('MALWARE_SIGNATURE_DIRECTORY') or ''
+                ).strip()
+                if not signature_directory or not Path(signature_directory).is_dir():
+                    missing.append('MALWARE_SIGNATURE_DIRECTORY')
 
         # Billing keys only required when PayMongo is explicitly enabled.
         paymongo_enabled = os.environ.get('PAYMONGO_ENABLED', 'false').lower() == 'true'

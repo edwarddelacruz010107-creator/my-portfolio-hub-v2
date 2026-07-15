@@ -2,7 +2,7 @@
   "name": "myportfoliohub-ui-contract-tests",
   "private": true,
   "scripts": {
-    "test:ui": "node --test tests/js/components_v1.test.js"
+    "test:ui": "node --test tests/js/*.test.js"
   },
   "devDependencies": {
     "jsdom": "29.1.1"

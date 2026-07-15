@@ -19,22 +19,27 @@
         .steps { text-align: left; background: #0f172a; border-radius: 8px;
                  padding: 1rem 1.5rem; margin-top: 1.5rem; }
         .steps li { color: #94a3b8; margin: 0.4rem 0; }
+        .details { text-align: left; font-size: 0.82rem; word-break: break-word; }
+        .next { margin-top: 1.5rem; }
+        a { color: #818cf8; }
     </style>
 </head>
 <body>
 <div class="card">
     <h1>⚙️ Setup Required</h1>
-    <p>The default portfolio profile hasn't been created yet.</p>
-    <p>Run these commands to initialize the database:</p>
+    <p>The database exists, but its versioned schema has not finished setup.</p>
+    <p>Stop the server, open PowerShell in the project folder, and run:</p>
     <div class="steps">
-        <ol>
-            <li><code>flask init-db</code></li>
-            <li><code>flask ensure-default-tenant</code></li>
-            <li><code>flask create-admin</code></li>
-        </ol>
+        <code>$env:FLASK_ENV = "development"</code><br><br>
+        <code>python -m flask --app run.py setup-local</code>
     </div>
-    <p style="margin-top:1.5rem;">
-        Then visit <a href="/auth/login" style="color:#6366f1;">/auth/login</a>
+    {% if schema_details %}
+    <div class="steps details">
+        {% for detail in schema_details %}<div>{{ detail }}</div>{% endfor %}
+    </div>
+    {% endif %}
+    <p class="next">
+        Restart with <code>python run.py</code>, then visit <a href="/auth/login">/auth/login</a>
         to set up your portfolio.
     </p>
 </div>

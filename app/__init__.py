@@ -136,18 +136,16 @@ csp = {
     "base-uri": "'self'",
     "script-src": [
         "'self'",
-        "https://code.iconify.design",
     ],
-    # Legacy handler attributes are isolated from executable script blocks.
-    # Phase 10's release gate inventories these until all 70 are externalized.
-    "script-src-attr": "'unsafe-inline'",
+    "script-src-attr": "'unsafe-hashes'",
     "style-src": [
         "'self'",
+        # Exact styles injected into Iconify's shadow root by the pinned local
+        # web component.  These hashes keep the main style policy strict.
+        "'sha256-1P/+Nxe2LOgGHeWU2DfZCy0GyvoKMbFONJnW+b9rWP4='",
+        "'sha256-omUmdgEezBlyfJof+VLIWxa+/I/t3y9bBEHI796pikI='",
     ],
-    # Existing page-local style attributes remain an explicit compatibility
-    # exception; all <style> blocks use nonces and new attributes are blocked
-    # by the source gate baseline.
-    "style-src-attr": "'unsafe-inline'",
+    "style-src-attr": "'unsafe-hashes'",
     "font-src": [
         "'self'",
         "data:",
@@ -162,7 +160,6 @@ csp = {
     "connect-src": [
         "'self'",
         "https://api.web3forms.com",
-        "https://api.iconify.design",
     ],
     "frame-src": [
         "'self'",
@@ -326,6 +323,11 @@ def create_app(config_name: str = 'default') -> Flask:
             x_port=trusted_proxy_hops,
         )
 
+    # Register before Talisman so Flask's reverse after-request order applies
+    # exact rendered attribute hashes after Talisman creates the header.
+    from app.csp_hardening import finalize_html_csp
+    app.after_request(finalize_html_csp)
+
     # Do not enforce Talisman HTTPS redirects during testing to avoid
     # interfering with Flask test client (which uses http://localhost).
     if not app.debug and not app.testing:
@@ -370,6 +372,8 @@ def create_app(config_name: str = 'default') -> Flask:
         or "db-upgrade" in cli_args
         or "db-upgrade-all" in cli_args
         or "db-status" in cli_args
+        or "setup-local" in cli_args
+        or "init-db" in cli_args
     )
     validate_tenant_schema_on_startup = (
         os.environ.get('AUTO_ENSURE_TENANT_SCHEMA', '').lower() in ('1', 'true', 'yes')
@@ -557,18 +561,37 @@ def create_app(config_name: str = 'default') -> Flask:
     instance_dir = Path(app.instance_path)
     instance_dir.mkdir(parents=True, exist_ok=True)
 
-    if is_database_setup_command:
+    from app.schema_guard import inspect_schema_state, install_request_schema_guard
+
+    if app.testing:
+        # The isolated test harness intentionally builds model tables with
+        # create_all and does not fabricate Alembic version rows. Production
+        # and development never take this branch.
+        app.config["SCHEMA_READY"] = True
+        app.config["SCHEMA_READINESS_DETAILS"] = ("isolated testing schema",)
+        with app.app_context():
+            _ensure_default_tenant()
+    elif is_database_setup_command:
+        app.config["SCHEMA_READY"] = False
+        app.config["SCHEMA_READINESS_DETAILS"] = ("database setup command is running",)
         logger.info('Skipping runtime DB startup checks during database setup command: %s', cli_args)
     else:
         with app.app_context():
-            _is_production = not app.config.get('TESTING') and not app.config.get('DEBUG')
-            try:
-                db.session.execute(db.text("SELECT 1"))
-                db.session.remove()
-
+            schema_state = inspect_schema_state(db)
+            app.config["SCHEMA_READY"] = schema_state.ready
+            app.config["SCHEMA_READINESS_DETAILS"] = schema_state.details
+            if not schema_state.ready:
+                message = (
+                    "Database schema is not ready. Run `flask --app run.py db-upgrade-all` "
+                    f"before serving traffic: {schema_state.summary}"
+                )
+                if not app.debug and not app.testing:
+                    logger.critical(message)
+                    raise RuntimeError(message)
+                logger.error(message)
+            else:
                 if app.debug or app.testing:
                     _ensure_default_tenant()
-
                 try:
                     from app.system_plan import ensure_default_tenant_administrator_plan
                     ensure_default_tenant_administrator_plan(commit=True)
@@ -576,60 +599,20 @@ def create_app(config_name: str = 'default') -> Flask:
                     db.session.rollback()
                     logger.warning("Could not repair default tenant Administrator plan at startup: %s", exc)
 
-                logger.info("Database connection verified at startup")
-
-                try:
-                    from app.models.core import Tenant as _Tenant
-                    tenant = _Tenant.query.filter_by(slug="default").first()
-                    if tenant:
-                        app.config["TENANT_LOOKUP_MODE"] = "slug_to_id"
-                        app.config["DEFAULT_TENANT_ID"] = tenant.id
-                        logger.info(
-                            "TENANT STARTUP: lookup_mode=%s tenant_slug=%s tenant_id=%s tenant_status=%s",
-                            app.config.get("TENANT_LOOKUP_MODE"),
-                            tenant.slug,
-                            tenant.id,
-                            tenant.status,
-                        )
-                    else:
-                        app.config["TENANT_LOOKUP_MODE"] = "slug_to_id"
-                        logger.warning(
-                            "TENANT STARTUP: lookup_mode=%s tenant_slug=%s resolution=not_found",
-                            app.config.get("TENANT_LOOKUP_MODE"),
-                            "default",
-                        )
-                except Exception as exc:
-                    db.session.rollback()
-                    app.config["TENANT_LOOKUP_MODE"] = "slug_to_id"
-                    logger.warning(
-                        "TENANT STARTUP: lookup_mode=%s tenant_slug=%s resolution=error (%s)",
-                        app.config.get("TENANT_LOOKUP_MODE"),
-                        "default",
-                        exc,
+                from app.models.core import Tenant as _Tenant
+                tenant = _Tenant.query.filter_by(slug="default").first()
+                app.config["TENANT_LOOKUP_MODE"] = "slug_to_id"
+                if tenant:
+                    app.config["DEFAULT_TENANT_ID"] = tenant.id
+                    logger.info(
+                        "TENANT STARTUP: lookup_mode=slug_to_id tenant_slug=%s tenant_id=%s tenant_status=%s",
+                        tenant.slug, tenant.id, tenant.status,
                     )
-
-            except Exception as exc:
-                db.session.remove()
-                if _is_production:
-                    # In production: crash fast — no point serving requests without a DB
-                    logger.critical(
-                        "Cannot reach database at startup: %s",
-                        exc,
-                        exc_info=True,
-                    )
-                    raise
                 else:
-                    # In development: warn and continue — lets you run the server
-                    # while the remote DB is down or you haven't set DEV_DATABASE_URL yet.
-                    # Set DEV_DATABASE_URL=sqlite:///instance/portfolio_dev.db in .env
-                    # OR set FLASK_ENV=development so the SQLite fallback is used.
-                    logger.warning(
-                        "Cannot reach database at startup (ignored in dev/test): %s\n"
-                        "  → Ensure FLASK_ENV=development in your .env file.\n"
-                        "  → Add DEV_DATABASE_URL=sqlite:///instance/portfolio_dev.db "
-                        "to use a local SQLite database for development.",
-                        exc,
-                    )
+                    logger.warning("TENANT STARTUP: tenant_slug=default resolution=not_found")
+                logger.info("Database schema and migration heads verified at startup")
+
+    install_request_schema_guard(app)
 
     # ── Blueprints ────────────────────────────────────────────────────────────
     # CRITICAL ORDER: register system blueprints BEFORE tenant_bp.
@@ -1130,7 +1113,7 @@ def _ensure_global_email_config_columns():
         return  # PostgreSQL: rely on proper Alembic migrations
 
     if not sa_inspect(db.engine).has_table('global_email_config'):
-        return  # Table not yet created — db.create_all() will handle it
+        return  # Table not yet created — the versioned migration will handle it
 
     # Columns added by migration 0032 — (column_name, DDL_fragment)
     REQUIRED_COLUMNS = [
@@ -1799,6 +1782,17 @@ def _render_default_project_detail(slug: str):
 
 # ── Default tenant bootstrap ──────────────────────────────────────────────────
 
+def _default_workspace_identity() -> tuple[str, str]:
+    """Return operator-owned identity fields without inventing portfolio facts."""
+    name = (os.environ.get('DEFAULT_PORTFOLIO_NAME') or 'Portfolio Owner').strip()
+    email = (
+        os.environ.get('DEFAULT_PORTFOLIO_EMAIL')
+        or os.environ.get('SUPERADMIN_EMAIL')
+        or os.environ.get('ADMIN_EMAIL')
+        or 'delacruzedward735@gmail.com'
+    ).strip().lower()
+    return name, email
+
 def _ensure_default_tenant():
     """
     Guarantee that a 'default' Profile row exists.
@@ -1809,19 +1803,26 @@ def _ensure_default_tenant():
     from sqlalchemy import inspect
 
     try:
-        inspector = inspect(db.engine)
-        if not inspector.has_table(Profile.__tablename__) or not inspector.has_table(Tenant.__tablename__):
+        core_inspector = inspect(db.engine)
+        tenant_engine = db.engines.get('tenant')
+        tenant_inspector = inspect(tenant_engine) if tenant_engine is not None else None
+        if (
+            not core_inspector.has_table(Tenant.__tablename__)
+            or tenant_inspector is None
+            or not tenant_inspector.has_table(Profile.__tablename__)
+        ):
             logger.warning(
                 'Database schema is missing. Run "flask db-upgrade-all" before starting the app.'
             )
             return
 
+        owner_name, owner_email = _default_workspace_identity()
         tenant = Tenant.query.filter_by(slug='default').first()
         if not tenant:
             tenant = Tenant(
                 slug='default',
                 company_name='Default Portfolio',
-                email='delacruzedward735@gmail.com',
+                email=owner_email,
                 status='active',
                 plan='Administrator',
             )
@@ -1832,16 +1833,23 @@ def _ensure_default_tenant():
             profile = Profile(
                 tenant_id=tenant.id,
                 tenant_slug=tenant.slug,
-                name='Portfolio Owner',
-                title='Full Stack Developer',
-                subtitle='Building beautiful digital experiences',
-                bio='Welcome to my portfolio.',
-                email='delacruzedward735@gmail.com',
+                name=owner_name,
+                title='',
+                subtitle='',
+                bio='',
+                bio_short='',
+                email=owner_email,
+                years_experience=0,
+                clients_count=0,
+                hero_tagline='',
+                availability_status='Setup required',
+                is_available=False,
+                seo_indexable=False,
             )
             profile.social_links = {}
             db.session.add(profile)
-            db.session.commit()
             logger.info("Created default tenant Profile row")
+        db.session.commit()
 
         # Obj #2: bootstrap TenantFormSettings for the default tenant so the
         # contact form routes to the administrator's email out of the box.
@@ -2010,15 +2018,15 @@ def register_cli_commands(app):
         Safe to run multiple times. Used as render.yaml preDeployCommand.
         """
         from app.models import User
-        from app.models.portfolio import Tenant, Profile, Project
-        from app.repositories import project_repository
+        from app.models.portfolio import Tenant, Profile
 
+        owner_name, owner_email = _default_workspace_identity()
         tenant = Tenant.query.filter_by(slug='default').first()
         if not tenant:
             tenant = Tenant(
                 slug='default',
                 company_name='Default Portfolio',
-                email='delacruzedward735@gmail.com',
+                email=owner_email,
                 status='active',
                 plan='Administrator',
             )
@@ -2029,24 +2037,21 @@ def register_cli_commands(app):
             profile = Profile(
                 tenant_id=tenant.id,
                 tenant_slug=tenant.slug,
-                name='Portfolio Owner',
-                title='Full Stack Developer',
-                subtitle='Building beautiful digital experiences',
-                bio='Welcome to my portfolio. Edit this via /admin/',
-                bio_short='Full-stack developer focused on clean design.',
-                location='Remote',
-                email='delacruzedward735@gmail.com',
-                years_experience=5,
-                experience_start_year=2019,
-                clients_count=10,
-                hero_tagline='Crafting elegant web experiences.',
-                availability_status='Available for new work',
-                is_available=True,
+                name=owner_name,
+                title='',
+                subtitle='',
+                bio='',
+                bio_short='',
+                location='',
+                email=owner_email,
+                years_experience=0,
+                clients_count=0,
+                hero_tagline='',
+                availability_status='Setup required',
+                is_available=False,
+                seo_indexable=False,
             )
-            profile.social_links = {
-                'github':   'https://github.com/yourusername',
-                'linkedin': 'https://linkedin.com/in/yourusername',
-            }
+            profile.social_links = {}
             db.session.add(profile)
             click.echo('✔  Created default tenant Profile')
         else:
@@ -2160,75 +2165,12 @@ def register_cli_commands(app):
 
     @app.cli.command('init-db')
     def cli_init_db():
-        """Create all tables and seed default admin + empty profile."""
-        import secrets as _secrets
-        from app.models import User
-        from app.models.portfolio import Tenant, Profile
-
-        if app.config["ENV"] == "development":
-            with app.app_context():
-                db.create_all()
-
-        tenant = Tenant.query.filter_by(slug='default').first()
-        if not tenant:
-            tenant = Tenant(
-                slug='default', company_name='Default Portfolio',
-                email='delacruzedward735@gmail.com', status='active', plan='Administrator',
-            )
-            db.session.add(tenant)
-            db.session.flush()
-
-        if not User.query.filter_by(username='admin').first():
-            temp_password = _secrets.token_urlsafe(12)
-            admin = User(
-                username='admin',
-                email='delacruzedward735@gmail.com',
-                tenant_slug='default',
-                tenant=tenant,
-                is_admin=True,
-            )
-            admin.password = temp_password
-            db.session.add(admin)
-            click.echo('✔  Created admin user')
-            click.echo(f'   Username: admin')
-            click.echo(f'   Temporary password: {temp_password}')
-            click.echo('⚠️  Change this password immediately after first login!')
-
-        if not Profile.query.filter_by(tenant_slug='default').first():
-            profile = Profile(
-                tenant_id=tenant.id,
-                tenant_slug=tenant.slug,
-                name='Your Name',
-                title='Full Stack Developer',
-                subtitle='Building beautiful digital experiences',
-                bio='I help clients build modern, scalable web applications.',
-                bio_short='Experienced full-stack developer focused on clean design.',
-                location='Remote',
-                email='delacruzedward735@gmail.com',
-                years_experience=5,
-                experience_start_year=2019,
-                clients_count=12,
-                hero_tagline='Crafting elegant web experiences.',
-                availability_status='Available for new work',
-                is_available=True,
-            )
-            profile.social_links = {
-                'github':   'https://github.com/yourusername',
-                'linkedin': 'https://linkedin.com/in/yourusername',
-            }
-            db.session.add(profile)
-
-        db.session.commit()
-        try:
-            from app.system_plan import ensure_default_tenant_administrator_plan
-            ensure_default_tenant_administrator_plan(commit=True)
-            click.echo('✔  Default portfolio assigned Administrator plan')
-        except Exception as exc:
-            click.echo(f'⚠  Could not normalize Administrator plan (non-fatal): {exc}')
-        click.echo('✔  Database initialised.')
-        click.echo('   → Portfolio at: /')
-        click.echo('   → Admin panel at: /admin/')
-        click.echo('   → Login at: /auth/login')
+        """Reject the legacy unversioned database bootstrap."""
+        raise click.ClickException(
+            'init-db was removed because unversioned table creation bypasses migration history. '
+            'For local development run `flask --app run.py setup-local`; for '
+            'deployments run `flask db-upgrade-all`.'
+        )
 
     @app.cli.command('create-superadmin')
     def cli_create_superadmin():
@@ -2422,6 +2364,44 @@ def register_cli_commands(app):
             tenant_head = upgrade_tenant_database()
             click.echo(f'✔  Tenant database reached Alembic head: {tenant_head}')
         click.echo('✔  Both migration histories and the tenant schema are verified.')
+
+    @app.cli.command('setup-local')
+    def cli_setup_local():
+        """Initialize both local databases and the honest default workspace."""
+        if not app.debug or app.testing:
+            raise click.ClickException(
+                'setup-local is development-only. Production must use the reviewed '
+                'db-upgrade-all deployment step.'
+            )
+        from app.services.database_migrations import (
+            migration_lock,
+            upgrade_core_database,
+            upgrade_tenant_database,
+        )
+        from app.schema_guard import inspect_schema_state
+
+        click.echo('Applying versioned core and tenant migrations...')
+        with migration_lock():
+            core_head = upgrade_core_database()
+            tenant_head = upgrade_tenant_database()
+        click.echo(f'✔  Core head: {core_head}')
+        click.echo(f'✔  Tenant head: {tenant_head}')
+
+        _ensure_default_tenant()
+        state = inspect_schema_state(db)
+        if not state.ready:
+            raise click.ClickException(f'Local schema verification failed: {state.summary}')
+
+        from app.models.core import Tenant
+        from app.models.tenant_data import Profile
+        tenant = Tenant.query.filter_by(slug='default').first()
+        profile = Profile.query.filter_by(tenant_slug='default').first()
+        if tenant is None or profile is None:
+            raise click.ClickException(
+                'Migrations succeeded but the default workspace was not created.'
+            )
+        click.echo('✔  Default workspace is ready.')
+        click.echo('Start with: python run.py')
 
     @app.cli.command('db-status')
     def cli_db_status():

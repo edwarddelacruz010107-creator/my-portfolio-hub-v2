@@ -507,7 +507,7 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='vendor/iconify/iconify-icon-1.0.7.min.js') }}" defer></script><script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='vendor/iconify/portfolio-icon-collections-2026.07.js') }}" defer></script>
 {% endblock %}
 
 {% macro billing_url(endpoint) -%}

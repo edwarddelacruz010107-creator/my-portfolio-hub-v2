@@ -13,7 +13,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>{{ 'Email verified' if ok else 'Verification failed' }} — Portfolio Hub</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css', v='20260714-v3') }}">  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css', v='20260714-v3') }}">  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='vendor/iconify/iconify-icon-1.0.7.min.js') }}" defer></script><script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='vendor/iconify/portfolio-icon-collections-2026.07.js') }}" defer></script>
   <style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
     * { box-sizing: border-box; }
     body {

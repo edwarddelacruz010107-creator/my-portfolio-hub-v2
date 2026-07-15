@@ -74,6 +74,30 @@
       "version": "1.15.1"
     },
     {
+      "name": "@iconify-json/flat-color-icons",
+      "purl": "pkg:npm/@iconify-json/flat-color-icons@1.2.2",
+      "type": "library",
+      "version": "1.2.2"
+    },
+    {
+      "name": "@iconify-json/logos",
+      "purl": "pkg:npm/@iconify-json/logos@1.2.10",
+      "type": "library",
+      "version": "1.2.10"
+    },
+    {
+      "name": "@iconify-json/lucide",
+      "purl": "pkg:npm/@iconify-json/lucide@1.2.84",
+      "type": "library",
+      "version": "1.2.84"
+    },
+    {
+      "name": "@iconify-json/mdi",
+      "purl": "pkg:npm/@iconify-json/mdi@1.2.3",
+      "type": "library",
+      "version": "1.2.3"
+    },
+    {
       "name": "bidi-js",
       "purl": "pkg:npm/bidi-js@1.0.3",
       "type": "library",
@@ -108,6 +132,12 @@
       "purl": "pkg:npm/html-encoding-sniffer@6.0.0",
       "type": "library",
       "version": "6.0.0"
+    },
+    {
+      "name": "iconify-icon",
+      "purl": "pkg:npm/iconify-icon@1.0.7",
+      "type": "library",
+      "version": "1.0.7"
     },
     {
       "name": "is-potential-custom-element-name",
@@ -716,7 +746,7 @@
       "type": "application"
     }
   },
-  "serialNumber": "urn:uuid:3475ae975b6dae30769ec07d0a1fbfb2",
+  "serialNumber": "urn:uuid:16c2eb1e181c28e52f25d9fbca2ae3f5",
   "specVersion": "1.5",
   "version": 1
 }

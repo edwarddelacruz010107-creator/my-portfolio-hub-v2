@@ -28,8 +28,8 @@ instance/*.db
 instance/*.sqlite
 instance/*.sqlite3
 
-# Never bake customer payment evidence or private storage into an image.
-app/static/uploads/billing/
+# Never bake runtime/customer uploads or private storage into an image.
+app/static/uploads/
 instance/private_uploads/
 storage/private_uploads/
 
@@ -40,3 +40,5 @@ DOCUMENTATION/
 _legacy_unused/
 *.bak
 .tmp_*
+*.patched
+*.openai-download-*

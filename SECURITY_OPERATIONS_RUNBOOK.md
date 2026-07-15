@@ -6,7 +6,7 @@ Set `TRUSTED_PROXY_HOPS` to the exact fixed proxy chain length. Use `0` when the
 
 ## Sensitive-upload screening
 
-Set `MALWARE_SCAN_REQUIRED=true`, `MALWARE_SCANNER_COMMAND="clamdscan --no-summary"`, and keep `UPLOAD_QUARANTINE_FOLDER` outside static/public roots on owner-only persistent storage. Update signatures before accepting traffic. Alert on `infected`, `error`, timeout, or unavailable results. Never retain an infected sample in application storage. A scanner outage blocks sensitive uploads but not reads or unrelated application paths.
+Set `MALWARE_SCAN_REQUIRED=true`, `MALWARE_SCANNER_COMMAND="clamscan --no-summary"`, and keep `UPLOAD_QUARANTINE_FOLDER` outside static/public roots on owner-only persistent storage. The canonical Docker build downloads signatures; its non-root entrypoint refreshes them and performs a real clean-file scan before launching. A refresh failure is tolerated only when the image has signatures from the prior 24 hours. Rebuild immediately for urgent ClamAV updates. Alert on `infected`, `error`, timeout, or unavailable results. Never retain an infected sample in application storage. A scanner outage blocks startup or sensitive uploads, while an in-process post-start failure does not expose quarantined bytes.
 
 ## Dependency and patch SLA
 
@@ -54,4 +54,3 @@ Only additive expand migrations may precede mixed-version workers. New code must
 ## Incident first response
 
 Contain the affected route/provider, preserve immutable logs and relevant artifact digests, rotate exposed credentials, and start a timestamped incident record. Do not purge evidence before legal/privacy review. For suspected tenant isolation, private proof exposure, ledger mutation or secret compromise, treat severity as Critical until scoped otherwise.
-

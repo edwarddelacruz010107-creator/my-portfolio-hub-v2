@@ -78,7 +78,7 @@
           empty = document.createElement('div');
           empty.id = 'themesNoResults';
           empty.className = 'themes-empty-state';
-          empty.innerHTML = '<span aria-hidden="true" style="font-size:2rem;display:block;margin-bottom:.75rem;opacity:.35">⌕</span>No themes match your filters.';
+          empty.innerHTML = '<span class="themes-empty-icon" aria-hidden="true">⌕</span>No themes match your filters.';
           grid.appendChild(empty);
         }
       } else if (empty) {

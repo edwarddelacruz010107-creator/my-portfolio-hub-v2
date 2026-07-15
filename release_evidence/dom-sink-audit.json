@@ -1,0 +1,286 @@
+{
+  "actual_inventory_sha256": "025b25510d90c873696f03ea871afbe000893212171fef2404c4083676bd2415",
+  "approved_inventory_sha256": "025b25510d90c873696f03ea871afbe000893212171fef2404c4083676bd2415",
+  "failures": [],
+  "findings": [
+    {
+      "classification": "same_element_snapshot",
+      "context": "igator.clipboard.writeText(codes).then(() => { const btn = event.currentTarget; btn.innerHTML = '<iconify-icon icon=\"lucide:check\" width=\"16\"></iconify-icon> Copied!'; setTimeout(() => { btn.innerHTML = '<iconify-icon icon=\"lucide:copy\" width=\"16\"></iconify-icon> Copy All Codes'; }, 2",
+      "line": 54,
+      "path": "app/templates/admin/2fa_backup_codes.html"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "icon=\"lucide:check\" width=\"16\"></iconify-icon> Copied!'; setTimeout(() => { btn.innerHTML = '<iconify-icon icon=\"lucide:copy\" width=\"16\"></iconify-icon> Copy All Codes'; }, 2000); }); } </script> {% endblock %}",
+      "line": 56,
+      "path": "app/templates/admin/2fa_backup_codes.html"
+    },
+    {
+      "classification": "server_sanitized_rich_text_capture",
+      "context": "e=document.getElementById(editor.dataset.source); function sync(){if(source)source.value=editor.innerHTML.trim();} editor.addEventListener('input',sync); var toolbar=editor.previousElementSibling; if(toolbar){toolbar.querySelectorAll('[data-rich-command]').forEach(function(btn){btn.addEventListener('click',funct",
+      "line": 161,
+      "path": "app/templates/admin/project_form.html"
+    },
+    {
+      "classification": "server_sanitized_rich_text_capture",
+      "context": "ion(editor){var source=document.getElementById(editor.dataset.source);if(source)source.value=editor.innerHTML.trim();});});} })(); </script> {% endblock %}",
+      "line": 166,
+      "path": "app/templates/admin/project_form.html"
+    },
+    {
+      "classification": "same_element_snapshot",
+      "context": "ById('testBtn'); const res = document.getElementById('testResult'); btn.disabled = true; btn.innerHTML = '<iconify-icon icon=\"lucide:loader\" width=\"16\"></iconify-icon> Sending\u2026'; try { const fd = new FormData(); fd.append('csrf_token', CSRF); const r = await fetch(TEST_URL, { method: 'POST', body: fd });",
+      "line": 245,
+      "path": "app/templates/admin/settings/form_settings.html"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "|| 'Unknown error'); res.replaceChildren(body); } finally { btn.disabled = false; btn.innerHTML = '<iconify-icon icon=\"lucide:send\" width=\"16\"></iconify-icon> Send Test Email'; setTimeout(() => { res.style.display = 'none'; }, 8000); } } </script> {% endblock %} {% block extra_css %} <style nonce=\"{{ csp_no",
+      "line": 274,
+      "path": "app/templates/admin/settings/form_settings.html"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "; }, 400); return; } submitBtn.disabled = true; submitBtn.innerHTML = '<iconify-icon icon=\"lucide:loader-2\" width=\"16\"></iconify-icon> Verifying\u2026'; }); } // \u2500\u2500 OTP expiry countdown \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 var expiryEl = document.getElementById",
+      "line": 250,
+      "path": "app/templates/auth/verify_email_sent.html"
+    },
+    {
+      "classification": "same_element_snapshot",
+      "context": "tn = document.querySelector('[onclick=\"copyBackupCodes()\"]'); if (btn) { const orig = btn.innerHTML; btn.innerHTML = '<iconify-icon icon=\"lucide:check\" width=\"16\"></iconify-icon> Copied!'; setTimeout(() => { btn.innerHTML = orig; }, 2500); } }).catch(function () { alert('Auto-copy failed \u2014 please",
+      "line": 66,
+      "path": "app/templates/superadmin/2fa_backup_codes.html"
+    },
+    {
+      "classification": "same_element_snapshot",
+      "context": "lector('[onclick=\"copyBackupCodes()\"]'); if (btn) { const orig = btn.innerHTML; btn.innerHTML = '<iconify-icon icon=\"lucide:check\" width=\"16\"></iconify-icon> Copied!'; setTimeout(() => { btn.innerHTML = orig; }, 2500); } }).catch(function () { alert('Auto-copy failed \u2014 please select and copy manu",
+      "line": 67,
+      "path": "app/templates/superadmin/2fa_backup_codes.html"
+    },
+    {
+      "classification": "same_element_restore",
+      "context": "<iconify-icon icon=\"lucide:check\" width=\"16\"></iconify-icon> Copied!'; setTimeout(() => { btn.innerHTML = orig; }, 2500); } }).catch(function () { alert('Auto-copy failed \u2014 please select and copy manually.'); }); } </script> {% endblock %}",
+      "line": 68,
+      "path": "app/templates/superadmin/2fa_backup_codes.html"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "} document.getElementById('submitBtn').disabled = true; document.getElementById('submitBtn').innerHTML = '<iconify-icon icon=\"lucide:loader-2\" width=\"15\"></iconify-icon> Saving\u2026'; }); </script> {% endblock %}",
+      "line": 427,
+      "path": "app/templates/superadmin/tenant_form.html"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "; btn.className = 'img-prev-remove'; btn.setAttribute('aria-label', 'Remove screenshot'); btn.innerHTML = '<iconify-icon icon=\"lucide:x\" width=\"12\"></iconify-icon>'; btn.addEventListener('click', () => deletePreview(url, div)); div.appendChild(img); div.appendChild(btn); grid.appendChild(div); } function deletePr",
+      "line": 1030,
+      "path": "app/templates/superadmin/theme_form.html"
+    },
+    {
+      "classification": "clear_only",
+      "context": "tElementById('modalCarousel'); const track = document.getElementById('carouselTrack'); track.innerHTML = ''; _carouselSlides = allImgs; _carouselIndex = 0; if(allImgs.length){ allImgs.forEach(url=>{ const img = document.createElement('img'); img.src = url; img.className='tc-carousel-slide'; i",
+      "line": 457,
+      "path": "app/templates/superadmin/themes.html"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "empty.id = 'themesNoResults'; empty.className = 'themes-empty-state'; empty.innerHTML = '<span class=\"themes-empty-icon\" aria-hidden=\"true\">\u2315</span>No themes match your filters.'; grid.appendChild(empty); } } else if (empty) { empty.remove(); } } filterButto",
+      "line": 81,
+      "path": "app/static/js/admin-theme-picker.js"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "n) { button.disabled = false; button.className = 'btn-apply st-available'; button.innerHTML = '<span aria-hidden=\"true\">\u21bb</span> Apply Theme'; } page.querySelectorAll('.theme-apply-form').forEach((form) => { form.addEventListener('submit', async (event) => { // Retain a normal form-submi",
+      "line": 120,
+      "path": "app/static/js/admin-theme-picker.js"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "; button.disabled = true; button.className = 'btn-apply st-loading'; button.innerHTML = '<span class=\"spin\" aria-hidden=\"true\">\u25cc</span> Applying\u2026'; try { const response = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: {",
+      "line": 136,
+      "path": "app/static/js/admin-theme-picker.js"
+    },
+    {
+      "classification": "bounded_static_skeleton_builder",
+      "context": "></div> <div class=\"skeleton skeleton-text w-3/4\"></div> </div> </div>`; } el.innerHTML = html; } // \u2500\u2500 Copy to clipboard helper \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 function copyToClipboard(text, btn) { navigator.clipboard.writeText(text).then(() => { if (btn) { const orig = btn.innerHTML;",
+      "line": 261,
+      "path": "app/static/js/admin.js"
+    },
+    {
+      "classification": "same_element_snapshot",
+      "context": "xt, btn) { navigator.clipboard.writeText(text).then(() => { if (btn) { const orig = btn.innerHTML; btn.innerHTML = '<iconify-icon icon=\"lucide:check\" width=\"13\"></iconify-icon> Copied'; btn.style.color = 'var(--success)'; setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; }, 1800);",
+      "line": 268,
+      "path": "app/static/js/admin.js"
+    },
+    {
+      "classification": "same_element_snapshot",
+      "context": "r.clipboard.writeText(text).then(() => { if (btn) { const orig = btn.innerHTML; btn.innerHTML = '<iconify-icon icon=\"lucide:check\" width=\"13\"></iconify-icon> Copied'; btn.style.color = 'var(--success)'; setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; }, 1800); } }); } // \u2500\u2500 Toas",
+      "line": 269,
+      "path": "app/static/js/admin.js"
+    },
+    {
+      "classification": "same_element_restore",
+      "context": "13\"></iconify-icon> Copied'; btn.style.color = 'var(--success)'; setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; }, 1800); } }); } // \u2500\u2500 Toast helper (programmatic) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 function showToast(message, type = 'info', duration = 4500) { return window.MPHUI?.notify(messag",
+      "line": 271,
+      "path": "app/static/js/admin.js"
+    },
+    {
+      "classification": "same_element_snapshot",
+      "context": "tribute('data-copy'); navigator.clipboard?.writeText(text).then(() => { const orig = this.innerHTML; this.innerHTML = '\u2713 Copied'; this.style.color = 'var(--success)'; setTimeout(() => { this.innerHTML = orig; this.style.color = ''; }, 1500); }); }); }); // \u2500\u2500 Nav active on child routes (fallba",
+      "line": 354,
+      "path": "app/static/js/admin.js"
+    },
+    {
+      "classification": "same_element_snapshot",
+      "context": "navigator.clipboard?.writeText(text).then(() => { const orig = this.innerHTML; this.innerHTML = '\u2713 Copied'; this.style.color = 'var(--success)'; setTimeout(() => { this.innerHTML = orig; this.style.color = ''; }, 1500); }); }); }); // \u2500\u2500 Nav active on child routes (fallback) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 (fun",
+      "line": 355,
+      "path": "app/static/js/admin.js"
+    },
+    {
+      "classification": "same_element_restore",
+      "context": "is.innerHTML = '\u2713 Copied'; this.style.color = 'var(--success)'; setTimeout(() => { this.innerHTML = orig; this.style.color = ''; }, 1500); }); }); }); // \u2500\u2500 Nav active on child routes (fallback) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 (function markActiveNav() { const path = window.location.pathname; document.querySelectorAll('.na",
+      "line": 357,
+      "path": "app/static/js/admin.js"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "eturn; } if (submitButton) { submitButton.disabled = true; submitButton.innerHTML = '<iconify-icon icon=\"lucide:loader-circle\" width=\"17\"></iconify-icon> Submitting\u2026'; } }); } })();",
+      "line": 191,
+      "path": "app/static/js/billing-payment.js"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "List.toggle('open'); navToggle.setAttribute('aria-expanded', String(isOpen)); navToggle.innerHTML = isOpen ? '<i class=\"bi bi-x-lg\" aria-hidden=\"true\"></i>' : '<i class=\"bi bi-list\" aria-hidden=\"true\"></i>'; }); // Close mobile menu after choosing a link mobileMenu.querySelectorAll('a').",
+      "line": 29,
+      "path": "app/static/js/landing.js"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "assList.remove('open'); navToggle.setAttribute('aria-expanded', 'false'); navToggle.innerHTML = '<i class=\"bi bi-list\" aria-hidden=\"true\"></i>'; }); }); } /* ----------------------------------------------------------- 2. Reveal-on-scroll via IntersectionObserver -------------------------",
+      "line": 39,
+      "path": "app/static/js/landing.js"
+    },
+    {
+      "classification": "same_element_snapshot",
+      "context": "ntById('contactFormStatus'); const originalHTML = submitBtn.dataset.originalHtml || submitBtn.innerHTML; submitBtn.dataset.originalHtml = originalHTML; const setContactStatus = (type, message) => { if (!statusBox) return; statusBox.className = `contact-form-status show ${type}`; status",
+      "line": 327,
+      "path": "app/static/js/landing.js"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "atus'; statusBox.textContent = ''; } submitBtn.disabled = true; submitBtn.innerHTML = '<span class=\"loading\">Sending\u2026</span>'; // Gather form data const formData = new FormData(contactForm); if (!formData.has('name') && formData.has('full_name')) { formData.set('name', formDa",
+      "line": 341,
+      "path": "app/static/js/landing.js"
+    },
+    {
+      "classification": "same_element_restore",
+      "context": "tatus('success', json.message || 'Message sent. We will reply by email soon.'); submitBtn.innerHTML = '<i class=\"bi bi-check2\" aria-hidden=\"true\"></i> Message sent'; contactForm.reset(); setTimeout(() => { submitBtn.disabled = false; submitBtn.innerHTML = originalHTML;",
+      "line": 364,
+      "path": "app/static/js/landing.js"
+    },
+    {
+      "classification": "same_element_restore",
+      "context": "reset(); setTimeout(() => { submitBtn.disabled = false; submitBtn.innerHTML = originalHTML; }, 2500); } else { submitBtn.disabled = false; submitBtn.innerHTML = originalHTML; setContactStatus('error', json.error || json.message || 'Failed to send",
+      "line": 368,
+      "path": "app/static/js/landing.js"
+    },
+    {
+      "classification": "same_element_restore",
+      "context": "TML; }, 2500); } else { submitBtn.disabled = false; submitBtn.innerHTML = originalHTML; setContactStatus('error', json.error || json.message || 'Failed to send message. Please try again.'); } } catch (err) { submitBtn.disabled = false; submitBtn.inner",
+      "line": 372,
+      "path": "app/static/js/landing.js"
+    },
+    {
+      "classification": "same_element_restore",
+      "context": "try again.'); } } catch (err) { submitBtn.disabled = false; submitBtn.innerHTML = originalHTML; setContactStatus('error', 'Network error. Please try again later.'); } }); } /* ----------------------------------------------------------- 9. Subtle hero parallax on mouse mo",
+      "line": 377,
+      "path": "app/static/js/landing.js"
+    },
+    {
+      "classification": "same_element_snapshot",
+      "context": "toggle('is-done', done); const dot = item.querySelector('.check-dot'); if (dot) dot.innerHTML = done ? '<iconify-icon icon=\"lucide:check\" width=\"11\"></iconify-icon>' : ''; }); } refresh(); document.addEventListener('input', (e) => { if (e.target && e.target.name) refresh(); }); d",
+      "line": 70,
+      "path": "app/static/js/pricing-cms.js"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "validIcon.textContent = ''; if (!msg && v.length > 0) { validIcon.innerHTML = '<iconify-icon icon=\"lucide:check\" width=\"14\"></iconify-icon>'; validIcon.className = 'form-validation-icon is-valid'; } else if (msg) { validIcon.innerHTML = '<iconify-icon",
+      "line": 271,
+      "path": "app/static/js/script.js"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "lassName = 'form-validation-icon is-valid'; } else if (msg) { validIcon.innerHTML = '<iconify-icon icon=\"lucide:x\" width=\"14\"></iconify-icon>'; validIcon.className = 'form-validation-icon is-error'; } else { validIcon.className = 'form-validation-icon';",
+      "line": 274,
+      "path": "app/static/js/script.js"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "assName = 'hero-image-editor-empty'; empty.dataset.heroPreviewEmpty = 'true'; empty.innerHTML = '<iconify-icon icon=\"lucide:image\" width=\"24\"></iconify-icon><span></span>'; previewBox.appendChild(empty); } const label = empty.querySelector('span'); if (label) label.textContent = message",
+      "line": 397,
+      "path": "app/static/js/settings-form.js"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "'founder-photo-editor-empty'; empty.dataset.founderPreviewEmpty = 'true'; empty.innerHTML = '<iconify-icon icon=\"lucide:image\" width=\"22\"></iconify-icon><span>Upload or paste a founder photo to preview the crop.</span>'; previewBox.appendChild(empty); } return null; } if",
+      "line": 728,
+      "path": "app/static/js/settings-form.js"
+    },
+    {
+      "classification": "same_element_snapshot",
+      "context": "Working\u2026') { if (!button) return; if (loading) { button.dataset.originalHtml = button.innerHTML; button.disabled = true; const spinner = document.createElement('span'); spinner.className = 'spin'; spinner.setAttribute('aria-hidden', 'true'); button.replaceChildren(spinner, document.cr",
+      "line": 36,
+      "path": "app/static/js/superadmin-email-settings.js"
+    },
+    {
+      "classification": "same_element_restore",
+      "context": "reateTextNode(' ' + String(loadingText))); } else { button.disabled = false; button.innerHTML = button.dataset.originalHtml || button.innerHTML; delete button.dataset.originalHtml; } } async function readJsonResponse(response) { if (response.redirected && response.url && !response.url.includes",
+      "line": 44,
+      "path": "app/static/js/superadmin-email-settings.js"
+    },
+    {
+      "classification": "same_element_restore",
+      "context": "lse { button.disabled = false; button.innerHTML = button.dataset.originalHtml || button.innerHTML; delete button.dataset.originalHtml; } } async function readJsonResponse(response) { if (response.redirected && response.url && !response.url.includes('/settings/email')) { window.location.assig",
+      "line": 44,
+      "path": "app/static/js/superadmin-email-settings.js"
+    },
+    {
+      "classification": "same_element_snapshot",
+      "context": "return value; } async function testProvider(provider, button) { const original = button?.innerHTML || ''; if (button) { button.disabled = true; button.innerHTML = '<span class=\"es-spinner\"></span> Sending test\u2026'; } try { const formData = new FormData(); formData.append('provider',",
+      "line": 89,
+      "path": "app/static/js/tenant-email-services.js"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "st original = button?.innerHTML || ''; if (button) { button.disabled = true; button.innerHTML = '<span class=\"es-spinner\"></span> Sending test\u2026'; } try { const formData = new FormData(); formData.append('provider', provider); formData.append('to_email', testRecipient()); formData.",
+      "line": 92,
+      "path": "app/static/js/tenant-email-services.js"
+    },
+    {
+      "classification": "same_element_restore",
+      "context": "'error', 7500); } finally { if (button) { button.disabled = false; button.innerHTML = original; } } } async function toggleProvider(provider, checkbox) { const previous = !checkbox.checked; checkbox.disabled = true; try { const formData = new FormData(); formData.",
+      "line": 113,
+      "path": "app/static/js/tenant-email-services.js"
+    },
+    {
+      "classification": "same_element_snapshot",
+      "context": "rity(); const button = document.getElementById('savePriorityBtn'); const original = button?.innerHTML || ''; if (button) { button.disabled = true; button.innerHTML = '<span class=\"es-spinner\"></span> Saving\u2026'; } try { const formData = new FormData(priorityForm); const result = await p",
+      "line": 186,
+      "path": "app/static/js/tenant-email-services.js"
+    },
+    {
+      "classification": "static_literal_ui_markup",
+      "context": "st original = button?.innerHTML || ''; if (button) { button.disabled = true; button.innerHTML = '<span class=\"es-spinner\"></span> Saving\u2026'; } try { const formData = new FormData(priorityForm); const result = await postForm(config.priorityUrl, formData); if (!result.success) throw new Er",
+      "line": 189,
+      "path": "app/static/js/tenant-email-services.js"
+    },
+    {
+      "classification": "same_element_restore",
+      "context": "'error', 6500); } finally { if (button) { button.disabled = false; button.innerHTML = original; } } } document.addEventListener('click', (event) => { const testButton = event.target.closest('[data-test-provider]'); if (testButton) { testProvider(testButton.dataset.testProvi",
+      "line": 201,
+      "path": "app/static/js/tenant-email-services.js"
+    }
+  ],
+  "first_party_sink_count": 46,
+  "passed": true,
+  "schema": "portfolio.dom-sink-audit.v1"
+}

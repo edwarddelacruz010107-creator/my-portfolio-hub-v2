@@ -478,12 +478,19 @@ function openPreviewModal(card){
   if(desc)    rows.push(['Description', desc]);
   if(author)  rows.push(['Author', author]);
   if(version) rows.push(['Version', version]);
-  info.innerHTML = rows.map(([l,v])=>
-    `<div class="tc-modal-info-row">
-       <div class="tc-modal-info-label">${l}</div>
-       <div class="tc-modal-info-val">${v}</div>
-     </div>`
-  ).join('');
+  info.replaceChildren();
+  rows.forEach(([label, value]) => {
+    const row = document.createElement('div');
+    row.className = 'tc-modal-info-row';
+    const labelNode = document.createElement('div');
+    labelNode.className = 'tc-modal-info-label';
+    labelNode.textContent = label;
+    const valueNode = document.createElement('div');
+    valueNode.className = 'tc-modal-info-val';
+    valueNode.textContent = value;
+    row.append(labelNode, valueNode);
+    info.appendChild(row);
+  });
 
   document.getElementById('previewModal').classList.add('open');
   document.body.style.overflow = 'hidden';

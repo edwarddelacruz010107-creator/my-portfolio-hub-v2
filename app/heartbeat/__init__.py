@@ -651,6 +651,8 @@ def init_heartbeat(app) -> None:
     is_setup_command = any(command in cli_args for command in (
         'create-superadmin', 'ensure-default-tenant', 'ensure-tenant-schema',
         'bootstrap-production-db', 'db-upgrade-all', 'db-status',
+        'setup-local',
+        'init-db',
         'db upgrade', 'flask db',
     ))
 

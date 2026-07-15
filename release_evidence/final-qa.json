@@ -1,21 +1,22 @@
 {
   "decision": "hold",
+  "source_status": "production_release_candidate",
   "generated_on": "2026-07-15",
-  "reason": "Staging, infrastructure, browser, database, container and authorized penetration evidence is not available in this workspace.",
+  "reason": "Source is a production release candidate; staging, exact-image, browser, database, container and authorized penetration evidence is not available in this workspace.",
   "completed": {
-    "phase_unittest_contracts": 124,
+    "phase_unittest_contracts": 139,
     "phase6_function_contracts": 16,
     "javascript_dom_security_contracts": 7,
     "design_token_files": 9,
     "theme_manifests": 5,
     "npm_known_vulnerabilities": 0,
-    "sbom_components": 118,
+    "sbom_components": 123,
     "source_gate_failures": 0
   },
   "open_source_inventory": {
     "legacy_inline_handler_attributes": 67,
-    "legacy_style_attributes": 660,
-    "html_rendering_sink_references": 62,
+    "legacy_style_attributes": 654,
+    "html_rendering_sink_references": 46,
     "owner": "frontend-security",
     "due": "2026-08-15"
   },
@@ -23,7 +24,7 @@
     "exact pinned image dependency, SAST, secret and container scans",
     "PostgreSQL and Redis integration, race, query-plan and multi-worker tests",
     "full authorization and tenant-isolation negative matrix",
-    "CSP staging enforcement and legacy attribute removal or approved exception",
+    "CSP staging enforcement with zero blocked first-party assets",
     "malware engine clean, EICAR, timeout and outage tests",
     "browser, accessibility, visual and performance matrices",
     "backup/PITR restore and rolling rollback drills",

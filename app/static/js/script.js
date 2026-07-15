@@ -391,13 +391,32 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!toastContainer) return;
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        toast.innerHTML = `
-            <div class="toast-icon"><iconify-icon icon="${type === 'success' ? 'lucide:check-circle' : 'lucide:alert-circle'}" width="18"></iconify-icon></div>
-            <div class="toast-content"><div class="toast-title">${title}</div><div class="toast-message">${message}</div></div>
-            <button class="toast-close" aria-label="Close"><iconify-icon icon="lucide:x" width="16"></iconify-icon></button>
-        `;
+        const iconWrap = document.createElement('div');
+        iconWrap.className = 'toast-icon';
+        const statusIcon = document.createElement('iconify-icon');
+        statusIcon.setAttribute('icon', type === 'success' ? 'lucide:check-circle' : 'lucide:alert-circle');
+        statusIcon.setAttribute('width', '18');
+        iconWrap.appendChild(statusIcon);
+        const content = document.createElement('div');
+        content.className = 'toast-content';
+        const titleNode = document.createElement('div');
+        titleNode.className = 'toast-title';
+        titleNode.textContent = String(title || '');
+        const messageNode = document.createElement('div');
+        messageNode.className = 'toast-message';
+        messageNode.textContent = String(message || '');
+        content.append(titleNode, messageNode);
+        const close = document.createElement('button');
+        close.className = 'toast-close';
+        close.type = 'button';
+        close.setAttribute('aria-label', 'Close');
+        const closeIcon = document.createElement('iconify-icon');
+        closeIcon.setAttribute('icon', 'lucide:x');
+        closeIcon.setAttribute('width', '16');
+        close.appendChild(closeIcon);
+        toast.append(iconWrap, content, close);
         toastContainer.appendChild(toast);
-        toast.querySelector('.toast-close').addEventListener('click', () => removeToast(toast));
+        close.addEventListener('click', () => removeToast(toast));
         setTimeout(() => removeToast(toast), 5000);
     }
     function removeToast(toast) {

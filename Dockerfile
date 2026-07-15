@@ -4,6 +4,7 @@
 # - Non-root runtime user
 # - Render $PORT support
 # - Optional migrations and seed commands controlled by env vars
+# - Checked-in entrypoint runs `flask db-upgrade-all` when explicitly enabled
 # - Single PostgreSQL Option 1 support: TENANT_DATABASE_URL may be blank
 # - No credentials baked into the image
 
@@ -42,60 +43,22 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     curl \
+    clamav \
+    clamav-freshclam \
+    tini \
+    && freshclam --quiet \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY --chown=appuser:appuser . .
+COPY --chown=appuser:appuser docker-entrypoint.sh /app/docker-entrypoint.sh
 
 RUN mkdir -p /app/logs /app/storage /app/instance /app/app/static/uploads && \
-    chown -R appuser:appuser /app
+    chown -R appuser:appuser /app /var/lib/clamav
 
-RUN cat > /app/entrypoint.sh <<'EOF_ENTRYPOINT'
-#!/bin/sh
-set -e
-
-echo "Starting Portfolio Hub..."
-echo "FLASK_ENV=${FLASK_ENV:-production}"
-echo "FLASK_DEBUG=${FLASK_DEBUG:-0}"
-echo "PORT=${PORT:-5000}"
-
-required_vars="SECRET_KEY FERNET_KEY CORE_DATABASE_URL"
-for var in $required_vars; do
-  eval value=\$$var
-  if [ -z "$value" ]; then
-    echo "ERROR: Required environment variable $var is not set"
-    exit 1
-  fi
-done
-
-if [ -z "$TENANT_DATABASE_URL" ]; then
-  echo "TENANT_DATABASE_URL is not set. Tenant bind will reuse CORE_DATABASE_URL."
-fi
-
-# Optional: run migrations before the web server starts.
-# In Render, set RUN_MIGRATIONS=true for simple deployments.
-if [ "$RUN_MIGRATIONS" = "true" ]; then
-  echo "Running and verifying core + tenant Alembic migrations..."
-  flask db-upgrade-all
-
-  echo "Ensuring default tenant/profile records..."
-  flask ensure-default-tenant
-fi
-
-# Optional: first-deploy SuperAdmin bootstrap.
-# Set CREATE_SUPERADMIN_ON_STARTUP=true once, then set it back to false.
-if [ "$CREATE_SUPERADMIN_ON_STARTUP" = "true" ]; then
-  echo "Ensuring SuperAdmin account..."
-  flask create-superadmin
-fi
-
-echo "Launching app..."
-exec "$@"
-EOF_ENTRYPOINT
-
-RUN chmod +x /app/entrypoint.sh && chown appuser:appuser /app/entrypoint.sh
+RUN chmod 0555 /app/docker-entrypoint.sh
 
 USER appuser
 
@@ -104,6 +67,6 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl --fail --silent --show-error --max-time 8 "http://localhost:${PORT:-5000}/readyz" || exit 1
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/app/docker-entrypoint.sh"]
 
 CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5000} --workers=${WEB_CONCURRENCY:-1} --threads=${GUNICORN_THREADS:-2} --timeout=${GUNICORN_TIMEOUT:-60} --graceful-timeout=60 --access-logfile=- --error-logfile=- --log-level=${GUNICORN_LOG_LEVEL:-info} wsgi:app"]

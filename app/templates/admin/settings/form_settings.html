@@ -253,15 +253,22 @@ async function testProvider() {
 
     res.style.display = '';
     res.className = 'form-card form-card--' + (d.ok ? 'success' : 'danger');
-    res.innerHTML = `
-      <div class="form-card-body" style="display:flex;align-items:center;gap:.6rem;">
-        <iconify-icon icon="${d.ok ? 'lucide:circle-check' : 'lucide:circle-x'}" width="18"></iconify-icon>
-        <span>${d.message}</span>
-      </div>`;
+    const body = document.createElement('div');
+    body.className = 'form-card-body test-result-body';
+    const icon = document.createElement('iconify-icon');
+    icon.setAttribute('icon', d.ok ? 'lucide:circle-check' : 'lucide:circle-x');
+    icon.setAttribute('width', '18');
+    const message = document.createElement('span');
+    message.textContent = String(d.message || 'No provider response message.');
+    body.append(icon, message);
+    res.replaceChildren(body);
   } catch(e) {
     res.style.display = '';
     res.className = 'form-card form-card--danger';
-    res.innerHTML = `<div class="form-card-body">Request failed: ${e.message}</div>`;
+    const body = document.createElement('div');
+    body.className = 'form-card-body';
+    body.textContent = 'Request failed: ' + String(e.message || 'Unknown error');
+    res.replaceChildren(body);
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<iconify-icon icon="lucide:send" width="16"></iconify-icon> Send Test Email';

@@ -845,6 +845,13 @@ html[data-theme="light"] .breadcrumb {
   padding: 0.85rem 0;
   border-bottom: 1px solid var(--border);
 }
+.skeleton-copy { flex: 1; }
+.themes-empty-icon {
+  display: block;
+  margin-bottom: .75rem;
+  font-size: 2rem;
+  opacity: .35;
+}
 
 /* ── TREND BADGES ────────────────────────────────────────────── */
 .trend {

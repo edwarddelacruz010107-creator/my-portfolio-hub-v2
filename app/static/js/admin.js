@@ -252,7 +252,7 @@ function showSkeleton(containerId, rows = 3) {
   for (let i = 0; i < rows; i++) {
     html += `<div class="skeleton-row">
       <div class="skeleton skeleton-avatar"></div>
-      <div style="flex:1">
+      <div class="skeleton-copy">
         <div class="skeleton skeleton-text"></div>
         <div class="skeleton skeleton-text w-3/4"></div>
       </div>

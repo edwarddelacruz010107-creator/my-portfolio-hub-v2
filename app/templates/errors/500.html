@@ -4,10 +4,8 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>500 — Server Error</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
-  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
-  <style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css', v='20260714-v3') }}">  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+  <style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
     :root {
       --bg:#080a0f;--bg-2:#12161e;--text:#e8eaf0;--text-muted:#7a8094;
       --accent:#6366f1;--accent-light:#818cf8;--accent-glow:rgba(99,102,241,0.25);
@@ -64,7 +62,7 @@
       </a>
     </div>
   </div>
-  <script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
     const THEME_KEY='portfolio-theme';
     function initTheme(){const t=localStorage.getItem(THEME_KEY)||'dark';document.documentElement.setAttribute('data-theme',t);document.getElementById('moonIcon').style.display=t==='dark'?'inline-block':'none';document.getElementById('sunIcon').style.display=t==='light'?'inline-block':'none';}
     function toggleTheme(){const cur=document.documentElement.getAttribute('data-theme');const next=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',next);localStorage.setItem(THEME_KEY,next);document.getElementById('moonIcon').style.display=next==='dark'?'inline-block':'none';document.getElementById('sunIcon').style.display=next==='light'?'inline-block':'none';}

@@ -41,16 +41,28 @@ def _existing_indexes(connection, table: str) -> set[str]:
 
 def upgrade():
     connection = op.get_bind()
-    indexes = _existing_indexes(connection, 'subscriptions')
+    inspector = sa.inspect(connection)
+    if not inspector.has_table('subscriptions'):
+        return
 
-    for idx in _INDEXES_ON_LEGACY:
-        if idx in indexes:
-            connection.execute(sa.text(f'DROP INDEX IF EXISTS {idx}'))
+    indexes = {index['name'] for index in inspector.get_indexes('subscriptions')}
+    unique_constraints = {
+        constraint['name']
+        for constraint in inspector.get_unique_constraints('subscriptions')
+        if constraint.get('name')
+    }
+    with op.batch_alter_table('subscriptions') as batch:
+        for name in _INDEXES_ON_LEGACY:
+            if name in indexes:
+                batch.drop_index(name)
+            elif name in unique_constraints:
+                batch.drop_constraint(name, type_='unique')
 
-    for col in _LEGACY_COLUMNS:
-        if col not in _existing_columns(connection, 'subscriptions'):
-            continue
-        connection.execute(sa.text(f'ALTER TABLE subscriptions DROP COLUMN {col}'))
+    columns = {column['name'] for column in sa.inspect(connection).get_columns('subscriptions')}
+    with op.batch_alter_table('subscriptions') as batch:
+        for column_name in _LEGACY_COLUMNS:
+            if column_name in columns:
+                batch.drop_column(column_name)
 
 
 def downgrade():

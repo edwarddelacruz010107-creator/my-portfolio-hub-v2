@@ -385,12 +385,15 @@ Useful maintenance commands registered by the app include:
 
 ```bash
 flask --app run.py ensure-default-tenant
+flask --app run.py db-upgrade-all
+flask --app run.py db-status
 flask --app run.py check-contact-config
 flask --app run.py media audit-image-fields
 flask --app run.py media clean-broken-image-fields --apply
 ```
 
-For production, prefer Alembic migrations over runtime schema patching.
+Production schema changes run only through the versioned core and tenant
+Alembic histories. Application startup validates schema but does not repair it.
 
 ---
 
@@ -636,13 +639,15 @@ COMPANY_LOCATION=Philippines
 
 ### Database upgrade
 
-Run the migration before serving the upgraded application:
+Run and verify both migration histories before serving the upgraded application:
 
 ```bash
-flask db upgrade
+flask db-upgrade-all
+flask db-status
 ```
 
-The production startup schema validator also adds the new fields idempotently for existing deployments, but Alembic remains the source of truth.
+The startup schema validator is read-only. Any drift aborts the deployment
+migration step and must be resolved with a reviewed forward migration.
 
 ## Subscription scheduling and currency conversion
 

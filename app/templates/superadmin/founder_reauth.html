@@ -1,0 +1,19 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Confirm Founder Export{% endblock %}
+{% block page_title %}Confirm Founder Export{% endblock %}
+{% block page_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/founder-dashboard-v1.css', v='20260715-v1') }}"/>{% endblock %}
+{% block content %}
+<main class="fd-reauth-shell" aria-labelledby="reauth-title">
+  <section class="fd-card">
+    <p class="fd-eyebrow">Strong reauthentication</p>
+    <h1 id="reauth-title">Confirm aggregate export access</h1>
+    <p>Enter your current password and a fresh authenticator code. Approval lasts ten minutes for this account and session.</p>
+    <form method="post" class="fd-reauth-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <label>Current password<input type="password" name="password" autocomplete="current-password" required/></label>
+      <label>Authenticator code<input name="totp_code" inputmode="numeric" autocomplete="one-time-code" minlength="6" maxlength="8" required/></label>
+      <div class="fd-form-actions"><a class="btn btn-ghost" href="{{ url_for('superadmin.dashboard') }}">Cancel</a><button class="btn btn-primary" type="submit">Confirm access</button></div>
+    </form>
+  </section>
+</main>
+{% endblock %}

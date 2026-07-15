@@ -60,7 +60,7 @@
     {% endfor %}
   </div>
 
-  <script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
   // Drag-and-drop reorder (mirrors skills reorder pattern)
   (function () {
     const list = document.getElementById('servicesList');

@@ -195,12 +195,11 @@ def logs():
 def subscription_monitor():
     """Unified subscription analytics and renewal monitor."""
     from app.services.analytics.dashboard_analytics_service import build_superadmin_analytics
-    from app.models.portfolio import Subscription, SubscriptionNotification
+    from app.models.portfolio import Subscription
+    from app.services.notification_service import list_recent_billing_activity
 
     analytics = build_superadmin_analytics()
-    recent_notifications = subscription_notification_repository.query.filter(
-        SubscriptionNotification.notification_type != 'manual'
-    ).order_by(SubscriptionNotification.created_at.desc()).limit(30).all()
+    recent_notifications = list_recent_billing_activity(limit=30)
 
     class _CountList(list):
         def count(self):

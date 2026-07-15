@@ -4,7 +4,7 @@
 {% block page_title %}Send Message to Tenant{% endblock %}
 
 {% block extra_css %}
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 /* ══════════════════════════════════════════════════════
    SuperAdmin Send Message — polished SaaS composer UI
    Scope: app/templates/superadmin/send_message.html only
@@ -1067,7 +1067,7 @@ html[data-theme='light'] .sm-template-btn{
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 (function(){
   const shell = document.getElementById('sendMessageShell');
   const tenant = document.getElementById('tenant_slug');

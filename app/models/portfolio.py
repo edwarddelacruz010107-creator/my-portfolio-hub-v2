@@ -88,6 +88,15 @@ from app.models.tenant_form_settings import (
     WEB3FORMS_URL,
 )
 
+from app.models.ledger import PaymentTransaction, FinancialAuditEvent, LedgerBackfillItem
+from app.models.notification import Notification, NotificationReceipt, NotificationDelivery
+from app.models.intelligence import PortfolioIntelligenceSnapshot
+from app.models.theme_customization import ThemeCustomizationDraft, ThemeCustomizationVersion
+from app.models.ai_center import (
+    AIProviderConfig, AIModelConfig, AIFeaturePolicy, AIPromptDefinition,
+    AIPromptVersion, AIRequestJob, AIUsageRequest, AIUsageDaily, AIAuditEvent,
+)
+
 
 # ── SubscriptionStatus compatibility namespace ────────────────────────────────
 # Several service files import `SubscriptionStatus` from this module.
@@ -137,6 +146,24 @@ __all__ = [
     'InquiryReply',
     'SubscriptionNotification',
     'ActivityLog',
+    'PaymentTransaction',
+    'FinancialAuditEvent',
+    'LedgerBackfillItem',
+    'Notification',
+    'NotificationReceipt',
+    'NotificationDelivery',
+    'PortfolioIntelligenceSnapshot',
+    'ThemeCustomizationDraft',
+    'ThemeCustomizationVersion',
+    'AIProviderConfig',
+    'AIModelConfig',
+    'AIFeaturePolicy',
+    'AIPromptDefinition',
+    'AIPromptVersion',
+    'AIRequestJob',
+    'AIUsageRequest',
+    'AIUsageDaily',
+    'AIAuditEvent',
 
     # tenant_data_db ORM models
     'Profile',

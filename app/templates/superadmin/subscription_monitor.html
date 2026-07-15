@@ -1,4 +1,5 @@
 {% extends 'superadmin/base.html' %}
+{% import 'components/ui.html' as ui with context %}
 {% block title %}Subscription Monitor{% endblock %}
 {% block page_title %}Subscription Monitor{% endblock %}
 
@@ -75,8 +76,8 @@
       </div>
     </div>
     <div class="stat-big" style="font-size:1.35rem;">{{ metrics.total_revenue|billing_money }}</div>
-    <div class="stat-name">Normalized Active Value</div>
-    <div class="stat-footer"><span class="stat-sub">One current subscription per tenant</span></div>
+    <div class="stat-name">Net Posted Cash</div>
+    <div class="stat-footer"><span class="stat-sub">Settlements less refunds, reversals, and chargebacks</span></div>
   </div>
 
   <div class="stat-card-v2">
@@ -87,7 +88,7 @@
     </div>
     <div class="stat-big" style="font-size:1.35rem;">{{ metrics.get('mrr', 0)|billing_money }}</div>
     <div class="stat-name">MRR</div>
-    <div class="stat-footer"><span class="stat-sub">Monthly recurring</span></div>
+    <div class="stat-footer"><span class="stat-sub">Latest posted recurring settlements</span></div>
   </div>
 
   <div class="stat-card-v2">
@@ -114,16 +115,20 @@
 
 </div>
 
+{% if analytics.source_coverage.review_required %}
+  {{ ui.alert(analytics.source_coverage.review_required ~ ' financial posting(s) require FX or reconciliation review and are excluded from USD totals.', 'warning') }}
+{% endif %}
+
 <div class="provider-panel">
   <div class="provider-panel__head">
     <div>
       <span class="section-tag">Revenue by provider</span>
-      <h2>Current subscription value</h2>
-      <p>Normalized to {{ currency_code }}. Duplicate webhook records are counted once per active tenant subscription.</p>
+      <h2>Posted cash ledger</h2>
+      <p>{{ analytics.definition_version }} · {{ analytics.freshness.label }} · live-mode entries normalized to {{ currency_code }} from reproducible FX evidence.</p>
     </div>
     <div class="provider-total">
       <strong>{{ currency_symbol }}{{ '%.2f'|format(metrics.total_revenue) }}</strong>
-      <span>normalized active value</span>
+      <span>net posted cash</span>
     </div>
   </div>
   <div class="provider-grid">
@@ -145,7 +150,7 @@
       <div class="provider-original">No cross-currency collection recorded</div>
       {% endif %}
       <div class="provider-bar"><span style="width:{{ revenue_share[key] }}%"></span></div>
-      <div class="provider-share">{{ revenue_share[key] }}% of normalized value</div>
+      <div class="provider-share">{{ revenue_share[key] }}% of net posted cash</div>
     </article>
     {% endfor %}
   </div>
@@ -455,7 +460,7 @@
 {% endblock %}
 
 {% block extra_css %}
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 /* ── Section layout ───────────────────────────────────────────────────────── */
 .monitor-section { margin-bottom: 2rem; }
 

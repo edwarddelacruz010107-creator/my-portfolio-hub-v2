@@ -17,14 +17,20 @@ depends_on = None
 
 
 def upgrade():
-    try:
-        op.add_column('inquiry', sa.Column('sender', sa.String(length=50), nullable=False, server_default='visitor'))
-    except Exception:
-        pass
+    inspector = sa.inspect(op.get_bind())
+    if not inspector.has_table('inquiries'):
+        return
+    columns = {column['name'] for column in inspector.get_columns('inquiries')}
+    if 'sender' not in columns:
+        op.add_column(
+            'inquiries',
+            sa.Column('sender', sa.String(length=50), nullable=False, server_default='visitor'),
+        )
 
 
 def downgrade():
-    try:
-        op.drop_column('inquiry', 'sender')
-    except Exception:
-        pass
+    inspector = sa.inspect(op.get_bind())
+    if inspector.has_table('inquiries'):
+        columns = {column['name'] for column in inspector.get_columns('inquiries')}
+        if 'sender' in columns:
+            op.drop_column('inquiries', 'sender')

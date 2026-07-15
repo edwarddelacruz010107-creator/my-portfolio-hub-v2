@@ -1,7 +1,7 @@
 """
 app/public/services/theme_preview_data.py
 
-Static, in-memory SAMPLE portfolio content used ONLY to render a theme
+Static, in-memory DESIGN FIXTURE portfolio content used ONLY to render a theme
 preview for anonymous marketing-page visitors at
 `GET /themes/<theme_id>/preview`.
 
@@ -18,7 +18,7 @@ exercised here. No theme-specific branching, no placeholder screenshots.
 
 v6.4 changes
 ------------
-* Sample data now mirrors the REAL ORM column names (author_name,
+* Design-fixture data mirrors the REAL ORM column names (author_name,
   author_title, author_company, author_avatar on Testimonial; skills
   as a comma-separated string on Certificate) instead of a hand-picked
   set of aliases. `theme_context.py` now routes every entity through
@@ -27,9 +27,9 @@ v6.4 changes
   worse, meant this file could silently drift from what the real
   models actually look like without anyone noticing. Mirroring the
   real schema here makes this file double as a lightweight contract
-  check: if a theme renders correctly against this sample data, it
+  check: if a theme renders correctly against this design fixture, it
   will render correctly against real tenant data with the same shape.
-* Added `_sample_certificates()` -- previously omitted entirely, so
+* Added design-fixture certificates -- previously omitted entirely, so
   every theme's certificate section rendered empty in the preview
   even when the theme supports it. Preview should be feature-complete
   relative to a real tenant portfolio; this closes that gap.
@@ -40,7 +40,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 
-def _sample_profile() -> SimpleNamespace:
+def _design_fixture_profile() -> SimpleNamespace:
     return SimpleNamespace(
         name="Jordan Reyes",
         title="Product Designer & Frontend Engineer",
@@ -63,15 +63,15 @@ def _sample_profile() -> SimpleNamespace:
         availability_status="Available for freelance",
         hero_tagline="Building interfaces people enjoy using.",
         subtitle="Product Designer & Frontend Engineer",
-        meta_description="Sample portfolio preview",
-        meta_title="Jordan Reyes — Portfolio Preview",
+        meta_description="Labeled design fixture used to preview a portfolio theme.",
+        meta_title="Theme Design Fixture Preview",
         og_image="",
         tenant_slug="preview",
         clients_count=18,
     )
 
 
-def _sample_projects() -> list[SimpleNamespace]:
+def _design_fixture_projects() -> list[SimpleNamespace]:
     data = [
         ("Nimbus Analytics", "Real-time SaaS analytics dashboard.", "Web App"),
         ("Fieldwork", "Field-service scheduling app for small teams.", "Mobile"),
@@ -80,25 +80,27 @@ def _sample_projects() -> list[SimpleNamespace]:
     ]
     return [
         SimpleNamespace(
+            slug=f"design-fixture-{i + 1}",
             title=title,
             description=desc,
             short_description=desc,
             image_url="",
             cover_image="",
             category=cat,
-            live_url="#",
-            demo_url="#",
-            github_url="#",
-            repo_url="#",
+            live_url="",
+            demo_url="",
+            github_url="",
+            repo_url="",
             tech_stack=["React", "Flask", "PostgreSQL"],
             technologies=["React", "Flask", "PostgreSQL"],
             is_featured=(i == 0),
+            case_study_enabled=False,
         )
         for i, (title, desc, cat) in enumerate(data)
     ]
 
 
-def _sample_skills_by_category() -> dict:
+def _design_fixture_skills_by_category() -> dict:
     return {
         "Frontend": [SimpleNamespace(name=n, level=lvl) for n, lvl in
                      [("React", 90), ("TypeScript", 85), ("CSS/Tailwind", 92)]],
@@ -109,7 +111,7 @@ def _sample_skills_by_category() -> dict:
     }
 
 
-def _sample_services() -> list[SimpleNamespace]:
+def _design_fixture_services() -> list[SimpleNamespace]:
     data = [
         ("Product Design", "End-to-end UX/UI for web and mobile.", "bi-palette"),
         ("Frontend Development", "Performant, accessible interfaces.", "bi-code-slash"),
@@ -121,7 +123,7 @@ def _sample_services() -> list[SimpleNamespace]:
     ]
 
 
-def _sample_testimonials() -> list[SimpleNamespace]:
+def _design_fixture_testimonials() -> list[SimpleNamespace]:
     """Field names match the real `Testimonial` ORM model exactly
     (app/models/tenant_data.py:458-470). No manual aliasing needed --
     theme_serializers.serialize_testimonial() generates the full
@@ -148,7 +150,7 @@ def _sample_testimonials() -> list[SimpleNamespace]:
     ]
 
 
-def _sample_certificates() -> list[SimpleNamespace]:
+def _design_fixture_certificates() -> list[SimpleNamespace]:
     """Field names match the real `Certificate` ORM model exactly
     (app/models/tenant_data.py:532-566), including `skills` as the
     comma-separated text column theme_serializers.serialize_certificate
@@ -163,7 +165,7 @@ def _sample_certificates() -> list[SimpleNamespace]:
             issuer=issuer,
             description="",
             credential_id="",
-            verification_url="#",
+            verification_url="",
             image_path="",
             badge_path="",
             issue_date=None,
@@ -177,7 +179,7 @@ def _sample_certificates() -> list[SimpleNamespace]:
     ]
 
 
-def _sample_experiences() -> list[SimpleNamespace]:
+def _design_fixture_experiences() -> list[SimpleNamespace]:
     """Preview data for the editable Work Experience Timeline CMS section."""
     data = [
         ("Senior Full Stack Developer", "Nova Digital Studio", "Full-time", "Remote", "2024-01-01", None, True,
@@ -210,20 +212,20 @@ def _sample_experiences() -> list[SimpleNamespace]:
     ]
 
 
-def build_sample_context(tenant_slug: str = "preview", contact_url: str = "#") -> dict:
+def build_design_fixture_context(tenant_slug: str = "preview", contact_url: str = "") -> dict:
     """
     Returns kwargs ready to pass straight into ThemeEngine.render(), using
     the same `build_portfolio_view` adapter live tenant portfolios use.
     """
     from app.theme_context import build_portfolio_view
 
-    profile = _sample_profile()
-    projects = _sample_projects()
-    skills_by_category = _sample_skills_by_category()
-    services = _sample_services()
-    testimonials = _sample_testimonials()
-    certificates = _sample_certificates()
-    experiences = _sample_experiences()
+    profile = _design_fixture_profile()
+    projects = _design_fixture_projects()
+    skills_by_category = _design_fixture_skills_by_category()
+    services = _design_fixture_services()
+    testimonials = _design_fixture_testimonials()
+    certificates = _design_fixture_certificates()
+    experiences = _design_fixture_experiences()
 
     stats = {
         "projects_count": len(projects),
@@ -261,4 +263,10 @@ def build_sample_context(tenant_slug: str = "preview", contact_url: str = "#") -
         "tenant_slug": tenant_slug,
         "contact_url": contact_url,
         "is_root_domain": False,
+        "preview_content_label": "Design fixture — not a customer portfolio",
     }
+
+
+def build_sample_context(tenant_slug: str = "preview", contact_url: str = "") -> dict:
+    """Backward-compatible adapter; new callers use the explicit fixture name."""
+    return build_design_fixture_context(tenant_slug=tenant_slug, contact_url=contact_url)

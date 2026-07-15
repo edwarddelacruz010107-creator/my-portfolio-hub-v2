@@ -58,7 +58,7 @@
   {% endif %}
 </div>
 
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 .subscription-history-panel{padding:0;overflow:hidden}
 .subscription-history-list{display:flex;flex-direction:column}
 .subscription-history-card{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);gap:1.25rem;padding:1.15rem 1.25rem;border-bottom:1px solid rgba(148,163,184,.14);background:rgba(255,255,255,.015)}

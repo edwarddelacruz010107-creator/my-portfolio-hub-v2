@@ -286,36 +286,12 @@ def serialize_experience(e: Any) -> dict:
     }
 
 
-def serialize_education(ed: Any) -> dict:
-    """No `Education` model yet -- placeholder schema, see serialize_experience."""
-    return {
-        'institution': _str(ed, 'institution', 'school'),
-        'degree': _str(ed, 'degree'),
-        'field_of_study': _str(ed, 'field_of_study', 'major'),
-        'start_date': _date_iso(ed, 'start_date'),
-        'end_date': _date_iso(ed, 'end_date'),
-        'description': _str(ed, 'description'),
-        'order': _int(ed, 'order'),
-    }
-
-
-def serialize_achievement(a: Any) -> dict:
-    """No `Achievement` model yet -- placeholder schema, see serialize_experience."""
-    return {
-        'title': _str(a, 'title'),
-        'description': _str(a, 'description'),
-        'date': _date_iso(a, 'date'),
-        'icon': _str(a, 'icon'),
-        'order': _int(a, 'order'),
-    }
-
-
 def serialize_tenant_branding(profile: Any, stats: Optional[dict] = None) -> dict:
     """Profile fields that are branding/identity, not portfolio content --
     kept separate from serialize_portfolio so admin-panel and public-site
     consumers can pull just branding without dragging in projects/skills."""
     stats = stats or {}
-    name = _str(profile, 'name', default='Your Name')
+    name = _str(profile, 'name', default='Portfolio owner')
     return {
         'name': name,
         'initials': _initials(name),
@@ -360,8 +336,6 @@ def serialize_portfolio(
     testimonials: Optional[Iterable] = None,
     certificates: Optional[Iterable] = None,
     experiences: Optional[Iterable] = None,
-    education: Optional[Iterable] = None,
-    achievements: Optional[Iterable] = None,
     stats: Optional[dict] = None,
     tenant_slug: str = 'default',
     contact_url: str = '#',
@@ -373,7 +347,7 @@ def serialize_portfolio(
     transformation.
     """
     profile = profile or {}
-    name = _str(profile, 'name', default='Your Name')
+    name = _str(profile, 'name', default='Portfolio owner')
     social = serialize_social_links(_get(profile, 'social_links', default={}))
     branding = serialize_tenant_branding(profile, stats)
 
@@ -387,8 +361,6 @@ def serialize_portfolio(
     testimonial_list = [serialize_testimonial(t) for t in (testimonials or [])]
     certificate_list = [serialize_certificate(c) for c in (certificates or [])]
     experience_list = [serialize_experience(e) for e in (experiences or [])]
-    education_list = [serialize_education(ed) for ed in (education or [])]
-    achievement_list = [serialize_achievement(a) for a in (achievements or [])]
 
     # Group skills by category -- themes historically render skills
     # grouped, not flat.
@@ -422,8 +394,6 @@ def serialize_portfolio(
         'testimonials': testimonial_list,
         'certificates': certificate_list,
         'experiences': experience_list,
-        'education': education_list,
-        'achievements': achievement_list,
         'typing_phrases': [_str(profile, 'hero_tagline') or 'Building digital experiences.'],
         'footer_tagline': _str(profile, 'subtitle'),
         'contact_form_action': contact_url,

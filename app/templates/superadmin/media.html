@@ -3,7 +3,7 @@
 {% block page_title %}Media &amp; Uploads{% endblock %}
 
 {% block extra_css %}
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 /* ── Media manager layout ──────────────────────────────────────────── */
 .media-stats {
   display: grid;
@@ -272,7 +272,7 @@
               <div class="action-cell">
 
                 {# Compress — only for existing JPEG/PNG, not billing QR (those are small by design) #}
-                {% if asset.exists and asset.type != 'billing' and asset.filename and (asset.filename.lower().endswith('.jpg') or asset.filename.lower().endswith('.jpeg') or asset.filename.lower().endswith('.png')) %}
+                {% if asset.exists and asset.type not in ('billing', 'proof') and asset.filename and (asset.filename.lower().endswith('.jpg') or asset.filename.lower().endswith('.jpeg') or asset.filename.lower().endswith('.png')) %}
                 <form method="POST" action="{{ url_for('superadmin.media_compress') }}">
                   <input type="hidden" name="csrf_token"     value="{{ csrf_token() }}"/>
                   <input type="hidden" name="asset_type"     value="{{ asset.type }}"/>

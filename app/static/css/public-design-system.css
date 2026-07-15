@@ -1,43 +1,28 @@
 /* app/public/... is templates; this lives in app/static/css/public-design-system.css
    Phase 1b design system — public SaaS surface only (landing, explore, feed,
-   pricing). Namespaced with `ph-` prefix and scoped under html[data-theme]
-   so it never collides with the existing admin/superadmin/tenant CSS
-   (design-system.css, admin.css, etc.) — see AUDIT_REPORT.md §5. */
+   pricing). The `ph-` namespace is a compatibility API delegated to the
+   canonical semantic tokens in design-system.css. */
 
 :root {
-  --ph-radius-sm: 8px;
-  --ph-radius-md: 14px;
-  --ph-radius-lg: 22px;
-  --ph-shadow-sm: 0 2px 8px rgba(0,0,0,0.12);
-  --ph-shadow-md: 0 8px 24px rgba(0,0,0,0.18);
-  --ph-shadow-lg: 0 20px 60px rgba(0,0,0,0.35);
-  --ph-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
-  --ph-max-w: 1180px;
-  --ph-gradient: linear-gradient(135deg, #6d5efc 0%, #a55eea 45%, #f368e0 100%);
-}
-
-html[data-theme="dark"] {
-  --ph-bg: #0b0c14;
-  --ph-bg-alt: #12131e;
-  --ph-surface: rgba(255,255,255,0.04);
-  --ph-surface-strong: rgba(255,255,255,0.07);
-  --ph-border: rgba(255,255,255,0.09);
-  --ph-text: #f3f3f7;
-  --ph-text-dim: #a6a6b8;
-  --ph-accent: #8b7bff;
-  --ph-accent-2: #f368e0;
-}
-
-html[data-theme="light"] {
-  --ph-bg: #fbfbfe;
-  --ph-bg-alt: #f2f1f9;
-  --ph-surface: rgba(20,20,40,0.035);
-  --ph-surface-strong: rgba(20,20,40,0.06);
-  --ph-border: rgba(20,20,40,0.10);
-  --ph-text: #17172a;
-  --ph-text-dim: #5c5c72;
-  --ph-accent: #6d5efc;
-  --ph-accent-2: #d63aad;
+  /* Compatibility namespace. Values are delegated to design-system.css. */
+  --ph-radius-sm: var(--radius-sm);
+  --ph-radius-md: var(--radius-lg);
+  --ph-radius-lg: var(--radius-xl);
+  --ph-shadow-sm: var(--shadow-sm);
+  --ph-shadow-md: var(--shadow-md);
+  --ph-shadow-lg: var(--shadow-lg);
+  --ph-font: var(--font-body);
+  --ph-max-w: var(--container-lg);
+  --ph-gradient: linear-gradient(135deg, var(--color-brand-strong) 0%, var(--color-brand) 55%, var(--color-chart-2) 100%);
+  --ph-bg: var(--color-canvas);
+  --ph-bg-alt: var(--color-surface-1);
+  --ph-surface: color-mix(in srgb, var(--color-surface-2) 72%, transparent);
+  --ph-surface-strong: var(--color-surface-3);
+  --ph-border: var(--border);
+  --ph-text: var(--color-text-primary);
+  --ph-text-dim: var(--color-text-secondary);
+  --ph-accent: var(--color-brand-emphasis);
+  --ph-accent-2: var(--color-chart-2);
 }
 
 body:has(.ph-nav) { margin: 0; font-family: var(--ph-font); background: var(--ph-bg); color: var(--ph-text); -webkit-font-smoothing: antialiased; }

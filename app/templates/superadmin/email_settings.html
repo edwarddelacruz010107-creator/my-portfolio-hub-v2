@@ -6,7 +6,7 @@
 {% endblock %}
 
 {% block content %}
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 /* ── Superadmin Email Services — v6.5 ─────────────────────────────────── */
 .es-header{margin-bottom:1.75rem}
 .es-header h1{font-size:1.5rem;font-weight:700;margin:0 0 .25rem}
@@ -567,5 +567,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/superadmin-email-settings.js') }}?v=20260711-1" defer></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/superadmin-email-settings.js') }}?v=20260711-1" defer></script>
 {% endblock %}

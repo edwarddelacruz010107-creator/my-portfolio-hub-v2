@@ -14,6 +14,40 @@ depends_on = None
 
 
 def upgrade():
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {column['name'] for column in inspector.get_columns('users')}
+    additions = (
+        sa.Column('last_totp_verified_at', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('last_totp_code_hash', sa.String(length=64), nullable=True),
+        sa.Column('password_reset_token', sa.String(length=100), nullable=True),
+        sa.Column('password_reset_expires', sa.DateTime(timezone=True), nullable=True),
+    )
+    with op.batch_alter_table('users', schema=None) as batch_op:
+        for column in additions:
+            if column.name not in columns:
+                batch_op.add_column(column)
+
+    inspector = sa.inspect(bind)
+    user_indexes = {index['name'] for index in inspector.get_indexes('users')}
+    if 'ix_users_password_reset_token' not in user_indexes:
+        op.create_index(
+            'ix_users_password_reset_token',
+            'users',
+            ['password_reset_token'],
+            unique=True,
+            postgresql_where=sa.text("password_reset_token IS NOT NULL"),
+        )
+
+    activity_indexes = {index['name'] for index in inspector.get_indexes('activity_log')}
+    if 'ix_activitylog_tenant_action' not in activity_indexes:
+        op.create_index(
+            'ix_activitylog_tenant_action',
+            'activity_log',
+            ['tenant_slug', 'action'],
+        )
+    return
+
     with op.batch_alter_table('users', schema=None) as batch_op:
         # TOTP replay prevention (SEC-004 FIX)
         batch_op.add_column(sa.Column(

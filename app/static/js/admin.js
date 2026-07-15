@@ -49,24 +49,7 @@ function getCsrf() {
 
 // ── Toast helper ─────────────────────────────
 function showToast(msg, type = 'success') {
-  const icons = { success: '✓', danger: '✕', info: 'ℹ' };
-  const t = document.createElement('div');
-  t.className = `toast toast-${type}`;
-  t.innerHTML = `
-    <span class="toast-icon">${icons[type] || '•'}</span>
-    <span class="toast-msg">${msg}</span>
-    <button type="button" class="toast-close" data-toast-close>✕</button>
-  `;
-  // Append to flash container or create one
-  let container = document.querySelector('.flash-container');
-  if (!container) {
-    container = document.createElement('div');
-    container.className = 'flash-container';
-    document.body.appendChild(container);
-  }
-  container.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; }, 3500);
-  setTimeout(() => { t.remove(); }, 4000);
+  return window.MPHUI?.notify(msg, type, 4000);
 }
 
 // ── Simple drag-and-drop reorder ─────────────
@@ -292,29 +275,7 @@ function copyToClipboard(text, btn) {
 
 // ── Toast helper (programmatic) ───────────────────────────────
 function showToast(message, type = 'info', duration = 4500) {
-  const container = document.querySelector('.flash-container') || (() => {
-    const c = document.createElement('div');
-    c.className = 'flash-container';
-    document.body.appendChild(c);
-    return c;
-  })();
-  const icons = {
-    success: 'lucide:check-circle',
-    danger: 'lucide:x-circle',
-    warning: 'lucide:alert-triangle',
-    info: 'lucide:info'
-  };
-  const toast = document.createElement('div');
-  toast.className = `toast toast-${type}`;
-  toast.innerHTML = `
-    <span class="toast-icon"><iconify-icon icon="${icons[type] || icons.info}" width="15"></iconify-icon></span>
-    <span class="toast-msg">${message}</span>
-    <button type="button" class="toast-close" data-toast-close>
-      <iconify-icon icon="lucide:x" width="13"></iconify-icon>
-    </button>`;
-  container.appendChild(toast);
-  setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(100%)'; toast.style.transition = 'all 0.3s ease'; }, duration);
-  setTimeout(() => toast.remove(), duration + 350);
+  return window.MPHUI?.notify(message, type, duration);
 }
 
 // ── Upload zone drag-and-drop (global) ────────────────────────

@@ -260,9 +260,24 @@ def _check_tenant_tables():
         missing = [t for t in required if t not in existing]
         if not missing:
             return _ok(f"✓ all {len(required)} tenant tables exist")
-        return _err(f"✗ missing: {', '.join(missing)} — run flask ensure-tenant-schema")
+        return _err(f"✗ missing: {', '.join(missing)} — run flask db-upgrade-all")
     except Exception as exc:
         return _err(f"✗ {type(exc).__name__}")
+
+
+def _check_tenant_migration():
+    try:
+        from app import db
+        engine = db.get_engine(bind_key='tenant')
+        with engine.connect() as connection:
+            result = connection.execute(
+                db.text('SELECT version_num FROM alembic_version_tenant')
+            ).fetchall()
+        if result:
+            return _ok(f"✓ head = {result[-1][0]}")
+        return _warn("⚠ alembic_version_tenant empty (migrations not run?)")
+    except Exception as exc:
+        return _err(f"✗ {type(exc).__name__}: {exc}")
 
 
 def build_system_check_data() -> dict:
@@ -316,6 +331,7 @@ def build_system_check_data() -> dict:
 
     migration_info = {
         'Alembic head (core)':  _check_migration(),
+        'Alembic head (tenant)': _check_tenant_migration(),
     }
 
     return {

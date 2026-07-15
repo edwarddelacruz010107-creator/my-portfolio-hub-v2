@@ -401,9 +401,5 @@ def block_public_admin():
         
 def _get_client_ip():
     """Safely determine client IP address."""
-    forwarded_for = request.headers.get("X-Forwarded-For", "")
-
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-
-    return request.remote_addr or "0.0.0.0"
+    from app.request_security import get_client_ip
+    return get_client_ip()

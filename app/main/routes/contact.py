@@ -17,15 +17,15 @@ def submit_contact():
 
     # Prepare fields for the central contact pipeline
     name = data.get('name') or data.get('full_name', '')
-    ip_address = request.remote_addr
+    from app.request_security import get_client_ip
+    ip_address = get_client_ip()
     user_agent = request.headers.get('User-Agent')
-    referrer = request.referrer
 
     tenant_slug = 'default'  # landing page always targets default tenant
 
     result = process_contact_submission(
         tenant_slug=tenant_slug,
-        name=data.get('name', ''),
+        name=name,
         email=data.get('email', ''),
         subject=data.get('subject', ''),
         message=data.get('message', ''),
@@ -34,6 +34,7 @@ def submit_contact():
         source='legacy_contact',
         ip_address=ip_address,
         user_agent=user_agent,
+        submission_id=(data.get('submission_id') or request.headers.get('X-Request-Id') or '')[:80] or None,
     )
 
     status_code = 201 if result.success else 400

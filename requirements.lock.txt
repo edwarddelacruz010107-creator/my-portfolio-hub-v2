@@ -57,6 +57,7 @@ PyJWT==2.13.0
 PyOTP==2.10.0
 qrcode==8.2
 python-dateutil==2.9.0.post0
+reportlab==4.4.9
 python-dotenv==1.2.2
 python-multipart==0.0.32
 realtime==2.31.0

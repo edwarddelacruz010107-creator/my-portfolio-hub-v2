@@ -3,7 +3,7 @@
 {% block page_title %}Theme Catalog{% endblock %}
 
 {% block extra_css %}
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 /* ══════════════════════════════════════════════════════════════
    Theme Catalog — v6.5 futuristic neon dark UI
 ══════════════════════════════════════════════════════════════ */
@@ -200,7 +200,7 @@
     <div class="tc-stat-icon amber"><iconify-icon icon="lucide:download" width="18"></iconify-icon></div>
     <div>
       <div class="tc-stat-val">{{ total_installs }}</div>
-      <div class="tc-stat-lbl">Total Installs</div>
+      <div class="tc-stat-lbl">Selection events</div>
     </div>
   </div>
 </div>
@@ -310,7 +310,7 @@
         {% if theme.get('install_count', 0) > 0 %}
         <span class="tc-badge installs">
           <iconify-icon icon="lucide:download" width="9"></iconify-icon>
-          {{ theme.get('install_count') }} install{{ 's' if theme.get('install_count') != 1 }}
+          {{ theme.get('install_count') }} selection event{{ 's' if theme.get('install_count') != 1 }}
         </span>
         {% endif %}
         <span class="tc-badge" style="background:rgba(100,116,139,.1);color:#94a3b8">
@@ -409,7 +409,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 /* ── Featured toggle ─────────────────────────────────────── */
 function toggleFeatured(entryId, btn){
   const csrf = document.querySelector('meta[name="csrf-token"]').content;

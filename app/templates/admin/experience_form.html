@@ -113,7 +113,7 @@
   </div>
 </form>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 function updateExperienceIconPreview(value) {
   const el = document.getElementById('experienceIconEl');
   if (el && value.trim()) el.setAttribute('icon', value.trim());

@@ -493,21 +493,50 @@ def handle_billing_payment_post(profile, method, *, billing_cycle: str = 'monthl
         tenant.country_updated_at = datetime.now(timezone.utc)
         db.session.add(tenant)
 
-    submission = submit_manual_payment(
-        profile,
-        method=method,
-        plan=plan,
-        amount_paid=amount_paid,
-        payment_reference=form.payment_reference.data or '',
-        note=form.payment_note.data or '',
-        proof_filename=proof_filename,
-        billing_cycle=billing_cycle,
-        expected_amount=payment_quote['amount_local'],
-        amount_usd=payment_quote['amount_usd'],
-        currency_code=payment_quote['currency']['display_currency'],
-        exchange_rate=float(payment_quote['fx'].get('rate') or 1),
-        country_code=payment_quote['country']['code'],
-    )
+    try:
+        submission = submit_manual_payment(
+            profile,
+            method=method,
+            plan=plan,
+            amount_paid=amount_paid,
+            payment_reference=form.payment_reference.data or '',
+            note=form.payment_note.data or '',
+            proof_filename=proof_filename,
+            billing_cycle=billing_cycle,
+            expected_amount=payment_quote['amount_local'],
+            amount_usd=payment_quote['amount_usd'],
+            currency_code=payment_quote['currency']['display_currency'],
+            exchange_rate=float(payment_quote['fx'].get('rate') or 1),
+            country_code=payment_quote['country']['code'],
+        )
+    except Exception:
+        db.session.rollback()
+        logger.exception(
+            'Manual payment submission failed after private proof storage: tenant_id=%s',
+            profile.tenant_id,
+        )
+        # Delete the newly stored object only when the database proves no row
+        # references it. If the database check itself fails, preserve the file
+        # for reconciliation rather than risk deleting committed evidence.
+        try:
+            from app.models.portfolio import PaymentSubmission
+            persisted = PaymentSubmission.query.filter_by(
+                payment_proof=proof_filename,
+            ).with_entities(PaymentSubmission.id).first()
+            if persisted is None:
+                from app.services.billing.private_proof_storage import (
+                    delete_private_billing_proof,
+                )
+                delete_private_billing_proof(proof_filename)
+        except Exception:
+            logger.exception(
+                'Could not reconcile private proof after failed manual submission'
+            )
+        flash(
+            'Your payment submission could not be recorded. No subscription was changed; please try again.',
+            'danger',
+        )
+        return None
 
     # NOTE: For manual payments, actual activation happens later when a
     # superadmin approves the submission (manual_billing.approve_payment_submission),

@@ -48,6 +48,7 @@ logger = logging.getLogger(__name__)
 _ALLOWED_EXTS   = {'png', 'jpg', 'jpeg', 'webp', 'gif'}
 _MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB
 _MAX_PREVIEWS   = 6                  # max screenshots per theme
+_POPULARITY_MIN_SELECTION_EVENTS = 25
 
 
 def _allowed_image(filename: str) -> bool:
@@ -110,9 +111,15 @@ def theme_catalog():
         t.get('sort_order', 0),
         (t.get('name') or t.get('id') or '').lower(),
     ))
-    # Analytics summary
+    # Legacy install_count records selection-change events, not unique tenants.
+    # A popularity label is withheld until the documented threshold is met.
     total_installs = sum(t.get('install_count', 0) for t in themes)
-    most_popular = max(themes, key=lambda t: t.get('install_count', 0), default=None)
+    candidate = max(themes, key=lambda t: t.get('install_count', 0), default=None)
+    most_popular = (
+        candidate
+        if candidate and candidate.get('install_count', 0) >= _POPULARITY_MIN_SELECTION_EVENTS
+        else None
+    )
     return render_template(
         'superadmin/themes.html',
         themes=themes,

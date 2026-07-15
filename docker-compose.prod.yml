@@ -9,7 +9,7 @@
 # Usage:
 #   docker-compose -f docker-compose.prod.yml up -d
 #   docker-compose -f docker-compose.prod.yml logs -f web
-#   docker-compose -f docker-compose.prod.yml exec web flask db upgrade-core
+#   docker-compose -f docker-compose.prod.yml exec web flask db-upgrade-all
 
 version: '3.8'
 
@@ -31,6 +31,10 @@ services:
       - FLASK_APP=wsgi.py
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
+      - DB_SSLMODE=disable
+      - TRUSTED_PROXY_HOPS=0
+      - MALWARE_SCAN_REQUIRED=true
+      - MALWARE_SCANNER_COMMAND=clamdscan --no-summary
     
     # Port mapping
     ports:
@@ -93,7 +97,7 @@ services:
     environment:
       POSTGRES_DB: portfolio_core_prod
       POSTGRES_USER: portfolio_app
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
     
     # Volumes for data persistence
@@ -144,7 +148,7 @@ services:
     environment:
       POSTGRES_DB: portfolio_tenant_prod
       POSTGRES_USER: portfolio_app
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
     
     # Volumes for data persistence

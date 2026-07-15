@@ -85,6 +85,7 @@ APScheduler==3.11.3
 # UTILITIES
 # ─────────────────────────────────────────────────────────────────────
 python-dateutil==2.9.0.post0
+reportlab==4.4.9
 click==8.4.2
 slug==2.0
 

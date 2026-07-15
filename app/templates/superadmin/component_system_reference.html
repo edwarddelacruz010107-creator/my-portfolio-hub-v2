@@ -1,0 +1,78 @@
+{% extends 'superadmin/base.html' %}
+{% import 'components/ui.html' as ui %}
+{% block title %}Component System{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/component-system-reference.css', v='20260714-v1') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ui-reference">
+  <header class="page-header"><div><span class="section-tag">Internal reference</span><h1 class="page-title">Shared component system</h1><p class="ui-reference-intro">Synthetic values demonstrate behavior and layout. They do not represent platform activity or business facts.</p></div></header>
+
+  {% call ui.card('Actions', 'Variants preserve semantic button/link behavior, loading state, and touch targets.') %}
+    <div class="ui-reference-row">
+      {{ ui.button('Primary', variant='primary', icon_name='lucide:check') }}
+      {{ ui.button('Secondary', variant='secondary') }}
+      {{ ui.button('Ghost link', href='#component-data', variant='ghost') }}
+      {{ ui.button('Destructive', variant='danger', dialog_id='componentConfirm') }}
+      {{ ui.button('Loading', loading=true) }}
+      {{ ui.button('Disabled', disabled=true) }}
+    </div>
+  {% endcall %}
+
+  <div class="ui-reference-grid">
+    {% call ui.card('Fields', 'Labels, helper copy, validation, and control state.') %}
+      <div class="ui-reference-stack">
+        {{ ui.input('synthetic_title', 'Title', 'Synthetic value', help_text='Helper copy is linked to the field.') }}
+        {{ ui.input('invalid_value', 'Validation example', 'Invalid value', errors=['Explain how to correct this value.']) }}
+        {{ ui.password_input('synthetic_password', 'Password', autocomplete='new-password') }}
+        {{ ui.select('synthetic_select', 'Select', [('one', 'First choice'), ('two', 'Second choice')], 'one') }}
+        {{ ui.textarea('synthetic_notes', 'Notes', 'Long-form synthetic copy.') }}
+        {{ ui.choice('synthetic_choice', 'Checkbox label', checked=true) }}
+        {{ ui.choice('synthetic_radio', 'Radio label', kind='radio', checked=true) }}
+        {{ ui.switch('synthetic_switch', 'Switch label', true, help_text='State is mirrored to a form value.') }}
+        {{ ui.file_upload('synthetic_file', 'File upload', help_text='No file selected.') }}
+      </div>
+    {% endcall %}
+
+    {% call ui.card('Feedback and progress', 'Live status uses semantic roles and tokens.') %}
+      <div class="ui-reference-stack">
+        {{ ui.alert('Informational state with an honest next step.', 'info', 'Information') }}
+        {{ ui.alert('A correction is required.', 'danger', 'Validation failed') }}
+        <div class="ui-reference-row">{{ ui.badge('Ready', 'success') }}{{ ui.badge('Review', 'warning') }}{{ ui.inline_status('Unavailable', 'danger') }}</div>
+        {{ ui.progress(3, 5, 'Synthetic steps') }}
+        {{ ui.skeleton(3) }}
+        {{ ui.empty_state('Nothing here yet', 'Real records will appear here after the first supported event.') }}
+      </div>
+    {% endcall %}
+  </div>
+
+  {% call ui.card('Navigation and overlays', 'Keyboard arrows, Escape, outside click, and focus return are handled externally.') %}
+    <div class="ui-reference-row">
+      {% call ui.dropdown('component-menu', 'Open menu') %}<a role="menuitem" href="#component-data">First action</a><button role="menuitem" type="button">Second action</button>{% endcall %}
+      {{ ui.button('Open dialog', variant='secondary', dialog_id='componentDialog') }}
+      {{ ui.button('Open drawer', variant='ghost', dialog_id='componentDrawer') }}
+      {{ ui.pagination(none, '#component-data', 'Page one') }}
+    </div>
+    {% call ui.tabs([('overview', 'Overview', true), ('details', 'Details', false)], 'Synthetic sections') %}
+      {% call ui.tab_panel('overview', true) %}<p>Overview panel content.</p>{% endcall %}
+      {% call ui.tab_panel('details') %}<p>Details panel content.</p>{% endcall %}
+    {% endcall %}
+    {% call ui.accordion('Expandable details') %}<p>Native disclosure behavior works without JavaScript.</p>{% endcall %}
+  {% endcall %}
+
+  <section id="component-data" class="ui-reference-section">
+    <h2>Data display</h2>
+    <div class="ui-reference-row">{{ ui.provider_mark('PayMongo') }}{{ ui.provider_mark('Dodo') }}{{ ui.provider_mark('Manual') }}{{ ui.money('123.45', 'USD', 'Synthetic amount, 123 dollars and 45 cents') }}{{ ui.timestamp('2026-07-14T00:00:00Z', 'Example timestamp') }}{{ ui.trend_value('Example change', 'up') }}</div>
+    {% call ui.data_table(['Label', 'Status', 'Action'], 'Synthetic component rows') %}
+      <tr><td>Short label</td><td>{{ ui.badge('Ready', 'success') }}</td><td>{{ ui.button('Inspect', href='#component-data', variant='ghost', size='sm') }}</td></tr>
+      <tr><td>Long synthetic label that demonstrates wrapping at narrow widths</td><td>{{ ui.badge('Review', 'warning') }}</td><td>{{ ui.button('Inspect', variant='secondary', size='sm') }}</td></tr>
+    {% endcall %}
+    {% call ui.chart_shell('Chart shell', 'No numeric series is invented for the reference.', 'empty') %}{% endcall %}
+  </section>
+
+  {% call ui.dialog('componentDialog', 'Accessible dialog', 'Focus is trapped while open and returned to the trigger after close.') %}<p>Dialog body with synthetic explanatory text.</p>{% endcall %}
+  {% call ui.drawer('componentDrawer', 'Accessible drawer') %}<p>Drawer body with synthetic explanatory text.</p>{% endcall %}
+  {{ ui.confirmation_dialog('componentConfirm', 'Confirm destructive action', 'This reference does not submit a real action.', csrf_token(), 'Confirm') }}
+</div>
+{% endblock %}

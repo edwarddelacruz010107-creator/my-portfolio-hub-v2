@@ -1,0 +1,8 @@
+@layer components {
+  .ui-reference { display: grid; gap: var(--space-8); }
+  .ui-reference-intro { color: var(--color-text-secondary); max-width: 72ch; }
+  .ui-reference-grid { display: grid; gap: var(--space-5); grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); }
+  .ui-reference-row { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-3); }
+  .ui-reference-stack { display: grid; gap: var(--space-4); }
+  .ui-reference-section { display: grid; gap: var(--space-4); }
+}

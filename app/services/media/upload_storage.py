@@ -17,7 +17,7 @@ from typing import Iterable
 
 from flask import current_app, url_for
 
-ALLOWED_UPLOAD_FOLDERS: frozenset[str] = frozenset({
+PUBLIC_UPLOAD_FOLDERS: frozenset[str] = frozenset({
     "profiles",
     "projects",
     "avatars",
@@ -26,6 +26,9 @@ ALLOWED_UPLOAD_FOLDERS: frozenset[str] = frozenset({
     "landing",
     "themes",
 })
+# Backward-compatible export for existing public-media call sites. Private
+# proof storage deliberately lives in a separate module and is never added.
+ALLOWED_UPLOAD_FOLDERS = PUBLIC_UPLOAD_FOLDERS
 
 _MISSING_VALUES = {"", "none", "null", "undefined"}
 

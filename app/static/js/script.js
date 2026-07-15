@@ -331,6 +331,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (contactForm) {
         contactForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const fallbackUrl = contactForm.dataset.fallbackUrl || '';
+            if (!fallbackUrl || fallbackUrl === '#') {
+                showToast('info', 'Design fixture', 'Contact delivery is disabled in this preview.');
+                return;
+            }
             const honeypot = document.getElementById('hpWebsite');
             if (honeypot && honeypot.value.trim() !== '') { showSuccessOverlay(); return; }
 
@@ -356,8 +361,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                const fallbackUrl = contactForm.dataset.fallbackUrl;
-
                 const sidEl = document.getElementById('submissionId');
                 if (sidEl && !sidEl.value) {
                     try {
@@ -367,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                const res = await fetch(fallbackUrl || '/contact', { method: 'POST', body: new FormData(contactForm) });
+                const res = await fetch(fallbackUrl, { method: 'POST', body: new FormData(contactForm) });
                 const result = await res.json();
                 if (!res.ok || result.status !== 'success') throw new Error(result.message || 'Send failed.');
 

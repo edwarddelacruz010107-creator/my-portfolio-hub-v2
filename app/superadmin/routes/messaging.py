@@ -167,6 +167,28 @@ def send_message():
         db.session.add_all(inquiries)
         db.session.commit()
 
+        try:
+            from app.services.notification_service import Recipient, publish_notification
+            for inquiry, recipient in zip(inquiries, recipients):
+                if recipient.tenant_id:
+                    publish_notification(
+                        recipient=Recipient.tenant(int(recipient.tenant_id)),
+                        event_type='message.platform_to_tenant',
+                        template_key='message.platform_to_tenant',
+                        parameters={'subject': formatted_subject},
+                        dedupe_key=f'message.platform_to_tenant:{inquiry.id}',
+                        entity_type='inquiry',
+                        entity_id=inquiry.id,
+                        actor_type='superadmin',
+                        actor_id=current_user.id,
+                        action_route='admin.view_message',
+                        action_parameters={'message_id': inquiry.id},
+                        priority='high' if form.message_type.data == 'alert' else 'normal',
+                        commit=True,
+                    )
+        except Exception:
+            logger.exception('Platform message notification failed for tenant selection=%s', selected)
+
         log_activity('create', 'inquiry', selected,
                      f"Superadmin sent {type_label.lower()} message to {selected}")
 
@@ -369,6 +391,29 @@ def message_thread(msg_id):
         msg.thread_unread_super = 0
 
         db.session.commit()
+        try:
+            from app.services.notification_service import Recipient, publish_notification
+            target_tenant_id = msg.tenant_id
+            if not target_tenant_id:
+                target_tenant = Tenant.query.filter_by(slug=msg.tenant_slug).first()
+                target_tenant_id = target_tenant.id if target_tenant else None
+            if target_tenant_id:
+                publish_notification(
+                    recipient=Recipient.tenant(int(target_tenant_id)),
+                    event_type='message.reply_to_tenant',
+                    template_key='message.reply_to_tenant',
+                    parameters={'subject': msg.subject},
+                    dedupe_key=f'message.reply_to_tenant:{reply.id}',
+                    entity_type='inquiry_reply',
+                    entity_id=reply.id,
+                    actor_type='superadmin',
+                    actor_id=current_user.id,
+                    action_route='admin.view_message',
+                    action_parameters={'message_id': msg.id},
+                    commit=True,
+                )
+        except Exception:
+            logger.exception('Superadmin reply notification failed: reply_id=%s', reply.id)
         log_activity('reply', 'inquiry', msg.tenant_slug,
                      f'Superadmin replied to thread #{msg.id}')
         flash('Reply sent.', 'success')

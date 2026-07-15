@@ -4,6 +4,7 @@
   "icon": "✨",
   "icon_label": "Starter theme",
   "version": "1.0.0",
+  "manifest_schema_version": "1.0.0",
   "description": "A clean, minimal portfolio theme with light and dark mode support. Professional and accessible, works for all industries, and editable work experience timeline.",
   "author": "Portfolio CMS",
   "premium": false,
@@ -36,5 +37,23 @@
     "text": "#1f2937"
   },
   "supports_experience_timeline": true,
-  "supports_work_experience": true
+  "supports_work_experience": true,
+  "template_entry_points": {"portfolio": "index.html"},
+  "assets": [
+    {"path": "css/theme-contract.css", "type": "style"},
+    {"path": "css/style.css", "type": "style"},
+    {"path": "js/theme-bootstrap.js", "type": "script"},
+    {"path": "js/script.js", "type": "script"},
+    {"path": "themes/default/preview.svg", "type": "preview"}
+  ],
+  "supported_sections": {"profile": true, "projects": true, "project_links": true, "skills": true, "services": true, "testimonials": true, "certificates": true, "experience": true, "contact": true, "reactions": false, "seo": true, "analytics_hooks": true, "mobile_navigation": true, "consent_privacy": true, "empty_states": true},
+  "configurable_tokens": {
+    "accent": {"label": "Accent", "css_variable": "--accent", "type": "color", "default": "#6366f1"},
+    "background": {"label": "Background", "css_variable": "--bg-primary", "type": "color", "default": "#050505"},
+    "text": {"label": "Text", "css_variable": "--text-primary", "type": "color", "default": "#ffffff"}
+  },
+  "csp": {"remote_hosts": [], "inline_scripts": false, "inline_event_handlers": false},
+  "screenshot_provenance": {"source": "bundled_preview_asset", "content": "labeled_design_fixture", "captured_at": "2026-07-14"},
+  "compatibility": {"contract": "theme-contract-1.0", "app_min": "6.3", "app_max": "7.x"},
+  "migration_notes": ["Existing selected_theme=default rows remain compatible."]
 }

@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from app.utils import (
     BILLING_PLANS,
@@ -116,6 +116,8 @@ def activate_subscription(
     now: datetime | None = None,
     paymongo_payment_id: str | None = None,
     amount: float | None = None,
+    currency: str | None = None,
+    currency_exponent: int = 2,
     source: str | None = None,
 ) -> None:
     """
@@ -173,8 +175,19 @@ def activate_subscription(
     # Update plan metadata and status
     subscription.plan          = norm
     subscription.billing_cycle = billing_cycle
-    subscription.status        = 'active'
-    subscription.amount_paid   = float(amount) if amount is not None else get_plan_price(norm, billing_cycle)
+    paid_amount = float(amount) if amount is not None else get_plan_price(norm, billing_cycle)
+    if getattr(subscription, 'id', None) is None:
+        subscription.status = 'active'
+    subscription.amount_paid   = paid_amount
+    try:
+        from app.services.billing.financial_conversion import set_exact_paid_amount
+        from app.services.billing.plan_service import PlanService
+        sold_currency = currency or getattr(subscription, 'provider_currency', None) or PlanService().snapshot(norm, billing_cycle).currency
+        set_exact_paid_amount(
+            subscription, amount=paid_amount, currency=sold_currency, exponent=currency_exponent,
+        )
+    except Exception:
+        logger.exception('activate_subscription: exact-money dual write failed')
     # Backwards-compat: some code/tests expect `price_paid` attribute
     try:
         subscription.price_paid = float(amount) if amount is not None else get_plan_price(norm, billing_cycle)
@@ -188,6 +201,34 @@ def activate_subscription(
     # Record PayMongo payment ID for idempotency + audit
     if paymongo_payment_id:
         subscription.paymongo_payment_id = paymongo_payment_id
+
+    # New persisted subscriptions always pass through the lifecycle service.
+    # The direct assignment above remains only for transient/mocked objects and
+    # old-release rollback compatibility.
+    if getattr(subscription, 'id', None) is not None:
+        try:
+            from app.services.billing.lifecycle_service import transition_subscription
+            transition_subscription(
+                subscription,
+                'active',
+                actor=source or 'billing-system',
+                reason='Verified payment activation or renewal',
+                idempotency_key=(
+                    f'activate:{subscription.id}:{paymongo_payment_id}'
+                    if paymongo_payment_id else
+                    f'activate:{subscription.id}:{source or "billing"}:{subscription.expires_at.isoformat()}'
+                ),
+                provider='paymongo' if paymongo_payment_id else getattr(subscription, 'payment_provider', None),
+                provider_event_id=paymongo_payment_id,
+                occurred_at=now,
+                commit=False,
+            )
+        except Exception:
+            # Do not silently downgrade a verified paid activation.  The outer
+            # transaction will still persist the compatibility state and the
+            # reconciliation queue will expose a missing lifecycle event.
+            logger.exception('activate_subscription: lifecycle event could not be recorded')
+            subscription.status = 'active'
 
 
 # ---------------------------------------------------------------------------
@@ -206,7 +247,14 @@ def mark_subscription_cancelled(
     logger = logging.getLogger(__name__)
 
     now = utc_now()
-    subscription.status       = 'cancelled'
+    from app.services.billing.lifecycle_service import transition_subscription
+    transition_subscription(
+        subscription, 'cancelled', actor=source or 'billing-system',
+        reason='Verified subscription cancellation',
+        idempotency_key=f'cancel:{subscription.id}:{source or now.isoformat()}',
+        provider=getattr(subscription, 'payment_provider', None),
+        provider_event_id=source, occurred_at=now, commit=False,
+    )
     subscription.cancelled_at = now
     subscription.last_webhook_at = now
 
@@ -243,7 +291,14 @@ def mark_subscription_expired(
     logger = logging.getLogger(__name__)
 
     now = utc_now()
-    subscription.status          = 'expired'
+    from app.services.billing.lifecycle_service import transition_subscription
+    transition_subscription(
+        subscription, 'expired', actor=source or 'billing-system',
+        reason='Verified subscription expiry',
+        idempotency_key=f'expire:{subscription.id}:{source or now.isoformat()}',
+        provider=getattr(subscription, 'payment_provider', None),
+        provider_event_id=source, occurred_at=now, commit=False,
+    )
     subscription.last_webhook_at = now
 
     if source:

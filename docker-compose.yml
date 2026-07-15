@@ -56,6 +56,7 @@ services:
     environment:
       FLASK_ENV:         ${FLASK_ENV:-production}
       DATABASE_URL:      postgresql://portfolio:${DB_PASSWORD:-devpassword}@db:5432/portfolio_dev
+      DB_SSLMODE:         disable
       REDIS_URL:         redis://redis:6379/0
       RATELIMIT_STORAGE_URL: redis://redis:6379/1
       PORT:              8000
@@ -89,8 +90,9 @@ services:
     environment:
       FLASK_ENV:    ${FLASK_ENV:-production}
       DATABASE_URL: postgresql://portfolio:${DB_PASSWORD:-devpassword}@db:5432/portfolio_dev
+      DB_SSLMODE: disable
     command: >
-      sh -c "flask db upgrade && echo 'Migrations complete'"
+      sh -c "flask db-upgrade-all && echo 'Core and tenant migrations complete'"
     networks:
       - portfolio_net
     depends_on:

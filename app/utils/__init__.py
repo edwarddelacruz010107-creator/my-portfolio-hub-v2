@@ -418,6 +418,7 @@ def log_activity(
         slug = tenant_slug
         user_id  = None
         username = None
+        tenant_id = None
 
         if slug is None:
             try:
@@ -429,14 +430,15 @@ def log_activity(
             if current_user.is_authenticated:
                 user_id  = getattr(current_user, 'id', None)
                 username = getattr(current_user, 'username', None)
+                tenant_id = getattr(current_user, 'tenant_id', None)
         except Exception:
             pass
 
-        ip = request.headers.get("X-Forwarded-For", request.remote_addr)
-        if ip and "," in ip:
-            ip = ip.split(",")[0].strip()
+        from app.request_security import get_client_ip
+        ip = get_client_ip()
 
         entry = ActivityLog(
+            tenant_id=tenant_id,
             tenant_slug=slug,
             user_id=user_id,
             username=username,
@@ -448,6 +450,17 @@ def log_activity(
         )
         db.session.add(entry)
         db.session.commit()
+
+        # One post-commit invalidation point covers the portfolio write routes
+        # without duplicating scoring logic in every controller.  Reordering
+        # and analytics-only events are intentionally absent because they do
+        # not alter a rubric fact.
+        if tenant_id and entity_type in {
+            'profile', 'profile_photo', 'seo', 'project', 'service',
+            'testimonial', 'certificate', 'experience', 'theme',
+        }:
+            from app.services.intelligence.intelligence_service import recalculate_after_write
+            recalculate_after_write(int(tenant_id))
     except Exception:
         logger.exception("log_activity failed (action=%s, entity=%s)", action, entity_name)
         try:

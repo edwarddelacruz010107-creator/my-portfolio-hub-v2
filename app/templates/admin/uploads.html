@@ -189,7 +189,7 @@
 
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 document.querySelectorAll('[data-upload-preview-image]').forEach(function(img){
   img.addEventListener('error', function(){
     var wrap = img.closest('.upload-preview');

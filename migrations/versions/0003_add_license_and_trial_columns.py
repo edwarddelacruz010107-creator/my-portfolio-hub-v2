@@ -17,6 +17,11 @@ depends_on = None
 
 
 def upgrade():
+    # Profile is owned by the independent tenant migration history.  This
+    # historical core revision remains connected for existing version tables,
+    # but must not require tenant tables to exist in the core database.
+    return
+
     try:
         op.add_column('profile', sa.Column('free_trial_days', sa.Integer(), nullable=False, server_default='0'))
     except Exception:

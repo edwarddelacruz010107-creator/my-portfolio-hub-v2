@@ -198,7 +198,7 @@
   {% endif %}
 </div>
 
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 .paymongo-badge-sm {
   display:flex;align-items:center;gap:0.4rem;font-size:0.82rem;
   color:rgba(16,185,129,0.8);font-weight:600;

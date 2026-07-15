@@ -14,10 +14,7 @@
 {% include 'partials/_seo_meta.html' %}
 
 <!-- Google Fonts -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-
+<link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css', v='20260714-v3') }}">
 <!-- Bootstrap Icons -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
@@ -142,16 +139,6 @@
             {% endif %}
           </div>
 
-          <div class="trust-row" aria-label="Companies that have hired MyPortfolioHub members">
-            <span class="trust-label">Portfolios from this platform have been hired by</span>
-            <div class="trust-logos">
-              <span class="trust-logo">NORTHPEAK</span>
-              <span class="trust-logo">VELORA</span>
-              <span class="trust-logo">ARCLIGHT</span>
-              <span class="trust-logo">HALCYON&nbsp;CO.</span>
-              <span class="trust-logo">HAVENDALE</span>
-            </div>
-          </div>
         </div>
 
         {% set hero_has_image = landing_content.hero_image_url %}
@@ -754,76 +741,6 @@
           <h4>Share</h4>
           <p>Send your link anywhere — resumes, LinkedIn, email signatures.</p>
         </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- =========================================================
-       TESTIMONIALS
-  ========================================================= -->
-  <section id="testimonials">
-    <div class="container-mph">
-      <div class="section-head center" data-reveal>
-        <span class="eyebrow"><span class="dot" aria-hidden="true"></span> Testimonials</span>
-        <h2>Trusted by professionals <span class="text-gradient">who ship</span></h2>
-      </div>
-
-      <div class="testimonial-track" data-reveal>
-        <div class="testimonial-slides" id="testimonialSlides">
-          <div class="t-slide">
-            <div class="t-card">
-              <div class="t-stars" aria-label="5 out of 5 stars">★★★★★</div>
-              <p class="t-quote">MyPortfolioHub replaced three tools I was juggling. I published in an afternoon and started getting inbound within a week.</p>
-              <div class="t-person">
-                <img src="https://i.pravatar.cc/100?img=30" alt="" loading="lazy">
-                <div>
-                  <div class="t-person-name">Sofia Álvarez</div>
-                  <div class="t-person-role">Frontend Engineer</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="t-slide">
-            <div class="t-card">
-              <div class="t-stars" aria-label="5 out of 5 stars">★★★★★</div>
-              <p class="t-quote">The theme system is genuinely premium. Clients assume I hired an agency to build my site.</p>
-              <div class="t-person">
-                <img src="https://i.pravatar.cc/100?img=17" alt="" loading="lazy">
-                <div>
-                  <div class="t-person-name">Ryan Okoye</div>
-                  <div class="t-person-role">Freelance Designer</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="t-slide">
-            <div class="t-card">
-              <div class="t-stars" aria-label="5 out of 5 stars">★★★★★</div>
-              <p class="t-quote">Analytics showed me exactly which case study recruiters cared about. I doubled down and it worked.</p>
-              <div class="t-person">
-                <img src="https://i.pravatar.cc/100?img=48" alt="" loading="lazy">
-                <div>
-                  <div class="t-person-name">Hana Kobayashi</div>
-                  <div class="t-person-role">Product Designer</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="t-slide">
-            <div class="t-card">
-              <div class="t-stars" aria-label="5 out of 5 stars">★★★★★</div>
-              <p class="t-quote">Migrating my old static site took fifteen minutes. Everything just looked better immediately.</p>
-              <div class="t-person">
-                <img src="https://i.pravatar.cc/100?img=60" alt="" loading="lazy">
-                <div>
-                  <div class="t-person-name">Tomasz Nowak</div>
-                  <div class="t-person-role">Backend Engineer</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="t-dots" id="testimonialDots" role="tablist" aria-label="Testimonial navigation"></div>
       </div>
     </div>
   </section>

@@ -1,0 +1,84 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}Design System{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/design-system-reference.css', v='1') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ds-reference">
+  <header class="page-header">
+    <div>
+      <span class="section-tag">Internal reference</span>
+      <h1 class="page-title">Global design system</h1>
+      <p class="ds-reference-intro">Synthetic labels exercise visual and accessibility states without representing operational or business facts.</p>
+    </div>
+  </header>
+
+  <section class="ds-reference-panel" aria-labelledby="dsColors">
+    <h2 id="dsColors">Semantic colors</h2>
+    <div class="ds-token-grid">
+      {% for token in ['--color-canvas','--color-surface-2','--color-text-primary','--color-text-secondary','--color-brand','--color-positive','--color-warning','--color-negative','--color-focus-ring'] %}
+      <div class="ds-token"><div class="ds-token-swatch ds-token-swatch-{{ loop.index }}"></div><code>{{ token }}</code></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="ds-reference-grid">
+    <section class="ds-reference-panel" aria-labelledby="dsTypography">
+      <h2 id="dsTypography">Typography</h2>
+      <div class="ds-reference-stack">
+        <div><h1>Display heading</h1><p>DM Sans body copy remains readable at long lengths and 200% zoom.</p><code>const label = 'Monospace';</code></div>
+      </div>
+    </section>
+
+    <section class="ds-reference-panel" aria-labelledby="dsActions">
+      <h2 id="dsActions">Actions and status</h2>
+      <div class="ds-reference-stack">
+        <button class="btn btn-primary" type="button">Primary</button>
+        <button class="btn btn-secondary" type="button">Secondary</button>
+        <button class="btn btn-ghost" type="button">Ghost</button>
+        <button class="btn btn-primary" type="button" disabled>Disabled</button>
+        <span class="badge-status badge-active">Success</span>
+        <span class="badge-status badge-pending">Pending</span>
+        <span class="badge-status badge-expired">Error</span>
+      </div>
+    </section>
+
+    <section class="ds-reference-panel" aria-labelledby="dsFields">
+      <h2 id="dsFields">Fields</h2>
+      <div class="ds-field">
+        <label for="dsText">Label</label>
+        <input class="form-input" id="dsText" value="Synthetic value">
+        <span class="field-hint">Helper copy describes expected input.</span>
+      </div>
+      <div class="ds-field">
+        <label for="dsInvalid">Validation example</label>
+        <input class="form-input" id="dsInvalid" aria-invalid="true" aria-describedby="dsError" value="Invalid value">
+        <span class="field-error" id="dsError">Explain how to correct the value.</span>
+      </div>
+    </section>
+
+    <section class="ds-reference-panel" aria-labelledby="dsEmpty">
+      <h2 id="dsEmpty">Empty state</h2>
+      <div class="empty-state">
+        <div class="empty-state-icon" aria-hidden="true">○</div>
+        <div class="empty-state-title">Nothing here yet</div>
+        <p class="empty-state-desc">Explain what will appear and give one honest next action.</p>
+      </div>
+    </section>
+  </div>
+
+  <section class="ds-reference-panel" aria-labelledby="dsTable">
+    <h2 id="dsTable">Responsive data display</h2>
+    <div class="table-responsive">
+      <table class="ds-table">
+        <thead><tr><th>Label</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td>Short value</td><td><span class="badge-status badge-active">Ready</span></td><td><a class="btn btn-ghost btn-sm" href="#dsTable">View</a></td></tr>
+          <tr><td>Long synthetic label that exercises wrapping without pretending to be a real tenant</td><td><span class="badge-status badge-pending">Review</span></td><td><button class="btn btn-secondary btn-sm" type="button">Inspect</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

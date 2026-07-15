@@ -45,7 +45,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 function copyBackupCodes() {
     const codes = Array.from(document.querySelectorAll('#backupCodesBox span'))
         .map(el => el.textContent.trim()).join('\n');

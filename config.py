@@ -95,6 +95,7 @@ class BaseConfig:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_RECORD_QUERIES      = False
     SQLALCHEMY_SLOW_QUERY_THRESHOLD = 0.5
+    SLOW_QUERY_THRESHOLD_MS = int(os.environ.get('SLOW_QUERY_THRESHOLD_MS', '500'))
 
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
@@ -195,11 +196,15 @@ class BaseConfig:
     CACHE_TYPE            = 'SimpleCache'
     CACHE_DEFAULT_TIMEOUT = 300
     CACHE_REDIS_URL       = os.environ.get('REDIS_URL', '')
+    READINESS_REQUIRE_REDIS = False
 
     # ─────────────────────────────────────────────────────────────────
     # FILE UPLOADS & STORAGE
     # ─────────────────────────────────────────────────────────────────
     MAX_CONTENT_LENGTH = 10 * 1024 * 1024
+    # Reverse-proxy headers are ignored unless the deployment explicitly sets
+    # the exact number of trusted hops. Directly exposed deployments use zero.
+    TRUSTED_PROXY_HOPS = int(os.environ.get('TRUSTED_PROXY_HOPS', '0'))
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
     ALLOWED_MIME_TYPES = {
         'image/png', 'image/jpeg', 'image/gif',
@@ -232,6 +237,20 @@ class BaseConfig:
     # served by a CDN/object-storage proxy, set UPLOAD_PUBLIC_BASE_URL too.
     UPLOAD_FOLDER_ENV = os.environ.get('UPLOAD_FOLDER') or os.environ.get('UPLOAD_BASE_DIR') or os.environ.get('UPLOAD_ROOT')
     UPLOAD_PUBLIC_BASE_URL = os.environ.get('UPLOAD_PUBLIC_BASE_URL', '').rstrip('/')
+    # Customer payment proofs never belong below UPLOAD_FOLDER or app/static.
+    # In production local/Supabase media deployments this must point to a
+    # mounted private disk. Cloudinary deployments use authenticated assets.
+    PRIVATE_UPLOAD_FOLDER_ENV = os.environ.get('PRIVATE_UPLOAD_FOLDER', '').strip()
+    MAX_PRIVATE_PROOF_DOWNLOAD_BYTES = int(
+        os.environ.get('MAX_PRIVATE_PROOF_DOWNLOAD_BYTES', str(10 * 1024 * 1024))
+    )
+    MALWARE_SCANNER_COMMAND = os.environ.get('MALWARE_SCANNER_COMMAND', '').strip()
+    MALWARE_SCAN_TIMEOUT_SECONDS = int(os.environ.get('MALWARE_SCAN_TIMEOUT_SECONDS', '15'))
+    MALWARE_SCAN_REQUIRED = os.environ.get('MALWARE_SCAN_REQUIRED', 'false').lower() == 'true'
+    UPLOAD_QUARANTINE_FOLDER = os.environ.get(
+        'UPLOAD_QUARANTINE_FOLDER',
+        os.path.join(basedir, 'instance', 'upload_quarantine'),
+    )
 
     # ─────────────────────────────────────────────────────────────────
     # INTEGRATIONS
@@ -243,6 +262,7 @@ class BaseConfig:
     PAYMONGO_PUBLIC_KEY      = os.environ.get('PAYMONGO_PUBLIC_KEY', '')
     PAYMONGO_SECRET_KEY      = os.environ.get('PAYMONGO_SECRET_KEY', '')
     PAYMONGO_WEBHOOK_SECRET  = os.environ.get('PAYMONGO_WEBHOOK_SECRET', '')
+    PAYMONGO_MODE            = os.environ.get('PAYMONGO_MODE', 'test').lower()
 
     # Dodo Payments hosted subscription checkout
     DODO_PAYMENTS_ENABLED = os.getenv('DODO_PAYMENTS_ENABLED', 'false').lower() in ('1', 'true', 'yes', 'on')
@@ -274,6 +294,9 @@ class BaseConfig:
     CUSTOM_DOMAIN_PUBLIC_SCHEME = os.environ.get('CUSTOM_DOMAIN_PUBLIC_SCHEME', 'https').strip().lower()
     BILLING_GRACE_PERIOD_DAYS = int(os.environ.get('BILLING_GRACE_PERIOD_DAYS', '3'))
     PAYMENT_TIMEOUT_SECONDS  = int(os.environ.get('PAYMENT_TIMEOUT_SECONDS', '600'))
+    BILLING_CENTER_ENABLED = os.environ.get('BILLING_CENTER_ENABLED', 'true').lower() in ('1', 'true', 'yes', 'on')
+    BILLING_LEGACY_READ_ONLY = os.environ.get('BILLING_LEGACY_READ_ONLY', 'true').lower() in ('1', 'true', 'yes', 'on')
+    BILLING_CATALOG_EFFECTIVE_FROM = os.environ.get('BILLING_CATALOG_EFFECTIVE_FROM', '').strip() or None
 
     # ─────────────────────────────────────────────────────────────────
     # LOGGING
@@ -319,6 +342,44 @@ class BaseConfig:
 
         for sub in ('profiles', 'projects', 'avatars', 'billing', 'certificates', 'landing', 'themes'):
             os.makedirs(os.path.join(upload_base, sub), exist_ok=True)
+
+        private_env = (app.config.get('PRIVATE_UPLOAD_FOLDER_ENV') or '').strip()
+        private_is_persistent = False
+        if private_env:
+            private_base = private_env
+            if not os.path.isabs(private_base):
+                private_base = os.path.abspath(os.path.join(basedir, private_base))
+            private_is_persistent = True
+        else:
+            railway_mount = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '').strip()
+            if railway_mount:
+                private_base = os.path.join(railway_mount, 'private_uploads')
+                private_is_persistent = True
+            elif os.path.isdir('/var/data'):
+                private_base = '/var/data/private_uploads'
+                private_is_persistent = True
+            else:
+                private_base = os.path.join(app.instance_path, 'private_uploads')
+
+        public_path = Path(upload_base).resolve()
+        private_path = Path(private_base).resolve()
+        static_path = Path(app.static_folder).resolve()
+        for unsafe_root in (public_path, static_path):
+            try:
+                private_path.relative_to(unsafe_root)
+            except ValueError:
+                continue
+            raise RuntimeError(
+                'PRIVATE_UPLOAD_FOLDER must be outside UPLOAD_FOLDER and app/static.'
+            )
+        private_proof_path = private_path / 'billing_proofs'
+        os.makedirs(private_proof_path, mode=0o700, exist_ok=True)
+        try:
+            os.chmod(private_path, 0o700)
+            os.chmod(private_proof_path, 0o700)
+        except OSError:
+            # Windows and some managed mounts do not expose POSIX permissions.
+            pass
         os.makedirs(BaseConfig.LOG_DIR, exist_ok=True)
 
         app.config['UPLOAD_FOLDER']         = upload_base
@@ -326,6 +387,8 @@ class BaseConfig:
         app.config['PROFILE_UPLOAD_FOLDER'] = os.path.join(upload_base, 'profiles')
         app.config['PROJECT_UPLOAD_FOLDER'] = os.path.join(upload_base, 'projects')
         app.config['AVATAR_UPLOAD_FOLDER']  = os.path.join(upload_base, 'avatars')
+        app.config['PRIVATE_UPLOAD_FOLDER'] = str(private_path)
+        app.config['PRIVATE_UPLOAD_PERSISTENT'] = private_is_persistent
 
 
 class DevelopmentConfig(BaseConfig):
@@ -374,6 +437,7 @@ class ProductionConfig(BaseConfig):
     PROPAGATE_EXCEPTIONS = False   # SECURITY: never let raw exceptions propagate to WSGI layer
 
     PREFERRED_URL_SCHEME = "https"
+    MALWARE_SCAN_REQUIRED = os.environ.get('MALWARE_SCAN_REQUIRED', 'true').lower() == 'true'
 
     # FIX [CRITICAL-1]: Only one assignment per variable, in the correct class.
     SESSION_COOKIE_SECURE  = True
@@ -386,6 +450,7 @@ class ProductionConfig(BaseConfig):
     LOG_LEVEL = 'WARNING'
 
     CACHE_TYPE = 'RedisCache' if os.environ.get('REDIS_URL') else 'SimpleCache'
+    READINESS_REQUIRE_REDIS = True
 
     SQLALCHEMY_ENGINE_OPTIONS = {
         'poolclass':   NullPool,
@@ -424,6 +489,8 @@ class ProductionConfig(BaseConfig):
             'CORE_DATABASE_URL',
         ]
         missing = [v for v in always_required if not os.environ.get(v)]
+        if app.config.get('MALWARE_SCAN_REQUIRED') and not app.config.get('MALWARE_SCANNER_COMMAND'):
+            missing.append('MALWARE_SCANNER_COMMAND')
 
         # Billing keys only required when PayMongo is explicitly enabled.
         paymongo_enabled = os.environ.get('PAYMONGO_ENABLED', 'false').lower() == 'true'

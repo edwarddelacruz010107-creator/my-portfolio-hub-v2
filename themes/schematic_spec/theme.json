@@ -4,6 +4,7 @@
   "icon": "\ud83d\udcd0",
   "icon_label": "Schematic Spec icon",
   "version": "1.0.0",
+  "manifest_schema_version": "1.0.0",
   "description": "A blueprint/spec-sheet developer portfolio theme based on the uploaded Schematic HTML. Fully wired to the Portfolio CMS theme contract: profile, terminal hero, projects, skills, services, work experience, testimonials, certificates/badges, social links, resume, billing links, and contact form.",
   "author": "Pypy Project + Portfolio CMS",
   "premium": true,
@@ -37,5 +38,23 @@
     "background": "#eef2f3",
     "text": "#0f171e"
   },
-  "sort_order": 26
+  "sort_order": 26,
+  "template_entry_points": {"portfolio": "index.html"},
+  "assets": [
+    {"path": "css/theme-contract.css", "type": "style"},
+    {"path": "themes/schematic_spec/theme.css", "type": "style"},
+    {"path": "themes/schematic_spec/theme.js", "type": "script"},
+    {"path": "themes/schematic_spec/preview.svg", "type": "preview"}
+  ],
+  "supported_sections": {"profile": true, "projects": true, "project_links": true, "skills": true, "services": true, "testimonials": true, "certificates": true, "experience": true, "contact": true, "reactions": false, "seo": true, "analytics_hooks": true, "mobile_navigation": true, "consent_privacy": true, "empty_states": true},
+  "configurable_tokens": {
+    "accent": {"label": "Specification accent", "css_variable": "--accent", "type": "color", "default": "#ff5a1f"},
+    "background": {"label": "Paper", "css_variable": "--paper", "type": "color", "default": "#eef2f3"},
+    "text": {"label": "Ink", "css_variable": "--ink", "type": "color", "default": "#0f171e"},
+    "corner_radius": {"label": "Corner radius", "css_variable": "--radius", "type": "length", "unit": "px", "min": 0, "max": 24, "default": "4px"}
+  },
+  "csp": {"remote_hosts": [], "inline_scripts": false, "inline_event_handlers": false},
+  "screenshot_provenance": {"source": "bundled_preview_asset", "content": "labeled_design_fixture", "captured_at": "2026-07-14"},
+  "compatibility": {"contract": "theme-contract-1.0", "app_min": "6.5", "app_max": "7.x"},
+  "migration_notes": ["Existing selected_theme=schematic_spec rows remain compatible."]
 }

@@ -421,7 +421,7 @@
   <p>© {{ now.year if now else '2026' }} {{ profile.name if profile else 'Portfolio' }} · <a href="{{ projects_href }}">Back to Projects</a></p>
 </footer>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 (function () {
   const copyButtons = document.querySelectorAll('[data-copy-link]');
   copyButtons.forEach((button) => {
@@ -464,7 +464,7 @@
 })();
 </script>
 
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 /* ── Premium Project Detail / Case Study ───────────────────────────── */
 .project-detail-nav {
   position: fixed;

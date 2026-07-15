@@ -7,8 +7,8 @@
   <title>Subscription Expired — {{ profile.name if profile else 'Portfolio' }}</title>
   
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
-  <script src="https://code.iconify.design/iconify-icon/1.0.8/iconify-icon.min.js"></script>
-  <style>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+  <style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {

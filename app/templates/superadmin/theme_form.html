@@ -3,7 +3,7 @@
 {% block page_title %}{{ page_title }}{% endblock %}
 
 {% block extra_css %}
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 /* ══════════════════════════════════════════════════════
    SuperAdmin Theme Editor — polished SaaS editor UI
    Scope: app/templates/superadmin/theme_form.html only
@@ -872,7 +872,7 @@ html[data-theme="light"] .fm-item{background:#fff}
             </div>
           </div>
           <div class="side-meta">
-            <div><strong>Install count:</strong> {{ entry.install_count or 0 }}</div>
+            <div><strong>Selection events:</strong> {{ entry.install_count or 0 }}</div>
             <div><strong>Created:</strong> {{ entry.created_at.strftime('%Y-%m-%d') if entry.created_at else '—' }}</div>
             <div><strong>Updated:</strong> {{ entry.updated_at.strftime('%Y-%m-%d') if entry.updated_at else '—' }}</div>
           </div>
@@ -885,7 +885,7 @@ html[data-theme="light"] .fm-item{background:#fff}
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 const _ENTRY_ID  = {{ entry.id or 'null' }};
 const _CSRF_META = document.querySelector('meta[name="csrf-token"]');
 const _CSRF      = _CSRF_META ? _CSRF_META.content : document.querySelector('input[name="csrf_token"]').value;

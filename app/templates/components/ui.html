@@ -1,0 +1,141 @@
+{# MyPortfolioHub UI component contract v1. Inputs are autoescaped by Jinja. #}
+
+{% macro icon(name, size=16, decorative=true) -%}
+<iconify-icon icon="{{ name }}" width="{{ size }}"{% if decorative %} aria-hidden="true"{% endif %}></iconify-icon>
+{%- endmacro %}
+
+{% macro icon_button(label, icon_name, variant='ghost', size='md', type='button', disabled=false, id=none, dialog_id=none) -%}<button class="ui-button ui-button--{{ variant }} ui-button--{{ size }} ui-button--icon" type="{{ type }}" aria-label="{{ label }}" title="{{ label }}"{% if disabled %} disabled{% endif %}{% if id %} id="{{ id }}"{% endif %}{% if dialog_id %} data-ui-dialog-open="{{ dialog_id }}"{% endif %}>{{ icon(icon_name) }}</button>{%- endmacro %}
+
+{% macro button(label='', href=none, variant='primary', size='md', type='button', icon_name=none, disabled=false, loading=false, id=none, name=none, value=none, extra_class='', dialog_id=none) -%}
+{% set classes = 'ui-button ui-button--' ~ variant ~ ' ui-button--' ~ size ~ (' is-loading' if loading else '') ~ (' ' ~ extra_class if extra_class else '') %}
+{% if href %}
+<a class="{{ classes }}" href="{{ href }}"{% if disabled %} aria-disabled="true" tabindex="-1"{% endif %}{% if id %} id="{{ id }}"{% endif %}{% if dialog_id %} data-ui-dialog-open="{{ dialog_id }}"{% endif %}>
+{% else %}
+<button class="{{ classes }}" type="{{ type }}"{% if disabled or loading %} disabled{% endif %}{% if loading %} aria-busy="true"{% endif %}{% if id %} id="{{ id }}"{% endif %}{% if name %} name="{{ name }}"{% endif %}{% if value is not none %} value="{{ value }}"{% endif %}{% if dialog_id %} data-ui-dialog-open="{{ dialog_id }}"{% endif %}>
+{% endif %}
+  {% if loading %}<span class="ui-spinner" aria-hidden="true"></span>{% elif icon_name %}{{ icon(icon_name) }}{% endif %}
+  <span>{{ label }}</span>
+{% if href %}</a>{% else %}</button>{% endif %}
+{%- endmacro %}
+
+{% macro field_errors(errors=()) -%}
+{% if errors %}<ul class="ui-field-errors" role="alert">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+{%- endmacro %}
+
+{% macro input(name, label, value='', type='text', id=none, placeholder='', help_text='', errors=(), required=false, disabled=false, readonly=false, autocomplete=none, inputmode=none, minlength=none, maxlength=none, min=none, max=none, step=none, extra_class='') -%}
+{% set field_id = id or ('field-' ~ name|replace('_', '-')) %}{% set error_id = field_id ~ '-errors' %}{% set help_id = field_id ~ '-help' %}
+<div class="ui-field{{ ' ui-field--invalid' if errors else '' }}">
+  <label class="ui-label" for="{{ field_id }}">{{ label }}{% if required %}<span aria-hidden="true"> *</span>{% endif %}</label>
+  <input class="ui-input{{ ' ' ~ extra_class if extra_class else '' }}" id="{{ field_id }}" name="{{ name }}" type="{{ type }}" value="{{ value if value is not none else '' }}"{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if help_text or errors %} aria-describedby="{{ error_id if errors else help_id }}"{% endif %}{% if errors %} aria-invalid="true"{% endif %}{% if required %} required aria-required="true"{% endif %}{% if disabled %} disabled{% endif %}{% if readonly %} readonly{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}{% if inputmode %} inputmode="{{ inputmode }}"{% endif %}{% if minlength is not none %} minlength="{{ minlength }}"{% endif %}{% if maxlength is not none %} maxlength="{{ maxlength }}"{% endif %}{% if min is not none %} min="{{ min }}"{% endif %}{% if max is not none %} max="{{ max }}"{% endif %}{% if step is not none %} step="{{ step }}"{% endif %}>
+  {% if errors %}<div id="{{ error_id }}">{{ field_errors(errors) }}</div>{% elif help_text %}<p class="ui-help" id="{{ help_id }}">{{ help_text }}</p>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro password_input(name, label, value='', id=none, placeholder='', help_text='', errors=(), required=false, autocomplete='current-password') -%}
+{% set field_id = id or ('field-' ~ name|replace('_', '-')) %}
+<div class="ui-password-field">
+  {{ input(name, label, value, 'password', field_id, placeholder, help_text, errors, required, autocomplete=autocomplete, extra_class='ui-password-input') }}
+  <button class="ui-password-toggle" type="button" data-ui-password-toggle="{{ field_id }}" aria-label="Show password" aria-pressed="false">{{ icon('lucide:eye') }}</button>
+</div>
+{%- endmacro %}
+
+{% macro otp_input(name='otp', label='Verification code', value='', id='field-otp', errors=(), length=6, autocomplete='one-time-code') -%}
+{{ input(name, label, value, 'text', id, '', 'Enter the code exactly as provided.', errors, true, autocomplete=autocomplete, inputmode='numeric', minlength=length, maxlength=length, extra_class='ui-input--otp') }}
+{%- endmacro %}
+
+{% macro search_input(name='q', label='Search', value='', placeholder='Search', id='field-search') -%}
+<div class="ui-search-field">{{ icon('lucide:search') }}{{ input(name, label, value, 'search', id, placeholder, autocomplete='off', extra_class='ui-input--search') }}</div>
+{%- endmacro %}
+
+{% macro currency_input(name, label, value='', currency='USD', id=none, errors=(), required=false) -%}
+<div class="ui-currency-field"><span class="ui-currency-code" aria-hidden="true">{{ currency }}</span>{{ input(name, label, value, 'text', id, '', 'Enter an amount in ' ~ currency ~ '.', errors, required, inputmode='decimal', extra_class='ui-input--currency') }}</div>
+{%- endmacro %}
+
+{% macro textarea(name, label, value='', id=none, placeholder='', rows=5, help_text='', errors=(), required=false, maxlength=none) -%}
+{% set field_id = id or ('field-' ~ name|replace('_', '-')) %}{% set error_id = field_id ~ '-errors' %}{% set help_id = field_id ~ '-help' %}
+<div class="ui-field{{ ' ui-field--invalid' if errors else '' }}">
+  <label class="ui-label" for="{{ field_id }}">{{ label }}{% if required %}<span aria-hidden="true"> *</span>{% endif %}</label>
+  <textarea class="ui-input ui-textarea" id="{{ field_id }}" name="{{ name }}" rows="{{ rows }}"{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if help_text or errors %} aria-describedby="{{ error_id if errors else help_id }}"{% endif %}{% if errors %} aria-invalid="true"{% endif %}{% if required %} required aria-required="true"{% endif %}{% if maxlength is not none %} maxlength="{{ maxlength }}"{% endif %}>{{ value if value is not none else '' }}</textarea>
+  {% if errors %}<div id="{{ error_id }}">{{ field_errors(errors) }}</div>{% elif help_text %}<p class="ui-help" id="{{ help_id }}">{{ help_text }}</p>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro select(name, label, options, selected=none, id=none, help_text='', errors=(), required=false, disabled=false) -%}
+{% set field_id = id or ('field-' ~ name|replace('_', '-')) %}{% set error_id = field_id ~ '-errors' %}{% set help_id = field_id ~ '-help' %}
+<div class="ui-field{{ ' ui-field--invalid' if errors else '' }}">
+  <label class="ui-label" for="{{ field_id }}">{{ label }}{% if required %}<span aria-hidden="true"> *</span>{% endif %}</label>
+  <select class="ui-input ui-select" id="{{ field_id }}" name="{{ name }}"{% if help_text or errors %} aria-describedby="{{ error_id if errors else help_id }}"{% endif %}{% if errors %} aria-invalid="true"{% endif %}{% if required %} required{% endif %}{% if disabled %} disabled{% endif %}>
+    {% for option_value, option_label in options %}<option value="{{ option_value }}"{% if option_value|string == selected|string %} selected{% endif %}>{{ option_label }}</option>{% endfor %}
+  </select>
+  {% if errors %}<div id="{{ error_id }}">{{ field_errors(errors) }}</div>{% elif help_text %}<p class="ui-help" id="{{ help_id }}">{{ help_text }}</p>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro choice(name, label, value='1', kind='checkbox', checked=false, id=none, help_text='', disabled=false) -%}
+{% set field_id = id or ('field-' ~ name|replace('_', '-') ~ '-' ~ value|string|replace(' ', '-')) %}
+<div class="ui-choice ui-choice--{{ kind }}"><input id="{{ field_id }}" name="{{ name }}" type="{{ 'radio' if kind == 'radio' else 'checkbox' }}" value="{{ value }}"{% if checked %} checked{% endif %}{% if disabled %} disabled{% endif %}><label for="{{ field_id }}"><span>{{ label }}</span>{% if help_text %}<small>{{ help_text }}</small>{% endif %}</label></div>
+{%- endmacro %}
+
+{% macro switch(name, label, checked=false, id=none, help_text='', disabled=false) -%}
+{% set field_id = id or ('field-' ~ name|replace('_', '-')) %}
+<div class="ui-switch"><button type="button" role="switch" id="{{ field_id }}" aria-checked="{{ 'true' if checked else 'false' }}"{% if disabled %} disabled{% endif %} data-ui-switch><span aria-hidden="true"></span></button><input type="hidden" name="{{ name }}" value="{{ '1' if checked else '0' }}" data-ui-switch-value><label for="{{ field_id }}"><span>{{ label }}</span>{% if help_text %}<small>{{ help_text }}</small>{% endif %}</label></div>
+{%- endmacro %}
+
+{% macro file_upload(name, label, id=none, accept='', help_text='', errors=(), required=false, multiple=false) -%}
+{% set field_id = id or ('field-' ~ name|replace('_', '-')) %}
+<div class="ui-field ui-file-field{{ ' ui-field--invalid' if errors else '' }}"><label class="ui-label" for="{{ field_id }}">{{ label }}</label><input id="{{ field_id }}" name="{{ name }}" type="file"{% if accept %} accept="{{ accept }}"{% endif %}{% if required %} required{% endif %}{% if multiple %} multiple{% endif %} data-ui-file><p class="ui-help" data-ui-file-label>{{ help_text or 'Choose a file.' }}</p>{{ field_errors(errors) }}</div>
+{%- endmacro %}
+
+{% macro alert(message='', variant='info', title=none, dismissible=false) -%}
+<div class="ui-alert ui-alert--{{ variant }}" role="{{ 'alert' if variant in ('danger', 'error') else 'status' }}">{{ icon('lucide:alert-circle') }}<div>{% if title %}<strong>{{ title }}</strong>{% endif %}<p>{{ message }}</p></div>{% if dismissible %}<button type="button" data-ui-dismiss aria-label="Dismiss">{{ icon('lucide:x') }}</button>{% endif %}</div>
+{%- endmacro %}
+
+{% macro toast(message, variant='info', auto_close=false) -%}
+<div class="ui-toast ui-toast--{{ variant }}" role="{{ 'alert' if variant in ('danger', 'error') else 'status' }}"{% if auto_close %} data-ui-auto-close="5000"{% endif %}><span>{{ message }}</span><button type="button" data-ui-dismiss aria-label="Dismiss notification">{{ icon('lucide:x', 14) }}</button></div>
+{%- endmacro %}
+
+{% macro badge(label, variant='neutral') -%}<span class="ui-badge ui-badge--{{ variant }}">{{ label }}</span>{%- endmacro %}
+{% macro inline_status(label, variant='neutral') -%}<span class="ui-status ui-status--{{ variant }}"><span aria-hidden="true"></span>{{ label }}</span>{%- endmacro %}
+{% macro progress(value, max=100, label='Progress') -%}<div class="ui-progress"><div class="ui-progress-label"><span>{{ label }}</span><span>{{ value }} / {{ max }}</span></div><progress value="{{ value }}" max="{{ max }}">{{ value }} / {{ max }}</progress></div>{%- endmacro %}
+{% macro skeleton(lines=3, label='Loading') -%}<div class="ui-skeleton" role="status" aria-label="{{ label }}">{% for _ in range(lines) %}<span></span>{% endfor %}</div>{%- endmacro %}
+
+{% macro empty_state(title, message, action_label=none, action_href=none, icon_name='lucide:inbox') -%}
+<section class="ui-empty-state"><div class="ui-empty-state__icon">{{ icon(icon_name, 22) }}</div><h3>{{ title }}</h3><p>{{ message }}</p>{% if action_label and action_href %}{{ button(action_label, href=action_href, variant='primary') }}{% endif %}</section>
+{%- endmacro %}
+
+{% macro card(title=none, description=none, extra_class='') -%}
+<section class="ui-card{{ ' ' ~ extra_class if extra_class else '' }}">{% if title or description %}<header class="ui-card__header">{% if title %}<h3>{{ title }}</h3>{% endif %}{% if description %}<p>{{ description }}</p>{% endif %}</header>{% endif %}<div class="ui-card__body">{{ caller() }}</div></section>
+{%- endmacro %}
+
+{% macro stat_card(label, value, description=none, trend=none, trend_direction='neutral') -%}<article class="ui-stat-card"><p>{{ label }}</p><strong>{{ value }}</strong>{% if trend %}{{ trend_value(trend, trend_direction) }}{% endif %}{% if description %}<small>{{ description }}</small>{% endif %}</article>{%- endmacro %}
+
+{% macro data_table(headers, caption, responsive=true) -%}<div class="ui-table-wrap{{ ' ui-table-wrap--responsive' if responsive else '' }}"><table class="ui-table"><caption>{{ caption }}</caption><thead><tr>{% for header in headers %}<th scope="col">{{ header }}</th>{% endfor %}</tr></thead><tbody>{{ caller() }}</tbody></table></div>{%- endmacro %}
+{% macro responsive_list(label) -%}<ul class="ui-responsive-list" aria-label="{{ label }}">{{ caller() }}</ul>{%- endmacro %}
+
+{% macro tabs(items, label='Sections') -%}<div class="ui-tabs" data-ui-tabs><div class="ui-tablist" role="tablist" aria-label="{{ label }}">{% for tab_id, tab_label, selected in items %}<button type="button" role="tab" id="tab-{{ tab_id }}" aria-controls="panel-{{ tab_id }}" aria-selected="{{ 'true' if selected else 'false' }}" tabindex="{{ '0' if selected else '-1' }}">{{ tab_label }}</button>{% endfor %}</div>{{ caller() }}</div>{%- endmacro %}
+{% macro tab_panel(tab_id, selected=false) -%}<section class="ui-tabpanel" id="panel-{{ tab_id }}" role="tabpanel" aria-labelledby="tab-{{ tab_id }}"{% if not selected %} hidden{% endif %}>{{ caller() }}</section>{%- endmacro %}
+{% macro accordion(title, open=false) -%}<details class="ui-accordion"{% if open %} open{% endif %}><summary>{{ title }}{{ icon('lucide:chevron-down') }}</summary><div>{{ caller() }}</div></details>{%- endmacro %}
+
+{% macro pagination(prev_url=none, next_url=none, current_label='Current page') -%}<nav class="ui-pagination" aria-label="Pagination">{% if prev_url %}{{ button('Previous', href=prev_url, variant='ghost', size='sm') }}{% else %}{{ button('Previous', variant='ghost', size='sm', disabled=true) }}{% endif %}<span aria-current="page">{{ current_label }}</span>{% if next_url %}{{ button('Next', href=next_url, variant='ghost', size='sm') }}{% else %}{{ button('Next', variant='ghost', size='sm', disabled=true) }}{% endif %}</nav>{%- endmacro %}
+
+{% macro dialog(id, title, description=none, size='md') -%}<dialog class="ui-dialog ui-dialog--{{ size }}" id="{{ id }}" aria-labelledby="{{ id }}-title"{% if description %} aria-describedby="{{ id }}-description"{% endif %} data-ui-dialog><div class="ui-dialog__surface"><header><div><h2 id="{{ id }}-title">{{ title }}</h2>{% if description %}<p id="{{ id }}-description">{{ description }}</p>{% endif %}</div><button type="button" data-ui-dialog-close aria-label="Close">{{ icon('lucide:x') }}</button></header><div class="ui-dialog__body">{{ caller() }}</div></div></dialog>{%- endmacro %}
+
+{% macro confirmation_dialog(id, title, message, csrf_value, confirm_label='Confirm', form_id=none, message_id=none, variant='danger') -%}<dialog class="ui-dialog ui-dialog--sm" id="{{ id }}" aria-labelledby="{{ id }}-title" aria-describedby="{{ message_id or (id ~ '-description') }}" data-ui-dialog><div class="ui-dialog__surface"><header><div><h2 id="{{ id }}-title">{{ title }}</h2><p id="{{ message_id or (id ~ '-description') }}">{{ message }}</p></div><button type="button" data-ui-dialog-close data-close-delete-modal aria-label="Close">{{ icon('lucide:x') }}</button></header><footer><button type="button" class="ui-button ui-button--ghost ui-button--md" data-ui-dialog-close data-close-delete-modal>Cancel</button><form id="{{ form_id or (id ~ '-form') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_value }}"><button type="submit" class="ui-button ui-button--{{ variant }} ui-button--md">{{ confirm_label }}</button></form></footer></div></dialog>{%- endmacro %}
+
+{% macro drawer(id, title, side='right') -%}<dialog class="ui-drawer ui-drawer--{{ side }}" id="{{ id }}" aria-labelledby="{{ id }}-title" data-ui-dialog><div class="ui-drawer__surface"><header><h2 id="{{ id }}-title">{{ title }}</h2><button type="button" data-ui-dialog-close aria-label="Close">{{ icon('lucide:x') }}</button></header><div class="ui-drawer__body">{{ caller() }}</div></div></dialog>{%- endmacro %}
+{% macro dropdown(id, label) -%}<div class="ui-dropdown" data-ui-dropdown><button type="button" aria-expanded="false" aria-controls="{{ id }}" data-ui-dropdown-toggle>{{ label }}{{ icon('lucide:chevron-down') }}</button><div class="ui-dropdown__menu" id="{{ id }}" role="menu" hidden>{{ caller() }}</div></div>{%- endmacro %}
+{% macro command_palette(id='command-palette', label='Search commands') -%}{% call dialog(id, label, size='lg') %}<label class="ui-label" for="{{ id }}-query">{{ label }}</label><input class="ui-input" id="{{ id }}-query" type="search" data-ui-command-query autocomplete="off"><div class="ui-command-results" data-ui-command-results>{{ caller() }}</div>{% endcall %}{%- endmacro %}
+
+{% macro breadcrumbs(items) -%}<nav class="ui-breadcrumbs" aria-label="Breadcrumb"><ol>{% for label, href in items %}<li>{% if href and not loop.last %}<a href="{{ href }}">{{ label }}</a>{% else %}<span{% if loop.last %} aria-current="page"{% endif %}>{{ label }}</span>{% endif %}</li>{% endfor %}</ol></nav>{%- endmacro %}
+{% macro topbar(title, label='Page tools') -%}<header class="ui-topbar"><h1>{{ title }}</h1><div class="ui-topbar__actions" aria-label="{{ label }}">{{ caller() }}</div></header>{%- endmacro %}
+{% macro sidebar(id, label='Navigation') -%}<aside class="ui-sidebar" id="{{ id }}" aria-label="{{ label }}"><nav>{{ caller() }}</nav></aside>{%- endmacro %}
+{% macro notification_bell(href, unread_count=0, unread_url=none) -%}<a class="ui-notification-bell" href="{{ href }}" aria-label="Notifications{{ ', ' ~ unread_count ~ ' unread' if unread_count else '' }}"{% if unread_url %} data-notification-bell data-unread-url="{{ unread_url }}"{% endif %}>{{ icon('lucide:bell') }}<span class="ui-notification-badge{{ ' is-hidden' if not unread_count }}" data-notification-badge>{{ unread_count }}</span></a>{%- endmacro %}
+{% macro notification_center(id, href, feed_url, unread_count=0) -%}<div class="ui-dropdown ui-notification-center" data-ui-dropdown data-notification-center data-feed-url="{{ feed_url }}"><button class="ui-notification-bell" type="button" aria-expanded="false" aria-controls="{{ id }}" aria-label="Notifications{{ ', ' ~ unread_count ~ ' unread' if unread_count else '' }}" data-ui-dropdown-toggle data-notification-toggle>{{ icon('lucide:bell') }}<span class="ui-notification-badge{{ ' is-hidden' if not unread_count }}" data-notification-badge>{{ unread_count }}</span></button><div class="ui-dropdown__menu" id="{{ id }}" role="dialog" aria-label="Recent notifications" hidden><div class="ui-notification-preview" data-notification-items role="status" aria-live="polite"><p class="ui-notification-preview__empty">Loading notifications…</p></div><div class="ui-notification-preview__footer"><a href="{{ href }}">View all notifications</a></div></div></div>{%- endmacro %}
+{% macro account_menu(id, label) -%}<div class="ui-dropdown" data-ui-dropdown><button type="button" aria-expanded="false" aria-controls="{{ id }}" data-ui-dropdown-toggle>{{ label }}{{ icon('lucide:chevron-down') }}</button><div class="ui-dropdown__menu" id="{{ id }}" role="menu" hidden>{{ caller() }}</div></div>{%- endmacro %}
+{% macro mobile_nav_toggle(controls, label='Open navigation') -%}<button class="ui-mobile-nav-toggle" type="button" aria-expanded="false" aria-controls="{{ controls }}" data-ui-mobile-nav aria-label="{{ label }}">{{ icon('lucide:menu') }}</button>{%- endmacro %}
+
+{% macro provider_mark(provider) -%}{% set normalized = provider|lower %}<span class="ui-provider ui-provider--{{ normalized }}">{{ provider }}</span>{%- endmacro %}
+{% macro money(formatted_amount, currency, label=none) -%}<data class="ui-money"{% if label %} aria-label="{{ label }}"{% endif %}>{{ formatted_amount }} <span>{{ currency }}</span></data>{%- endmacro %}
+{% macro timestamp(iso_value, display_value) -%}<time class="ui-timestamp" datetime="{{ iso_value }}">{{ display_value }}</time>{%- endmacro %}
+{% macro trend_value(value, direction='neutral') -%}<span class="ui-trend ui-trend--{{ direction }}">{% if direction == 'up' %}↑{% elif direction == 'down' %}↓{% else %}→{% endif %} {{ value }}</span>{%- endmacro %}
+{% macro chart_shell(title, description=none, status='ready') -%}<figure class="ui-chart" data-ui-chart-status="{{ status }}"><figcaption><h3>{{ title }}</h3>{% if description %}<p>{{ description }}</p>{% endif %}</figcaption><div class="ui-chart__body">{% if status == 'loading' %}{{ skeleton(4, 'Loading chart') }}{% elif status == 'empty' %}{{ empty_state('No chart data', 'Data will appear after real events are recorded.', icon_name='lucide:bar-chart-3') }}{% elif status == 'error' %}{{ alert('The chart could not be loaded. Try again safely.', 'danger') }}{% else %}{{ caller() }}{% endif %}</div></figure>{%- endmacro %}

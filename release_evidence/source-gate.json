@@ -1,0 +1,16 @@
+{
+  "failures": [],
+  "metrics": {
+    "html_rendering_sinks": 62,
+    "legacy_inline_handlers": 67,
+    "legacy_style_attributes": 660,
+    "templates": 130
+  },
+  "passed": true,
+  "schema": "portfolio.release-gate.v1",
+  "warnings": [
+    "legacy_inline_handlers=67; owner=frontend; due=2026-08-15",
+    "legacy_style_attributes=660; owner=frontend; due=2026-08-15",
+    "html_rendering_sinks=62; audited_registry_required"
+  ]
+}

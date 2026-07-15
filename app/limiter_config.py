@@ -1,7 +1,8 @@
 """
 app/limiter_config.py — Flask-Limiter proxy-aware key function
 
-Handles Cloudflare / Render / any reverse-proxy that sets X-Forwarded-For.
+Uses the peer address after the application factory's explicitly configured
+trusted-proxy normalization.
 
 Problem:
   - get_remote_address() always returns the proxy IP (e.g. 10.0.0.1) in
@@ -11,8 +12,8 @@ Problem:
     limits by hitting different workers.
 
 Solution:
-  1. Proxy-aware IP extraction: trust CF-Connecting-IP first, then the first
-     non-RFC-1918 address in X-Forwarded-For, then REMOTE_ADDR as last resort.
+  1. Consume request.remote_addr only. ProxyFix may rewrite it only when the
+     deployment explicitly declares its fixed trusted hop count.
   2. Redis-backed storage (configured via RATELIMIT_STORAGE_URL in config.py).
   3. RATELIMIT_STORAGE_URL is set in ProductionConfig from REDIS_URL env var.
 """
@@ -20,8 +21,7 @@ from __future__ import annotations
 
 import ipaddress
 import logging
-
-from flask import request
+from app.request_security import get_client_ip
 
 logger = logging.getLogger(__name__)
 
@@ -46,29 +46,8 @@ def _is_private(ip: str) -> bool:
 
 
 def _extract_real_ip() -> str:
-    """
-    Extract the real client IP from request headers.
-
-    Priority:
-      1. CF-Connecting-IP  (Cloudflare — single, authoritative)
-      2. X-Forwarded-For   (first non-private IP in the chain)
-      3. REMOTE_ADDR       (direct connection fallback)
-    """
-    # Cloudflare sets this to the real client IP — most authoritative
-    cf_ip = request.headers.get("CF-Connecting-IP", "").strip()
-    if cf_ip and not _is_private(cf_ip):
-        return cf_ip
-
-    # X-Forwarded-For can be a comma-separated list; pick leftmost non-private
-    xff = request.headers.get("X-Forwarded-For", "")
-    if xff:
-        for candidate in xff.split(","):
-            candidate = candidate.strip()
-            if candidate and not _is_private(candidate):
-                return candidate
-
-    # Direct connection — trust REMOTE_ADDR
-    return request.remote_addr or "127.0.0.1"
+    """Compatibility wrapper around the verified peer-address helper."""
+    return get_client_ip()
 
 
 def create_limiter_key_func():

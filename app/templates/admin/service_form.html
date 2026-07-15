@@ -81,7 +81,7 @@
   </div>
 </form>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 function updateIconPreview(value) {
   const el = document.getElementById('iconEl');
   if (el && value.trim()) {

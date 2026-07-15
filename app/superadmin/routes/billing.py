@@ -18,6 +18,7 @@ from functools import wraps
 from flask import (
     Blueprint, render_template, redirect, url_for,
     flash, request, session, current_app, Response,
+    abort,
 )
 from urllib.parse import urlparse
 from flask_login import current_user, logout_user, login_required
@@ -73,6 +74,10 @@ from app.services.billing import (
     force_activate_subscription,
     sync_subscription_from_paymongo,
 )
+from app.services.billing.private_proof_storage import (
+    PrivateProofStorageError,
+    load_private_billing_proof,
+)
 
 
 from app.superadmin.blueprint import superadmin, superadmin_required
@@ -83,8 +88,59 @@ logger = logging.getLogger(__name__)
 @superadmin.route('/billing')
 @superadmin_required
 def billing_overview():
-    """Legacy analytics URL; the unified dashboard now lives in Subscription Monitor."""
-    return redirect(url_for('superadmin.subscription_monitor'), code=302)
+    """Ledger-backed billing operations center."""
+    if not current_app.config.get('BILLING_CENTER_ENABLED', True):
+        return redirect(url_for('superadmin.subscription_monitor'), code=302)
+    from app.services.billing.center_service import superadmin_billing_center
+    center = superadmin_billing_center(
+        search=request.args.get('q', ''),
+        provider=request.args.get('provider', ''),
+        status=request.args.get('status', ''),
+        limit=request.args.get('limit', 50),
+    )
+    return render_template('superadmin/billing_center.html', center=center, page_title='Billing Center')
+
+
+@superadmin.route('/billing/legacy')
+@superadmin_required
+def billing_legacy_overview():
+    """Read-only rollback seam to the previous subscription monitor."""
+    if not current_app.config.get('BILLING_LEGACY_READ_ONLY', True):
+        return redirect(url_for('superadmin.billing_overview'))
+    response = redirect(url_for('superadmin.subscription_monitor', billing_view='legacy-read-only'), code=302)
+    response.headers['X-Billing-View'] = 'legacy-read-only'
+    return response
+
+
+@superadmin.route('/billing/transactions/<transaction_id>')
+@superadmin_required
+def billing_transaction_detail(transaction_id):
+    from app.models import PaymentTransaction
+    from app.services.billing.center_service import transaction_view
+    transaction = db.session.get(PaymentTransaction, transaction_id)
+    if transaction is None:
+        abort(404)
+    return render_template(
+        'superadmin/billing_transaction_detail.html',
+        transaction=transaction_view(transaction),
+        page_title='Transaction detail',
+    )
+
+
+@superadmin.route('/billing/invoices/<int:invoice_id>/download')
+@superadmin_required
+def billing_invoice_download(invoice_id):
+    from app.models import Invoice
+    invoice = db.session.get(Invoice, invoice_id)
+    if invoice is None:
+        abort(404)
+    from app.services.billing.receipt_service import render_invoice_pdf
+    payload = render_invoice_pdf(invoice)
+    response = Response(payload, mimetype='application/pdf')
+    response.headers['Content-Disposition'] = f'attachment; filename="{invoice.invoice_number}.pdf"'
+    response.headers['Cache-Control'] = 'private, no-store, max-age=0'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 @superadmin.route('/billing/sync/<int:profile_id>', methods=['POST'])
 @superadmin_required
@@ -429,6 +485,47 @@ def billing_submissions():
         page_title='Payment Submissions',
     )
 
+
+@superadmin.route('/billing/submissions/<int:submission_id>/proof')
+@superadmin_required
+@limiter.limit('60 per minute')
+def billing_submission_proof(submission_id):
+    """Stream one payment proof to an authorized superadmin only."""
+    submission = db.session.get(PaymentSubmission, submission_id)
+    if submission is None or not submission.payment_proof:
+        abort(404)
+
+    try:
+        content = load_private_billing_proof(submission.payment_proof)
+    except PrivateProofStorageError:
+        logger.warning(
+            'Private billing proof unavailable: submission_id=%s',
+            submission_id,
+        )
+        abort(404)
+    except Exception:
+        logger.exception(
+            'Private billing proof retrieval failed: submission_id=%s',
+            submission_id,
+        )
+        abort(404)
+
+    log_security_event(
+        'billing_proof_viewed',
+        current_user,
+        f'submission_id={submission_id} tenant_id={submission.tenant_id}',
+    )
+    response = Response(content.data, status=200, mimetype=content.mimetype)
+    response.headers['Content-Length'] = str(len(content.data))
+    response.headers['Content-Disposition'] = (
+        f'inline; filename="{content.download_name}"'
+    )
+    response.headers['Cache-Control'] = 'private, no-store, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Content-Security-Policy'] = "default-src 'none'; sandbox"
+    return response
+
 @superadmin.route('/billing/submissions/<int:submission_id>/review', methods=['POST'])
 @superadmin_required
 def billing_submission_review(submission_id):
@@ -472,6 +569,10 @@ def billing_submission_review(submission_id):
             'Use the Approve or Reject buttons on the submission row.',
             'danger',
         )
+        return redirect(url_for('superadmin.billing_submissions'))
+
+    if not review_notes:
+        flash('A review reason is required for approval or rejection.', 'danger')
         return redirect(url_for('superadmin.billing_submissions'))
 
     try:

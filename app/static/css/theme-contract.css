@@ -1,0 +1,50 @@
+/* MyPortfolioHub public-theme behavior contract v1.
+   Theme-owned colors and visual identity remain local to each theme. */
+@font-face{font-family:'Syne';src:url('../fonts/syne-latin-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Syne';src:url('../fonts/syne-latin-700-normal.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:'DM Sans';src:url('../fonts/dm-sans-latin-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'DM Sans';src:url('../fonts/dm-sans-latin-700-normal.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:'JetBrains Mono';src:url('../fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'JetBrains Mono';src:url('../fonts/jetbrains-mono-latin-700-normal.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+:root {
+  --mph-focus-ring: #a5b4fc;
+  --mph-focus-offset: 3px;
+  --mph-touch-target: 44px;
+  --mph-motion-fast: 120ms;
+  --mph-motion-base: 220ms;
+  --mph-motion-ease: cubic-bezier(.4, 0, .2, 1);
+}
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--mph-focus-ring);
+  outline-offset: var(--mph-focus-offset);
+}
+
+:where(button, input, select, textarea) {
+  font: inherit;
+}
+
+:where(button, [role="button"], input[type="button"], input[type="submit"]) {
+  min-height: var(--mph-touch-target);
+}
+
+[hidden] { display: none !important; }
+
+.mph-theme-legal{display:flex;justify-content:center;gap:1rem;padding:1rem;font:inherit}
+.mph-theme-legal a{text-decoration:underline;text-underline-offset:.2em}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+@media (forced-colors: active) {
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline-color: Highlight;
+  }
+}

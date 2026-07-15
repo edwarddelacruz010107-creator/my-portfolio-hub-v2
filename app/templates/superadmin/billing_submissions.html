@@ -3,7 +3,7 @@
 {% block page_title %}Payment Submissions{% endblock %}
 
 {% block extra_css %}
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 /* ── Proof modal ──────────────────────────────────────────── */
 .proof-modal-overlay {
   display: none;
@@ -288,6 +288,7 @@
       {% set sub = submission.subscription %}
       {% set proof = submission.payment_proof %}
       {% set is_image = proof and (proof.lower().endswith('.jpg') or proof.lower().endswith('.jpeg') or proof.lower().endswith('.png') or proof.lower().endswith('.webp')) %}
+      {% set proof_url = url_for('superadmin.billing_submission_proof', submission_id=submission.id) if proof else '' %}
       {% set payment_code = submission.currency_code or 'USD' %}
       <tr data-submission-id="{{ submission.id }}">
         <td style="white-space:nowrap">{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') if submission.submitted_at else '—' }}</td>
@@ -347,7 +348,7 @@
             {% if is_image %}
             <button type="button" class="proof-thumb-btn"
                     data-modal="proof-modal"
-                    data-proof-url="{{ proof|upload_url('billing') }}"
+                    data-proof-url="{{ proof_url }}"
                     data-proof-type="image"
                     data-proof-ref="{{ submission.payment_reference or '' }}"
                     data-proof-tenant="{{ submission.tenant.slug if submission.tenant else '' }}"
@@ -355,15 +356,15 @@
                     data-proof-method="{{ submission.payment_method or '' }}"
                     data-proof-date="{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') if submission.submitted_at else '' }}"
                     title="Click to verify proof">
-              <img src="{{ proof|upload_url('billing') }}"
-                   alt="proof"
+              <img src="{{ proof_url }}"
+                   alt="Payment proof for submission {{ submission.id }}"
                    class="js-proof-thumb-image"/>
               <iconify-icon icon="lucide:zoom-in" width="13"></iconify-icon>
             </button>
             {% else %}
             <button type="button" class="proof-thumb-btn"
                     data-modal="proof-modal"
-                    data-proof-url="{{ proof|upload_url('billing') }}"
+                    data-proof-url="{{ proof_url }}"
                     data-proof-type="document"
                     data-proof-ref="{{ submission.payment_reference or '' }}"
                     data-proof-tenant="{{ submission.tenant.slug if submission.tenant else '' }}"
@@ -501,9 +502,9 @@
     <div class="review-modal-meta" id="review-modal-meta"></div>
 
     <label style="font-size:0.82rem;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:0.35rem;">
-      Review notes <span style="font-weight:400;color:var(--muted)">(optional)</span>
+      Review reason <span aria-hidden="true">*</span>
     </label>
-    <textarea id="review-notes-input" placeholder="Reason, reference confirmation, or additional context…"></textarea>
+    <textarea id="review-notes-input" required placeholder="Reason, reference confirmation, or additional context…"></textarea>
 
     {#
       The form action and hidden fields are set dynamically by JS when the

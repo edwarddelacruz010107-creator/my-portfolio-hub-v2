@@ -310,6 +310,10 @@ class Tenant(db.Model):
     at the application layer.
     """
     __tablename__ = 'tenants'
+    __table_args__ = (
+        db.Index('ix_tenants_created_at', 'created_at'),
+        db.Index('ix_tenants_plan_state', 'plan', 'subscription_state'),
+    )
     # No __bind_key__ → uses SQLALCHEMY_DATABASE_URI (core_db)
 
     id           = db.Column(db.Integer, primary_key=True)
@@ -346,6 +350,12 @@ class Tenant(db.Model):
     payment_methods       = db.relationship('PaymentMethod', back_populates='tenant', cascade='all, delete-orphan', lazy='dynamic')
     payments              = db.relationship('PaymentSubmission', back_populates='tenant', cascade='all, delete-orphan', lazy='dynamic')
     custom_domains        = db.relationship('TenantCustomDomain', back_populates='tenant', cascade='all, delete-orphan', lazy='dynamic')
+    onboarding_workflow   = db.relationship(
+        'OnboardingWorkflow',
+        back_populates='tenant',
+        cascade='all, delete-orphan',
+        uselist=False,
+    )
 
     @property
     def normalized_plan(self) -> str:
@@ -418,6 +428,45 @@ class Tenant(db.Model):
 
     def __repr__(self):
         return f'<Tenant {self.slug}>'
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CORE MODEL: OnboardingWorkflow
+# ═════════════════════════════════════════════════════════════════════════════
+
+class OnboardingWorkflow(db.Model):
+    """Durable setup state for a real tenant workspace.
+
+    This is workflow metadata, not portfolio content. New accounts start with
+    an empty portfolio; the checklist points them to actions that create their
+    own profile, project, theme choice, and publication state.
+    """
+
+    __tablename__ = 'onboarding_workflows'
+    __table_args__ = (
+        db.Index('ix_onboarding_workflows_state_updated', 'state', 'updated_at'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(
+        db.Integer,
+        db.ForeignKey('tenants.id', ondelete='CASCADE'),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    tenant_slug = db.Column(db.String(120), nullable=False, index=True)
+    state = db.Column(db.String(20), nullable=False, default='active', server_default='active')
+    step_state = db.Column(db.JSON, nullable=False, default=dict)
+    started_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+    completed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    dismissed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    tenant = db.relationship('Tenant', back_populates='onboarding_workflow')
+
+    def __repr__(self):
+        return f'<OnboardingWorkflow tenant={self.tenant_slug} state={self.state}>'
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -720,6 +769,12 @@ class Subscription(db.Model):
 
     billing_cycle  = db.Column(db.String(20), default='monthly')
     amount_paid    = db.Column(db.Float, nullable=False, default=0.0)
+    # Phase 5 exact-money dual write.  The legacy float remains readable for
+    # one rollback window; new payment paths also populate this provenance-
+    # preserving minor-unit representation.
+    amount_paid_minor = db.Column(db.BigInteger, nullable=True)
+    amount_paid_currency = db.Column(db.String(3), nullable=True)
+    amount_paid_exponent = db.Column(db.SmallInteger, nullable=True)
     payment_method = db.Column(db.String(100), default='')
 
     # Durable coupon reference for this activation attempt. Session-based
@@ -748,6 +803,7 @@ class Subscription(db.Model):
     expires_at      = db.Column(db.DateTime(timezone=True), nullable=True)
     cancelled_at    = db.Column(db.DateTime(timezone=True), nullable=True)
     last_webhook_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    provider_state_occurred_at = db.Column(db.DateTime(timezone=True), nullable=True, index=True)
     reminder_sent_7d  = db.Column(db.Boolean, default=False, nullable=False)
     reminder_sent_30d = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
@@ -1035,6 +1091,8 @@ class Invoice(db.Model):
     discount_redemption_id = db.Column(db.Integer, db.ForeignKey('discount_redemptions.id', ondelete='SET NULL'), nullable=True)
 
     plan = db.Column(db.String(50), nullable=False)
+    plan_version = db.Column(db.String(80), nullable=True)
+    plan_snapshot = db.Column(db.JSON, nullable=True)
     billing_cycle = db.Column(db.String(20), nullable=False, default='monthly')
 
     # Accounting breakdown. amount_total = amount_subtotal - amount_discount + amount_tax.
@@ -1044,6 +1102,13 @@ class Invoice(db.Model):
     tax_rate         = db.Column(db.Numeric(5, 4), nullable=False, default=0)  # e.g. 0.1200 = 12%
     amount_tax       = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     amount_total     = db.Column(db.Numeric(10, 2), nullable=False)
+
+    # Original charged value.  This is deliberately independent from the
+    # reporting/display currency and is populated only when provider evidence
+    # supplies all three fields.
+    original_amount_minor = db.Column(db.BigInteger, nullable=True)
+    original_currency = db.Column(db.String(3), nullable=True)
+    currency_exponent = db.Column(db.SmallInteger, nullable=True)
 
     currency = db.Column(db.String(10), nullable=False, default='USD')
     coupon_code = db.Column(db.String(100), nullable=True)
@@ -1077,6 +1142,7 @@ class WebhookEvent(db.Model):
     __tablename__ = 'webhook_events'
     __table_args__ = (
         db.Index('ix_webhook_events_type_received', 'event_type', 'received_at'),
+        db.Index('ix_webhook_processed_received', 'processed', 'received_at'),
     )
 
     id              = db.Column(db.Integer, primary_key=True)
@@ -1207,6 +1273,8 @@ class PaymentSubmission(db.Model):
     payment_method_id = db.Column(db.Integer, db.ForeignKey('payment_methods.id'), nullable=True, index=True)
     plan              = db.Column(db.String(50), nullable=False, default='Basic')
     amount_paid       = db.Column(db.Float, default=0.0)
+    amount_paid_minor = db.Column(db.BigInteger, nullable=True)
+    amount_paid_exponent = db.Column(db.SmallInteger, nullable=True)
     amount_usd        = db.Column(db.Float, nullable=True)
     currency_code     = db.Column(db.String(3), nullable=False, default='USD', server_default='USD')
     exchange_rate     = db.Column(db.Numeric(18, 8), nullable=True)
@@ -2030,6 +2098,7 @@ class Inquiry(db.Model):
         db.Index('ix_inquiries_tenant_sender_read', 'tenant_slug', 'sender', 'is_read'),
         db.Index('ix_inquiries_updated_at', 'updated_at'),
         db.Index('ix_inquiries_tenant_id', 'tenant_id'),
+        db.Index('ix_inquiries_tenant_created', 'tenant_id', 'created_at'),
     )
 
     id         = db.Column(db.Integer, primary_key=True)
@@ -2172,6 +2241,7 @@ class ActivityLog(db.Model):
         db.Index('ix_activitylog_created_at', 'created_at'),
         db.Index('ix_activitylog_tenant_action', 'tenant_slug', 'action'),
         db.Index('ix_activitylog_user_tenant', 'user_id', 'tenant_slug'),
+        db.Index('ix_activitylog_tenant_created', 'tenant_id', 'created_at'),
     )
 
     id          = db.Column(db.Integer, primary_key=True)

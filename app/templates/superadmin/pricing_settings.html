@@ -282,8 +282,8 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/pricing-cms.js') }}"></script>
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/pricing-cms.js') }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
   // Client-side convenience only — server enforces single-highlight
   // authoritatively in both the manual save path
   // (pricing_settings.py::_save_form_data) and the autosave path

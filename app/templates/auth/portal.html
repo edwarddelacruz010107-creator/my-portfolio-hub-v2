@@ -39,13 +39,10 @@
 {% include 'partials/_favicons.html' %}
   <title>{{ 'Create your account' if active_tab == 'signup' else 'Sign in' }} — Portfolio Hub</title>
   
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
-  
-  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css', v='20260714-v3') }}">  
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
   <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">(function(){var t=null;try{t=localStorage.getItem('phPublicTheme');}catch(e){} if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}})();</script>
-  <style>
+  <style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
     *, *::before, *::after { box-sizing: border-box; }
 
     /* ── Token system — mirrors app/templates/auth/login.html exactly ── */

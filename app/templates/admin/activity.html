@@ -3,7 +3,7 @@
 {% block page_title %}Activity Log{% endblock %}
 
 {% block extra_css %}
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 /* ═══════════════════════════════════════════════════════════════
    Activity Log — v6 UI  (frontend only, no backend changes)
    ═══════════════════════════════════════════════════════════════ */

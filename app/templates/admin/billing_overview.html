@@ -13,6 +13,10 @@
 {% set is_expired = status in ('expired', 'none', 'unlicensed') %}
 {% set is_admin_plan = is_administrator_plan|default(false) %}
 
+{% if legacy_read_only|default(false) %}
+<div class="alert alert-info" role="status"><strong>Legacy read-only view.</strong> Plan and payment actions are available only in the current Billing Center.</div>
+{% endif %}
+
 {# ── Page header ── #}
 <div class="page-hd">
   <div class="page-hd-left">
@@ -44,7 +48,7 @@
 <div class="alert alert-warning" style="margin-bottom:1.5rem">
   <iconify-icon icon="lucide:clock" width="16"></iconify-icon>
   <span><strong>{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</strong> left in your trial.
-    <a href="{{ url_for('admin.billing_plans') }}" style="font-weight:600">Subscribe now</a> to avoid interruption.</span>
+    {% if not legacy_read_only|default(false) %}<a href="{{ url_for('admin.billing_plans') }}">Subscribe now</a> to avoid interruption.{% else %}Open the current Billing Center to subscribe.{% endif %}</span>
 </div>
 {% elif is_grace %}
 <div class="alert alert-warning" style="margin-bottom:1.5rem">
@@ -142,7 +146,7 @@
   </div>
 
   <div class="sub-actions">
-    {% if not is_admin_plan %}
+    {% if not is_admin_plan and not legacy_read_only|default(false) %}
     <a href="{{ url_for('admin.billing_plans') }}" class="btn btn-primary btn-sm">
       <iconify-icon icon="lucide:layers" width="14"></iconify-icon>
       {% if is_active %}Change Plan{% else %}Subscribe{% endif %}
@@ -204,11 +208,11 @@
       </ul>
       {% if is_current and is_active %}
         <span class="badge-status badge-active" style="align-self:flex-start;margin-top:auto">Current Plan</span>
-      {% else %}
+      {% elif not legacy_read_only|default(false) %}
         <a href="{{ url_for('admin.billing_plans') }}" class="btn btn-ghost btn-sm" style="align-self:flex-start;margin-top:auto">
           {% if is_current %}Renew{% else %}Select Plan{% endif %}
         </a>
-      {% endif %}
+      {% else %}<span class="badge-status badge-inactive">Read only</span>{% endif %}
     </div>
     {% endfor %}
   </div>

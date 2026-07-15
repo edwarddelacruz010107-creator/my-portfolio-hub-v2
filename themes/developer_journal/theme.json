@@ -4,6 +4,7 @@
   "icon": "⎇",
   "icon_label": "Developer Journal branch icon",
   "version": "1.1.0",
+  "manifest_schema_version": "1.0.0",
   "description": "A polished light-and-dark developer portfolio styled like a living commit journal. Fully connected to profile data, projects, skills, services, experience, certificates, testimonials, social links, resume, billing navigation, SEO, and the tenant contact backend.",
   "author": "Pypy Project + MyPortfolioHub",
   "premium": true,
@@ -39,5 +40,24 @@
     "background": "#F6F5F1",
     "text": "#1B1F23"
   },
-  "sort_order": 40
+  "sort_order": 40,
+  "template_entry_points": {"portfolio": "index.html"},
+  "assets": [
+    {"path": "css/theme-contract.css", "type": "style"},
+    {"path": "themes/developer_journal/theme.css", "type": "style"},
+    {"path": "themes/developer_journal/theme.js", "type": "script"},
+    {"path": "themes/developer_journal/preview.svg", "type": "preview"}
+  ],
+  "supported_sections": {"profile": true, "projects": true, "project_links": true, "skills": true, "services": true, "testimonials": true, "certificates": true, "experience": true, "contact": true, "reactions": false, "seo": true, "analytics_hooks": true, "mobile_navigation": true, "consent_privacy": true, "empty_states": true},
+  "configurable_tokens": {
+    "accent": {"label": "Journal accent", "css_variable": "--accent", "type": "color", "default": "#9A6B14"},
+    "secondary_accent": {"label": "Secondary accent", "css_variable": "--accent-2", "type": "color", "default": "#0E6E6C"},
+    "background": {"label": "Paper", "css_variable": "--bg", "type": "color", "default": "#F6F5F1"},
+    "text": {"label": "Ink", "css_variable": "--ink", "type": "color", "default": "#1B1F23"},
+    "corner_radius": {"label": "Corner radius", "css_variable": "--radius", "type": "length", "unit": "px", "min": 0, "max": 24, "default": "10px"}
+  },
+  "csp": {"remote_hosts": [], "inline_scripts": false, "inline_event_handlers": false},
+  "screenshot_provenance": {"source": "bundled_preview_asset", "content": "labeled_design_fixture", "captured_at": "2026-07-14"},
+  "compatibility": {"contract": "theme-contract-1.0", "app_min": "7.0", "app_max": "7.x"},
+  "migration_notes": ["Existing selected_theme=developer_journal rows remain compatible."]
 }

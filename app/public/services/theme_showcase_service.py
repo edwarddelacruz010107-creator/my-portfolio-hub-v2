@@ -58,6 +58,7 @@ _PUBLIC_FIELDS = (
     "icon_label",
     "supports_dark_mode",
     "supports_light_mode",
+    "preview_asset",
 )
 
 
@@ -99,7 +100,10 @@ def _project(meta: dict) -> dict:
         "tags": tags,
         "premium": bool(meta.get("premium", False)),
         "category": meta.get("category") or "",
-        "preview_image": meta.get("thumbnail_url") or meta.get("preview_image") or "",
+        # The anonymous marketplace always uses the bundled, provenance-labeled
+        # asset. Catalog uploads remain available to authenticated operators.
+        "preview_image": "",
+        "preview_asset": f"themes/{meta.get('id')}/preview.svg",
         "screenshot_images": meta.get("preview_images") or [],
         "supports_dark_mode": bool(meta.get("supports_dark_mode", True)),
         "supports_light_mode": bool(meta.get("supports_light_mode", False)),

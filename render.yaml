@@ -17,10 +17,9 @@
 #              PAYMONGO_WEBHOOK_SECRET when billing is disabled.
 #
 #   [MED]      Ordered preDeployCommand steps correctly:
-#              1. db upgrade (core schema)
-#              2. ensure-tenant-schema (tenant DB tables)
-#              3. ensure-default-tenant (tenant + profile rows)
-#              4. create-superadmin (auth user — THE CRITICAL STEP)
+#              1. db-upgrade-all (locked core + tenant Alembic histories)
+#              2. ensure-default-tenant (tenant + profile rows)
+#              3. create-superadmin (auth user — THE CRITICAL STEP)
 
 services:
   - type: web
@@ -29,18 +28,16 @@ services:
     buildCommand: pip install -r requirements.txt
 
     # ── Deployment sequence — ORDER MATTERS ─────────────────────────
-    # Step 1: Apply all pending core DB migrations
-    # Step 2: Create tenant-bound tables on the tenant bind; if TENANT_DATABASE_URL is blank, it reuses CORE_DATABASE_URL
-    # Step 3: Ensure 'default' Tenant row + Profile exist
-    # Step 4: Ensure the superadmin user exists (existing passwords are preserved)
+    # Step 1: Acquire the migration lock; migrate and verify both DB binds
+    # Step 2: Ensure 'default' Tenant row + Profile exist
+    # Step 3: Ensure the superadmin user exists (existing passwords are preserved)
     #
     # All commands are idempotent — safe to run on every deploy.
     # If SUPERADMIN_PASSWORD is set as an env var, it is used.
     # SUPERADMIN_PASSWORD is required only for first-time creation and is
     # never printed. Rotate it immediately if it has ever appeared in logs.
     preDeployCommand: >
-      (if [ "$USE_ORM_BOOTSTRAP_ON_STARTUP" = "true" ]; then flask bootstrap-production-db; else flask db upgrade || flask bootstrap-production-db; fi) &&
-      flask ensure-tenant-schema &&
+      flask db-upgrade-all &&
       flask ensure-default-tenant &&
       flask create-superadmin
 
@@ -58,7 +55,7 @@ services:
 
     plan: starter
     autoDeploy: true
-    healthCheckPath: /health
+    healthCheckPath: /readyz
 
     envVars:
       - key: FLASK_ENV
@@ -69,19 +66,27 @@ services:
         value: "3.12.0"
       - key: TOTP_VALID_WINDOW
         value: "1"
+      # Render terminates TLS at exactly one trusted proxy hop.
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
+      # Sensitive uploads fail closed once the scanner command is installed.
+      - key: MALWARE_SCAN_REQUIRED
+        value: "true"
+      - key: MALWARE_SCANNER_COMMAND
+        value: "clamdscan --no-summary"
 
       # ── Docker entrypoint controls ─────────────────────────────────
       # These are used when deploying with the Dockerfile.
       - key: RUN_MIGRATIONS
         value: "true"
       - key: USE_ORM_BOOTSTRAP_ON_STARTUP
-        value: "true"
+        value: "false"
       - key: CREATE_SUPERADMIN_ON_STARTUP
         value: "false"
       - key: AUTO_ENSURE_TENANT_SCHEMA
         value: "false"
       - key: ALLOW_CREATE_ALL_BOOTSTRAP_ON_MIGRATION_FAILURE
-        value: "true"
+        value: "false"
 
       # ── Redis ────────────────────────────────────────────────────
       - key: REDIS_URL
@@ -101,6 +106,8 @@ services:
       # TENANT_DATABASE_URL is optional; when omitted, tenant-bound tables use CORE_DATABASE_URL.
       - key: CORE_DATABASE_URL
         sync: false
+      - key: DB_SSLMODE
+        value: require
 
       # ── Superadmin bootstrap ─────────────────────────────────────
       # Set these in the Render dashboard.
@@ -164,6 +171,10 @@ services:
       # Change to "true" and set the keys below when enabling billing.
       - key: PAYMONGO_ENABLED
         value: "false"
+      # Ledger reporting excludes test-mode transactions. Change this to
+      # "live" only when the matching live API keys and webhook are installed.
+      - key: PAYMONGO_MODE
+        value: "test"
       - key: PAYMONGO_PUBLIC_KEY
         sync: false
       - key: PAYMONGO_SECRET_KEY

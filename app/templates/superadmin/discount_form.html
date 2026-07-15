@@ -96,7 +96,7 @@
   </form>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 document.getElementById('generate-code-btn').addEventListener('click', function () {
   fetch("{{ url_for('superadmin.discount_generate_code') }}")
     .then(function (res) { return res.text(); })

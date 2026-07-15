@@ -69,7 +69,7 @@
   </form>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 .back-link{display:inline-flex;align-items:center;gap:.4rem;color:var(--text-muted);font-size:.85rem;text-decoration:none}
 .back-link:hover{color:var(--accent)}
 .form-group{display:flex;flex-direction:column;gap:.5rem}

@@ -15,7 +15,7 @@
     to put behind /templates.
 -->
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" data-theme-storage="phPublicTheme">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -28,7 +28,10 @@
   {% set _seo = platform_seo(title=_seo_title|trim, description=_seo_description|trim, canonical=_seo_canonical|trim, robots=_seo_robots|trim, page_name=_seo_title|trim) %}
   {% include 'partials/_seo_meta.html' %}
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/public-design-system.css') }}"/>
+  <script src="{{ url_for('static', filename='js/theme-bootstrap.js', v='20260714-v1') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css', v='20260714-v3') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components-v1.css', v='20260714-v1') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/public-design-system.css', v='20260714-v2') }}"/>
   {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -111,32 +114,8 @@
     </div>
   </footer>
 
-  <script>
-    (function () {
-      var root = document.documentElement;
-      var stored = null;
-      try { stored = localStorage.getItem('phPublicTheme'); } catch (e) {}
-      if (stored === 'light' || stored === 'dark') { root.setAttribute('data-theme', stored); }
-
-      var toggle = document.getElementById('ph-theme-toggle');
-      if (toggle) {
-        toggle.addEventListener('click', function () {
-          var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-          root.setAttribute('data-theme', next);
-          try { localStorage.setItem('phPublicTheme', next); } catch (e) {}
-        });
-      }
-
-      var navToggle = document.getElementById('ph-nav-toggle');
-      var navLinks = document.getElementById('ph-nav-links');
-      if (navToggle && navLinks) {
-        navToggle.addEventListener('click', function () {
-          var open = navLinks.classList.toggle('is-open');
-          navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        });
-      }
-    })();
-  </script>
+  <script src="{{ url_for('static', filename='js/components-v1.js', v='20260714-v1') }}"></script>
+  <script src="{{ url_for('static', filename='js/public-shell.js', v='20260714-v1') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

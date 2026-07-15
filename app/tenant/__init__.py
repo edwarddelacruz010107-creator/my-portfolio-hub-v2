@@ -35,6 +35,7 @@ from werkzeug.utils import secure_filename
 from app import db, csrf, limiter, cache
 from app.forms import PlanSelectionForm
 from app.security import FileUploadPolicy, log_security_event
+from app.request_security import get_client_ip
 from app.models.portfolio import (
     Profile, Project, Skill, Testimonial, Service, Certificate, WorkExperience,
     Inquiry, Subscription, TenantCommunicationSettings,
@@ -320,6 +321,11 @@ def project_detail(slug: str):
     )
     project.increment_views()
     db.session.commit()
+    try:
+        from app.services.notification_service import publish_project_view_milestone
+        publish_project_view_milestone(project)
+    except Exception:
+        current_app.logger.exception('Project view milestone notification failed: project_id=%s', project.id)
 
     related = (
         Project.query
@@ -553,7 +559,7 @@ def billing_history():
 @csrf.exempt
 @limiter.limit(
     "5 per minute; 20 per hour",
-    key_func=lambda: f"{g.get('tenant_slug', 'default')}:{request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip()}"
+    key_func=lambda: f"{g.get('tenant_slug', 'default')}:{get_client_ip()}"
 )
 def contact():
     """
@@ -583,12 +589,9 @@ def contact():
     message    = raw.get('message', '').strip()
     sub_id     = raw.get('submission_id', '').strip()[:80]
 
-    # Client IP (prefer first hop of X-Forwarded-For)
-    ip = (request.headers.get('X-Forwarded-For', request.remote_addr) or '')
-    if ',' in ip:
-        ip = ip.split(',')[0].strip()
+    ip = get_client_ip()
 
-    from app.services.contact_service import process_contact_submission
+    from app.services.communication.contact_service import process_contact_submission
     result = process_contact_submission(
         tenant_slug=tenant_slug,
         name=name,

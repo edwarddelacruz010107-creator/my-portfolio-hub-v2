@@ -150,6 +150,12 @@ def dashboard():
     dashboard_service = DashboardService()
     tenant_context_payload = dashboard_service.build_context(current_user)
     tenant_context = tenant_context_payload['tenant_context']
+    from app.services.tenant.onboarding_service import build_onboarding_checklist
+    onboarding = build_onboarding_checklist(
+        tenant_id=current_user.tenant_id,
+        tenant_slug=current_user.tenant_slug,
+        profile=profile,
+    )
 
     return render_template(
         'admin/dashboard.html',
@@ -165,6 +171,7 @@ def dashboard():
         tenant_context=tenant_context,
         subscription_badge=tenant_context_payload['subscription_badge'],
         trial_days_left=tenant_context_payload['trial_days_left'],
+        onboarding=onboarding,
     )
 
 @admin.route('/dashboard')

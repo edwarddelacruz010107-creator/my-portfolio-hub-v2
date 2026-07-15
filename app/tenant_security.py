@@ -54,6 +54,8 @@ RESERVED_SLUGS: frozenset[str] = frozenset({
     "dashboard",
     "health",
     "heartbeat",
+    "livez",
+    "readyz",
     "favicon",
     "favicon.ico",
     "robots",
@@ -282,10 +284,8 @@ def resolve_active_tenant() -> str:
 # ── Security event logging ────────────────────────────────────────────────────
 
 def _get_ip() -> str:
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()[:45]
-    return (request.remote_addr or "unknown")[:45]
+    from app.request_security import get_client_ip
+    return get_client_ip()
 
 
 def _log_security(event_type: str, description: str, severity: str = "info") -> None:

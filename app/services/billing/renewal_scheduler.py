@@ -18,7 +18,6 @@ These flags are reset when the tenant renews (handled by billing service hooks).
 """
 
 import logging
-from datetime import timedelta
 
 from flask import current_app
 from app.utils.datetime_utils import ensure_utc_aware, utc_now
@@ -69,55 +68,47 @@ def _days_until_expiry(sub) -> int | None:
 # Notification dispatch
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _create_notification(db, SubscriptionNotification, sub, notif_type: str,
-                          title: str, message: str) -> 'SubscriptionNotification':
-    notif = SubscriptionNotification(
-        tenant_id=sub.tenant_id,
-        subscription_id=sub.id,
-        notification_type=notif_type,
-        title=title,
-        message=message,
-        is_read=False,
-        sent_via_dashboard=True,
-        sent_via_email=False,
-    )
-    db.session.add(notif)
-    return notif
+def _create_notification(sub, template_key: str, *, channels=("in_app",)):
+    """Publish one idempotent subscription event through the canonical service."""
+    from app.services.notification_service import Recipient, publish_notification
+
+    expires_on = sub.expires_at.strftime('%B %d, %Y') if sub.expires_at else 'Unavailable'
+    parameters = {"plan_name": (sub.plan or "Subscription").title()}
+    if template_key in {"billing.reminder_7d", "billing.reminder_30d"}:
+        parameters["expires_on"] = expires_on
+    occurrence = sub.expires_at or sub.started_at or sub.id
+    return publish_notification(
+        recipient=Recipient.tenant(int(sub.tenant_id)),
+        event_type=template_key,
+        template_key=template_key,
+        parameters=parameters,
+        dedupe_key=f"{template_key}:subscription:{sub.id}:{occurrence}",
+        entity_type="subscription",
+        entity_id=sub.id,
+        action_route="admin.billing_overview",
+        priority="high" if template_key in {"billing.expired", "billing.reminder_7d"} else "normal",
+        channels=channels,
+        commit=False,
+    )[0]
 
 
-def _try_send_email(sub, subject: str, body: str) -> bool:
-    """
-    Send renewal notification email via MailerSend.
-    v5.0: Flask-Mail / SMTP removed. MailerSend is the sole provider.
-    """
+def _recipient_for_notification(notification) -> str | None:
+    tenant = notification.target_tenant
+    if tenant is None:
+        return None
+    recipient = tenant.contact_email or tenant.email or None
+    if recipient:
+        return recipient
     try:
-        tenant = sub.tenant
-        recipient = (
-            tenant.contact_email or
-            tenant.email or
-            None
-        )
-        if not recipient:
-            # Try first admin user email
-            try:
-                first_user = tenant.users.first()
-                recipient = first_user.email if first_user else None
-            except Exception:
-                recipient = None
-        if not recipient:
-            logger.warning('No recipient email for tenant_id=%s', sub.tenant_id)
-            return False
+        first_user = tenant.users.first()
+        return first_user.email if first_user else None
+    except Exception:
+        return None
 
-        from app.services.mailersend_service import send_email
-        ok, _ = send_email(recipient, subject, body)
-        if ok:
-            logger.info('Renewal email sent via MailerSend to %s (tenant_id=%s)', recipient, sub.tenant_id)
-            return True
-        logger.error('Renewal email failed for %s (tenant_id=%s) — MailerSend returned error', recipient, sub.tenant_id)
-        return False
-    except Exception as exc:
-        logger.error('Renewal email failed for tenant_id=%s: %s', sub.tenant_id, exc)
-        return False
+
+def _deliver_notification_email(recipient: str, subject: str, body: str):
+    from app.services.mailersend_service import send_email
+    return send_email(recipient, subject, body)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -139,8 +130,7 @@ def run_renewal_check(app=None):
     with _app.app_context():
         try:
             from app import db
-            from app.models.portfolio import Subscription, Tenant, Profile
-            from app.models.portfolio import SubscriptionNotification
+            from app.models.portfolio import Subscription, Profile
 
             now = utc_now()
             logger.info('[RenewalScheduler] Starting daily check at %s UTC', now.isoformat())
@@ -193,9 +183,6 @@ def run_renewal_check(app=None):
 
                     tenant = sub.tenant
                     plan_label = (sub.plan or 'Subscription').title()
-                    expires_str = sub.expires_at.strftime('%B %d, %Y') if sub.expires_at else 'N/A'
-                    tenant_name = tenant.company_name or tenant.slug
-
                     # ── AUTO-EXPIRE ──────────────────────────────────────────
                     if days_left <= 0:
                         logger.info('[RenewalScheduler] Expiring sub id=%s tenant=%s', sub.id, tenant.slug)
@@ -210,71 +197,21 @@ def run_renewal_check(app=None):
                         if not other_active and tenant.status == 'active':
                             tenant.status = 'suspended'
 
-                        _create_notification(
-                            db, SubscriptionNotification, sub,
-                            notif_type='expired',
-                            title='Subscription Expired',
-                            message=(
-                                f'Your {plan_label} subscription has expired. '
-                                f'Please renew to restore access.'
-                            ),
-                        )
+                        _create_notification(sub, 'billing.expired', channels=('in_app', 'email'))
                         expired_count += 1
 
                     # ── 7-DAY REMINDER (monthly) ─────────────────────────────
                     elif _is_monthly(sub) and days_left == 7 and not sub.reminder_sent_7d:
-                        title = 'Subscription Expiring Soon'
-                        body = (
-                            f'Your {plan_label} subscription will expire in 7 days '
-                            f'on {expires_str}.\n'
-                            f'Renew now to avoid interruption of service.'
-                        )
-                        notif = _create_notification(
-                            db, SubscriptionNotification, sub,
-                            notif_type='reminder_7d',
-                            title=title,
-                            message=body,
-                        )
+                        _create_notification(sub, 'billing.reminder_7d', channels=('in_app', 'email'))
                         sub.reminder_sent_7d = True
-
-                        email_body = (
-                            f'Hello {tenant_name},\n\n'
-                            f'Your {plan_label} subscription will expire on {expires_str}.\n\n'
-                            f'Please renew before the expiration date to avoid service interruption.\n\n'
-                            f'Thank you.'
-                        )
-                        sent = _try_send_email(sub, 'Subscription Expiry Reminder', email_body)
-                        if sent:
-                            notif.sent_via_email = True
 
                         reminder_7d_count += 1
                         logger.info('[RenewalScheduler] 7d reminder sent: tenant=%s plan=%s', tenant.slug, plan_label)
 
                     # ── 30-DAY REMINDER (yearly / custom) ────────────────────
                     elif _is_yearly_or_longer(sub) and days_left == 30 and not sub.reminder_sent_30d:
-                        title = 'Subscription Expiring Soon'
-                        body = (
-                            f'Your {plan_label} subscription will expire in 30 days '
-                            f'on {expires_str}.\n'
-                            f'Renew now to continue enjoying premium features.'
-                        )
-                        notif = _create_notification(
-                            db, SubscriptionNotification, sub,
-                            notif_type='reminder_30d',
-                            title=title,
-                            message=body,
-                        )
+                        _create_notification(sub, 'billing.reminder_30d', channels=('in_app', 'email'))
                         sub.reminder_sent_30d = True
-
-                        email_body = (
-                            f'Hello {tenant_name},\n\n'
-                            f'Your {plan_label} subscription will expire on {expires_str}.\n\n'
-                            f'Please renew before the expiration date to avoid service interruption.\n\n'
-                            f'Thank you.'
-                        )
-                        sent = _try_send_email(sub, 'Subscription Expiry Reminder', email_body)
-                        if sent:
-                            notif.sent_via_email = True
 
                         reminder_30d_count += 1
                         logger.info('[RenewalScheduler] 30d reminder sent: tenant=%s plan=%s', tenant.slug, plan_label)
@@ -287,9 +224,20 @@ def run_renewal_check(app=None):
                     continue
 
             db.session.commit()
+            from app.services.notification_service import (
+                process_pending_email_deliveries,
+                purge_notification_retention,
+            )
+            delivery_result = process_pending_email_deliveries(
+                recipient_resolver=_recipient_for_notification,
+                sender=_deliver_notification_email,
+                limit=50,
+            )
+            purged_notifications = purge_notification_retention(limit=500)
             logger.info(
-                '[RenewalScheduler] Done. Processed=%d Activated=%d Expired=%d 7dReminders=%d 30dReminders=%d',
+                '[RenewalScheduler] Done. Processed=%d Activated=%d Expired=%d 7dReminders=%d 30dReminders=%d EmailOutbox=%s',
                 processed, activated_count, expired_count, reminder_7d_count, reminder_30d_count,
+                {**delivery_result, 'retention_purged': purged_notifications},
             )
 
         except Exception as exc:
@@ -311,22 +259,9 @@ def on_subscription_renewed(sub, db):
     Call this from billing service after activating a renewed subscription.
     """
     try:
-        from app.models.portfolio import SubscriptionNotification
         sub.reminder_sent_7d  = False
         sub.reminder_sent_30d = False
-
-        plan_label = (sub.plan or 'Subscription').title()
-        notif = SubscriptionNotification(
-            tenant_id=sub.tenant_id,
-            subscription_id=sub.id,
-            notification_type='renewed',
-            title='Subscription Renewed Successfully',
-            message=f'Your {plan_label} subscription has been renewed. Thank you!',
-            is_read=False,
-            sent_via_dashboard=True,
-            sent_via_email=False,
-        )
-        db.session.add(notif)
+        _create_notification(sub, 'billing.renewed')
         logger.info('[RenewalScheduler] Renewal notification created for tenant_id=%s', sub.tenant_id)
     except Exception as exc:
         logger.error('[RenewalScheduler] on_subscription_renewed error: %s', exc)
@@ -337,18 +272,6 @@ def on_subscription_activated(sub, db):
     Create an 'activated' notification when a new subscription goes active.
     """
     try:
-        from app.models.portfolio import SubscriptionNotification
-        plan_label = (sub.plan or 'Subscription').title()
-        notif = SubscriptionNotification(
-            tenant_id=sub.tenant_id,
-            subscription_id=sub.id,
-            notification_type='activated',
-            title='Subscription Activated',
-            message=f'Your {plan_label} subscription is now active. Welcome!',
-            is_read=False,
-            sent_via_dashboard=True,
-            sent_via_email=False,
-        )
-        db.session.add(notif)
+        _create_notification(sub, 'billing.activated')
     except Exception as exc:
         logger.error('[RenewalScheduler] on_subscription_activated error: %s', exc)

@@ -35,6 +35,10 @@ def _create_index_if_missing(inspector, name: str, table: str, columns: list[str
 
 
 def upgrade() -> None:
+    # Tenant-bind DDL is applied by migrations/tenant. Keep this core revision
+    # as a no-op so existing Alembic histories remain connected.
+    return
+
     bind = op.get_bind()
     inspector = sa.inspect(bind)
 
@@ -93,6 +97,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    return
+
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     if not inspector.has_table('work_experiences'):

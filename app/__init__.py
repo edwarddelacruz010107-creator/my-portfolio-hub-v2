@@ -26,7 +26,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from flask import Flask, render_template, g, redirect, url_for, request, send_from_directory, abort
+from flask import Flask, current_app, render_template, g, redirect, url_for, request, send_from_directory, abort
 import flask as _flask_module
 
 # Backwards-compatibility shim: some legacy tests import
@@ -136,25 +136,21 @@ csp = {
     "base-uri": "'self'",
     "script-src": [
         "'self'",
-        "'unsafe-inline'",
-        "https://cdnjs.cloudflare.com",
-        "https://cdn.jsdelivr.net",
-        "https://unpkg.com",
-        "https://api.web3forms.com",
         "https://code.iconify.design",
     ],
+    # Legacy handler attributes are isolated from executable script blocks.
+    # Phase 10's release gate inventories these until all 70 are externalized.
+    "script-src-attr": "'unsafe-inline'",
     "style-src": [
         "'self'",
-        "'unsafe-inline'",
-        "https://fonts.googleapis.com",
-        "https://cdnjs.cloudflare.com",
-        "https://cdn.jsdelivr.net",
     ],
+    # Existing page-local style attributes remain an explicit compatibility
+    # exception; all <style> blocks use nonces and new attributes are blocked
+    # by the source gate baseline.
+    "style-src-attr": "'unsafe-inline'",
     "font-src": [
         "'self'",
         "data:",
-        "https://fonts.gstatic.com",
-        "https://cdn.jsdelivr.net",
     ],
     "img-src": [
         "'self'",
@@ -315,13 +311,20 @@ def create_app(config_name: str = 'default') -> Flask:
     from app.startup_validation import validate_startup_env
     validate_startup_env(app)
 
-    app.wsgi_app = ProxyFix(
-        app.wsgi_app,
-        x_for=1,
-        x_proto=1,
-        x_host=1,
-        x_port=1,
-    )
+    # Forwarding headers are security-sensitive. They affect abuse controls,
+    # secure-cookie handling and absolute URLs, so trust them only behind an
+    # explicitly configured, fixed-length proxy chain.
+    trusted_proxy_hops = int(app.config.get('TRUSTED_PROXY_HOPS', 0) or 0)
+    if trusted_proxy_hops < 0 or trusted_proxy_hops > 5:
+        raise RuntimeError('TRUSTED_PROXY_HOPS must be between 0 and 5.')
+    if trusted_proxy_hops:
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=trusted_proxy_hops,
+            x_proto=trusted_proxy_hops,
+            x_host=trusted_proxy_hops,
+            x_port=trusted_proxy_hops,
+        )
 
     # Do not enforce Talisman HTTPS redirects during testing to avoid
     # interfering with Flask test client (which uses http://localhost).
@@ -332,7 +335,7 @@ def create_app(config_name: str = 'default') -> Flask:
             session_cookie_secure=True,
             strict_transport_security=True,
             content_security_policy=csp,
-            content_security_policy_nonce_in=["script-src"],
+            content_security_policy_nonce_in=["script-src", "style-src"],
         )
 
     logging.basicConfig(
@@ -340,21 +343,22 @@ def create_app(config_name: str = 'default') -> Flask:
         format='%(asctime)s %(levelname)s [%(name)s] %(message)s',
     )
 
+    from app.request_security import begin_request_context, attach_request_context
+    app.before_request(begin_request_context)
+    app.after_request(attach_request_context)
+
     # ── Extensions ────────────────────────────────────────────────────────────
     db.init_app(app)
+    from app.observability import install_query_observer, attach_server_timing
+    install_query_observer(app)
+    app.after_request(attach_server_timing)
     login_manager.init_app(app)
     csrf.init_app(app)
     migrate.init_app(app, db, compare_type=True)
     oauth.init_app(app)
 
-    # Optional tenant schema guard.
-    #
-    # Important production hardening: do not auto-create tenant tables while
-    # Alembic is running (`flask db upgrade`). Creating tables during app
-    # bootstrap can race/conflict with migrations and produce production 500s
-    # or `table already exists` errors. The Docker/Render startup flow now runs
-    # `flask db upgrade` first, then the explicit idempotent
-    # `flask ensure-tenant-schema` command.
+    # Optional read-only tenant schema guard. Schema ownership belongs to the
+    # tenant Alembic history; application startup never creates or alters it.
     cli_args = " ".join(sys.argv).lower()
     is_migration_command = " db " in f" {cli_args} " or "flask db" in cli_args
     is_database_setup_command = (
@@ -363,20 +367,23 @@ def create_app(config_name: str = 'default') -> Flask:
         or "ensure-tenant-schema" in cli_args
         or "ensure-default-tenant" in cli_args
         or "create-superadmin" in cli_args
+        or "db-upgrade" in cli_args
+        or "db-upgrade-all" in cli_args
+        or "db-status" in cli_args
     )
-    auto_ensure_tenant_schema = (
+    validate_tenant_schema_on_startup = (
         os.environ.get('AUTO_ENSURE_TENANT_SCHEMA', '').lower() in ('1', 'true', 'yes')
         or (app.debug and not is_database_setup_command)
     )
 
-    if auto_ensure_tenant_schema and not is_migration_command:
+    if validate_tenant_schema_on_startup and not is_migration_command:
         try:
             with app.app_context():
                 from app.startup_validation import ensure_tenant_schema
                 tenant_engine = db.get_engine(bind_key='tenant')
                 ensure_tenant_schema(app, tenant_engine)
         except Exception as exc:
-            app.logger.warning('Tenant schema validation failed: %s', exc)
+            app.logger.error('Tenant schema validation failed: %s', exc)
 
     # In testing, auto-create the in-memory schema so import-time code that
     # expects tables to exist does not fail. This keeps test bootstrap simple
@@ -559,23 +566,7 @@ def create_app(config_name: str = 'default') -> Flask:
                 db.session.execute(db.text("SELECT 1"))
                 db.session.remove()
 
-                # Run unconditionally — prevents OperationalError on any env when
-                # migration 0032 has not yet been applied to the live database.
-                _ensure_global_email_config_columns()
-
-                # Run unconditionally — prevents OperationalError on
-                # /superadmin/themes/sync when migration 0035 has not yet been
-                # applied to the live database (see _ensure_theme_catalog_columns
-                # docstring for full root-cause audit).
-                _ensure_theme_catalog_columns()
-
-                # Run unconditionally for SQLite dev/test DBs when the users
-                # table schema is behind the current ORM model.
-                _ensure_user_columns()
-                _ensure_tenant_columns()
-
                 if app.debug or app.testing:
-                    _ensure_profile_columns()
                     _ensure_default_tenant()
 
                 try:
@@ -726,6 +717,28 @@ def create_app(config_name: str = 'default') -> Flask:
     app.register_blueprint(heartbeat_bp)
     app.register_blueprint(health_email_bp)
 
+    @app.before_request
+    def _block_legacy_static_payment_proofs():
+        """Deny direct Flask-static access to pre-migration proof files.
+
+        Payment QR codes remain public. A billing asset is blocked only when a
+        PaymentSubmission row identifies that exact filename as customer proof.
+        The check fails closed if classification cannot be completed.
+        """
+        prefix = '/static/uploads/billing/'
+        path = request.path or ''
+        if not path.startswith(prefix):
+            return None
+        filename = path[len(prefix):]
+        if not filename or '/' in filename or '\\' in filename or '..' in filename:
+            abort(404)
+        from app.services.billing.private_proof_storage import (
+            is_legacy_public_billing_proof,
+        )
+        if is_legacy_public_billing_proof(filename):
+            abort(404)
+        return None
+
     # ── Persistent upload serving ─────────────────────────────────────────────
     @app.route('/uploads/<subfolder>/<path:filename>')
     def uploaded_media(subfolder: str, filename: str):
@@ -735,17 +748,26 @@ def create_app(config_name: str = 'default') -> Flask:
         roots. This keeps old profile/project photos visible after storage
         path changes and supports mounted persistent disks in production.
         """
-        from app.services.media.upload_storage import resolve_upload_file, ALLOWED_UPLOAD_FOLDERS
+        from app.services.media.upload_storage import resolve_upload_file, PUBLIC_UPLOAD_FOLDERS
 
         safe_folder = (subfolder or '').strip().replace('\\', '/')
         safe_name = (filename or '').strip().replace('\\', '/')
-        if safe_folder not in ALLOWED_UPLOAD_FOLDERS or not safe_name or '..' in safe_name or safe_name.startswith('/') or '/' in safe_name:
+        if safe_folder not in PUBLIC_UPLOAD_FOLDERS or not safe_name or '..' in safe_name or safe_name.startswith('/') or '/' in safe_name:
             abort(404)
+
+        if safe_folder == 'billing':
+            from app.services.billing.private_proof_storage import (
+                is_legacy_public_billing_proof,
+            )
+            if is_legacy_public_billing_proof(safe_name):
+                abort(404)
 
         target = resolve_upload_file(safe_folder, safe_name)
         if not target:
             abort(404)
-        return send_from_directory(str(target.parent), target.name, conditional=True)
+        response = send_from_directory(str(target.parent), target.name, conditional=True)
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        return response
 
     # ── Custom Jinja2 filters (v3.8) ─────────────────────────────────────────
     from markupsafe import Markup, escape as _escape
@@ -852,6 +874,12 @@ def create_app(config_name: str = 'default') -> Flask:
             from app.services.custom_domain_public import render_custom_domain_portfolio
             return render_custom_domain_portfolio(domain_record)
 
+        from app.services.public_route_contract import resolve_active_subdomain_tenant
+        subdomain_tenant = resolve_active_subdomain_tenant(request.host)
+        if subdomain_tenant is not None:
+            from app.services.custom_domain_public import render_subdomain_portfolio
+            return render_subdomain_portfolio(subdomain_tenant)
+
         from app.public.routes import render_landing_page
         return render_landing_page()
 
@@ -860,10 +888,15 @@ def create_app(config_name: str = 'default') -> Flask:
         """Project detail page for verified custom-domain hosts."""
         from app.services.custom_domain_service import resolve_verified_custom_domain
         domain_record = resolve_verified_custom_domain(request.host)
-        if domain_record is None:
-            return redirect(url_for('root'))
-        from app.services.custom_domain_public import render_custom_domain_project
-        return render_custom_domain_project(domain_record, slug)
+        if domain_record is not None:
+            from app.services.custom_domain_public import render_custom_domain_project
+            return render_custom_domain_project(domain_record, slug)
+        from app.services.public_route_contract import resolve_active_subdomain_tenant
+        subdomain_tenant = resolve_active_subdomain_tenant(request.host)
+        if subdomain_tenant is not None:
+            from app.services.custom_domain_public import render_subdomain_project
+            return render_subdomain_project(subdomain_tenant, slug)
+        abort(404)
 
     # ── 301 backward-compat redirect: /default → /administrator-portfolio ──────
     # The root '/' is the SaaS landing page. The protected default tenant's
@@ -1739,6 +1772,11 @@ def _render_default_project_detail(slug: str):
     )
     project.increment_views()
     db.session.commit()
+    try:
+        from app.services.notification_service import publish_project_view_milestone
+        publish_project_view_milestone(project)
+    except Exception:
+        current_app.logger.exception('Project view milestone notification failed: project_id=%s', project.id)
 
     related = (
         Project.public_for_tenant(TENANT, include_featured_drafts=True)
@@ -1768,19 +1806,15 @@ def _ensure_default_tenant():
         flask ensure-default-tenant
     """
     from app.models.portfolio import Profile, Tenant
-    from flask import current_app
     from sqlalchemy import inspect
 
     try:
         inspector = inspect(db.engine)
         if not inspector.has_table(Profile.__tablename__) or not inspector.has_table(Tenant.__tablename__):
-            if current_app.testing or current_app.debug or db.engine.dialect.name == 'sqlite':
-                db.create_all()
-                logger.info('Created missing database tables at startup')
-            else:
-                raise RuntimeError(
-                    'Database schema is missing. Run "flask db upgrade" or "flask init-db" before starting the app.'
-                )
+            logger.warning(
+                'Database schema is missing. Run "flask db-upgrade-all" before starting the app.'
+            )
+            return
 
         tenant = Tenant.query.filter_by(slug='default').first()
         if not tenant:
@@ -1837,6 +1871,15 @@ import click
 
 def register_cli_commands(app):
     """Register all Flask CLI commands on the app instance."""
+
+    from app.commands.private_billing_proofs import (
+        register_private_billing_proof_commands,
+    )
+    register_private_billing_proof_commands(app)
+    from app.commands.ledger import register_ledger_commands
+    register_ledger_commands(app)
+    from app.commands.ai import register_ai_commands
+    register_ai_commands(app)
 
     @app.cli.command("reset-financial-data")
     @click.option(
@@ -2357,207 +2400,64 @@ def register_cli_commands(app):
 
     @app.cli.command('db-upgrade')
     def cli_db_upgrade():
-        """Run Alembic migrations against the configured database."""
-        from flask_migrate import upgrade
+        """Upgrade and verify the core Alembic history."""
+        from app.services.database_migrations import migration_lock, upgrade_core_database
+
+        with migration_lock():
+            head = upgrade_core_database()
+        click.echo(f'✔  Core database reached Alembic head: {head}')
+
+    @app.cli.command('db-upgrade-all')
+    def cli_db_upgrade_all():
+        """Upgrade core then tenant histories under one deployment lock."""
+        from app.services.database_migrations import (
+            migration_lock,
+            upgrade_core_database,
+            upgrade_tenant_database,
+        )
+
+        with migration_lock():
+            core_head = upgrade_core_database()
+            click.echo(f'✔  Core database reached Alembic head: {core_head}')
+            tenant_head = upgrade_tenant_database()
+            click.echo(f'✔  Tenant database reached Alembic head: {tenant_head}')
+        click.echo('✔  Both migration histories and the tenant schema are verified.')
+
+    @app.cli.command('db-status')
+    def cli_db_status():
+        """Report core and tenant database heads without changing schema."""
+        from app.services.database_migrations import migration_status, verify_tenant_schema
+
+        status = migration_status()
+        failed = False
+        for name in ('core', 'tenant'):
+            expected = status[name]['expected']
+            current = status[name]['current']
+            marker = '✔' if current == expected else '✖'
+            click.echo(f'{marker}  {name}: current={current!r} expected={expected!r}')
+            failed = failed or current != expected
         try:
-            upgrade()
-            click.echo('✔  Database migration completed successfully.')
+            verify_tenant_schema()
+            click.echo('✔  tenant schema matches required tables, columns, and indexes')
         except Exception as exc:
-            click.echo(f'✖  Database migration failed: {exc}')
-            raise
+            click.echo(f'✖  {exc}')
+            failed = True
+        if failed:
+            raise click.ClickException('Database migration verification failed.')
 
     @app.cli.command('bootstrap-production-db')
     def cli_bootstrap_production_db():
-        """
-        Create the current ORM schema for a brand-new production database.
-
-        This is intentionally conservative: it only performs create_all() when
-        the Alembic version table is missing or empty. It is used by the Docker
-        entrypoint as a free-tier Render fallback when the legacy migration chain
-        cannot bootstrap a totally fresh database because older migrations contain
-        duplicate create_index/create_column operations.
-        """
-        from sqlalchemy import inspect as sa_inspect
-
-        inspector = sa_inspect(db.engine)
-        has_alembic = inspector.has_table('alembic_version')
-        if has_alembic:
-            try:
-                existing_versions = [
-                    row[0]
-                    for row in db.session.execute(db.text('SELECT version_num FROM alembic_version')).all()
-                ]
-            except Exception:
-                existing_versions = []
-            if existing_versions:
-                click.echo('✔  alembic_version already exists; skipping create_all bootstrap.')
-                return
-
-        def _is_duplicate_schema_error(exc: Exception) -> bool:
-            message = str(exc).lower()
-            return (
-                'already exists' in message
-                or 'duplicatetable' in message
-                or 'duplicateobject' in message
-                or 'duplicate_table' in message
-                or 'duplicate_object' in message
-            )
-
-        def _create_all_safely(label: str, **kwargs) -> None:
-            try:
-                db.create_all(**kwargs)
-                click.echo(f'✔  {label} schema create_all completed.')
-            except TypeError:
-                # Compatibility with older Flask-SQLAlchemy call shape.
-                if 'bind_key' in kwargs:
-                    db.create_all(bind=kwargs['bind_key'])
-                    click.echo(f'✔  {label} schema create_all completed.')
-                else:
-                    raise
-            except Exception as exc:
-                db.session.rollback()
-                if _is_duplicate_schema_error(exc):
-                    # Render free-tier first deploys can leave the database half-created
-                    # when a previous container crashes mid-bootstrap. Treat duplicate
-                    # table/index errors as recoverable and continue to Alembic stamp;
-                    # the following ensure-tenant-schema/default-tenant commands will
-                    # create any remaining tenant records/tables idempotently.
-                    click.echo(f'⚠  {label} schema already partially exists; continuing bootstrap: {exc}')
-                    return
-                raise
-
-        click.echo('Bootstrapping current ORM schema with SQLAlchemy create_all()...')
-        _create_all_safely('Primary/core')
-
-        _create_all_safely('Tenant bind', bind_key='tenant')
-
-        # Mark the current migration chain as applied only for this first-deploy
-        # create_all bootstrap path. This prevents the inconsistent legacy
-        # Alembic history from re-running against a schema that now already
-        # matches the current ORM models.
-        try:
-            from alembic.config import Config as AlembicConfig
-            from alembic.script import ScriptDirectory
-
-            project_root = Path(app.root_path).parent
-            alembic_cfg = AlembicConfig(str(project_root / 'migrations' / 'alembic.ini'))
-            alembic_cfg.set_main_option('script_location', str(project_root / 'migrations'))
-            heads = ScriptDirectory.from_config(alembic_cfg).get_heads()
-            if len(heads) != 1:
-                raise RuntimeError(f'Expected exactly one Alembic head, found {heads!r}')
-            head = heads[0]
-            db.session.execute(db.text(
-                'CREATE TABLE IF NOT EXISTS alembic_version '
-                '(version_num VARCHAR(128) NOT NULL PRIMARY KEY)'
-            ))
-            db.session.execute(db.text('DELETE FROM alembic_version'))
-            db.session.execute(
-                db.text('INSERT INTO alembic_version (version_num) VALUES (:version_num)'),
-                {'version_num': head},
-            )
-            db.session.commit()
-            click.echo(f'✔  Alembic stamped at head: {head}')
-        except Exception as exc:
-            db.session.rollback()
-            click.echo(f'✖  Could not stamp Alembic head after bootstrap: {exc}')
-            raise
-
-        db.session.commit()
-        click.echo('✔  Production database schema bootstrap complete.')
+        """Reject the removed create_all/stamp migration bypass."""
+        raise click.ClickException(
+            'bootstrap-production-db was removed because it could stamp migrations '
+            'that never ran. Use `flask db-upgrade-all`.'
+        )
 
     @app.cli.command('ensure-tenant-schema')
     def cli_ensure_tenant_schema():
-        """
-        ROOT-CAUSE FIX for: psycopg2.errors.UndefinedTable:
-        relation "profile" does not exist
+        """Backward-compatible alias for the tenant Alembic history."""
+        from app.services.database_migrations import migration_lock, upgrade_tenant_database
 
-        AUDIT FINDING: migrations/env.py (used by `flask db upgrade` /
-        the `db-upgrade` command above) resolves its target via
-        app.utils.db_config.get_database_url() -- a SINGLE URL
-        (DIRECT_DATABASE_URL / DATABASE_URL), which is the CORE database.
-        render.yaml's preDeployCommand runs `flask db upgrade` exactly
-        once, against that single URL. Profile/Skill/Project/Testimonial/
-        Service all declare __bind_key__ = 'tenant' and live on a
-        PHYSICALLY SEPARATE database (TENANT_DATABASE_URL) that this
-        migration chain never connects to -- so those tables are never
-        created there. (migrations/core/env.py and migrations/tenant/env.py
-        exist as an unfinished start on a real Flask-Migrate --multidb
-        split, but have no versions/ directories and are not wired into
-        alembic.ini's script_location, so they are never invoked.)
-
-        This command is the immediate, low-risk hotfix: it creates ONLY
-        the tenant-bound tables, directly against TENANT_DATABASE_URL,
-        using SQLAlchemy's create_all() (idempotent -- CREATE TABLE IF
-        NOT EXISTS semantics under checkfirst=True). It does NOT touch
-        the core database or the existing 28-migration Alembic history,
-        so it carries zero risk to already-applied core migrations.
-
-        This is a structural workaround, not a long-term replacement for
-        a real `flask db init --multidb` conversion (recommended as a
-        separate, carefully-tested follow-up -- see AUDIT_REPORT).
-        
-        FLASK-SQLALCHEMY 3.x COMPATIBILITY FIX:
-        Replaced db.engines['tenant'] with db.get_engine(bind_key='tenant')
-        for Flask-SQLAlchemy 3.x compatibility. The db.engines dict is no
-        longer exposed in Flask-SQLAlchemy 3.x; use get_engine() instead.
-        """
-        from app.models.tenant_data import (
-            Profile,
-            Skill,
-            Project,
-            ProjectReaction,
-            Testimonial,
-            Service,
-            Certificate,
-            WorkExperience
-        )
-
-        # Get the tenant database engine using Flask-SQLAlchemy 3.x compatible API
-        tenant_engine = db.get_engine(bind_key='tenant')
-
-        Profile.__table__.create(
-            bind=tenant_engine,
-            checkfirst=True
-        )
-
-        Skill.__table__.create(
-            bind=tenant_engine,
-            checkfirst=True
-        )
-
-        Project.__table__.create(
-            bind=tenant_engine,
-            checkfirst=True
-        )
-
-        ProjectReaction.__table__.create(
-            bind=tenant_engine,
-            checkfirst=True
-        )
-
-        Testimonial.__table__.create(
-            bind=tenant_engine,
-            checkfirst=True
-        )
-
-        Service.__table__.create(
-            bind=tenant_engine,
-            checkfirst=True
-        )
-
-        Certificate.__table__.create(
-            bind=tenant_engine,
-            checkfirst=True
-        )
-
-        WorkExperience.__table__.create(
-            bind=tenant_engine,
-            checkfirst=True
-        )
-
-        try:
-            db.create_all(bind_key='tenant')
-            click.echo('✔  Tenant-bound schema verified/created on TENANT_DATABASE_URL.')
-        except Exception as exc:
-            click.echo(f'✖  Tenant schema creation failed: {exc}')
-            raise
+        with migration_lock():
+            head = upgrade_tenant_database()
+        click.echo(f'✔  Tenant database reached Alembic head: {head}')

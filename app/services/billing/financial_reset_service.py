@@ -19,6 +19,8 @@ from app.models.core import (
     WebhookEvent,
 )
 from app.models.tenant_data import Profile
+from app.models.ledger import PaymentTransaction
+from app.models.notification import Notification
 from app.services.billing.trial_limits import get_trial_limits
 from app.system_plan import has_administrator_access
 from app.utils.datetime_utils import utc_now
@@ -26,6 +28,7 @@ from app.utils.datetime_utils import utc_now
 
 @dataclass
 class FinancialResetResult:
+    immutable_ledger_transactions_preserved: int = 0
     payment_submissions_deleted: int = 0
     webhook_events_deleted: int = 0
     billing_notifications_deleted: int = 0
@@ -67,11 +70,14 @@ def preview_financial_reset() -> FinancialResetResult:
     }
     non_admin_tenants = Tenant.query.filter(~Tenant.id.in_(protected_ids)).all() if protected_ids else Tenant.query.all()
 
-    billing_notification_count = SubscriptionNotification.query.filter(
+    legacy_billing_notification_count = SubscriptionNotification.query.filter(
         db.or_(
             SubscriptionNotification.subscription_id.isnot(None),
             SubscriptionNotification.notification_type.in_(BILLING_NOTIFICATION_TYPES),
         )
+    ).count()
+    unified_billing_notification_count = Notification.query.filter(
+        Notification.event_type.like("billing.%")
     ).count()
 
     sub_query = Subscription.query
@@ -79,9 +85,12 @@ def preview_financial_reset() -> FinancialResetResult:
         sub_query = sub_query.filter(~Subscription.tenant_id.in_(protected_ids))
 
     return FinancialResetResult(
+        immutable_ledger_transactions_preserved=PaymentTransaction.query.count(),
         payment_submissions_deleted=PaymentSubmission.query.count(),
         webhook_events_deleted=WebhookEvent.query.count(),
-        billing_notifications_deleted=billing_notification_count,
+        billing_notifications_deleted=(
+            legacy_billing_notification_count + unified_billing_notification_count
+        ),
         subscriptions_deleted=sub_query.count(),
         tenants_reset_to_trial=len(non_admin_tenants),
         profiles_reset_to_trial=Profile.query.filter(Profile.tenant_id.in_([t.id for t in non_admin_tenants])).count() if non_admin_tenants else 0,
@@ -107,7 +116,13 @@ def reset_financial_data() -> FinancialResetResult:
     - non-administrator subscription rows
     - non-administrator tenant/profile billing state (fresh trial)
     """
-    result = FinancialResetResult()
+    ledger_count = PaymentTransaction.query.count()
+    if ledger_count:
+        raise RuntimeError(
+            "Financial reset refused because immutable ledger transactions exist; "
+            "use linked reversals or a separately authorized environment teardown"
+        )
+    result = FinancialResetResult(immutable_ledger_transactions_preserved=ledger_count)
     now = utc_now()
     trial_days = int(get_trial_limits().get("trial_duration_days", 7) or 7)
     trial_ends = now + timedelta(days=max(1, trial_days))
@@ -128,6 +143,9 @@ def reset_financial_data() -> FinancialResetResult:
             )
         )
         result.billing_notifications_deleted = billing_notifications.delete(synchronize_session=False)
+        result.billing_notifications_deleted += Notification.query.filter(
+            Notification.event_type.like("billing.%")
+        ).delete(synchronize_session=False)
 
         result.webhook_events_deleted = WebhookEvent.query.delete(synchronize_session=False)
 

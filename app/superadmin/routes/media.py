@@ -83,11 +83,17 @@ def _sa_asset_url(filename: str, folder: str) -> str:
 
 
 def _sa_asset_size(filename: str, folder: str) -> int | None:
+    if folder == 'billing_proofs':
+        from app.services.billing.private_proof_storage import private_proof_size
+        return private_proof_size(filename)
     from app.services.media.upload_storage import upload_size
     return upload_size(filename, folder)
 
 
 def _sa_asset_exists(filename: str, folder: str) -> bool:
+    if folder == 'billing_proofs':
+        from app.services.billing.private_proof_storage import private_proof_exists
+        return private_proof_exists(filename)
     from app.services.media.upload_storage import upload_exists
     return upload_exists(filename, folder)
 
@@ -206,9 +212,9 @@ def media():
         assets.append({
             'id': sub.id, 'type': 'proof', 'label': 'Payment Proof',
             'tenant': tenant_slug,
-            'filename': sub.payment_proof, 'folder': 'billing',
+            'filename': sub.payment_proof, 'folder': 'billing_proofs',
             'description': f'{sub.payment_method} — {sub.plan} — {sub.status}',
-            'url': _sa_asset_url(sub.payment_proof, 'billing'),
+            'url': url_for('superadmin.billing_submission_proof', submission_id=sub.id),
         })
 
     for asset in assets:
@@ -328,7 +334,11 @@ def media_delete():
     elif asset_type == 'proof':
         sub = db.session.get(PaymentSubmission, asset_id)
         if sub and sub.payment_proof:
-            _rm('billing', sub.payment_proof)
+            from app.services.billing.private_proof_storage import delete_private_billing_proof
+            deleted = delete_private_billing_proof(sub.payment_proof)
+            if not deleted:
+                flash('Payment proof storage deletion failed; the database reference was preserved.', 'danger')
+                return redirect(url_for('superadmin.media', asset_type='proof'))
             sub.payment_proof = ''
             db.session.commit()
             flash(f'Payment proof deleted for submission #{sub.id} ({sub.tenant.slug if sub.tenant else "?"}).', 'success')
@@ -406,7 +416,13 @@ def media_delete_orphans():
 
     from app.services.media.upload_storage import primary_upload_root
     upload_root = str(primary_upload_root())
-    known = {'profiles': set(), 'projects': set(), 'certificates': set(), 'billing': set()}
+    known = {
+        'profiles': set(),
+        'projects': set(),
+        'certificates': set(),
+        'billing': set(),
+        'billing_proofs': set(),
+    }
 
     for p in profile_repository.query.all():
         if p.profile_image:
@@ -427,11 +443,23 @@ def media_delete_orphans():
             known['billing'].add(pm.qr_image)
     for sub in payment_submission_repository.query.all():
         if sub.payment_proof:
-            known['billing'].add(sub.payment_proof)
+            from app.services.billing.private_proof_storage import local_private_filename
+            private_filename = local_private_filename(sub.payment_proof)
+            if private_filename:
+                known['billing_proofs'].add(private_filename)
+            else:
+                from app.services.media.upload_storage import normalize_upload_reference
+                legacy = normalize_upload_reference(sub.payment_proof, 'billing')
+                if legacy and legacy[0] == 'billing':
+                    known['billing'].add(legacy[1])
 
     deleted = errors = 0
     for folder, known_files in known.items():
-        folder_path = os.path.join(upload_root, folder)
+        if folder == 'billing_proofs':
+            from app.services.billing.private_proof_storage import private_proof_root
+            folder_path = os.path.join(str(private_proof_root()), folder)
+        else:
+            folder_path = os.path.join(upload_root, folder)
         if not os.path.isdir(folder_path):
             continue
         for fname in os.listdir(folder_path):

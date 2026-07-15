@@ -80,7 +80,7 @@ def _load_globals(app):
     from flask import request as _req
     _SKIP_PREFIXES = (
         '/static/', '/heartbeat', '/favicon.ico',
-        '/robots.txt', '/sitemap.xml', '/health',
+        '/robots.txt', '/sitemap.xml', '/health', '/livez', '/readyz',
         # Phase 1b: public SaaS routes have no tenant concept — the old
         # fallback below (profile_repository.get_first(), "cosmetic display
         # only") was written back when '/' *was* the default tenant's
@@ -176,7 +176,9 @@ def _load_globals(app):
                 tenant_id_for_notifications = getattr(profile, 'tenant_id', None) or getattr(current_user, 'tenant_id', None)
                 if tenant_id_for_notifications is not None:
                     from app.services.notification_service import get_unread_count
-                    notification_count = get_unread_count(int(tenant_id_for_notifications))
+                    notification_count = get_unread_count(
+                        int(tenant_id_for_notifications), user_id=int(current_user.id)
+                    )
             except Exception:
                 notification_count = 0
 

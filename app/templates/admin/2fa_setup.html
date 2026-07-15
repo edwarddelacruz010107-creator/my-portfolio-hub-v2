@@ -102,7 +102,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 function copySecret(secret) {
     navigator.clipboard.writeText(secret).then(() => {
         showToast('Secret key copied!', 'success');

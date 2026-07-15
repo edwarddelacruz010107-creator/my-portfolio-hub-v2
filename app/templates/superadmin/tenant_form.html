@@ -372,7 +372,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 // ── Auto-generate slug from name ───────────────────────────
 const nameInput = document.getElementById('tenantName');
 const slugInput = document.getElementById('tenantSlug');

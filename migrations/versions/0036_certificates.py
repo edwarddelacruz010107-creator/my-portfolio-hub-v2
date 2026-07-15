@@ -42,6 +42,11 @@ depends_on    = None
 
 
 def upgrade():
+    # Certificates belong to the tenant bind. The connected core revision is
+    # retained only for historical version-table compatibility; the actual DDL
+    # is owned by migrations/tenant.
+    return
+
     op.create_table(
         'certificates',
         sa.Column('id',                sa.Integer(),   primary_key=True),
@@ -73,6 +78,8 @@ def upgrade():
 
 
 def downgrade():
+    return
+
     op.drop_index('ix_certificates_tenant_featured', table_name='certificates')
     op.drop_index('ix_certificates_tenant_order', table_name='certificates')
     op.drop_index('ix_certificates_tenant_visible', table_name='certificates')

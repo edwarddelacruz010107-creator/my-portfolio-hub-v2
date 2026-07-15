@@ -216,7 +216,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 const CSRF = '{{ csrf_token() }}';
 const TEST_URL = '{{ url_for("admin_forms.test_form_provider") }}';
 
@@ -272,7 +272,7 @@ async function testProvider() {
 {% endblock %}
 
 {% block extra_css %}
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 .status-bar {
   display: flex;
   gap: .75rem;

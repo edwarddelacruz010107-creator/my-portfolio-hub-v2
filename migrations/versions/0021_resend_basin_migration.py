@@ -25,6 +25,34 @@ depends_on    = None
 
 
 def upgrade():
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    tenant_columns = {column['name'] for column in inspector.get_columns('tenants')}
+    with op.batch_alter_table('tenants', schema=None) as batch:
+        if 'form_provider' not in tenant_columns:
+            batch.add_column(sa.Column(
+                'form_provider', sa.String(20), nullable=False, server_default='internal'
+            ))
+        if 'basin_endpoint' not in tenant_columns:
+            batch.add_column(sa.Column('basin_endpoint', sa.Text(), nullable=True))
+    tenant_indexes = {index['name'] for index in sa.inspect(bind).get_indexes('tenants')}
+    if 'ix_tenants_form_provider' not in tenant_indexes:
+        op.create_index('ix_tenants_form_provider', 'tenants', ['form_provider'])
+    bind.execute(sa.text(
+        "UPDATE tenants SET form_provider = 'internal' "
+        "WHERE form_provider IS NULL OR form_provider = ''"
+    ))
+
+    email_columns = {
+        column['name'] for column in sa.inspect(bind).get_columns('global_email_config')
+    }
+    if 'resend_api_key' not in email_columns:
+        op.add_column(
+            'global_email_config',
+            sa.Column('resend_api_key', sa.Text(), nullable=True),
+        )
+    return
+
     # ── 1. tenants: contact form provider ────────────────────────────────────
     with op.batch_alter_table('tenants', schema=None) as batch:
         batch.add_column(sa.Column(

@@ -34,7 +34,8 @@ def upgrade():
         name='form_provider_enum',
         create_type=False,
     )
-    provider_enum.create(op.get_bind(), checkfirst=True)
+    if not inspector.has_table('tenant_form_settings') and conn.dialect.name == 'postgresql':
+        provider_enum.create(op.get_bind(), checkfirst=True)
 
     # FIXED: 'tenant_form_settings' is now created by 0001_initial_schema.py.
     if not inspector.has_table('tenant_form_settings'):
@@ -45,8 +46,11 @@ def upgrade():
             sa.Column('tenant_id',        sa.Integer,
                       sa.ForeignKey('tenants.id', ondelete='CASCADE'),
                       nullable=False, index=True),
-            sa.Column('provider',         sa.Enum('basin', 'web3forms', 'disabled',
-                                                  name='form_provider_enum'),
+            sa.Column('provider',         (
+                          sa.Enum('basin', 'web3forms', 'disabled', name='form_provider_enum')
+                          if conn.dialect.name == 'postgresql'
+                          else sa.String(50)
+                      ),
                       nullable=False, server_default='disabled'),
             sa.Column('api_key_encrypted', sa.Text,         nullable=False, server_default=''),
             sa.Column('form_endpoint',    sa.Text,          nullable=True),
@@ -65,38 +69,52 @@ def upgrade():
         op.create_index('ix_tfs_is_enabled', 'tenant_form_settings', ['is_enabled'])
 
     # ── 4. updated_at trigger (PostgreSQL only) ───────────────────────────────
-    op.execute("""
-        CREATE OR REPLACE FUNCTION set_updated_at()
-        RETURNS TRIGGER LANGUAGE plpgsql AS $$
-        BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
-        $$;
-    """)
-    op.execute("""
-        DROP TRIGGER IF EXISTS trg_tfs_updated_at ON tenant_form_settings;
-        CREATE TRIGGER trg_tfs_updated_at
-            BEFORE UPDATE ON tenant_form_settings
-            FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-    """)
+    if conn.dialect.name == 'postgresql':
+        op.execute("""
+            CREATE OR REPLACE FUNCTION set_updated_at()
+            RETURNS TRIGGER LANGUAGE plpgsql AS $$
+            BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+            $$;
+        """)
+        op.execute("""
+            DROP TRIGGER IF EXISTS trg_tfs_updated_at ON tenant_form_settings;
+            CREATE TRIGGER trg_tfs_updated_at
+                BEFORE UPDATE ON tenant_form_settings
+                FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+        """)
 
     # ── 5. Backfill existing basin tenants ────────────────────────────────────
-    op.execute("""
-        INSERT INTO tenant_form_settings
-            (tenant_id, provider, form_endpoint, receiver_email,
-             sender_name, is_enabled, created_at, updated_at)
-        SELECT
-            t.id,
-            'basin'::form_provider_enum,
-            t.basin_endpoint,
-            t.contact_email,
-            t.company_name,
-            (t.basin_endpoint IS NOT NULL AND t.basin_endpoint != ''),
-            NOW(), NOW()
-        FROM tenants t
-        WHERE t.form_provider = 'basin'
-          AND t.basin_endpoint IS NOT NULL
-          AND t.basin_endpoint != ''
-        ON CONFLICT (tenant_id) DO NOTHING;
-    """)
+    if conn.dialect.name == 'postgresql':
+        op.execute("""
+            INSERT INTO tenant_form_settings
+                (tenant_id, provider, form_endpoint, receiver_email,
+                 sender_name, is_enabled, created_at, updated_at)
+            SELECT
+                t.id,
+                'basin',
+                t.basin_endpoint,
+                t.contact_email,
+                t.company_name,
+                (t.basin_endpoint IS NOT NULL AND t.basin_endpoint != ''),
+                NOW(), NOW()
+            FROM tenants t
+            WHERE t.form_provider = 'basin'
+              AND t.basin_endpoint IS NOT NULL
+              AND t.basin_endpoint != ''
+            ON CONFLICT (tenant_id) DO NOTHING;
+        """)
+    else:
+        op.execute("""
+            INSERT OR IGNORE INTO tenant_form_settings
+                (tenant_id, provider, form_endpoint, receiver_email,
+                 sender_name, is_enabled, created_at, updated_at)
+            SELECT id, 'basin', basin_endpoint, contact_email, company_name,
+                   1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            FROM tenants
+            WHERE form_provider = 'basin'
+              AND basin_endpoint IS NOT NULL
+              AND basin_endpoint != ''
+        """)
 
 
 def downgrade():

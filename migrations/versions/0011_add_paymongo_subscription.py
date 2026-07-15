@@ -17,13 +17,26 @@ depends_on = None
 
 
 def upgrade():
-    # Add new columns to subscriptions table
-    op.add_column('subscriptions', sa.Column('billing_cycle', sa.String(20), nullable=True, server_default='monthly'))
-    op.add_column('subscriptions', sa.Column('paymongo_subscription_id', sa.String(255), nullable=True))
-    op.add_column('subscriptions', sa.Column('paymongo_customer_id', sa.String(255), nullable=True))
-    
-    # Create indexes
-    op.create_index('ix_subscriptions_paymongo_subscription_id', 'subscriptions', ['paymongo_subscription_id'], unique=True)
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {column['name'] for column in inspector.get_columns('subscriptions')}
+    additions = (
+        sa.Column('billing_cycle', sa.String(20), nullable=True, server_default='monthly'),
+        sa.Column('paymongo_subscription_id', sa.String(255), nullable=True),
+        sa.Column('paymongo_customer_id', sa.String(255), nullable=True),
+    )
+    with op.batch_alter_table('subscriptions') as batch:
+        for column in additions:
+            if column.name not in columns:
+                batch.add_column(column)
+    indexes = {index['name'] for index in sa.inspect(bind).get_indexes('subscriptions')}
+    if 'ix_subscriptions_paymongo_subscription_id' not in indexes:
+        op.create_index(
+            'ix_subscriptions_paymongo_subscription_id',
+            'subscriptions',
+            ['paymongo_subscription_id'],
+            unique=True,
+        )
 
 
 def downgrade():

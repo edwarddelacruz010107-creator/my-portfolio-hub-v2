@@ -20,7 +20,7 @@ decision record):
 
 import logging
 
-from flask import render_template, redirect, url_for, request, jsonify, abort
+from flask import render_template, redirect, url_for, request, jsonify, abort, Response
 from flask_login import current_user
 
 from app.utils import BILLING_PLANS, is_paymongo_enabled
@@ -90,6 +90,12 @@ def contact():
         from app.services.custom_domain_public import handle_custom_domain_contact
         return handle_custom_domain_contact(domain_record)
 
+    from app.services.public_route_contract import resolve_active_subdomain_tenant
+    subdomain_tenant = resolve_active_subdomain_tenant(request.host)
+    if subdomain_tenant is not None:
+        from app.services.custom_domain_public import handle_subdomain_contact
+        return handle_subdomain_contact(subdomain_tenant)
+
     form = LandingContactForm()
     if not form.validate_on_submit():
         for field, errors in form.errors.items():
@@ -106,9 +112,8 @@ def contact():
     # Use centralized contact submission pipeline for consistent provider routing
     from app.services.communication.contact_service import process_contact_submission
 
-    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-    if ip and ',' in ip:
-        ip = ip.split(',')[0].strip()
+    from app.request_security import get_client_ip
+    ip = get_client_ip()
 
     import secrets
     raw_sid = request.headers.get('X-Request-Id') or request.form.get('submission_id') or None
@@ -335,7 +340,7 @@ def themes():
 def theme_preview(theme_id: str):
     """
     Public, unauthenticated, READ-ONLY preview of a theme rendered with
-    static sample content (never real tenant data -- see
+    a labeled static design fixture (never real tenant data -- see
     app/public/services/theme_preview_data.py). Mirrors the pattern in
     app/admin/routes/profile_appearance.py::preview_theme, minus the
     plan/ownership gate: a marketing-page visitor previewing a premium
@@ -344,7 +349,7 @@ def theme_preview(theme_id: str):
     """
     from types import SimpleNamespace
     from app.theme_engine import get_theme_engine, is_valid_theme_id
-    from .services.theme_preview_data import build_sample_context
+    from .services.theme_preview_data import build_design_fixture_context
 
     if not is_valid_theme_id(theme_id):
         abort(404)
@@ -365,17 +370,54 @@ def theme_preview(theme_id: str):
         plan='enterprise',
     )
 
-    sample_ctx = build_sample_context(
+    sample_ctx = build_design_fixture_context(
         tenant_slug='preview',
-        contact_url=url_for('public.contact'),
+        contact_url='',
     )
     sample_ctx['preview_mode'] = True
 
     rendered_preview = engine.render(preview_profile, 'index.html', **sample_ctx)
     response = current_app.make_response(
-        inject_theme_preview_badge(rendered_preview, meta, label='Public preview')
+        inject_theme_preview_badge(rendered_preview, meta, label='Design fixture preview')
     )
     response.headers['X-Robots-Tag'] = 'noindex, nofollow, noarchive'
+    return response
+
+
+@public_bp.route('/themes/customization/<tenant_slug>/<theme_id>.css')
+@limiter.limit('120 per minute')
+def theme_customization_css(tenant_slug: str, theme_id: str):
+    """Expose only the active tenant's sanitized, published token CSS."""
+    from app.models.portfolio import Tenant, Profile
+    from app.theme_engine import get_theme_engine, is_valid_theme_id, is_supported_theme_id
+    from app.services.themes.customization_service import customization_css
+
+    slug = (tenant_slug or '').strip().lower()
+    requested_theme = (theme_id or '').strip().lower()
+    if not slug or not is_valid_theme_id(requested_theme) or not is_supported_theme_id(requested_theme):
+        abort(404)
+
+    tenant = Tenant.query.filter_by(slug=slug, status='active').first()
+    if tenant is None:
+        abort(404)
+    profile = (
+        Profile.query
+        .filter_by(tenant_id=tenant.id)
+        .order_by(Profile.id.asc())
+        .first()
+    )
+    if profile is None or (profile.selected_theme or 'default') != requested_theme:
+        abort(404)
+    meta = get_theme_engine().get_theme_meta(requested_theme)
+    if not meta or not meta.get('catalog_active', True):
+        abort(404)
+
+    response = Response(
+        customization_css(tenant.id, requested_theme, draft=False),
+        mimetype='text/css',
+    )
+    response.headers['Cache-Control'] = 'public, max-age=300'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
     return response
 
 
@@ -498,22 +540,28 @@ def project_like(project_id: int):
     try:
         liker_tenant_id = getattr(current_user, 'tenant_id', None)
         if liker_tenant_id != project.tenant_id:
-            from app.services.notification_service import create_notification
+            from app.services.notification_service import (
+                Recipient,
+                hourly_dedupe_key,
+                publish_notification,
+            )
 
             actor_name = (
                 getattr(current_user, 'username', None)
-                or getattr(current_user, 'email', None)
-                or 'Someone'
+                or getattr(current_user, 'display_name', None)
+                or 'A member'
             )
-            create_notification(
-                tenant_id=project.tenant_id,
-                notification_type='project_like',
-                title='Someone liked your project',
-                message=(
-                    f'{actor_name} liked “{project.title}”. '
-                    f'Your project now has {int(project.like_count or 0)} '
-                    f'like{"s" if int(project.like_count or 0) != 1 else ""}.'
-                ),
+            publish_notification(
+                recipient=Recipient.tenant(int(project.tenant_id)),
+                event_type='project.like',
+                template_key='project.like',
+                parameters={'actor_name': actor_name, 'project_title': project.title},
+                dedupe_key=hourly_dedupe_key('project.like', project.id),
+                entity_type='project',
+                entity_id=project.id,
+                actor_type='user',
+                actor_id=current_user.id,
+                action_route='admin.projects',
                 commit=True,
             )
     except Exception:

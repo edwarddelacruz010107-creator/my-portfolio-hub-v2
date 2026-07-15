@@ -3,7 +3,7 @@
 {% block page_title %}Activity Logs{% endblock %}
 
 {% block extra_css %}
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 /* ── Log page layout ──────────────────────────────────────── */
 .logs-toolbar {
   background: var(--bg-2);
@@ -407,7 +407,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 function toggleSecurity(btn) {
   const input = document.querySelector('input[name="security"]');
   const isActive = btn.classList.contains('active');

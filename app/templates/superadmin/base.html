@@ -1,5 +1,6 @@
+{% import 'components/ui.html' as ui %}
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" data-theme-storage="cms_theme" data-theme-aliases="superadmin-theme">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -8,15 +9,12 @@
   <title>{% block title %}Superadmin{% endblock %} — CMS Control</title>
 
   <!-- ① PRE-HYDRATION THEME INIT — prevents flash of wrong theme -->
-  <script>(function(){var t=localStorage.getItem('cms_theme')||localStorage.getItem('superadmin-theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&display=swap" rel="stylesheet"/>
-  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/theme-bootstrap.js', v='20260714-v1') }}"></script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
 
   <!-- ② DESIGN SYSTEM (tokens first) -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components-v1.css', v='20260714-v1') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/superadmin.css') }}"/>
@@ -71,7 +69,7 @@
          class="nav-item {% if request.endpoint == 'superadmin.dashboard' %}active{% endif %}"
          {% if request.endpoint == 'superadmin.dashboard' %}aria-current="page"{% endif %}>
         <span class="nav-icon"><iconify-icon icon="lucide:layout-dashboard" width="17"></iconify-icon></span>
-        Overview
+        Founder Dashboard
       </a>
       <a href="{{ url_for('superadmin.landing_settings') }}"
          class="nav-item {% if request.endpoint == 'superadmin.landing_settings' %}active{% endif %}"
@@ -84,6 +82,12 @@
          {% if request.endpoint == 'superadmin.pricing_settings' %}aria-current="page"{% endif %}>
         <span class="nav-icon"><iconify-icon icon="lucide:credit-card" width="17"></iconify-icon></span>
         Pricing CMS
+      </a>
+      <a href="{{ url_for('superadmin.ai_center') }}"
+         class="nav-item {% if request.endpoint and request.endpoint.startswith('superadmin.ai_') %}active{% endif %}"
+         {% if request.endpoint and request.endpoint.startswith('superadmin.ai_') %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:brain-circuit" width="17"></iconify-icon></span>
+        AI Center
       </a>
     </div>
 
@@ -220,6 +224,8 @@
         <span class="btn-label">New Tenant</span>
       </a>
 
+      {{ ui.notification_center('superadmin-notification-menu', url_for('superadmin.notifications'), url_for('superadmin.api_notifications_feed'), notification_count or 0) }}
+
       <!-- Premium animated theme toggle -->
       <button type="button"
               class="theme-toggle-pill"
@@ -243,20 +249,9 @@
   <!-- Flash messages -->
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-      <div class="flash-container" id="flashContainer" aria-live="polite">
+      <div class="ui-toast-region" id="flashContainer" aria-live="polite" aria-relevant="additions">
         {% for cat, msg in messages %}
-          <div class="toast toast-{{ cat }} toast-flash" role="alert">
-            <span class="toast-icon">
-              {% if cat == 'success' %}<iconify-icon icon="lucide:check-circle" width="15"></iconify-icon>
-              {% elif cat == 'danger' %}<iconify-icon icon="lucide:x-circle" width="15"></iconify-icon>
-              {% elif cat == 'warning' %}<iconify-icon icon="lucide:alert-triangle" width="15"></iconify-icon>
-              {% else %}<iconify-icon icon="lucide:info" width="15"></iconify-icon>{% endif %}
-            </span>
-            <span class="toast-msg">{{ msg }}</span>
-            <button type="button" class="toast-close" data-toast-close aria-label="Dismiss">
-              <iconify-icon icon="lucide:x" width="13"></iconify-icon>
-            </button>
-          </div>
+          {{ ui.toast(msg, cat, auto_close=true) }}
         {% endfor %}
       </div>
     {% endif %}
@@ -267,40 +262,18 @@
   </main>
 </div>
 
-<!-- ── DELETE CONFIRMATION MODAL ──────────────────────────── -->
-<div class="modal-overlay" id="deleteModal" role="dialog" aria-modal="true" style="display:none;">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-header-icon" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-glow);">
-        <iconify-icon icon="lucide:trash-2" width="18"></iconify-icon>
-      </div>
-      <h3>Delete Tenant?</h3>
-    </div>
-    <div class="modal-body">
-      <p id="deleteModalBody">
-        This will permanently remove this tenant profile and all associated data. This action cannot be undone.
-      </p>
-    </div>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-ghost" data-close-delete-modal>Cancel</button>
-      <form id="deleteModalForm" method="post" class="inline-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-        <button type="submit" class="btn btn-danger">
-          <iconify-icon icon="lucide:trash-2" width="14"></iconify-icon>
-          Yes, Delete
-        </button>
-      </form>
-    </div>
-  </div>
-</div>
+<!-- ── DELETE CONFIRMATION DIALOG ─────────────────────────── -->
+{{ ui.confirmation_dialog('deleteModal', 'Delete tenant?', 'This will permanently remove this tenant profile and all associated data. This action cannot be undone.', csrf_token(), confirm_label='Yes, delete', form_id='deleteModalForm', message_id='deleteModalBody') }}
 
 <!-- Theme engine (synchronous) -->
-<script src="{{ url_for('static', filename='js/theme-engine.js') }}"></script>
-<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
-<script src="{{ url_for('static', filename='js/dashboard-motion.js') }}"></script>
-<script src="{{ url_for('static', filename='js/media-uploader.js') }}"></script>
-<script src="{{ url_for('static', filename='js/settings-form.js') }}"></script>
-<script src="{{ url_for('static', filename='js/dashboard-shell.js', v='20260711-mobile-drawer') }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/theme-engine.js') }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/components-v1.js', v='20260714-v1') }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/notifications-v1.js', v='20260714-phase4') }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/admin.js') }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/dashboard-motion.js') }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/media-uploader.js') }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/settings-form.js') }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/dashboard-shell.js', v='20260711-mobile-drawer') }}"></script>
 
 {% block extra_js %}{% endblock %}
 </body>

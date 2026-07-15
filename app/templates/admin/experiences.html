@@ -52,7 +52,7 @@
     {% endfor %}
   </div>
 
-  <script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
   (function () {
     const list = document.getElementById('experiencesList');
     if (!list || typeof Sortable === 'undefined') return;

@@ -206,9 +206,8 @@ def contact():
     message    = raw.get('message', '').strip()
     sub_id     = raw.get('submission_id', '').strip()[:80]
 
-    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-    if ip and ',' in ip:
-        ip = ip.split(',')[0].strip()
+    from app.request_security import get_client_ip
+    ip = get_client_ip()
 
     from app.services.contact_service import process_contact_submission
     result = process_contact_submission(

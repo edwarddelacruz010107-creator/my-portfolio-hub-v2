@@ -27,7 +27,7 @@ import os
 import re
 from typing import Optional
 
-from flask import render_template, current_app
+from flask import render_template, current_app, url_for
 
 from app.system_plan import has_administrator_access, is_administrator_plan
 
@@ -237,7 +237,21 @@ class ThemeEngine:
             self.init_app(app)
 
     def init_app(self, app):
-        """Register a per-theme PrefixLoader alongside the app's existing loader."""
+        """Validate installed themes, then register the isolated template loader."""
+        from pathlib import Path
+        from app.services.themes.contract import validate_installed_themes
+
+        failures = validate_installed_themes(
+            Path(THEMES_DIR),
+            Path(app.static_folder),
+            SUPPORTED_THEME_IDS,
+        )
+        if failures:
+            detail = "; ".join(
+                f"{theme_id}: {', '.join(errors)}"
+                for theme_id, errors in sorted(failures.items())
+            )
+            raise RuntimeError(f"Installed theme contract validation failed: {detail}")
         app.jinja_loader = self._build_loader(app)
         app.extensions['theme_engine'] = self
 
@@ -377,6 +391,17 @@ class ThemeEngine:
 
         context.setdefault('active_theme', meta)
         context.setdefault('theme_id', theme_id)
+        tenant_id = getattr(tenant_profile, 'tenant_id', None)
+        tenant_slug = context.get('tenant_slug') or getattr(tenant_profile, 'tenant_slug', None)
+        if tenant_id and tenant_slug:
+            context.setdefault(
+                'theme_customization_url',
+                url_for(
+                    'public.theme_customization_css',
+                    tenant_slug=tenant_slug,
+                    theme_id=theme_id,
+                ),
+            )
 
         try:
             return render_template(f'{theme_id}/{template_name}', **context)

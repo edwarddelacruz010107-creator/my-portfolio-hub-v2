@@ -14,7 +14,7 @@
     {% include 'partials/_portfolio_seo.html' %}
 
     {# ── Theme: apply saved preference BEFORE paint to avoid flash ── #}
-    <script>
+    <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
     (function(){
       var k = 'portfolio-theme';
       var saved = localStorage.getItem(k);
@@ -26,13 +26,9 @@
     </script>
 
     <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Oswald:wght@300;400;500;600&display=swap" rel="stylesheet">
-
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css', v='20260714-v3') }}">
     <!-- Iconify Icons -->
-    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
-    <script src="https://unpkg.com/iconify-icon@1.0.7/dist/iconify-icon.min.js" defer></script>
+    <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
 
     <!-- Custom Stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
@@ -989,6 +985,6 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <!-- JavaScript -->
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>

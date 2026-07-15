@@ -1,0 +1,40 @@
+.bc-shell{display:grid;gap:var(--space-5)}
+.bc-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--space-4)}
+.bc-hero h1{margin:0;font-family:var(--font-display);font-size:clamp(1.65rem,3vw,2.35rem)}
+.bc-hero p{max-width:760px;margin:.45rem 0 0;color:var(--text-muted)}
+.bc-actions{display:flex;flex-wrap:wrap;gap:.65rem}
+.bc-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-3)}
+.bc-card,.bc-panel{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);box-shadow:var(--shadow-sm);padding:var(--space-4)}
+.bc-card-label{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);font-weight:750}
+.bc-card-value{margin-top:.45rem;font-size:1.45rem;font-weight:800;color:var(--text)}
+.bc-card-note{margin-top:.35rem;font-size:.76rem;color:var(--text-muted)}
+.bc-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem}
+.bc-section-head h2{margin:0;font-family:var(--font-display);font-size:1.02rem}
+.bc-section-head p{margin:.25rem 0 0;color:var(--text-muted);font-size:.8rem}
+.bc-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:var(--radius-md)}
+.bc-table{width:100%;border-collapse:collapse;min-width:720px}
+.bc-table th,.bc-table td{padding:.75rem .85rem;text-align:left;border-bottom:1px solid var(--border);vertical-align:middle}
+.bc-table th{font-size:.68rem;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);background:var(--bg-3)}
+.bc-table td{font-size:.82rem}.bc-table tr:last-child td{border-bottom:0}
+.bc-table code{font-size:.74rem;overflow-wrap:anywhere}
+.bc-money{white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:700}
+.bc-meta{display:block;margin-top:.18rem;font-size:.7rem;color:var(--text-muted)}
+.bc-status{display:inline-flex;align-items:center;padding:.3rem .55rem;border-radius:var(--radius-full);background:var(--bg-3);font-size:.7rem;font-weight:750;text-transform:capitalize}
+.bc-status[data-status="posted"],.bc-status[data-status="issued"],.bc-status[data-status="active"],.bc-status[data-status="succeeded"]{color:var(--success);background:var(--success-bg)}
+.bc-status[data-status="review_required"],.bc-status[data-status="pending"],.bc-status[data-status="past_due"]{color:var(--warn);background:var(--warn-bg)}
+.bc-status[data-status="failed"],.bc-status[data-status="dead"],.bc-status[data-status="void"]{color:var(--danger);background:var(--danger-bg)}
+.bc-entitlements{display:flex;flex-wrap:wrap;gap:.5rem;margin:0;padding:0;list-style:none}
+.bc-entitlements li{padding:.38rem .62rem;border:1px solid var(--border);border-radius:var(--radius-full);font-size:.74rem}
+.bc-alert{border-left:3px solid var(--warn);padding:.85rem 1rem;background:var(--warn-bg);border-radius:var(--radius-sm);font-size:.82rem}
+.bc-empty{padding:1.5rem;text-align:center;color:var(--text-muted);font-size:.82rem}
+.bc-filter{display:grid;grid-template-columns:minmax(200px,1fr) repeat(2,minmax(140px,.3fr)) auto;gap:.65rem;align-items:end}
+.bc-filter label{display:grid;gap:.3rem;font-size:.72rem;color:var(--text-muted)}
+.bc-filter input,.bc-filter select{width:100%}
+.bc-provider-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem}
+.bc-provider-original{margin:.55rem 0 0;padding:0;list-style:none;font-size:.74rem;color:var(--text-muted)}
+.bc-split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+.bc-detail{display:grid;grid-template-columns:minmax(130px,.35fr) 1fr;gap:.65rem 1rem;margin:0}
+.bc-detail dt{color:var(--text-muted);font-size:.74rem}.bc-detail dd{margin:0;overflow-wrap:anywhere;font-size:.84rem}
+@media(max-width:1050px){.bc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.bc-provider-grid{grid-template-columns:1fr}.bc-split{grid-template-columns:1fr}}
+@media(max-width:720px){.bc-hero{align-items:flex-start;flex-direction:column}.bc-actions{width:100%}.bc-actions .btn{flex:1}.bc-grid{grid-template-columns:1fr}.bc-filter{grid-template-columns:1fr}.bc-card,.bc-panel{padding:.9rem}.bc-detail{grid-template-columns:1fr}.bc-detail dd{margin-bottom:.4rem}}
+@media(prefers-reduced-motion:reduce){.bc-shell *{scroll-behavior:auto!important}}

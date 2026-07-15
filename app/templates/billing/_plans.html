@@ -267,7 +267,7 @@
   </a>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 .billing-section{margin-bottom:0.5rem}
 .billing-section-hd{display:flex;align-items:center;gap:0.75rem;margin-bottom:1.1rem}
 .billing-section-hd h2{margin:0;font-size:1.1rem;font-weight:700}
@@ -390,10 +390,10 @@
 }
 </style>
 
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 .currency-rate-note{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin:-.5rem 0 1.25rem;padding:.65rem .85rem;border:1px solid rgba(99,102,241,.2);border-radius:10px;background:rgba(99,102,241,.06);font-size:.82rem;color:var(--text-muted)}
 .currency-rate-note strong{color:var(--text-primary,#e0e7ff)}
 </style>
-<script src="{{ url_for('static', filename='js/billing-plans.js') }}?v=20260712.1" defer></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/billing-plans.js') }}?v=20260712.1" defer></script>
 
 {% endif %}

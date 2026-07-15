@@ -39,6 +39,13 @@ def upgrade():
     dialect = bind.dialect.name
     
     if dialect == 'postgresql':
+        type_exists = bind.execute(sa.text(
+            "SELECT 1 FROM pg_type WHERE typname = 'form_provider_enum'"
+        )).scalar()
+        if not type_exists:
+            # The deterministic base schema uses a VARCHAR provider column,
+            # so no enum exists and no alteration is required.
+            return
         # PostgreSQL: use ALTER TYPE ... ADD VALUE IF NOT EXISTS (9.1+)
         # This is idempotent — if the value already exists, it's silently ignored.
         op.execute(

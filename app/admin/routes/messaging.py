@@ -73,10 +73,8 @@ logger = logging.getLogger(__name__)
 
 
 def _get_client_ip() -> str:
-    forwarded = request.headers.get('X-Forwarded-For', '')
-    if forwarded:
-        return forwarded.split(',')[0].strip()[:45]
-    return (request.remote_addr or 'unknown')[:45]
+    from app.request_security import get_client_ip
+    return get_client_ip()
 
 
 def _ensure_inquiry_phone_column() -> None:
@@ -195,6 +193,24 @@ def view_message(message_id: int):
         message.updated_at = datetime.now(timezone.utc)
 
         db.session.commit()
+        try:
+            from app.services.notification_service import Recipient, publish_notification
+            publish_notification(
+                recipient=Recipient.role('superadmin'),
+                event_type='message.reply_to_platform',
+                template_key='message.reply_to_platform',
+                parameters={'tenant_name': message.tenant_slug, 'subject': message.subject},
+                dedupe_key=f'message.reply_to_platform:{reply.id}',
+                entity_type='inquiry_reply',
+                entity_id=reply.id,
+                actor_type='user',
+                actor_id=current_user.id,
+                action_route='superadmin.message_thread',
+                action_parameters={'msg_id': message.id},
+                commit=True,
+            )
+        except Exception:
+            logger.exception('Tenant reply notification failed: reply_id=%s', reply.id)
         log_activity('reply', 'inquiry', message.name,
                      f'Tenant admin replied to thread #{message.id}')
         flash('Reply sent.', 'success')
@@ -246,6 +262,25 @@ def new_message_to_superadmin():
             )
             db.session.add(inquiry)
             db.session.commit()
+            try:
+                from app.services.notification_service import Recipient, publish_notification
+                publish_notification(
+                    recipient=Recipient.role('superadmin'),
+                    event_type='message.tenant_to_platform',
+                    template_key='message.tenant_to_platform',
+                    parameters={'tenant_name': tenant_slug, 'subject': subject},
+                    dedupe_key=f'message.tenant_to_platform:{inquiry.id}',
+                    entity_type='inquiry',
+                    entity_id=inquiry.id,
+                    actor_type='user',
+                    actor_id=current_user.id,
+                    action_route='superadmin.message_thread',
+                    action_parameters={'msg_id': inquiry.id},
+                    priority='high',
+                    commit=True,
+                )
+            except Exception:
+                logger.exception('New tenant message notification failed: inquiry_id=%s', inquiry.id)
             log_activity('create', 'inquiry', tenant_slug,
                          f'Tenant admin sent message to superadmin')
             flash('Message sent to platform support.', 'success')

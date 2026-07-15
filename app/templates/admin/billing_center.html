@@ -1,0 +1,44 @@
+{% extends 'admin/base.html' %}
+{% block page_title %}Billing Center{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/billing-center-v1.css') }}">{% endblock %}
+{% block content %}
+{% set sub = center.subscription %}
+<main class="bc-shell" id="billing-center">
+  <header class="bc-hero">
+    <div><h1>Billing Center</h1><p>Your plan, exact transaction history, invoices, and payment status from verified billing records.</p></div>
+    <div class="bc-actions"><a class="btn btn-secondary" href="{{ url_for(billing_routes.plans) }}">Compare plans</a><a class="btn btn-ghost" href="#invoices">Invoices</a></div>
+  </header>
+
+  {% if sub and sub.status in ('failed','past_due') %}<div class="bc-alert" role="status">{{ center.failure_message }}</div>{% endif %}
+
+  <section class="bc-grid" aria-label="Current billing summary">
+    <article class="bc-card"><div class="bc-card-label">Current plan</div><div class="bc-card-value">{{ sub.plan if sub else 'No paid plan' }}</div><div class="bc-card-note">Catalog {{ center.catalog_version or 'unavailable' }}</div></article>
+    <article class="bc-card"><div class="bc-card-label">Status</div><div class="bc-card-value">{{ sub.status_label if sub else 'Unavailable' }}</div><div class="bc-card-note">{{ sub.billing_cycle|title if sub else 'No billing cycle' }}</div></article>
+    <article class="bc-card"><div class="bc-card-label">Next renewal</div><div class="bc-card-value">{{ sub.expires_at.strftime('%b %d, %Y') if sub and sub.expires_at else 'Unavailable' }}</div><div class="bc-card-note">Cancellation and renewal are provider-confirmed.</div></article>
+    <article class="bc-card"><div class="bc-card-label">Payment provider</div><div class="bc-card-value">{{ (sub.payment_provider or sub.payment_method or 'Unavailable')|replace('_',' ')|title if sub else 'Unavailable' }}</div><div class="bc-card-note">Provider identities remain separate.</div></article>
+  </section>
+
+  <section class="bc-panel">
+    <div class="bc-section-head"><div><h2>Entitlements</h2><p>Capabilities resolved from the current versioned plan catalog.</p></div></div>
+    <ul class="bc-entitlements">{% for name,value in center.entitlements.items() if value %}<li>{{ name|replace('_',' ')|title }}{% if value is number and value is not sameas true %}: {{ value }}{% endif %}</li>{% else %}<li>Entitlements unavailable for this record</li>{% endfor %}</ul>
+  </section>
+
+  <section class="bc-panel" id="transactions">
+    <div class="bc-section-head"><div><h2>Transaction history</h2><p>{{ center.definition }}</p></div></div>
+    <div class="bc-table-wrap"><table class="bc-table"><thead><tr><th>Date</th><th>Type</th><th>Provider</th><th>Original amount</th><th>Reporting amount</th><th>Status</th></tr></thead><tbody>
+    {% for row in center.transactions %}{% set tx = row.record %}<tr><td>{{ tx.occurred_at.strftime('%b %d, %Y') if tx.occurred_at else 'Unavailable' }}</td><td>{{ tx.accounting_type|title }}</td><td>{{ tx.provider|title }}<span class="bc-meta">{{ row.provider_reference }}</span></td><td class="bc-money">{{ row.original_currency }} {{ '%.2f'|format(row.original_amount) }}</td><td class="bc-money">{% if row.reporting_available %}USD {{ '%.2f'|format(row.reporting_amount) }}{% else %}Unavailable{% endif %}</td><td><span class="bc-status" data-status="{{ tx.status }}">{{ tx.status|replace('_',' ') }}</span></td></tr>
+    {% else %}<tr><td colspan="6" class="bc-empty">No verified transactions are available yet.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+
+  <section class="bc-panel" id="invoices">
+    <div class="bc-section-head"><div><h2>Invoices and receipts</h2><p>Downloads are generated server-side from immutable invoice records.</p></div></div>
+    <div class="bc-table-wrap"><table class="bc-table"><thead><tr><th>Invoice</th><th>Issued</th><th>Plan</th><th>Total</th><th>Status</th><th>Receipt</th></tr></thead><tbody>
+    {% for invoice in center.invoices %}<tr><td><code>{{ invoice.invoice_number }}</code></td><td>{{ invoice.issued_at.strftime('%b %d, %Y') if invoice.issued_at else 'Unavailable' }}</td><td>{{ invoice.plan }}<span class="bc-meta">{{ invoice.billing_cycle|title }}</span></td><td class="bc-money">{{ invoice.currency }} {{ '%.2f'|format(invoice.amount_total) }}</td><td><span class="bc-status" data-status="{{ invoice.status }}">{{ invoice.status }}</span></td><td>{% if invoice.status == 'issued' %}<a class="btn btn-ghost btn-xs" href="{{ url_for('admin.billing_invoice_download', invoice_id=invoice.id) }}">Download PDF</a>{% else %}Unavailable{% endif %}</td></tr>
+    {% else %}<tr><td colspan="6" class="bc-empty">No invoices have been issued for this account.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+
+  {% if center.attempts %}<section class="bc-panel"><div class="bc-section-head"><div><h2>Payment attempts</h2><p>Each provider attempt has one idempotency key; retries never create a duplicate attempt.</p></div></div><div class="bc-table-wrap"><table class="bc-table"><thead><tr><th>Date</th><th>Provider</th><th>Attempt</th><th>Amount</th><th>Status</th><th>Next action</th></tr></thead><tbody>{% for row in center.attempts %}{% set attempt=row.record %}<tr><td>{{ attempt.created_at.strftime('%b %d, %Y') }}</td><td>{{ attempt.provider|title }}</td><td>#{{ attempt.attempt_number }}</td><td class="bc-money">{{ attempt.original_currency }} {{ '%.2f'|format(row.original_amount) }}</td><td><span class="bc-status" data-status="{{ attempt.status }}">{{ attempt.status }}</span></td><td>{{ attempt.safe_message or ('Retry scheduled' if attempt.next_attempt_at else 'No action required') }}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+</main>
+{% endblock %}

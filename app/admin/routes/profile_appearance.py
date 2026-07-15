@@ -71,6 +71,14 @@ from app.admin.blueprint import (admin, admin_required, _active_tenant_slug, _lo
 logger = logging.getLogger(__name__)
 
 
+def _portfolio_seo_readiness(tenant_id: int) -> dict:
+    """Return the canonical SEO dimension; never maintain a second score."""
+    from app.services.intelligence.intelligence_service import get_portfolio_intelligence
+
+    result = get_portfolio_intelligence(int(tenant_id), persist=True)
+    return next(item for item in result["dimensions"] if item["key"] == "seo")
+
+
 @admin.route('/profile', methods=['GET', 'POST'])
 @admin_required
 def edit_profile():
@@ -139,6 +147,11 @@ def edit_profile():
                        'instagram', 'youtube', 'website', 'dribbble']
         }
         db.session.commit()
+        try:
+            from app.services.notification_service import publish_portfolio_completion_milestone
+            publish_portfolio_completion_milestone(tenant_id=profile.tenant_id)
+        except Exception:
+            logger.exception('Portfolio milestone notification failed: tenant_id=%s', profile.tenant_id)
         log_activity('update', 'profile', profile.name, 'Profile updated')
         flash('Profile saved!', 'success')
         return redirect(url_for('admin.edit_profile'))
@@ -266,7 +279,12 @@ def seo_settings():
             flash('SEO settings saved.', 'success')
         return redirect(url_for('admin.seo_settings'))
 
-    return render_template('admin/seo.html', form=form, profile=profile)
+    return render_template(
+        'admin/seo.html',
+        form=form,
+        profile=profile,
+        seo_readiness=_portfolio_seo_readiness(profile.tenant_id),
+    )
 
 
 @admin.route('/seo/live-save', methods=['POST'])
@@ -337,11 +355,21 @@ def seo_live_save():
         except Exception:
             logger.debug('Could not clear portfolio cache after live SEO update', exc_info=True)
 
+        seo_readiness = _portfolio_seo_readiness(profile.tenant_id)
+        seo_checks = {
+            item['key'].split('.', 1)[1]: item['status'] == 'pass'
+            for item in seo_readiness['evidence']
+        }
+
         return jsonify(
             success=True,
             message=message,
             image_url=image_url,
             saved_at=datetime.now(timezone.utc).isoformat(),
+            seo_score=seo_readiness['score'],
+            seo_passed=seo_readiness['status_counts']['pass'],
+            seo_total=(seo_readiness['status_counts']['pass'] + seo_readiness['status_counts']['fail']),
+            seo_checks=seo_checks,
         )
     except Exception:
         db.session.rollback()
@@ -435,8 +463,13 @@ def themes_index():
 
     all_themes = engine.get_all_themes()
     categories = set()
+    customization_enabled = bool(_active_tenant_plan_features().get('theme_customization'))
     for theme in all_themes:
         theme['_can_use'] = engine.can_use_theme(profile, theme['id'])
+        theme['_can_customize'] = bool(
+            theme['_can_use']
+            and (customization_enabled or getattr(current_user, 'is_superadmin', False))
+        )
         theme['_is_active'] = theme['id'] == active_theme_id
         cat = (theme.get('category') or '').strip()
         if cat:
@@ -482,6 +515,7 @@ def apply_theme():
     if not engine.can_use_theme(profile, theme_id):
         return _fail('Upgrade your plan to unlock this theme.', 403)
 
+    previous_theme_id = profile.selected_theme or 'default'
     try:
         profile = _persist_theme_selection(profile, theme_id)
     except Exception as exc:
@@ -492,11 +526,12 @@ def apply_theme():
     # Analytics is deliberately a separate best-effort transaction. A catalog
     # counter failure must never roll back the already-persisted theme choice.
     try:
-        from app.models.core import ThemeCatalogEntry
-        catalog_entry = ThemeCatalogEntry.get_by_slug(theme_id)
-        if catalog_entry:
-            catalog_entry.increment_installs()
-            db.session.commit()
+        if theme_id != previous_theme_id:
+            from app.models.core import ThemeCatalogEntry
+            catalog_entry = ThemeCatalogEntry.get_by_slug(theme_id)
+            if catalog_entry:
+                catalog_entry.increment_installs()
+                db.session.commit()
     except Exception:
         db.session.rollback()
         logger.debug('Theme install analytics update failed for %s', theme_id, exc_info=True)
@@ -518,6 +553,110 @@ def apply_theme():
 
     flash(message, 'success')
     return redirect(url_for('admin.themes_index'))
+
+
+def _customizable_theme(profile, theme_id: str):
+    """Resolve one installed theme and enforce tenant plan customization access."""
+    from app.theme_engine import get_theme_engine, is_valid_theme_id, is_supported_theme_id
+
+    if not is_valid_theme_id(theme_id) or not is_supported_theme_id(theme_id):
+        abort(404)
+    engine = get_theme_engine()
+    meta = engine.get_theme_meta(theme_id)
+    if not meta:
+        abort(404)
+    if not profile or not engine.can_use_theme(profile, theme_id):
+        abort(403)
+    if not (
+        bool(_active_tenant_plan_features().get('theme_customization'))
+        or getattr(current_user, 'is_superadmin', False)
+    ):
+        abort(403)
+    return meta
+
+
+@admin.route('/appearance/themes/<theme_id>/customize', methods=['GET', 'POST'])
+@admin_required
+def customize_theme(theme_id: str):
+    """Save a private draft, publish an immutable version, or roll back."""
+    from app.services.themes.contract import ThemeContractError
+    from app.services.themes.customization_service import (
+        get_draft,
+        get_published,
+        get_versions,
+        publish_draft,
+        rollback_to_version,
+        save_draft,
+    )
+
+    profile = _load_tenant_profile()
+    meta = _customizable_theme(profile, theme_id)
+    tenant_id = int(profile.tenant_id)
+    schema = meta.get('configurable_tokens') or {}
+
+    if request.method == 'POST':
+        action = (request.form.get('action') or 'save').strip().lower()
+        try:
+            if action in {'save', 'publish'}:
+                values = {key: request.form.get(key, '') for key in schema}
+                save_draft(tenant_id, theme_id, values, user_id=current_user.id)
+                if action == 'publish':
+                    version = publish_draft(tenant_id, theme_id, user_id=current_user.id)
+                    flash(f'Customization version {version.version_number} published.', 'success')
+                else:
+                    flash('Customization draft saved.', 'success')
+            elif action == 'rollback':
+                version = rollback_to_version(
+                    tenant_id,
+                    theme_id,
+                    request.form.get('version_id', ''),
+                    user_id=current_user.id,
+                )
+                flash(f'Rollback published as version {version.version_number}.', 'success')
+            else:
+                raise ThemeContractError('unsupported customization action')
+        except ThemeContractError as exc:
+            db.session.rollback()
+            flash(str(exc), 'warning')
+            return redirect(url_for('admin.customize_theme', theme_id=theme_id))
+        except Exception:
+            db.session.rollback()
+            logger.exception('Theme customization failed tenant=%s theme=%s', tenant_id, theme_id)
+            flash('The customization could not be saved. Please try again.', 'danger')
+            return redirect(url_for('admin.customize_theme', theme_id=theme_id))
+
+        _clear_theme_page_cache(profile.tenant_slug)
+        log_activity('update', 'theme_customization', theme_id, f'Theme customization {action}')
+        return redirect(url_for('admin.customize_theme', theme_id=theme_id))
+
+    draft = get_draft(tenant_id, theme_id)
+    published = get_published(tenant_id, theme_id)
+    values = dict((draft.tokens if draft else None) or (published.tokens if published else None) or {})
+    for key, definition in schema.items():
+        values.setdefault(key, definition.get('default', ''))
+    return render_template(
+        'admin/themes/customize.html',
+        theme=meta,
+        schema=schema,
+        values=values,
+        draft=draft,
+        published=published,
+        versions=get_versions(tenant_id, theme_id),
+    )
+
+
+@admin.route('/appearance/themes/<theme_id>/customization.css')
+@admin_required
+def theme_customization_draft_css(theme_id: str):
+    """Tenant-authenticated draft CSS used only by the admin preview."""
+    from app.services.themes.customization_service import customization_css
+
+    profile = _load_tenant_profile()
+    _customizable_theme(profile, theme_id)
+    response = Response(customization_css(profile.tenant_id, theme_id, draft=True), mimetype='text/css')
+    response.headers['Cache-Control'] = 'private, no-store'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 @admin.route('/appearance/themes/<theme_id>/preview')
@@ -615,6 +754,7 @@ def preview_theme(theme_id):
         contact_url='#',
         is_root_domain=False,
         preview_mode=True,
+        theme_customization_url=url_for('admin.theme_customization_draft_css', theme_id=theme_id),
     )
     if not rendered_preview or not str(rendered_preview).strip():
         current_app.logger.error('Theme preview returned empty HTML for theme_id=%s tenant=%s', theme_id, tenant_slug)

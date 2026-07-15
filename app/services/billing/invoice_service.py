@@ -20,13 +20,14 @@ frozen. The only state transition after issuance is void_invoice().
 """
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
 from app.extensions import db
 from app.models.core import Invoice
+from app.models.billing_center import InvoiceLine, InvoiceStatusEvent
+from app.services.billing.plan_service import PlanService
 from app.utils import get_plan_price, normalize_plan_name
-from app.services.billing.currency import get_currency_settings
 
 import logging
 
@@ -35,8 +36,18 @@ logger = logging.getLogger(__name__)
 
 def _to_decimal(value) -> Decimal:
     if isinstance(value, Decimal):
-        return value
-    return Decimal(str(value if value is not None else 0))
+        amount = value
+    else:
+        # Existing integrations still pass legacy floats.  Decimal(str(...))
+        # is the documented dual-write conversion rule; all persisted invoice
+        # amounts are then rounded half-up exactly once.
+        amount = Decimal(str(value if value is not None else 0))
+    return amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+
+def _to_rate(value) -> Decimal:
+    amount = value if isinstance(value, Decimal) else Decimal(str(value if value is not None else 0))
+    return amount.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
 
 
 def _next_invoice_number() -> str:
@@ -80,6 +91,10 @@ def record_invoice(
     amount_discount_override: Decimal | float | int | None = None,
     amount_total_override: Decimal | float | int | None = None,
     currency_override: str | None = None,
+    original_amount_minor: int | None = None,
+    original_currency: str | None = None,
+    currency_exponent: int | None = None,
+    actor: str = 'billing-system',
     commit: bool = False,
 ) -> Optional[Invoice]:
     """
@@ -115,6 +130,7 @@ def record_invoice(
                 return existing
 
         norm_plan = normalize_plan_name(plan)
+        catalog = PlanService().snapshot(norm_plan, billing_cycle)
         amount_subtotal = _to_decimal(
             amount_subtotal_override
             if amount_subtotal_override is not None
@@ -134,36 +150,88 @@ def record_invoice(
             coupon_code = None
             discount_redemption_id = None
 
-        tax_rate = _to_decimal(tax_rate)
+        tax_rate = _to_rate(tax_rate)
+        if tax_rate < 0 or tax_rate > 1:
+            raise ValueError('tax rate must be between zero and one')
         taxable_base = amount_subtotal - amount_discount
-        amount_tax = (taxable_base * tax_rate).quantize(Decimal('0.01'))
+        amount_tax = (taxable_base * tax_rate).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         amount_total = (
             _to_decimal(amount_total_override)
             if amount_total_override is not None
-            else taxable_base + amount_tax
+            else _to_decimal(taxable_base + amount_tax)
         )
+        if min(amount_subtotal, amount_discount, amount_tax, amount_total) < 0:
+            raise ValueError('invoice money values cannot be negative')
+        if amount_total != _to_decimal(amount_subtotal - amount_discount + amount_tax):
+            raise ValueError('invoice total does not reconcile to subtotal - discount + tax')
 
-        invoice = Invoice(
-            invoice_number=_next_invoice_number(),
-            tenant_id=tenant_id,
-            subscription_id=sub_id,
-            discount_redemption_id=discount_redemption_id,
-            plan=norm_plan,
-            billing_cycle=billing_cycle,
-            amount_subtotal=amount_subtotal,
-            amount_discount=amount_discount,
-            tax_rate=tax_rate,
-            amount_tax=amount_tax,
-            amount_total=amount_total,
-            coupon_code=coupon_code,
-            currency=(currency_override or get_currency_settings().get('display_currency', 'USD')).upper(),
-            payment_method=payment_method or '',
-            payment_provider=payment_provider or '',
-            payment_reference=payment_reference,
-            status='issued',
-        )
-        db.session.add(invoice)
-        db.session.flush()
+        original_fields = (original_amount_minor, original_currency, currency_exponent)
+        if any(value is not None for value in original_fields) and not all(value is not None for value in original_fields):
+            raise ValueError('original amount, currency, and exponent must be supplied together')
+        if original_amount_minor is not None:
+            original_amount_minor = int(original_amount_minor)
+            currency_exponent = int(currency_exponent)
+            original_currency = str(original_currency).strip().upper()
+            if original_amount_minor < 0 or not 0 <= currency_exponent <= 6 or len(original_currency) != 3:
+                raise ValueError('invalid original money evidence')
+
+        # A failed optional invoice must roll back only its savepoint. Calling
+        # session.rollback() here would erase the payment activation and ledger
+        # posting being assembled by the caller in the same outer transaction.
+        with db.session.begin_nested():
+            invoice = Invoice(
+                invoice_number=_next_invoice_number(),
+                tenant_id=tenant_id,
+                subscription_id=sub_id,
+                discount_redemption_id=discount_redemption_id,
+                plan=norm_plan,
+                plan_version=catalog.catalog_version,
+                plan_snapshot=catalog.to_dict(),
+                billing_cycle=billing_cycle,
+                amount_subtotal=amount_subtotal,
+                amount_discount=amount_discount,
+                tax_rate=tax_rate,
+                amount_tax=amount_tax,
+                amount_total=amount_total,
+                original_amount_minor=original_amount_minor,
+                original_currency=original_currency,
+                currency_exponent=currency_exponent,
+                coupon_code=coupon_code,
+                currency=(currency_override or catalog.currency).upper(),
+                payment_method=payment_method or '',
+                payment_provider=payment_provider or '',
+                payment_reference=payment_reference,
+                status='issued',
+            )
+            db.session.add(invoice)
+            db.session.flush()
+            db.session.add(InvoiceLine(
+                invoice_id=invoice.id,
+                position=1,
+                line_type='subscription',
+                description=f'{catalog.display_name} — {billing_cycle}',
+                quantity=Decimal('1.000000'),
+                unit_amount=amount_subtotal,
+                amount=amount_subtotal,
+                tax_metadata={
+                    'rate': format(tax_rate, 'f'),
+                    'amount': format(amount_tax, 'f'),
+                },
+                discount_metadata={
+                    'amount': format(amount_discount, 'f'),
+                    'coupon_code': coupon_code,
+                    'redemption_id': discount_redemption_id,
+                },
+            ))
+            db.session.add(InvoiceStatusEvent(
+                invoice_id=invoice.id,
+                from_status=None,
+                to_status='issued',
+                actor=str(actor or 'billing-system')[:120],
+                reason='Successful payment activation recorded',
+                idempotency_key=f'issue:{invoice.invoice_number}',
+            ))
+            db.session.flush()
 
         logger.info(
             'record_invoice: issued %s tenant=%s subscription=%s total=%s',
@@ -180,11 +248,11 @@ def record_invoice(
             'record_invoice: failed for tenant=%s subscription=%s — activation proceeds regardless',
             tenant_id, getattr(subscription, 'id', None),
         )
-        db.session.rollback()
         return None
 
 
-def void_invoice(invoice: Invoice, *, reason: str, actor: str = '', commit: bool = True) -> Invoice:
+def void_invoice(invoice: Invoice, *, reason: str, actor: str = '', idempotency_key: str | None = None,
+                 commit: bool = True) -> Invoice:
     """
     The only permitted state change on an issued invoice. Does not alter
     any financial column — sets status/voided_at/void_reason only. Use
@@ -193,10 +261,29 @@ def void_invoice(invoice: Invoice, *, reason: str, actor: str = '', commit: bool
     """
     from datetime import datetime, timezone
 
+    reason = str(reason or '').strip()
+    actor = str(actor or '').strip()
+    if not reason or not actor:
+        raise ValueError('void reason and actor are required')
+    key = idempotency_key or f'void:{invoice.id}:{reason}'
+    existing = InvoiceStatusEvent.query.filter_by(invoice_id=invoice.id, idempotency_key=key).first()
+    if existing is not None:
+        return invoice
+    if invoice.status == 'void':
+        raise ValueError('invoice is already void')
+    previous = invoice.status
     invoice.status = 'void'
     invoice.voided_at = datetime.now(timezone.utc)
-    invoice.void_reason = f'{reason} (voided by {actor})' if actor else reason
+    invoice.void_reason = reason
     db.session.add(invoice)
+    db.session.add(InvoiceStatusEvent(
+        invoice_id=invoice.id,
+        from_status=previous,
+        to_status='void',
+        actor=actor[:120],
+        reason=reason,
+        idempotency_key=key,
+    ))
     if commit:
         db.session.commit()
     return invoice

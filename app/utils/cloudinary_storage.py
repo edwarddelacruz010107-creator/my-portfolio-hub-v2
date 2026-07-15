@@ -19,6 +19,7 @@ import io
 import logging
 import os
 import re
+import secrets
 import uuid
 from typing import Optional
 from urllib.parse import unquote, urlparse
@@ -209,33 +210,55 @@ def save_image(file: FileStorage, folder: str = "uploads") -> Optional[str]:
 
 
 def save_billing_proof(file: FileStorage, folder: str = "billing") -> Optional[str]:
-    """Upload a validated billing proof to persistent Cloudinary storage.
+    """Backward-compatible alias for authenticated private proof storage."""
+    private_folder = "billing-proofs" if folder == "billing" else folder
+    return save_private_billing_proof(file, folder=private_folder)
 
-    Image proofs use the normal optimized image pipeline. PDF proofs are
-    uploaded as authenticated server-side raw assets. The caller is still
-    responsible for applying ``FileUploadPolicy.validate_billing_proof_upload``
-    before this function is called.
+
+_PRIVATE_BILLING_PREFIX = "cloudinary-auth:"
+
+
+def save_private_billing_proof(
+    file: FileStorage,
+    folder: str = "billing-proofs",
+) -> Optional[str]:
+    """Store original proof bytes as an authenticated Cloudinary raw asset.
+
+    The returned value is an opaque storage reference, not a delivery URL.
+    Only the authorized superadmin proof route converts it to a server-side
+    signed URL and proxies the bytes to the browser.
     """
     if not file or not getattr(file, "filename", None):
         return None
 
     extension = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
-    if extension in {"png", "jpg", "jpeg", "webp"}:
-        return save_image(file, folder=folder)
-    if extension != "pdf":
+    if extension not in {"png", "jpg", "jpeg", "webp", "pdf"}:
         return None
 
     try:
         raw_data = _read_file_bytes(file)
         if not raw_data:
             return None
+
+        from app.security import FileUploadPolicy
+
+        ok, error = FileUploadPolicy.validate_billing_proof_upload(
+            file.filename,
+            len(raw_data),
+            file_bytes=raw_data,
+        )
+        if not ok:
+            logger.warning("Private Cloudinary proof rejected: %s", error)
+            return None
+
         _configure_cloudinary()
         import cloudinary.uploader
 
-        public_id = f"{uuid.uuid4().hex}.pdf"
+        public_id = f"{secrets.token_hex(24)}.{extension}"
         result = cloudinary.uploader.upload(
             io.BytesIO(raw_data),
             resource_type="raw",
+            type="authenticated",
             folder=_folder_path(folder),
             public_id=public_id,
             overwrite=False,
@@ -244,23 +267,83 @@ def save_billing_proof(file: FileStorage, folder: str = "billing") -> Optional[s
             invalidate=True,
             context={
                 "app": "myportfoliohub",
-                "category": "billing-proof",
-                "content_type": "application/pdf",
+                "category": "private-billing-proof",
+                "content_type": getattr(file, "mimetype", None) or "application/octet-stream",
             },
         )
-        secure_url = str(result.get("secure_url") or "").strip()
-        if secure_url.startswith("https://"):
-            logger.info("Uploaded billing proof PDF to Cloudinary public_id=%s", result.get("public_id"))
-            return secure_url
-        return None
+        stored_id = str(result.get("public_id") or "").strip()
+        expected_root = _folder_path(folder).rstrip("/") + "/"
+        if not stored_id.startswith(expected_root):
+            logger.error("Authenticated Cloudinary proof returned an invalid object ID")
+            return None
+        logger.info("Stored authenticated Cloudinary billing proof")
+        return f"{_PRIVATE_BILLING_PREFIX}raw:{stored_id}"
     except Exception:
-        logger.exception("Cloudinary billing proof upload failed")
+        logger.exception("Authenticated Cloudinary billing-proof upload failed")
         return None
     finally:
         try:
             file.stream.seek(0)
         except Exception:
             pass
+
+
+def _parse_private_billing_reference(reference: str) -> tuple[str, str] | None:
+    if not isinstance(reference, str) or not reference.startswith(_PRIVATE_BILLING_PREFIX):
+        return None
+    remainder = reference[len(_PRIVATE_BILLING_PREFIX):]
+    resource_type, separator, public_id = remainder.partition(":")
+    if not separator or resource_type != "raw" or not public_id:
+        return None
+    expected_root = _folder_path("billing-proofs").rstrip("/") + "/"
+    if not public_id.startswith(expected_root) or ".." in public_id:
+        return None
+    return resource_type, public_id
+
+
+def private_billing_proof_signed_url(reference: str) -> Optional[str]:
+    """Create a signed authenticated URL for server-side retrieval only."""
+    parsed = _parse_private_billing_reference(reference)
+    if not parsed:
+        return None
+    resource_type, public_id = parsed
+    try:
+        _configure_cloudinary()
+        import cloudinary.utils
+
+        url, _ = cloudinary.utils.cloudinary_url(
+            public_id,
+            resource_type=resource_type,
+            type="authenticated",
+            secure=True,
+            sign_url=True,
+        )
+        return url if is_cloudinary_url(url) else None
+    except Exception:
+        logger.exception("Could not sign authenticated Cloudinary billing proof")
+        return None
+
+
+def delete_private_billing_proof(reference: str) -> bool:
+    parsed = _parse_private_billing_reference(reference)
+    if not parsed:
+        return False
+    resource_type, public_id = parsed
+    try:
+        _configure_cloudinary()
+        import cloudinary.uploader
+
+        result = cloudinary.uploader.destroy(
+            public_id,
+            resource_type=resource_type,
+            type="authenticated",
+            invalidate=True,
+        )
+        status = str((result or {}).get("result") or "").lower()
+        return status in {"ok", "not found"}
+    except Exception:
+        logger.exception("Authenticated Cloudinary billing-proof deletion failed")
+        return False
 
 def is_cloudinary_url(url: str | None) -> bool:
     if not isinstance(url, str):
@@ -295,7 +378,7 @@ def _public_id_from_url(url: str) -> str | None:
     if not tail:
         return None
     last = tail[-1]
-    if "." in last:
+    if "." in last and _resource_type_from_url(url) != "raw":
         tail[-1] = last.rsplit(".", 1)[0]
     public_id = "/".join(part for part in tail if part)
     root = re.sub(r"[^a-zA-Z0-9_/-]+", "-", _config_value("CLOUDINARY_FOLDER_ROOT", "myportfoliohub")).strip("/")
@@ -303,6 +386,17 @@ def _public_id_from_url(url: str) -> str | None:
         logger.warning("Refusing to delete Cloudinary asset outside configured root: %s", public_id)
         return None
     return public_id or None
+
+
+def _resource_type_from_url(url: str) -> str:
+    """Return Cloudinary's delivery resource type, defaulting to image."""
+    if not is_cloudinary_url(url):
+        return "image"
+    segments = [part for part in urlparse(url).path.split("/") if part]
+    for candidate in ("image", "raw", "video"):
+        if candidate in segments:
+            return candidate
+    return "image"
 
 
 def delete_image(url: str) -> bool:
@@ -314,7 +408,11 @@ def delete_image(url: str) -> bool:
         _configure_cloudinary()
         import cloudinary.uploader
 
-        result = cloudinary.uploader.destroy(public_id, resource_type="image", invalidate=True)
+        result = cloudinary.uploader.destroy(
+            public_id,
+            resource_type=_resource_type_from_url(url),
+            invalidate=True,
+        )
         status = str((result or {}).get("result") or "").lower()
         if status in {"ok", "not found"}:
             logger.info("Deleted Cloudinary image public_id=%s result=%s", public_id, status)

@@ -109,6 +109,11 @@ def new_service():
         )
         db.session.add(svc)
         db.session.commit()
+        try:
+            from app.services.notification_service import publish_portfolio_completion_milestone
+            publish_portfolio_completion_milestone(tenant_id=svc.tenant_id)
+        except Exception:
+            logger.exception('Portfolio milestone notification failed: tenant_id=%s', svc.tenant_id)
         log_activity('create', 'service', svc.title, f'Added service: {svc.title}')
         flash(f'Service "{svc.title}" created!', 'success')
         return redirect(url_for('admin.services'))
@@ -130,6 +135,11 @@ def edit_service(id: int):
         svc.display_order = form.display_order.data or 0
         svc.is_visible    = form.is_visible.data
         db.session.commit()
+        try:
+            from app.services.notification_service import publish_portfolio_completion_milestone
+            publish_portfolio_completion_milestone(tenant_id=svc.tenant_id)
+        except Exception:
+            logger.exception('Portfolio milestone notification failed: tenant_id=%s', svc.tenant_id)
         log_activity('update', 'service', svc.title)
         flash(f'Service "{svc.title}" updated!', 'success')
         return redirect(url_for('admin.services'))

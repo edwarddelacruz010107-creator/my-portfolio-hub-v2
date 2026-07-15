@@ -180,7 +180,7 @@
   </div>
 </form>
 
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 .avatar-preview { cursor:pointer; position:relative; }
 .avatar-preview.is-dragging { outline:2px dashed var(--accent, #6c63ff); outline-offset:5px; }
 .avatar-preview.is-uploading::after {
@@ -198,7 +198,7 @@
 .profile-photo-status.is-success { color:#34d399; }
 .profile-photo-status.is-error { color:#fb7185; }
 </style>
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 (() => {
   const input = document.getElementById('profile_image_input');
   const preview = document.getElementById('avatarPreview');
@@ -295,7 +295,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 // Calculate profile completion dynamically for display only
 const completion = {{ profile_completion if profile else 0 }};
 </script>

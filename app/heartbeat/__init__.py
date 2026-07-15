@@ -70,6 +70,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from flask import Blueprint, current_app, jsonify, request
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,84 @@ _state: dict = {
 def get_heartbeat_state() -> dict:
     """Return a snapshot of the current heartbeat state (for templates / dashboard)."""
     return dict(_state)
+
+
+def _migration_probe(engine, *, version_table: str, expected_head: str) -> None:
+    """Verify connectivity and the deployed Alembic head without changing schema."""
+    with engine.connect() as connection:
+        connection.execute(text('SELECT 1'))
+        rows = connection.execute(
+            text(f'SELECT version_num FROM {version_table}')
+        ).scalars().all()
+    if tuple(rows) != (expected_head,):
+        raise RuntimeError('database migration head is not ready')
+
+
+def _readiness_checks() -> dict[str, str]:
+    """Return sanitized dependency states for the deployment readiness gate."""
+    checks: dict[str, str] = {}
+    from app import db
+    from app.services.database_migrations import (
+        CORE_MIGRATIONS,
+        CORE_VERSION_TABLE,
+        TENANT_MIGRATIONS,
+        TENANT_VERSION_TABLE,
+        _expected_heads,
+    )
+
+    dependencies = (
+        ('core_database', db.engine, CORE_VERSION_TABLE, _expected_heads(CORE_MIGRATIONS)[0]),
+        ('tenant_database', db.engines['tenant'], TENANT_VERSION_TABLE, _expected_heads(TENANT_MIGRATIONS)[0]),
+    )
+    for name, engine, version_table, expected in dependencies:
+        try:
+            _migration_probe(engine, version_table=version_table, expected_head=expected)
+            checks[name] = 'ok'
+        except Exception:
+            logger.exception('Readiness dependency failed: %s', name)
+            checks[name] = 'unavailable'
+
+    redis_url = (
+        current_app.config.get('CACHE_REDIS_URL')
+        or os.environ.get('REDIS_URL')
+        or ''
+    ).strip()
+    redis_required = bool(current_app.config.get('READINESS_REQUIRE_REDIS', False))
+    if not redis_url:
+        checks['cache'] = 'unavailable' if redis_required else 'not_configured'
+    else:
+        try:
+            import redis
+            kwargs = {'socket_connect_timeout': 2, 'socket_timeout': 2}
+            if redis_url.startswith('rediss://'):
+                kwargs['ssl_cert_reqs'] = None
+            client = redis.from_url(redis_url, **kwargs)
+            client.ping()
+            client.close()
+            checks['cache'] = 'ok'
+        except Exception:
+            logger.exception('Readiness dependency failed: cache')
+            checks['cache'] = 'unavailable'
+    return checks
+
+
+def get_readiness_snapshot() -> dict:
+    """Read-only, sanitized dependency evidence for trusted internal views."""
+    return {"checked_at": _now_iso(), "checks": _readiness_checks()}
+
+
+@heartbeat_bp.route('/livez', methods=['GET'])
+def livez():
+    """Process liveness only; deliberately performs no dependency I/O."""
+    return jsonify(status='alive', timestamp=_now_iso()), 200
+
+
+@heartbeat_bp.route('/readyz', methods=['GET'])
+def readyz():
+    """Bounded, read-only dependency and migration readiness gate."""
+    checks = _readiness_checks()
+    ready = all(value in {'ok', 'not_configured'} for value in checks.values())
+    return jsonify(status='ready' if ready else 'not_ready', checks=checks, timestamp=_now_iso()), (200 if ready else 503)
 
 
 # ── Helper: verify secret token ──────────────────────────────────────────────
@@ -264,8 +343,8 @@ def _check_tenant_db():
     db.engine (the default/core bind). In this dual-database architecture,
     Profile/Skill/Project/Testimonial/Service all live on the 'tenant' bind
     (TENANT_DATABASE_URL) -- a physically separate Postgres instance whose
-    migrations are NOT applied by the single-chain `flask db upgrade` (see
-    AUDIT note in migrations/env.py). A core-only health check reports
+    migrations are applied by a separate Alembic history through
+    `flask db-upgrade-all`. A core-only health check reports
     "healthy" even when the tenant DB is completely unmigrated, which is
     exactly the failure mode that produced
     `psycopg2.errors.UndefinedTable: relation "profile" does not exist`
@@ -571,7 +650,8 @@ def init_heartbeat(app) -> None:
     cli_args = ' '.join(sys.argv).lower()
     is_setup_command = any(command in cli_args for command in (
         'create-superadmin', 'ensure-default-tenant', 'ensure-tenant-schema',
-        'bootstrap-production-db', 'db upgrade', 'flask db',
+        'bootstrap-production-db', 'db-upgrade-all', 'db-status',
+        'db upgrade', 'flask db',
     ))
 
     # Register the blueprint (exempt from CSRF — monitoring pings are GET-only)

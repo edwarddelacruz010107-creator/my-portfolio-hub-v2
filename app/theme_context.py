@@ -103,7 +103,7 @@ def build_portfolio_view(
     skills_by_category = skills_by_category or {}
     stats = stats or {}
 
-    name = (getattr(profile, 'name', '') or 'Your Name').strip()
+    name = (getattr(profile, 'name', '') or 'Portfolio owner').strip()
     social = serialize_social_links(getattr(profile, 'social_links', None) or {})
 
     name_parts = name.split(' ', 1)
@@ -224,8 +224,6 @@ def build_portfolio_view(
         'seo_indexable': bool(getattr(profile, 'seo_indexable', True)) if profile else True,
         'tenant_slug': tenant_slug,
         'skills_flat': [skill for group in skills_grouped for skill in group.get('skills', [])],
-        'education': [],
-        'achievements': [],
         'website_url': social.get('website') or '',
         'color_cycle': ['#22c55e', '#38bdf8', '#a855f7', '#f59e0b'],
         'icon_cycle': ['lucide:code-2', 'lucide:layers', 'lucide:terminal', 'lucide:server'],

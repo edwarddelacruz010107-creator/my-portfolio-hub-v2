@@ -1,0 +1,77 @@
+{% extends 'superadmin/base.html' %}
+{% import 'components/ui.html' as ui with context %}
+{% block title %}Notifications{% endblock %}
+{% block page_title %}Notifications{% endblock %}
+
+{% block content %}
+<section class="notification-page" aria-labelledby="notification-page-title">
+  <header class="notification-page__header">
+    <div>
+      <span class="section-tag">Platform activity center</span>
+      <h1 id="notification-page-title">Notifications</h1>
+      <p>Payment reviews, system health, messaging, and platform operations.</p>
+    </div>
+    {% if unread_count %}
+    <form method="post" action="{{ url_for('superadmin.notifications_mark_all_read') }}" data-ui-submit-guard>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ ui.button('Mark all read', variant='secondary', size='sm', type='submit', icon_name='lucide:check-check') }}
+    </form>
+    {% endif %}
+  </header>
+
+  <form class="notification-filters" method="get" aria-label="Notification filters">
+    {{ ui.search_input('event_type', 'Event type', event_type, 'billing.payment_submitted') }}
+    <div class="ui-field">
+      <label class="ui-label" for="notification-status">Status</label>
+      <select class="ui-input ui-select" id="notification-status" name="status">
+        <option value=""{% if not status_filter %} selected{% endif %}>All</option>
+        <option value="unread"{% if status_filter == 'unread' %} selected{% endif %}>Unread</option>
+        <option value="read"{% if status_filter == 'read' %} selected{% endif %}>Read</option>
+      </select>
+    </div>
+    {{ ui.input('date_from', 'From', date_from, 'date') }}
+    {{ ui.input('date_to', 'To', date_to, 'date') }}
+    {{ ui.button('Apply filters', variant='primary', type='submit', icon_name='lucide:filter') }}
+  </form>
+
+  {% if notifications %}
+  <ol class="notification-feed" aria-label="Notification feed">
+    {% for notification in notifications %}
+    <li class="notification-feed__item{{ ' is-unread' if not notification.is_read }}" data-priority="{{ notification.priority }}">
+      <div class="notification-feed__icon" aria-hidden="true">{{ ui.icon('lucide:bell-ring', 18) }}</div>
+      <div class="notification-feed__content">
+        <div class="notification-feed__heading">
+          <strong>{{ notification.title }}</strong>
+          {{ ui.badge(notification.event_type|replace('.', ' '), 'neutral') }}
+        </div>
+        <p>{{ notification.message }}</p>
+        <small>{{ ui.timestamp(notification.created_at.isoformat(), notification.created_at.strftime('%b %d, %Y · %H:%M UTC')) }}</small>
+        <div class="notification-feed__actions">
+          {% if notification.action_url %}{{ ui.button('Open', href=notification.action_url, variant='secondary', size='sm') }}{% endif %}
+          {% if not notification.is_read %}
+          <form method="post" action="{{ url_for('superadmin.notification_mark_read', notification_id=notification.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {{ ui.button('Mark read', variant='ghost', size='sm', type='submit') }}
+          </form>
+          {% endif %}
+          <form method="post" action="{{ url_for('superadmin.notification_archive', notification_id=notification.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {{ ui.button('Archive', variant='ghost', size='sm', type='submit') }}
+          </form>
+        </div>
+      </div>
+      {% if not notification.is_read %}<span class="notification-feed__unread"><span class="sr-only">Unread</span></span>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+    {{ ui.empty_state('No matching notifications', 'New, real platform activity will appear here. Try changing the filters if you expected an older event.', icon_name='lucide:bell-off') }}
+  {% endif %}
+
+  {% if next_cursor %}
+  <nav class="ui-pagination" aria-label="Notification pages">
+    {{ ui.button('Load older', href=url_for('superadmin.notifications', cursor=next_cursor, event_type=event_type, status=status_filter, date_from=date_from, date_to=date_to), variant='secondary') }}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}

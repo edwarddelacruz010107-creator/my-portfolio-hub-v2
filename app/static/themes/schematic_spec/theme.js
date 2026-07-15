@@ -1,0 +1,38 @@
+(function(){
+  'use strict';
+  document.documentElement.classList.add('js-ready');
+  var yearEl=document.getElementById('year'); if(yearEl){ yearEl.textContent=new Date().getFullYear(); }
+  var themeToggle=document.getElementById('themeToggle'); var body=document.body; var savedTheme=null;
+  try{ savedTheme=window.localStorage?localStorage.getItem('schematic-spec-theme'):null; }catch(e){ savedTheme=null; }
+  if(savedTheme){ body.setAttribute('data-theme',savedTheme); }
+  themeToggle&&themeToggle.addEventListener('click',function(){ var current=body.getAttribute('data-theme')==='dark'?'dark':'light'; var next=current==='dark'?'light':'dark'; body.setAttribute('data-theme',next); try{ if(window.localStorage)localStorage.setItem('schematic-spec-theme',next); }catch(e){} });
+  var burger=document.getElementById('burger'); var navLinks=document.getElementById('navLinks');
+  burger&&burger.addEventListener('click',function(){ var isOpen=navLinks.classList.toggle('open'); burger.classList.toggle('open',isOpen); burger.setAttribute('aria-expanded',isOpen?'true':'false'); });
+  navLinks&&navLinks.querySelectorAll('a').forEach(function(link){ link.addEventListener('click',function(){ navLinks.classList.remove('open'); burger&&burger.classList.remove('open'); burger&&burger.setAttribute('aria-expanded','false'); }); });
+  document.querySelectorAll('a[href^="#"]').forEach(function(anchor){ anchor.addEventListener('click',function(e){ var targetId=this.getAttribute('href'); if(targetId&&targetId.length>1){ var target=document.querySelector(targetId); if(target){ e.preventDefault(); var nav=document.getElementById('navbar'); var navH=nav?nav.offsetHeight:0; var top=target.getBoundingClientRect().top+window.pageYOffset-navH+1; window.scrollTo({top:top,behavior:'smooth'}); } } }); });
+  var sections=document.querySelectorAll('section[id]'); var navAnchors=document.querySelectorAll('.nav-link');
+  function onScrollSpy(){ var nav=document.getElementById('navbar'); var scrollPos=window.scrollY+(nav?nav.offsetHeight:0)+40; var currentId=sections[0]?sections[0].id:''; sections.forEach(function(sec){ if(scrollPos>=sec.offsetTop)currentId=sec.id; }); navAnchors.forEach(function(a){ a.classList.toggle('active',a.getAttribute('data-section')===currentId); }); }
+  var backToTop=document.getElementById('backToTop'); backToTop&&backToTop.addEventListener('click',function(){ window.scrollTo({top:0,behavior:'smooth'}); });
+  function onScrollUI(){ if(backToTop){ if(window.scrollY>400)backToTop.classList.add('show'); else backToTop.classList.remove('show'); } }
+  window.addEventListener('scroll',function(){ onScrollSpy(); onScrollUI(); },{passive:true}); onScrollSpy(); onScrollUI();
+  var revealEls=document.querySelectorAll('.reveal');
+  if('IntersectionObserver' in window){ var io=new IntersectionObserver(function(entries){ entries.forEach(function(entry){ if(entry.isIntersecting){ entry.target.classList.add('is-visible'); io.unobserve(entry.target); } }); },{threshold:0.15,rootMargin:'0px 0px -40px 0px'}); revealEls.forEach(function(el){ io.observe(el); }); } else { revealEls.forEach(function(el){ el.classList.add('is-visible'); }); }
+  var skillBars=document.querySelectorAll('.skill-bar span'); if('IntersectionObserver' in window){ var barIo=new IntersectionObserver(function(entries){ entries.forEach(function(entry){ if(entry.isIntersecting){ entry.target.style.width=entry.target.getAttribute('data-width')+'%'; barIo.unobserve(entry.target); } }); },{threshold:0.4}); skillBars.forEach(function(bar){ barIo.observe(bar); }); }
+  var certTabs=document.querySelectorAll('.cert-tab'); var certPanels=document.querySelectorAll('.cert-panel'); certTabs.forEach(function(tab){ tab.addEventListener('click',function(){ certTabs.forEach(function(t){t.classList.remove('active');}); certPanels.forEach(function(p){p.classList.remove('active');}); tab.classList.add('active'); var target=document.getElementById(tab.getAttribute('data-tab')); if(target)target.classList.add('active'); }); });
+  var termBody=document.getElementById('terminalBody');
+  var bootData={};
+  try{bootData=JSON.parse((document.getElementById('schematicData')||{}).textContent||'{}');}catch(e){bootData={};}
+  var bootLines=[
+    '> initializing profile',
+    '> user: '+String(bootData.name||'portfolio_owner').toLowerCase().replace(/\\s+/g,'_'),
+    '> role: '+String(bootData.title||'not_specified').toLowerCase().replace(/\\s+/g,'_'),
+    '> projects: '+Number(bootData.projects||0),
+    '> skills: '+Number(bootData.skills||0),
+    '> status: '+String(bootData.availability||'not_specified').toLowerCase().replace(/\\s+/g,'_'),
+    '> awaiting_input'
+  ];
+  if(termBody){var lineIndex=0;function typeNextLine(){if(lineIndex>=bootLines.length)return;var lineEl=document.createElement('div');lineEl.className='terminal-line';lineEl.textContent=bootLines[lineIndex];termBody.appendChild(lineEl);requestAnimationFrame(function(){lineEl.style.transition='opacity .3s ease';lineEl.style.opacity='1';});lineIndex++;setTimeout(typeNextLine,480);}setTimeout(typeNextLine,400);}
+  var form=document.getElementById('contactForm'); var statusEl=document.getElementById('formStatus');
+  function showStatus(type,msg){ if(!statusEl)return; statusEl.className='form-status show '+type; statusEl.textContent=msg; }
+  if(form){ form.addEventListener('submit',function(e){ e.preventDefault(); if(!form.checkValidity()){ form.reportValidity(); return; } var action=form.getAttribute('action')||''; if(!action||action==='#'){ showStatus('error','Contact form is disabled in this design-fixture preview.'); return; } var btn=form.querySelector('button[type="submit"]'); var old=btn?btn.textContent:''; if(btn){ btn.disabled=true; btn.textContent='Sending...'; } fetch(action,{method:'POST',body:new FormData(form),headers:{'Accept':'application/json'}}).then(function(resp){ return resp.json().catch(function(){ return {status:resp.ok?'success':'error',message:resp.ok?'Message sent.':'Submission failed.'}; }).then(function(data){ if(!resp.ok||data.status==='error'){ throw new Error(data.message||'Submission failed.'); } return data; }); }).then(function(data){ showStatus('success',data.message||'Message sent successfully.'); form.reset(); }).catch(function(err){ showStatus('error',err.message||'Submission failed. Please try again.'); }).finally(function(){ if(btn){ btn.disabled=false; btn.textContent=old; } }); }); }
+})();

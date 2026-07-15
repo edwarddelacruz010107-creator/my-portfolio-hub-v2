@@ -3338,3 +3338,31 @@ html[data-theme="light"] .upload-filename {
 .toast-close:hover,
 .flash-close:hover,
 [data-toast-close]:hover { background: rgba(129, 140, 248, .12); }
+
+/* Phase 0C: real-data-only onboarding workflow. */
+.onboarding-checklist { grid-column: 1 / -1; }
+.onboarding-checklist > p { color: var(--text-muted); margin: -.25rem 0 1rem; }
+.onboarding-checklist-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .65rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.onboarding-checklist-list li {
+  align-items: center;
+  background: var(--surface-2, rgba(255,255,255,.03));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  gap: .6rem;
+  min-height: 44px;
+  padding: .7rem .8rem;
+}
+.onboarding-checklist-list li > span:first-child { color: var(--accent-light); }
+.onboarding-checklist-list li.is-done { color: var(--text-muted); }
+.onboarding-checklist-list a { color: var(--text); font-weight: 700; }
+@media (max-width: 720px) {
+  .onboarding-checklist-list { grid-template-columns: 1fr; }
+}

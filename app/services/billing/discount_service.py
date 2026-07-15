@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
+from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models.core import DiscountCampaign, DiscountRedemption
@@ -307,7 +308,7 @@ def redeem_discount(
     if quote.campaign is None or quote.amount_discounted <= 0:
         return None
 
-    campaign = discount_campaign_repository.get(quote.campaign.id)
+    campaign = discount_campaign_repository.get_for_update(quote.campaign.id)
     if campaign is None:
         return None
 
@@ -333,23 +334,29 @@ def redeem_discount(
 
     validate_campaign(campaign, tenant_id=tenant_id, plan=quote.plan, billing_cycle=quote.billing_cycle)
 
-    redemption = DiscountRedemption(
-        campaign_id=campaign.id,
-        tenant_id=tenant_id,
-        subscription_id=subscription_id,
-        amount_before=quote.amount_before,
-        amount_discounted=quote.amount_discounted,
-        amount_after=quote.amount_after,
-        billing_cycle=quote.billing_cycle,
-    )
-    db.session.add(redemption)
-    campaign.usage_count = (campaign.usage_count or 0) + 1
-    campaign.updated_at = datetime.now(timezone.utc)
-
-    if commit:
-        db.session.commit()
-    else:
-        db.session.flush()
+    try:
+        with db.session.begin_nested():
+            redemption = DiscountRedemption(
+                campaign_id=campaign.id,
+                tenant_id=tenant_id,
+                subscription_id=subscription_id,
+                amount_before=quote.amount_before,
+                amount_discounted=quote.amount_discounted,
+                amount_after=quote.amount_after,
+                billing_cycle=quote.billing_cycle,
+            )
+            db.session.add(redemption)
+            campaign.usage_count = (campaign.usage_count or 0) + 1
+            campaign.updated_at = datetime.now(timezone.utc)
+            db.session.flush()
+        if commit:
+            db.session.commit()
+    except IntegrityError:
+        if subscription_id is not None:
+            existing = db.session.query(DiscountRedemption).filter_by(subscription_id=subscription_id).first()
+            if existing is not None:
+                return existing
+        raise
 
     logger.info(
         "discount redeemed: campaign_id=%s tenant_id=%s amount_discounted=%s",

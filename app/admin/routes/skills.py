@@ -114,6 +114,11 @@ def new_skill():
         )
         db.session.add(skill)
         db.session.commit()
+        try:
+            from app.services.notification_service import publish_portfolio_completion_milestone
+            publish_portfolio_completion_milestone(tenant_id=skill.tenant_id)
+        except Exception:
+            logger.exception('Portfolio milestone notification failed: tenant_id=%s', skill.tenant_id)
         log_activity('create', 'skill', skill.name, f'Added skill: {skill.name}')
         flash(f'Skill "{skill.name}" created!', 'success')
         return redirect(url_for('admin.skills'))
@@ -136,6 +141,11 @@ def edit_skill(id: int):
         skill.order       = form.order.data or 0
         skill.is_visible  = form.is_visible.data
         db.session.commit()
+        try:
+            from app.services.notification_service import publish_portfolio_completion_milestone
+            publish_portfolio_completion_milestone(tenant_id=skill.tenant_id)
+        except Exception:
+            logger.exception('Portfolio milestone notification failed: tenant_id=%s', skill.tenant_id)
         log_activity('update', 'skill', skill.name)
         flash(f'Skill "{skill.name}" updated!', 'success')
         return redirect(url_for('admin.skills'))

@@ -1,32 +1,35 @@
-# Python caches
-__pycache__/
-*.py[cod]
-*$py.class
-.mypy_cache/
-.pytest_cache/
-.ruff_cache/
-
-# Local/editor files
-.vscode/
-_vscode/
-.idea/
-
-# Secrets and local env
+# Secrets and local environments
 .env
 .env.*
 !.env.example
-!env.production.template
+venv/
+.venv/
 
-# Logs and runtime artifacts
+# Python and test output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+node_modules/
+
+# Runtime logs and databases
+logs/
 *.log
-logs/*.log
-instance/*.sqlite
-instance/*.sqlite3
 instance/*.db
-*.sqlite
-*.sqlite3
-*.db
+instance/*.sqlite*
+storage/*.db
+storage/*.sqlite*
 
-# Local OS files
+# Uploaded customer data must never enter source control
+app/static/uploads/billing/
+instance/private_uploads/
+storage/private_uploads/
+
+# Editor and operating-system files
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db

@@ -200,7 +200,7 @@
   {% endfor %}
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 document.querySelectorAll('.js-copy-coupon').forEach(function (btn) {
   btn.addEventListener('click', function () {
     var code = btn.getAttribute('data-code');

@@ -3,7 +3,7 @@
 {% block page_title %}Email Services{% endblock %}
 
 {% block content %}
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 /* ── Email Services Dashboard — v5.9 ─────────────────────────────────── */
 .es-header{margin-bottom:2rem}
 .es-header h1{font-size:1.6rem;font-weight:700;margin:0 0 .3rem}
@@ -662,5 +662,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/tenant-email-services.js', v='20260711-production-actions') }}" defer></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/tenant-email-services.js', v='20260711-production-actions') }}" defer></script>
 {% endblock %}

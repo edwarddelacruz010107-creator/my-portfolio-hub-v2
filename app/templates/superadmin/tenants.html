@@ -272,5 +272,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/superadmin-tenants.js', v='20260712-overlay-hotfix-v4') }}" defer></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/superadmin-tenants.js', v='20260712-overlay-hotfix-v4') }}" defer></script>
 {% endblock %}

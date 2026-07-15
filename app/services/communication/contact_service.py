@@ -227,6 +227,28 @@ def process_contact_submission(
             user_message='Unable to save your message. Please try again.',
         )
 
+    if tenant_id:
+        try:
+            from app.services.notification_service import Recipient, publish_notification
+            publish_notification(
+                recipient=Recipient.tenant(int(tenant_id)),
+                event_type='inquiry.new',
+                template_key='inquiry.new',
+                parameters={'tenant_name': tenant.company_name or tenant.slug},
+                dedupe_key=f'inquiry.new:{inquiry.id}',
+                entity_type='inquiry',
+                entity_id=inquiry.id,
+                actor_type='visitor',
+                action_route='admin.messages',
+                priority='high',
+                commit=True,
+            )
+        except Exception:
+            logger.exception(
+                'contact[notification]: tenant=%s inquiry_id=%s notification failed',
+                tenant_slug, inquiry.id,
+            )
+
     # ── 4. Determine provider and dispatch ────────────────────────────────────
     result = _dispatch(
         tenant_slug=tenant_slug,

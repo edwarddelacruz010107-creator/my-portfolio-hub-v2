@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" data-theme-storage="cms_theme" data-theme-aliases="portfolio-theme">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -63,12 +63,11 @@
   {# ── Page-specific structured data slot ── #}
   {% block structured_data %}{% endblock %}
 
-  {# ── Fonts & styles ── #}
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
-  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
-  <script src="https://unpkg.com/iconify-icon@1.0.7/dist/iconify-icon.min.js" defer></script>
+  {# ── Theme, fonts & styles ── #}
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/theme-bootstrap.js', v='20260714-v1') }}"></script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css', v='20260714-v3') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components-v1.css', v='20260714-v1') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}"/>
   {% block extra_css %}{% endblock %}
 </head>
@@ -79,7 +78,8 @@
        (and the studio index) continue to work. #}
     {% block content %}{% endblock %}
   {% endblock %}
-  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/components-v1.js', v='20260714-v1') }}"></script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/main.js') }}"></script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>

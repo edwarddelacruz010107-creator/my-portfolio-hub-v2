@@ -123,7 +123,7 @@
   </div>
 </form>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 function previewImg(input, imgId, placeholderId) {
   if (input.files && input.files[0]) {
     const reader = new FileReader();

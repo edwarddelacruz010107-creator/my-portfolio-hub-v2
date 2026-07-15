@@ -53,6 +53,27 @@ from app.models.core import (
     PAID_PLAN_NAMES,
 )
 
+from app.models.ledger import (
+    PaymentTransaction,
+    FinancialAuditEvent,
+    LedgerBackfillItem,
+)
+from app.models.notification import Notification, NotificationReceipt, NotificationDelivery
+from app.models.billing_center import (
+    BillingPlanVersion,
+    InvoiceLine,
+    InvoiceStatusEvent,
+    SubscriptionStatusEvent,
+    BillingAttempt,
+    FinancialFloatBackup,
+)
+from app.models.intelligence import PortfolioIntelligenceSnapshot
+from app.models.theme_customization import ThemeCustomizationDraft, ThemeCustomizationVersion
+from app.models.ai_center import (
+    AIProviderConfig, AIModelConfig, AIFeaturePolicy, AIPromptDefinition,
+    AIPromptVersion, AIRequestJob, AIUsageRequest, AIUsageDaily, AIAuditEvent,
+)
+
 # ── Tenant Data DB models ───────────────────────────────────────────────────
 from app.models.tenant_data import (
     Profile,
@@ -83,6 +104,14 @@ __all__ = [
     'TenantEmailProvider', 'TenantSmtpSettings', 'TenantResendSettings', 'TenantMailerSendSettings',
     'ThemeCatalogEntry', 'VALID_REQUIRED_PLANS',
     'DiscountCampaign', 'DiscountRedemption', 'Invoice',
+    'PaymentTransaction', 'FinancialAuditEvent', 'LedgerBackfillItem',
+    'Notification', 'NotificationReceipt', 'NotificationDelivery',
+    'BillingPlanVersion', 'InvoiceLine', 'InvoiceStatusEvent',
+    'SubscriptionStatusEvent', 'BillingAttempt', 'FinancialFloatBackup',
+    'PortfolioIntelligenceSnapshot',
+    'ThemeCustomizationDraft', 'ThemeCustomizationVersion',
+    'AIProviderConfig', 'AIModelConfig', 'AIFeaturePolicy', 'AIPromptDefinition',
+    'AIPromptVersion', 'AIRequestJob', 'AIUsageRequest', 'AIUsageDaily', 'AIAuditEvent',
     # tenant_data_db
     'Profile', 'Skill', 'Project', 'ProjectReaction', 'Testimonial', 'Service', 'Certificate', 'WorkExperience', 'TenantFormSettings',
     # helpers

@@ -161,9 +161,18 @@ def inject_tenant_count():
     except Exception:
         unread_count = 0
 
+    try:
+        from app.services.notification_service import RecipientContext, get_unread_count_for_context
+        notification_count = get_unread_count_for_context(
+            RecipientContext.superadmin(user_id=int(current_user.id))
+        ) if current_user.is_authenticated else 0
+    except Exception:
+        notification_count = 0
+
     return dict(
         tenant_count=count,
         message_unread_count=unread_count,
+        notification_count=notification_count,
     )
 
 
@@ -186,4 +195,3 @@ def _slugify(text: str) -> str:
     slug = re.sub(r'[\s_]+', '-', slug)
     slug = re.sub(r'-+', '-', slug)
     return slug.strip('-')
-

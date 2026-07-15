@@ -10,7 +10,7 @@
   
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style-v3-enhancements.css') }}" />
-  <style>
+  <style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
     /* ── Billing shell ─────────────────────────────────────── */
     .page-shell {
       padding: 4rem 1.5rem 5rem;
@@ -507,7 +507,7 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
 {% endblock %}
 
 {% macro billing_url(endpoint) -%}

@@ -47,6 +47,90 @@ def upgrade():
     conn = op.get_bind()
     inspector = inspect(conn)
 
+    # Deterministic path for both the populated base revision and older
+    # snapshots. Do not enqueue duplicate constraints/indexes inside a batch;
+    # those errors surface when the context exits and abort PostgreSQL DDL.
+    if _table_exists(inspector, 'subscriptions'):
+        subscription_columns = {
+            column['name'] for column in inspector.get_columns('subscriptions')
+        }
+        additions = (
+            sa.Column('license_key', sa.String(length=64), nullable=True),
+            sa.Column(
+                'payment_status',
+                sa.String(length=20),
+                nullable=False,
+                server_default='unpaid',
+            ),
+        )
+        with op.batch_alter_table('subscriptions', schema=None) as batch:
+            for column in additions:
+                if column.name not in subscription_columns:
+                    batch.add_column(column)
+
+        inspector = inspect(conn)
+        unique_constraints = inspector.get_unique_constraints('subscriptions')
+        if not any(
+            constraint.get('column_names') == ['license_key']
+            for constraint in unique_constraints
+        ):
+            with op.batch_alter_table('subscriptions') as batch:
+                batch.create_unique_constraint(
+                    'uq_subscriptions_license_key', ['license_key']
+                )
+        index_names = {index['name'] for index in inspect(conn).get_indexes('subscriptions')}
+        if 'ix_subscriptions_tenant_status' not in index_names:
+            op.create_index(
+                'ix_subscriptions_tenant_status',
+                'subscriptions',
+                ['tenant_id', 'status'],
+            )
+
+        conn.execute(sa.text(
+            "UPDATE subscriptions SET payment_status = 'paid' WHERE status = 'active'"
+        ))
+        conn.execute(sa.text("""
+            UPDATE subscriptions
+            SET payment_status = 'pending'
+            WHERE status = 'pending'
+              AND payment_proof IS NOT NULL
+              AND payment_proof != ''
+        """))
+
+    if _table_exists(inspector, 'payment_submissions'):
+        submission_columns = {
+            column['name'] for column in inspector.get_columns('payment_submissions')
+        }
+        if 'subscription_id' not in submission_columns:
+            op.add_column(
+                'payment_submissions',
+                sa.Column('subscription_id', sa.Integer(), nullable=True),
+            )
+        inspector = inspect(conn)
+        foreign_keys = inspector.get_foreign_keys('payment_submissions')
+        if not any(
+            fk.get('constrained_columns') == ['subscription_id']
+            and fk.get('referred_table') == 'subscriptions'
+            for fk in foreign_keys
+        ):
+            with op.batch_alter_table('payment_submissions') as batch:
+                batch.create_foreign_key(
+                    'fk_payment_submissions_subscription_id',
+                    'subscriptions',
+                    ['subscription_id'],
+                    ['id'],
+                )
+        index_names = {
+            index['name'] for index in inspect(conn).get_indexes('payment_submissions')
+        }
+        for name, columns in (
+            ('ix_payment_subscriptions_subscription_id', ['subscription_id']),
+            ('ix_payment_submissions_tenant_status', ['tenant_id', 'status']),
+        ):
+            if name not in index_names:
+                op.create_index(name, 'payment_submissions', columns)
+    return
+
     # subscriptions table
     if _table_exists(inspector, 'subscriptions'):
         with op.batch_alter_table('subscriptions', schema=None) as batch_op:

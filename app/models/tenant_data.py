@@ -42,6 +42,7 @@ class Profile(db.Model):
         db.Index('ix_profile_tenant_id', 'tenant_id'),
         db.Index('ix_profile_updated_at', 'updated_at'),
         db.Index('ix_profile_is_available', 'is_available'),
+        db.Index('ix_profile_available_tenant', 'is_available', 'tenant_id'),
     )
 
     id         = db.Column(db.Integer, primary_key=True)
@@ -375,6 +376,7 @@ class Project(db.Model):
         db.Index('ix_projects_status_featured', 'status', 'is_featured'),
         db.Index('ix_projects_tenant_status', 'tenant_id', 'status'),
         db.Index('ix_projects_tenant_category_status', 'tenant_id', 'category', 'status'),
+        db.Index('ix_projects_tenant_status_updated', 'tenant_id', 'status', 'updated_at'),
     )
 
     id                = db.Column(db.Integer, primary_key=True)

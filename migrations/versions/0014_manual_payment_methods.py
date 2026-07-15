@@ -75,11 +75,14 @@ def upgrade():
                     kwargs = {'nullable': False, 'server_default': default}
                 op.add_column('payment_methods', sa.Column(col_name, col_type, **kwargs))
 
-    if not inspector.has_index('payment_methods', 'ix_payment_methods_tenant_active'):
+    existing_indexes = {
+        index['name'] for index in sa.inspect(conn).get_indexes('payment_methods')
+    }
+    if 'ix_payment_methods_tenant_active' not in existing_indexes:
         op.create_index('ix_payment_methods_tenant_active', 'payment_methods', ['tenant_id', 'is_active'], unique=False)
-    if not inspector.has_index('payment_methods', 'ix_payment_methods_display_order'):
+    if 'ix_payment_methods_display_order' not in existing_indexes:
         op.create_index('ix_payment_methods_display_order', 'payment_methods', ['display_order'], unique=False)
-    if not inspector.has_index('payment_methods', 'ix_payment_methods_tenant_id'):
+    if 'ix_payment_methods_tenant_id' not in existing_indexes:
         op.create_index('ix_payment_methods_tenant_id', 'payment_methods', ['tenant_id'], unique=False)
 
     # Migrate legacy payment_instructions → payment_methods
@@ -109,18 +112,49 @@ def upgrade():
             0,
             created_at,
             updated_at
-        FROM payment_instructions
+        FROM payment_instructions source
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM payment_methods existing
+            WHERE COALESCE(existing.tenant_id, -1) = COALESCE(source.tenant_id, -1)
+              AND existing.name = COALESCE(NULLIF(source.title, ''), source.method, 'Payment Method')
+        )
     """)
 
-    with op.batch_alter_table('payment_submissions', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('payment_method_id', sa.Integer(), nullable=True))
-        batch_op.create_foreign_key(
-            'fk_payment_submissions_payment_method_id',
-            'payment_methods',
-            ['payment_method_id'],
-            ['id'],
+    submission_inspector = sa.inspect(conn)
+    submission_columns = {
+        column['name']
+        for column in submission_inspector.get_columns('payment_submissions')
+    }
+    if 'payment_method_id' not in submission_columns:
+        op.add_column(
+            'payment_submissions',
+            sa.Column('payment_method_id', sa.Integer(), nullable=True),
         )
-        batch_op.create_index('ix_payment_submissions_payment_method_id', ['payment_method_id'])
+    submission_inspector = sa.inspect(conn)
+    submission_fks = submission_inspector.get_foreign_keys('payment_submissions')
+    if not any(
+        fk.get('constrained_columns') == ['payment_method_id']
+        and fk.get('referred_table') == 'payment_methods'
+        for fk in submission_fks
+    ):
+        with op.batch_alter_table('payment_submissions') as batch:
+            batch.create_foreign_key(
+                'fk_payment_submissions_payment_method_id',
+                'payment_methods',
+                ['payment_method_id'],
+                ['id'],
+            )
+    submission_indexes = {
+        index['name']
+        for index in sa.inspect(conn).get_indexes('payment_submissions')
+    }
+    if 'ix_payment_submissions_payment_method_id' not in submission_indexes:
+        op.create_index(
+            'ix_payment_submissions_payment_method_id',
+            'payment_submissions',
+            ['payment_method_id'],
+        )
 
 
 def downgrade():

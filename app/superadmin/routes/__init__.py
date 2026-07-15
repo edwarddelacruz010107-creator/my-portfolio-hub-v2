@@ -18,9 +18,12 @@ from app.superadmin.routes import twofa
 from app.superadmin.routes import logs_monitor
 from app.superadmin.routes import impersonation
 from app.superadmin.routes import discounts
+from app.superadmin.routes import design_system
+from app.superadmin.routes import notifications
+from app.superadmin.routes import ai_center
 
 __all__ = [
     "core_auth", "tenants", "messaging", "billing", "media",
     "email_settings", "landing_settings", "pricing_settings", "subscriptions", "twofa", "logs_monitor", "impersonation",
-    "discounts",
+    "discounts", "design_system", "notifications", "ai_center",
 ]

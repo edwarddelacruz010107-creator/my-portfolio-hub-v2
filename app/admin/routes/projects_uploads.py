@@ -270,6 +270,11 @@ def new_project():
 
         db.session.add(project)
         db.session.commit()
+        try:
+            from app.services.notification_service import publish_portfolio_completion_milestone
+            publish_portfolio_completion_milestone(tenant_id=tenant_id)
+        except Exception:
+            logger.exception('Portfolio milestone notification failed: tenant_id=%s', tenant_id)
         _clear_portfolio_cache(project.tenant_slug)
         log_activity('create', 'project', project.title)
         flash(f'Project "{project.title}" created!', 'success')
@@ -325,6 +330,11 @@ def edit_project(id: int):
         _apply_project_uploads(project, form, _active_tenant_plan_features())
 
         db.session.commit()
+        try:
+            from app.services.notification_service import publish_portfolio_completion_milestone
+            publish_portfolio_completion_milestone(tenant_id=project.tenant_id)
+        except Exception:
+            logger.exception('Portfolio milestone notification failed: tenant_id=%s', project.tenant_id)
         _clear_portfolio_cache(project.tenant_slug)
         log_activity('update', 'project', project.title)
         flash(f'Project "{project.title}" updated!', 'success')

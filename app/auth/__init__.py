@@ -195,10 +195,8 @@ def _totp_clear(ip: str):
 
 
 def _get_ip() -> str:
-    forwarded = request.headers.get('X-Forwarded-For', '')
-    if forwarded:
-        return forwarded.split(',')[0].strip()
-    return request.remote_addr or 'unknown'
+    from app.request_security import get_client_ip
+    return get_client_ip()
 
 
 def _is_safe_url(target: str) -> bool:

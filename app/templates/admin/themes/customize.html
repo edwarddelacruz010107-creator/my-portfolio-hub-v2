@@ -1,0 +1,83 @@
+{% extends "admin/base.html" %}
+
+{% block page_title %}Customize {{ theme.name }}{% endblock %}
+{% block title %}Customize theme{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/theme-marketplace-v1.css', v='20260714-phase7') }}">
+{% endblock %}
+
+{% block content %}
+<section class="theme-customizer" aria-labelledby="customizeTitle">
+  <header class="theme-marketplace__header">
+    <div>
+      <a class="theme-customizer__back" href="{{ url_for('admin.themes_index') }}">← Installed themes</a>
+      <h1 id="customizeTitle">Customize {{ theme.name }}</h1>
+      <p>Draft changes stay private. Publishing creates an immutable version used by the live portfolio.</p>
+    </div>
+    <a class="ui-button ui-button--ghost" href="{{ url_for('admin.preview_theme', theme_id=theme.id) }}" target="_blank" rel="noopener">Preview saved draft</a>
+  </header>
+
+  <div class="theme-customizer__layout">
+    <form class="ui-card theme-customizer__form" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="ui-card__header">
+        <h2>Design tokens</h2>
+        <p>Only values declared by this theme's versioned manifest are accepted.</p>
+      </div>
+      <div class="ui-card__body theme-customizer__fields">
+        {% for key, definition in schema.items() %}
+        <label class="ui-field">
+          <span class="ui-label">{{ definition.label }}</span>
+          {% if definition.type == 'color' %}
+          <input class="ui-input theme-customizer__color" type="color" name="{{ key }}" value="{{ values[key] }}" required>
+          {% elif definition.type == 'enum' %}
+          <select class="ui-input ui-select" name="{{ key }}" required>
+            {% for option in definition.options %}<option value="{{ option }}"{% if values[key] == option %} selected{% endif %}>{{ option }}</option>{% endfor %}
+          </select>
+          {% else %}
+          <input class="ui-input" type="text" name="{{ key }}" value="{{ values[key] }}" inputmode="decimal" required>
+          <small class="ui-help">Allowed {{ definition.min }}–{{ definition.max }}{{ definition.unit }}.</small>
+          {% endif %}
+        </label>
+        {% endfor %}
+      </div>
+      <footer class="theme-customizer__form-actions">
+        <button class="ui-button ui-button--secondary" type="submit" name="action" value="save">Save draft</button>
+        <button class="ui-button ui-button--primary" type="submit" name="action" value="publish">Save and publish</button>
+      </footer>
+    </form>
+
+    <aside class="ui-card theme-customizer__history" aria-labelledby="historyTitle">
+      <div class="ui-card__header">
+        <h2 id="historyTitle">Published history</h2>
+        <p>{% if published %}Live version {{ published.version_number }}{% else %}No customization has been published yet.{% endif %}</p>
+      </div>
+      {% if versions %}
+      <ol class="theme-customizer__versions">
+        {% for version in versions %}
+        <li>
+          <div>
+            <strong>Version {{ version.version_number }}</strong>
+            <span>{{ version.source|title }} · {{ version.created_at.strftime('%Y-%m-%d %H:%M UTC') if version.created_at else 'timestamp unavailable' }}</span>
+          </div>
+          {% if not published or version.id != published.id %}
+          <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="rollback">
+            <input type="hidden" name="version_id" value="{{ version.id }}">
+            <button class="ui-button ui-button--ghost ui-button--sm" type="submit">Restore</button>
+          </form>
+          {% else %}
+          <span class="ui-badge ui-badge--success">Live</span>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}
+      <div class="ui-card__body"><p class="ui-help">Publish the first version when the draft is ready.</p></div>
+      {% endif %}
+    </aside>
+  </div>
+</section>
+{% endblock %}

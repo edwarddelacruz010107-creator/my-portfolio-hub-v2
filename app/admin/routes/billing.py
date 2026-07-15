@@ -13,7 +13,7 @@ from functools import wraps
 from typing import Optional
 
 from flask import (session, Blueprint, render_template, redirect, url_for,
-                   flash, request, jsonify, current_app, Response)
+                   flash, request, jsonify, current_app, Response, abort)
 from flask_login import login_required, current_user
 
 from app import db
@@ -111,6 +111,21 @@ def billing_index():
 
     is_admin_plan = has_administrator_access(profile)
     subscription = None if is_admin_plan else profile.current_subscription()
+    if current_app.config.get('BILLING_CENTER_ENABLED', True):
+        from app.services.billing.center_service import tenant_billing_center
+        center = tenant_billing_center(profile.tenant_id)
+        return render_template(
+            'admin/billing_center.html',
+            profile=profile,
+            center=center,
+            tenant_slug=tenant,
+            is_administrator_plan=is_admin_plan,
+            billing_routes={
+                'overview': 'admin.billing_index',
+                'plans': 'admin.billing_plans',
+                'history': 'admin.billing_history',
+            },
+        )
     return render_template(
         'admin/billing_overview.html',
         profile=profile,
@@ -129,6 +144,60 @@ def billing_index():
             'history':  'admin.billing_history',
         },
     )
+
+
+@admin.route('/billing/legacy')
+@admin_required
+def billing_legacy_overview():
+    """Read-only rollback view retained for one release."""
+    if not current_app.config.get('BILLING_LEGACY_READ_ONLY', True):
+        return redirect(url_for('admin.billing_index'))
+    tenant = _active_tenant_slug()
+    profile = _load_tenant_profile()
+    if profile is None:
+        abort(404)
+    denied = _billing_access_check(tenant)
+    if denied:
+        return denied
+    is_admin_plan = has_administrator_access(profile)
+    subscription = None if is_admin_plan else profile.current_subscription()
+    response = Response(render_template(
+        'admin/billing_overview.html',
+        profile=profile,
+        subscription=subscription,
+        subscription_status=subscription_access_status(profile),
+        license_status=profile.license_status(),
+        trial_days_left=profile.trial_days_remaining(),
+        plans=get_public_billing_plans(),
+        is_administrator_plan=is_admin_plan,
+        administrator_plan=ADMINISTRATOR_PLAN,
+        tenant_slug=tenant,
+        paymongo_enabled=False,
+        legacy_read_only=True,
+        billing_routes={'overview': 'admin.billing_legacy_overview', 'plans': 'admin.billing_index', 'history': 'admin.billing_history'},
+    ))
+    response.headers['X-Billing-View'] = 'legacy-read-only'
+    return response
+
+
+@admin.route('/billing/invoices/<int:invoice_id>/download')
+@admin_required
+def billing_invoice_download(invoice_id):
+    profile = _load_tenant_profile()
+    if profile is None:
+        abort(404)
+    denied = _billing_access_check(_active_tenant_slug())
+    if denied:
+        return denied
+    from app.models import Invoice
+    invoice = Invoice.query.filter_by(id=invoice_id, tenant_id=profile.tenant_id).first_or_404()
+    from app.services.billing.receipt_service import render_invoice_pdf
+    payload = render_invoice_pdf(invoice)
+    response = Response(payload, mimetype='application/pdf')
+    response.headers['Content-Disposition'] = f'attachment; filename="{invoice.invoice_number}.pdf"'
+    response.headers['Cache-Control'] = 'private, no-store, max-age=0'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 @admin.route('/billing/dodo/return')
 @admin_required
@@ -333,6 +402,18 @@ def billing_history():
         return denied
 
     ensure_profile_trial_history(profile, commit=True)
+
+    if current_app.config.get('BILLING_CENTER_ENABLED', True):
+        from app.services.billing.center_service import tenant_billing_center
+        return render_template(
+            'admin/billing_center.html',
+            profile=profile,
+            center=tenant_billing_center(profile.tenant_id),
+            tenant_slug=tenant,
+            is_administrator_plan=has_administrator_access(profile),
+            active_section='history',
+            billing_routes={'overview': 'admin.billing_index', 'plans': 'admin.billing_plans', 'history': 'admin.billing_history'},
+        )
 
     subscriptions = (
         subscription_repository.query

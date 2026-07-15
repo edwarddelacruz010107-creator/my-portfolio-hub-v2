@@ -167,13 +167,11 @@ def paymongo_webhook():
             return jsonify(success=True, message='Event processed'), 200
         else:
             logger.error('PayMongo webhook: handler failed. id=%s type=%s', event_id, event_type)
-            # Return 200 to prevent retries on handler errors
-            return jsonify(success=False, message='Handler error'), 200
+            return jsonify(success=False, message='Handler error'), 500
         
     except Exception as exc:
         logger.exception('PayMongo webhook: unhandled error from %s', remote_ip)
-        # Always return 200 for server errors to prevent PayMongo retry storms
-        return jsonify(error='Internal server error'), 200
+        return jsonify(error='Internal server error'), 500
 
 
 def _handle_paymongo_event(
@@ -191,6 +189,10 @@ def _handle_paymongo_event(
     handlers = {
         'payment.paid': _handle_payment_paid,
         'payment.failed': _handle_payment_failed,
+        'payment.refunded': _handle_payment_adjustment,
+        'refund.succeeded': _handle_payment_adjustment,
+        'chargeback.created': _handle_payment_adjustment,
+        'dispute.lost': _handle_payment_adjustment,
         'checkout_session.payment.paid': _handle_checkout_paid,
         'subscription.created': _handle_subscription_created,
         'subscription.updated': _handle_subscription_updated,
@@ -214,13 +216,50 @@ def _handle_paymongo_event(
 # EVENT HANDLERS
 # ─────────────────────────────────────────────────────────────────────────
 
+def _paymongo_resource(attrs: dict) -> tuple[dict, dict]:
+    resource = attrs.get('data') if isinstance(attrs.get('data'), dict) else {}
+    resource_attrs = resource.get('attributes') if isinstance(resource.get('attributes'), dict) else resource
+    return resource, resource_attrs
+
+
+def _provider_datetime(value):
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value, tz=timezone.utc)
+    if isinstance(value, str) and value:
+        try:
+            return datetime.fromisoformat(value.replace('Z', '+00:00')).astimezone(timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
+def _accept_paymongo_state_event(subscription, resource_attrs: dict, event_id: str) -> bool:
+    occurred_at = _provider_datetime(
+        resource_attrs.get('updated_at')
+        or resource_attrs.get('paid_at')
+        or resource_attrs.get('created_at')
+    )
+    if occurred_at is None:
+        logger.warning('PayMongo state event lacks provider occurrence time. id=%s', event_id)
+        return False
+    previous = subscription.provider_state_occurred_at
+    if previous and previous.tzinfo is None:
+        previous = previous.replace(tzinfo=timezone.utc)
+    if previous and occurred_at < previous:
+        logger.info('PayMongo out-of-order state event ignored. id=%s', event_id)
+        return False
+    subscription.provider_state_occurred_at = occurred_at
+    subscription.last_webhook_at = datetime.now(timezone.utc)
+    return True
+
 def _handle_payment_paid(attrs: dict, event_id: str, event_data: dict) -> bool:
     """Handle payment.paid event."""
     from app.models.portfolio import Subscription, SubscriptionStatus
     
     try:
-        payment_id = event_data.get('data', {}).get('id', '')
-        metadata = attrs.get('metadata', {})
+        resource, resource_attrs = _paymongo_resource(attrs)
+        payment_id = str(resource.get('id') or event_data.get('data', {}).get('id', ''))
+        metadata = resource_attrs.get('metadata') or attrs.get('metadata') or {}
         subscription_id = metadata.get('subscription_id')
         
         if not subscription_id:
@@ -235,6 +274,20 @@ def _handle_payment_paid(attrs: dict, event_id: str, event_data: dict) -> bool:
         
         if not sub:
             logger.warning('Payment paid: subscription not found. id=%s', subscription_id)
+            return True
+
+        received_at = datetime.now(timezone.utc)
+        if not _accept_paymongo_state_event(sub, resource_attrs, event_id):
+            from app.services.ledger import post_provider_event
+            post_provider_event(
+                'paymongo', event_data,
+                tenant_id=sub.tenant_id, subscription_id=sub.id,
+                received_at=received_at,
+                environment=current_app.config.get('PAYMONGO_MODE', 'test'),
+                event_id_override=event_id,
+                session=db.session, commit=False,
+            )
+            db.session.commit()
             return True
 
         # FIX: previously this only flipped `sub.status` inline, bypassing
@@ -263,8 +316,11 @@ def _handle_payment_paid(attrs: dict, event_id: str, event_data: dict) -> bool:
         # stays None and activate_subscription()/apply_on_activation() fall
         # back to list price / quoted discount price respectively — it
         # never silently records a wrong number, it just doesn't override.
-        amount_attr = attrs.get('amount')
+        amount_attr = resource_attrs.get('amount', attrs.get('amount'))
         charged_amount = (amount_attr / 100.0) if isinstance(amount_attr, (int, float)) else None
+        provider_currency = str(resource_attrs.get('currency') or attrs.get('currency') or '').strip().upper()
+        if len(provider_currency) != 3:
+            provider_currency = None
 
         activate_subscription(
             sub,
@@ -272,6 +328,8 @@ def _handle_payment_paid(attrs: dict, event_id: str, event_data: dict) -> bool:
             billing_cycle=cycle,
             paymongo_payment_id=payment_id,
             amount=charged_amount,
+            currency=provider_currency,
+            currency_exponent=2,
             source='payment.paid',
         )
 
@@ -285,7 +343,7 @@ def _handle_payment_paid(attrs: dict, event_id: str, event_data: dict) -> bool:
         )
 
         from app.services.billing import invoice_service
-        invoice_service.record_invoice(
+        invoice = invoice_service.record_invoice(
             tenant_id=sub.tenant_id,
             subscription=sub,
             plan=plan,
@@ -294,6 +352,25 @@ def _handle_payment_paid(attrs: dict, event_id: str, event_data: dict) -> bool:
             payment_provider='paymongo',
             payment_reference=payment_id,
             redemption=redemption,
+            currency_override=provider_currency,
+            original_amount_minor=int(amount_attr) if isinstance(amount_attr, int) and provider_currency else None,
+            original_currency=provider_currency if isinstance(amount_attr, int) and provider_currency else None,
+            currency_exponent=2 if isinstance(amount_attr, int) and provider_currency else None,
+            actor=f'paymongo:{event_id}',
+            commit=False,
+        )
+
+        from app.services.ledger import post_provider_event
+        post_provider_event(
+            'paymongo',
+            event_data,
+            tenant_id=sub.tenant_id,
+            subscription_id=sub.id,
+            received_at=received_at,
+            environment=current_app.config.get('PAYMONGO_MODE', 'test'),
+            event_id_override=event_id,
+            invoice_id=invoice.id if invoice else None,
+            session=db.session,
             commit=False,
         )
 
@@ -308,14 +385,58 @@ def _handle_payment_paid(attrs: dict, event_id: str, event_data: dict) -> bool:
         return False
 
 
+def _handle_payment_adjustment(attrs: dict, event_id: str, event_data: dict) -> bool:
+    """Post a refund/chargeback without mutating the original settlement."""
+    from app.models import Subscription
+    from app.services.ledger import post_provider_event
+
+    resource, resource_attrs = _paymongo_resource(attrs)
+    metadata = resource_attrs.get('metadata') or attrs.get('metadata') or {}
+    subscription_id = metadata.get('subscription_id')
+    if not subscription_id:
+        logger.warning('PayMongo adjustment lacks subscription metadata. id=%s', event_id)
+        return False
+    try:
+        subscription = Subscription.query.filter_by(id=int(subscription_id)).first()
+    except (TypeError, ValueError):
+        return False
+    if subscription is None:
+        logger.warning('PayMongo adjustment subscription not found. id=%s', subscription_id)
+        return False
+
+    try:
+        posting, _ = post_provider_event(
+            'paymongo',
+            event_data,
+            tenant_id=subscription.tenant_id,
+            subscription_id=subscription.id,
+            received_at=datetime.now(timezone.utc),
+            environment=current_app.config.get('PAYMONGO_MODE', 'test'),
+            event_id_override=event_id,
+            session=db.session,
+            commit=False,
+        )
+        if posting is None:
+            logger.warning('PayMongo adjustment could not be normalized. id=%s', event_id)
+            db.session.rollback()
+            return False
+        db.session.commit()
+        return True
+    except Exception:
+        db.session.rollback()
+        logger.exception('PayMongo adjustment failed. id=%s', event_id)
+        return False
+
+
 def _handle_payment_failed(attrs: dict, event_id: str, event_data: dict) -> bool:
     """Handle payment.failed event."""
     from app.models.portfolio import Subscription, SubscriptionStatus
     
     try:
-        metadata = attrs.get('metadata', {})
+        resource, resource_attrs = _paymongo_resource(attrs)
+        metadata = resource_attrs.get('metadata') or attrs.get('metadata') or {}
         subscription_id = metadata.get('subscription_id')
-        failure_reason = attrs.get('failure_reason', 'unknown')
+        failure_reason = resource_attrs.get('failure_reason') or attrs.get('failure_reason') or 'unknown'
         
         if not subscription_id:
             logger.warning('Payment failed: missing subscription_id. id=%s', event_id)
@@ -331,9 +452,15 @@ def _handle_payment_failed(attrs: dict, event_id: str, event_data: dict) -> bool
             logger.warning('Payment failed: subscription not found. id=%s', subscription_id)
             return True
         
-        # Mark as failed
-        sub.status = SubscriptionStatus.FAILED
-        sub.failure_reason = failure_reason[:200]
+        if _accept_paymongo_state_event(sub, resource_attrs, event_id):
+            from app.services.billing.lifecycle_service import transition_subscription
+            transition_subscription(
+                sub, 'past_due', actor='paymongo-webhook',
+                reason='Verified provider payment failure',
+                idempotency_key=f'paymongo:{event_id}:past_due',
+                provider='paymongo', provider_event_id=event_id, commit=False,
+            )
+            _publish_billing_lifecycle_notification(sub, 'billing.payment_failed', f'paymongo:{event_id}')
         db.session.commit()
         
         logger.info('Payment failed: subscription=%s reason=%s', subscription_id, failure_reason)
@@ -356,9 +483,10 @@ def _handle_subscription_created(attrs: dict, event_id: str, event_data: dict) -
     from app.models.portfolio import Subscription
     
     try:
-        metadata = attrs.get('metadata', {})
+        resource, resource_attrs = _paymongo_resource(attrs)
+        metadata = resource_attrs.get('metadata') or attrs.get('metadata') or {}
         subscription_id = metadata.get('subscription_id')
-        paymongo_sub_id = event_data.get('data', {}).get('id', '')
+        paymongo_sub_id = resource.get('id') or event_data.get('data', {}).get('id', '')
         
         if not subscription_id:
             logger.warning('Subscription created: missing subscription_id. id=%s', event_id)
@@ -374,8 +502,8 @@ def _handle_subscription_created(attrs: dict, event_id: str, event_data: dict) -
             logger.warning('Subscription created: subscription not found. id=%s', subscription_id)
             return True
         
-        # Link to PayMongo subscription
-        sub.paymongo_subscription_id = paymongo_sub_id
+        if _accept_paymongo_state_event(sub, resource_attrs, event_id):
+            sub.paymongo_subscription_id = paymongo_sub_id
         db.session.commit()
         
         logger.info('Subscription created in PayMongo: local=%s paymongo=%s', 
@@ -400,7 +528,8 @@ def _handle_subscription_cancelled(attrs: dict, event_id: str, event_data: dict)
     from app.models.portfolio import Subscription, SubscriptionStatus
     
     try:
-        metadata = attrs.get('metadata', {})
+        resource, resource_attrs = _paymongo_resource(attrs)
+        metadata = resource_attrs.get('metadata') or attrs.get('metadata') or {}
         subscription_id = metadata.get('subscription_id')
         
         if not subscription_id:
@@ -417,9 +546,15 @@ def _handle_subscription_cancelled(attrs: dict, event_id: str, event_data: dict)
             logger.warning('Subscription cancelled: subscription not found. id=%s', subscription_id)
             return True
         
-        # Mark as cancelled
-        sub.status = SubscriptionStatus.CANCELLED
-        sub.cancelled_at = datetime.now(timezone.utc)
+        if _accept_paymongo_state_event(sub, resource_attrs, event_id):
+            from app.services.billing.lifecycle_service import transition_subscription
+            transition_subscription(
+                sub, 'cancelled', actor='paymongo-webhook',
+                reason='Verified provider cancellation',
+                idempotency_key=f'paymongo:{event_id}:cancelled',
+                provider='paymongo', provider_event_id=event_id, commit=False,
+            )
+            _publish_billing_lifecycle_notification(sub, 'billing.cancelled', f'paymongo:{event_id}')
         db.session.commit()
         
         logger.info('Subscription cancelled: id=%s', subscription_id)
@@ -436,7 +571,8 @@ def _handle_subscription_expired(attrs: dict, event_id: str, event_data: dict) -
     from app.models.portfolio import Subscription, SubscriptionStatus
     
     try:
-        metadata = attrs.get('metadata', {})
+        resource, resource_attrs = _paymongo_resource(attrs)
+        metadata = resource_attrs.get('metadata') or attrs.get('metadata') or {}
         subscription_id = metadata.get('subscription_id')
         
         if not subscription_id:
@@ -453,9 +589,15 @@ def _handle_subscription_expired(attrs: dict, event_id: str, event_data: dict) -
             logger.warning('Subscription expired: subscription not found. id=%s', subscription_id)
             return True
         
-        # Mark as expired
-        sub.status = SubscriptionStatus.EXPIRED
-        sub.expired_at = datetime.now(timezone.utc)
+        if _accept_paymongo_state_event(sub, resource_attrs, event_id):
+            from app.services.billing.lifecycle_service import transition_subscription
+            transition_subscription(
+                sub, 'expired', actor='paymongo-webhook',
+                reason='Verified provider expiry',
+                idempotency_key=f'paymongo:{event_id}:expired',
+                provider='paymongo', provider_event_id=event_id, commit=False,
+            )
+            _publish_billing_lifecycle_notification(sub, 'billing.expired', f'paymongo:{event_id}')
         db.session.commit()
         
         logger.info('Subscription expired: id=%s', subscription_id)
@@ -524,12 +666,12 @@ def dodo_webhook():
     row = WebhookEvent(
         event_id=f'dodo:{event_id}',
         event_type=event_type,
-        payload_summary=json.dumps(event, default=str)[:500],
+        payload_summary=json.dumps({'provider': 'dodo', 'event_type': event_type}),
         processed=False,
     )
     db.session.add(row)
     try:
-        ok, tenant_id = _handle_dodo_event(event_type, event)
+        ok, tenant_id = _handle_dodo_event(event_type, event, event_id=event_id)
         row.tenant_id = tenant_id
         row.processed = bool(ok)
         db.session.commit()
@@ -549,7 +691,7 @@ def _dodo_object(event: dict) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def _handle_dodo_event(event_type: str, event: dict):
+def _handle_dodo_event(event_type: str, event: dict, *, event_id: str):
     """Synchronize a local Subscription from a verified Dodo event."""
     from app.models import Subscription
     from app.services.billing.dodo_service import parse_iso_datetime
@@ -570,9 +712,68 @@ def _handle_dodo_event(event_type: str, event: dict):
         logger.warning('Dodo webhook has no matching local subscription: type=%s metadata=%s', event_type, metadata)
         return True, None
 
+    received_at = datetime.now(timezone.utc)
     sub.payment_provider = 'dodo'
     sub.payment_method = 'dodo'
-    sub.last_webhook_at = datetime.now(timezone.utc)
+    sub.last_webhook_at = received_at
+
+    amount_minor = obj.get('recurring_pre_tax_amount') or obj.get('total_amount') or obj.get('amount')
+    provider_currency = str(obj.get('currency') or '').strip().upper()
+    active_event_types = {'subscription.active', 'subscription.renewed', 'payment.succeeded', 'checkout.session.completed'}
+    invoice = None
+    if event_type in active_event_types and isinstance(amount_minor, int) and len(provider_currency) == 3:
+        from app.services.billing.invoice_service import record_invoice
+        from app.services.billing.money import minor_to_decimal
+        invoiced_amount = minor_to_decimal(amount_minor, 2)
+        invoice = record_invoice(
+            tenant_id=sub.tenant_id,
+            subscription=sub,
+            plan=metadata.get('plan_code') or sub.plan,
+            billing_cycle=metadata.get('billing_cycle') or sub.billing_cycle or 'monthly',
+            payment_method='dodo',
+            payment_provider='dodo',
+            payment_reference=str(obj.get('payment_id') or event_id),
+            amount_subtotal_override=invoiced_amount,
+            amount_total_override=invoiced_amount,
+            currency_override=provider_currency,
+            original_amount_minor=amount_minor,
+            original_currency=provider_currency,
+            currency_exponent=2,
+            actor=f'dodo:{event_id}',
+            commit=False,
+        )
+
+    # Financial facts are ordered by their own occurred_at and must still be
+    # posted when delivery is late. Subscription state, however, must never be
+    # rolled backward by an older provider event.
+    from app.services.ledger import post_provider_event
+    post_provider_event(
+        'dodo',
+        event,
+        tenant_id=sub.tenant_id,
+        subscription_id=sub.id,
+        received_at=received_at,
+        environment=current_app.config.get('DODO_PAYMENTS_MODE', 'test'),
+        event_id_override=event_id,
+        invoice_id=invoice.id if invoice else None,
+        session=db.session,
+        commit=False,
+    )
+    state_occurred_at = parse_iso_datetime(
+        obj.get('updated_at') or obj.get('paid_at') or obj.get('created_at')
+    )
+    previous_state_at = sub.provider_state_occurred_at
+    if previous_state_at and previous_state_at.tzinfo is None:
+        previous_state_at = previous_state_at.replace(tzinfo=timezone.utc)
+    if state_occurred_at is None:
+        logger.warning('Dodo state event lacks provider occurrence time: type=%s id=%s', event_type, event_id)
+        db.session.add(sub)
+        return True, sub.tenant_id
+    if previous_state_at and state_occurred_at < previous_state_at:
+        logger.info('Dodo out-of-order state event ignored: type=%s id=%s', event_type, event_id)
+        db.session.add(sub)
+        return True, sub.tenant_id
+    sub.provider_state_occurred_at = state_occurred_at
     sub.dodo_subscription_id = str(dodo_sub_id) if dodo_sub_id else sub.dodo_subscription_id
     sub.dodo_customer_id = str(obj.get('customer_id') or (obj.get('customer') or {}).get('customer_id') or '') or sub.dodo_customer_id
     sub.dodo_payment_id = str(obj.get('payment_id') or '') or sub.dodo_payment_id
@@ -592,27 +793,68 @@ def _handle_dodo_event(event_type: str, event: dict):
     if end:
         sub.expires_at = end
 
-    active_events = {'subscription.active', 'subscription.renewed', 'payment.succeeded', 'checkout.session.completed'}
-    failed_events = {'subscription.failed', 'payment.failed'}
-    terminal_events = {'subscription.cancelled', 'subscription.expired'}
-
     provider_status = str(obj.get('status') or '').lower()
-    if event_type in active_events or provider_status == 'active':
-        sub.status = 'active'
-        if not sub.started_at:
-            sub.started_at = datetime.now(timezone.utc)
-    elif event_type == 'subscription.on_hold' or provider_status == 'on_hold':
-        sub.status = 'pending'
-    elif event_type in terminal_events or provider_status in ('cancelled', 'expired'):
-        sub.status = 'cancelled' if 'cancel' in event_type or provider_status == 'cancelled' else 'expired'
-        if sub.status == 'cancelled':
-            sub.cancelled_at = datetime.now(timezone.utc)
-    elif event_type in failed_events or provider_status == 'failed':
-        sub.status = 'pending'
+    from app.services.billing.lifecycle_service import adapt_provider_state, transition_subscription, InvalidSubscriptionTransition
+    target_state = None
+    for raw_state in (event_type, provider_status):
+        if not raw_state:
+            continue
+        try:
+            target_state = adapt_provider_state('dodo', raw_state)
+            break
+        except InvalidSubscriptionTransition:
+            continue
+    if target_state:
+        transition_subscription(
+            sub,
+            target_state,
+            actor='dodo-webhook',
+            reason=f'Verified provider lifecycle event: {event_type}',
+            idempotency_key=f'dodo:{event_id}:{target_state}',
+            provider='dodo',
+            provider_event_id=event_id,
+            occurred_at=state_occurred_at,
+            commit=False,
+        )
 
-    amount_minor = obj.get('recurring_pre_tax_amount') or obj.get('total_amount') or obj.get('amount')
-    if isinstance(amount_minor, (int, float)):
-        sub.amount_paid = float(amount_minor) / 100.0
+    notification_event = {
+        'subscription.active': 'billing.activated',
+        'subscription.renewed': 'billing.renewed',
+        'payment.failed': 'billing.payment_failed',
+        'subscription.failed': 'billing.payment_failed',
+        'subscription.cancelled': 'billing.cancelled',
+        'subscription.expired': 'billing.expired',
+    }.get(event_type)
+    if notification_event:
+        _publish_billing_lifecycle_notification(sub, notification_event, f'dodo:{event_id}')
+
+    if isinstance(amount_minor, int) and len(provider_currency) == 3:
+        from app.services.billing.financial_conversion import set_exact_paid_amount
+        set_exact_paid_amount(
+            sub, amount=float(amount_minor) / 100.0,
+            currency=provider_currency, exponent=2,
+        )
 
     db.session.add(sub)
     return True, sub.tenant_id
+
+
+def _publish_billing_lifecycle_notification(sub, template_key: str, provider_event_id: str) -> None:
+    """Publish a verified provider lifecycle fact in the webhook transaction."""
+    from app.services.notification_service import Recipient, publish_notification
+
+    publish_notification(
+        recipient=Recipient.tenant(int(sub.tenant_id)),
+        event_type=template_key,
+        template_key=template_key,
+        parameters={'plan_name': (sub.plan or 'Subscription').title()},
+        dedupe_key=f'{template_key}:provider_event:{provider_event_id}',
+        entity_type='subscription',
+        entity_id=sub.id,
+        actor_type='payment_provider',
+        action_route='admin.billing_overview',
+        priority='urgent' if template_key == 'billing.payment_failed' else 'high',
+        channels=('in_app', 'email') if template_key in {'billing.payment_failed', 'billing.expired'} else ('in_app',),
+        session=db.session,
+        commit=False,
+    )

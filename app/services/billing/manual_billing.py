@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import secrets
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 
 from flask import current_app
@@ -26,7 +27,6 @@ from werkzeug.utils import secure_filename
 
 from app import db
 from app.models.portfolio import (
-    Inquiry,
     PaymentMethod,
     PaymentSubmission,
     Profile,
@@ -34,7 +34,11 @@ from app.models.portfolio import (
     normalize_plan_name,
 )
 from app.services.billing import activate_subscription, get_or_create_pending_subscription
-from app.utils import generate_license_key, log_billing_event, get_plan_price, send_subscription_activated_notification
+from app.services.billing.private_proof_storage import (
+    PrivateProofStorageError,
+    save_private_billing_proof,
+)
+from app.utils import generate_license_key, log_billing_event, get_plan_price
 
 logger = logging.getLogger(__name__)
 
@@ -163,22 +167,34 @@ def save_billing_upload(file_storage, *, image_only: bool = False) -> tuple[str 
     if not ok:
         return None, err
 
-    # Keep payment evidence on the selected persistent storage provider.
-    # A database filename that points at Render's ephemeral app directory will
-    # break after the next deploy, so Cloudinary is preferred when configured.
+    # Payment-method QR codes are intentionally public checkout assets. Payment
+    # proofs are private customer evidence and must use the separate private
+    # storage boundary and opaque references.
     provider = str(current_app.config.get('STORAGE_PROVIDER') or '').strip().lower()
-    if provider == 'cloudinary':
+    if not provider and bool(current_app.config.get('USE_CLOUDINARY_STORAGE', False)):
+        provider = 'cloudinary'
+    if image_only and provider == 'cloudinary':
         try:
-            from app.utils.cloudinary_storage import is_configured, save_billing_proof
+            from app.utils.cloudinary_storage import is_configured, save_image
             if not is_configured():
                 return None, 'Cloudinary is selected but its credentials are incomplete.'
-            remote_url = save_billing_proof(file_storage, folder='billing')
+            remote_url = save_image(file_storage, folder='billing')
             if not remote_url:
-                return None, 'The payment proof could not be stored. Please try again.'
+                return None, 'The payment QR code could not be stored. Please try again.'
             return remote_url, None
         except Exception:
-            logger.exception('Cloudinary billing proof upload failed')
-            return None, 'The payment proof could not be stored. Please try again.'
+            logger.exception('Cloudinary payment QR upload failed')
+            return None, 'The payment QR code could not be stored. Please try again.'
+
+    if not image_only:
+        try:
+            return save_private_billing_proof(file_storage), None
+        except PrivateProofStorageError as exc:
+            logger.warning('Private billing-proof upload rejected: %s', exc)
+            return None, str(exc)
+        except Exception:
+            logger.exception('Private billing-proof upload failed')
+            return None, 'The payment proof could not be stored privately. Please try again.'
 
     unique_name = f'{secrets.token_hex(12)}_{filename}'
     from app.services.media.upload_storage import ensure_upload_folder
@@ -279,6 +295,13 @@ def submit_manual_payment(
         note=(note or '').strip(),
         status='pending',
     )
+    from app.services.billing.financial_conversion import set_exact_paid_amount
+    set_exact_paid_amount(
+        submission,
+        amount=submission.amount_paid,
+        currency=submission.currency_code,
+        exponent=2,
+    )
     db.session.add(submission)
     db.session.commit()
 
@@ -287,6 +310,30 @@ def submit_manual_payment(
         profile.tenant_slug,
         f'Manual payment submitted via {method.name} (ref {(payment_reference or "")[:32]})',
     )
+    try:
+        from app.services.notification_service import Recipient, publish_notification
+        publish_notification(
+            recipient=Recipient.role('superadmin'),
+            event_type='billing.payment_submitted',
+            template_key='billing.payment_submitted',
+            parameters={
+                'tenant_name': profile.tenant.company_name or profile.tenant_slug,
+                'currency_code': submission.currency_code or 'USD',
+            },
+            dedupe_key=f'billing.payment_submitted:{submission.id}',
+            entity_type='payment_submission',
+            entity_id=submission.id,
+            actor_type='tenant',
+            actor_id=profile.tenant_id,
+            action_route='superadmin.billing_submissions',
+            priority='high',
+            commit=True,
+        )
+    except Exception:
+        logger.exception(
+            '[PAYMENT_REVIEW] Superadmin notification failed for submission_id=%s',
+            submission.id,
+        )
     return submission
 
 
@@ -305,10 +352,20 @@ def approve_payment_submission(
       • Structured logging at each phase.
       • In-app notification on success.
     """
+    review_notes = str(review_notes or '').strip()
+    if not review_notes:
+        return False, 'A review reason is required.'
     logger.info(
         '[PAYMENT_REVIEW] approve_payment_submission called: submission_id=%s tenant_id=%s status=%s reviewer=%s',
         submission.id, submission.tenant_id, submission.status, reviewer,
     )
+
+    query = PaymentSubmission.query.filter_by(id=submission.id)
+    if db.session.get_bind().dialect.name != 'sqlite':
+        query = query.with_for_update()
+    submission = query.populate_existing().first()
+    if submission is None:
+        return False, 'Payment submission not found.'
 
     # ── Guard: already reviewed ───────────────────────────────────────────────
     if submission.status != 'pending':
@@ -353,7 +410,7 @@ def approve_payment_submission(
         submission.status       = 'approved'
         submission.reviewed_at  = now
         submission.reviewed_by  = reviewer
-        submission.review_notes = review_notes or f'Approved by {reviewer}'
+        submission.review_notes = review_notes
 
         # Generate license key (informational — stored on Profile)
         license_key = generate_license_key(submission.plan, profile.tenant_slug)
@@ -368,6 +425,10 @@ def approve_payment_submission(
             sub,
             plan=submission.plan,
             billing_cycle=billing_cycle,
+            amount=float(submission.amount_paid or 0),
+            currency=submission.currency_code,
+            currency_exponent=getattr(submission, 'amount_paid_exponent', None) or 2,
+            source=f'manual-approval:{submission.id}',
         )
         sub.payment_method = submission.payment_method or 'manual'
 
@@ -392,7 +453,13 @@ def approve_payment_submission(
         )
 
         # Preserve the exact locally converted amount approved by the reviewer.
-        sub.amount_paid = float(submission.amount_paid or 0)
+        from app.services.billing.financial_conversion import set_exact_paid_amount
+        set_exact_paid_amount(
+            sub,
+            amount=float(submission.amount_paid or 0),
+            currency=submission.currency_code,
+            exponent=getattr(submission, 'amount_paid_exponent', None) or 2,
+        )
         try:
             sub.price_paid = float(submission.amount_paid or 0)
         except Exception:
@@ -404,7 +471,7 @@ def approve_payment_submission(
         discount_local = max(Decimal('0.00'), subtotal_local - total_local)
 
         from app.services.billing import invoice_service
-        invoice_service.record_invoice(
+        invoice = invoice_service.record_invoice(
             tenant_id=submission.tenant_id,
             subscription=sub,
             plan=submission.plan,
@@ -417,6 +484,19 @@ def approve_payment_submission(
             amount_discount_override=discount_local,
             amount_total_override=total_local,
             currency_override=submission.currency_code or 'USD',
+            original_amount_minor=submission.amount_paid_minor,
+            original_currency=submission.currency_code if submission.amount_paid_minor is not None else None,
+            currency_exponent=submission.amount_paid_exponent if submission.amount_paid_minor is not None else None,
+            actor=reviewer,
+            commit=False,
+        )
+
+        from app.services.ledger import post_manual_submission
+        post_manual_submission(
+            submission,
+            reviewer=reviewer,
+            invoice_id=invoice.id if invoice else None,
+            session=db.session,
             commit=False,
         )
 
@@ -456,27 +536,25 @@ def approve_payment_submission(
 
     # ── Post-commit: notifications (non-fatal) ────────────────────────────────
     try:
-        send_subscription_activated_notification(profile, sub)
+        from app.services.notification_service import Recipient, publish_notification
+        publish_notification(
+            recipient=Recipient.tenant(int(submission.tenant_id)),
+            event_type='billing.payment_approved',
+            template_key='billing.payment_approved',
+            parameters={'plan_name': (submission.plan or 'Subscription').title()},
+            dedupe_key=f'billing.payment_approved:{submission.id}',
+            entity_type='payment_submission',
+            entity_id=submission.id,
+            actor_type='superadmin',
+            action_route='admin.billing_overview',
+            priority='high',
+            channels=('in_app', 'email'),
+            commit=True,
+        )
+        _process_email_outbox_best_effort()
     except Exception as exc:
         logger.warning(
-            '[PAYMENT_APPROVED] Notification failed (non-fatal): tenant=%s error=%s',
-            profile.tenant_slug, exc,
-        )
-
-    try:
-        notify_tenant_billing_message(
-            profile,
-            subject='[Billing] Subscription Activated',
-            message=(
-                f'Your payment has been approved by {reviewer}. '
-                f'Your {submission.plan} subscription is now active. '
-                f'Expires: {sub.expires_at.strftime("%Y-%m-%d") if sub.expires_at else "N/A"}. '
-                f'Thank you for subscribing!'
-            ),
-        )
-    except Exception as exc:
-        logger.warning(
-            '[PAYMENT_APPROVED] In-app notification failed (non-fatal): %s', exc,
+            '[PAYMENT_APPROVED] Notification failed (non-fatal): %s', exc,
         )
 
     log_billing_event(
@@ -507,6 +585,13 @@ def reject_payment_submission(
         submission.id, submission.tenant_id, submission.status, reviewer,
     )
 
+    query = PaymentSubmission.query.filter_by(id=submission.id)
+    if db.session.get_bind().dialect.name != 'sqlite':
+        query = query.with_for_update()
+    submission = query.populate_existing().first()
+    if submission is None:
+        return False, 'Payment submission not found.'
+
     if submission.status != 'pending':
         logger.warning(
             '[PAYMENT_REVIEW] submission_id=%s already reviewed (status=%s)',
@@ -514,13 +599,25 @@ def reject_payment_submission(
         )
         return False, f'Submission already reviewed (status: {submission.status}).'
 
-    reason = review_notes.strip() if review_notes else f'Rejected by {reviewer}'
+    reason = review_notes.strip() if review_notes else ''
+    if not reason:
+        return False, 'A review reason is required.'
 
     try:
         submission.status       = 'rejected'
         submission.reviewed_at  = datetime.now(timezone.utc)
         submission.reviewed_by  = reviewer
         submission.review_notes = reason
+
+        from app.models import FinancialAuditEvent
+        db.session.add(FinancialAuditEvent(
+            transaction_id=None,
+            tenant_id=submission.tenant_id,
+            action='manual_payment_rejected',
+            actor=reviewer,
+            reason=reason,
+            safe_details={'submission_id': submission.id, 'idempotency_key': f'manual-review:{submission.id}:reject'},
+        ))
 
         db.session.commit()
         logger.info(
@@ -538,17 +635,23 @@ def reject_payment_submission(
 
     # ── Post-commit: in-app notification (non-fatal) ──────────────────────────
     try:
+        from app.services.notification_service import Recipient, publish_notification
         profile = Profile.query.filter_by(tenant_id=submission.tenant_id).first()
-        if profile:
-            notify_tenant_billing_message(
-                profile,
-                subject='[Billing] Payment Submission Rejected',
-                message=(
-                    f'Your payment submission has been reviewed and rejected. '
-                    f'Reason: {reason}. '
-                    f'Please resubmit with correct proof or contact support.'
-                ),
-            )
+        publish_notification(
+            recipient=Recipient.tenant(int(submission.tenant_id)),
+            event_type='billing.payment_rejected',
+            template_key='billing.payment_rejected',
+            parameters={'review_reason': reason[:240]},
+            dedupe_key=f'billing.payment_rejected:{submission.id}',
+            entity_type='payment_submission',
+            entity_id=submission.id,
+            actor_type='superadmin',
+            action_route='admin.billing_overview',
+            priority='high',
+            channels=('in_app', 'email'),
+            commit=True,
+        )
+        _process_email_outbox_best_effort()
         slug = profile.tenant_slug if profile else str(submission.tenant_id)
     except Exception as exc:
         logger.warning('[PAYMENT_REJECTED] In-app notification failed (non-fatal): %s', exc)
@@ -559,15 +662,40 @@ def reject_payment_submission(
 
 
 def notify_tenant_billing_message(profile: Profile, subject: str, message: str) -> None:
-    """In-app billing notification via Inquiry (superadmin sender)."""
-    inquiry = Inquiry(
-        tenant_slug=profile.tenant_slug,
-        name='Billing Team',
-        email='billing@platform',
-        subject=subject,
-        message=message,
-        sender='superadmin',
-        is_read=False,
+    """Compatibility entrypoint; publishes to the unified notification feed."""
+    from app.services.notification_service import Recipient, publish_notification
+    publish_notification(
+        recipient=Recipient.tenant(int(profile.tenant_id)),
+        event_type='legacy.billing_message',
+        template_key='legacy.literal',
+        parameters={'title': subject, 'message': message},
+        dedupe_key=f'legacy.billing_message:{profile.tenant_id}:{secrets.token_hex(8)}',
+        actor_type='superadmin',
+        action_route='admin.billing_overview',
+        commit=True,
     )
-    db.session.add(inquiry)
-    db.session.commit()
+
+
+def _process_email_outbox_best_effort() -> None:
+    """Attempt queued email now; retry metadata remains durable on failure."""
+    from app.services.notification_service import process_pending_email_deliveries
+    from app.services.mailersend_service import send_email
+
+    def resolve(notification):
+        tenant = notification.target_tenant
+        if tenant is None:
+            return None
+        recipient = tenant.contact_email or tenant.email or None
+        if recipient:
+            return recipient
+        try:
+            user = tenant.users.first()
+            return user.email if user else None
+        except Exception:
+            return None
+
+    process_pending_email_deliveries(
+        recipient_resolver=resolve,
+        sender=send_email,
+        limit=10,
+    )

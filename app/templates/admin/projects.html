@@ -112,7 +112,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 async function toggleFeatured(id, btn) {
   const res = await fetch(`/admin/projects/${id}/toggle-featured`, {
     method: 'POST',

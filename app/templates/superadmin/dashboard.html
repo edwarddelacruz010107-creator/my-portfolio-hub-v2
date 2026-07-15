@@ -1,443 +1,138 @@
 {% extends 'superadmin/base.html' %}
-{% block title %}Platform Overview{% endblock %}
-{% block page_title %}Platform Overview{% endblock %}
-
-
-{% block extra_css %}
-<style>
-  .overview-shell{display:grid;gap:1.35rem}
-  .overview-hero{position:relative;overflow:hidden;border:1px solid rgba(129,140,248,.22);background:linear-gradient(135deg,rgba(79,70,229,.14),rgba(15,23,42,.78) 52%,rgba(16,185,129,.06));border-radius:24px;padding:2rem}
-  .overview-hero:after{content:"";position:absolute;right:-80px;top:-100px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,.2),transparent 68%);pointer-events:none}
-  .overview-hero__top{display:flex;align-items:flex-start;justify-content:space-between;gap:1.5rem;position:relative;z-index:1}
-  .overview-kicker{display:inline-flex;align-items:center;gap:.5rem;font-size:.72rem;letter-spacing:.13em;text-transform:uppercase;color:#a5b4fc;font-weight:700}
-  .overview-kicker:before{content:"";width:7px;height:7px;border-radius:50%;background:#34d399;box-shadow:0 0 0 5px rgba(52,211,153,.1)}
-  .overview-hero h1{margin:.65rem 0 .45rem;font-size:clamp(2rem,4vw,3.2rem);letter-spacing:-.05em}
-  .overview-hero p{max-width:680px;color:var(--text-muted);margin:0;line-height:1.65}
-  .overview-meta{display:flex;align-items:center;gap:.55rem;margin-top:1rem;color:var(--text-dim);font-size:.78rem}
-  .overview-meta span{display:inline-flex;align-items:center;gap:.35rem}
-  .overview-actions{display:flex;gap:.65rem;flex-wrap:wrap;justify-content:flex-end}
-  .overview-filter{border:1px solid var(--border);border-radius:18px;background:var(--bg-2);padding:1rem}
-  .overview-filter .filter-row{grid-template-columns:minmax(250px,1.5fr) repeat(2,minmax(150px,.7fr)) auto}
-  .overview-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.85rem}
-  .metric-card{position:relative;overflow:hidden;min-height:154px;border:1px solid var(--border);border-radius:18px;background:linear-gradient(180deg,rgba(22,31,50,.97),rgba(17,24,39,.97));padding:1rem 1rem .95rem;display:flex;flex-direction:column;justify-content:space-between}
-  .metric-card:before{content:"";position:absolute;inset:0 0 auto 0;height:2px;background:var(--metric-accent,#6366f1);opacity:.9}
-  .metric-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem}
-  .metric-label{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);font-weight:700}
-  .metric-icon{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:color-mix(in srgb,var(--metric-accent,#6366f1) 12%,transparent);color:var(--metric-accent,#818cf8)}
-  .metric-value{font-size:1.8rem;font-family:var(--font-display);font-weight:700;letter-spacing:-.04em;color:var(--text-primary)}
-  .metric-note{font-size:.74rem;color:var(--text-dim);line-height:1.45}
-  .metric-chip{display:inline-flex;align-items:center;gap:.3rem;width:max-content;margin-top:.45rem;padding:.24rem .5rem;border-radius:999px;font-size:.68rem;background:rgba(52,211,153,.1);color:#34d399;border:1px solid rgba(52,211,153,.15)}
-  .analytics-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(300px,.85fr);gap:1rem}
-  .analytics-card{border:1px solid var(--border);border-radius:20px;background:var(--bg-2);padding:1.25rem;min-width:0}
-  .analytics-card__head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1.1rem}
-  .analytics-card__head h2{font-size:1rem;margin:.3rem 0 0}
-  .analytics-card__head p{font-size:.75rem;color:var(--text-dim);margin:.25rem 0 0}
-  .analytics-period{font-size:.7rem;color:#a5b4fc;border:1px solid rgba(129,140,248,.2);background:rgba(99,102,241,.08);padding:.35rem .55rem;border-radius:999px;white-space:nowrap}
-  .revenue-chart{height:245px;position:relative;padding:.5rem .4rem 1.8rem}
-  .revenue-chart svg{width:100%;height:100%;overflow:visible}
-  .chart-grid-line{stroke:rgba(148,163,184,.12);stroke-width:.45}
-  .chart-axis{display:flex;justify-content:space-between;color:var(--text-dim);font-size:.68rem;margin-top:-.2rem;padding:0 .45rem}
-  .chart-tooltip-value{font-size:4px;fill:#e5e7eb;font-weight:700}
-  .chart-tooltip-bg{fill:rgba(15,23,42,.9);stroke:rgba(129,140,248,.25);stroke-width:.3}
-  .tenant-bars{height:180px;display:flex;align-items:flex-end;gap:.65rem;padding:.75rem .15rem .15rem}
-  .tenant-bar-item{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:.55rem;height:100%}
-  .tenant-bar-track{width:100%;height:135px;border-radius:10px 10px 6px 6px;background:rgba(148,163,184,.06);display:flex;align-items:flex-end;overflow:hidden}
-  .tenant-bar-fill{width:100%;min-height:4px;border-radius:10px 10px 0 0;background:linear-gradient(180deg,#818cf8,#4f46e5);box-shadow:0 0 18px rgba(99,102,241,.18)}
-  .tenant-bar-value{font-size:.68rem;color:var(--text-muted);font-weight:700}
-  .tenant-bar-label{font-size:.67rem;color:var(--text-dim)}
-  .insight-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem}
-  .provider-list{display:grid;gap:.75rem}
-  .provider-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:.75rem;padding:.75rem;border-radius:14px;border:1px solid rgba(148,163,184,.1);background:rgba(15,23,42,.35)}
-  .provider-dot{width:9px;height:9px;border-radius:50%;background:var(--provider-color)}
-  .provider-name{font-size:.82rem;font-weight:650}.provider-sub{font-size:.68rem;color:var(--text-dim);margin-top:.1rem}
-  .provider-amount{text-align:right;font-family:var(--font-display);font-weight:700}.provider-share{font-size:.66rem;color:var(--text-dim);margin-top:.1rem}
-  .donut-wrap{display:flex;align-items:center;gap:1.4rem;min-height:180px}
-  .donut{width:145px;aspect-ratio:1;border-radius:50%;position:relative;background:conic-gradient(#818cf8 0 var(--plan-a),#34d399 var(--plan-a) calc(var(--plan-a) + var(--plan-b)),#f59e0b calc(var(--plan-a) + var(--plan-b)) calc(var(--plan-a) + var(--plan-b) + var(--plan-c)),#64748b 0)}
-  .donut:after{content:"";position:absolute;inset:22px;border-radius:50%;background:var(--bg-2);border:1px solid var(--border)}
-  .donut-center{position:absolute;inset:0;display:grid;place-items:center;z-index:1;text-align:center}.donut-center strong{font-size:1.5rem}.donut-center span{display:block;font-size:.65rem;color:var(--text-dim);margin-top:.1rem}
-  .legend{display:grid;gap:.55rem;flex:1}.legend-row{display:flex;align-items:center;justify-content:space-between;gap:.75rem;font-size:.76rem}.legend-key{display:flex;align-items:center;gap:.5rem;color:var(--text-muted)}
-  .legend-swatch{width:8px;height:8px;border-radius:50%}.legend-value{font-weight:700;color:var(--text-primary)}
-  .section-divider{height:1px;background:var(--border);margin:.1rem 0}
-  @media(max-width:1280px){.overview-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
-  @media(max-width:980px){.analytics-grid,.insight-grid{grid-template-columns:1fr}.overview-filter .filter-row{grid-template-columns:1fr 1fr}.overview-filter .filter-row input{grid-column:1/-1}}
-  @media(max-width:720px){.overview-hero{padding:1.35rem}.overview-hero__top{flex-direction:column}.overview-actions{justify-content:flex-start}.overview-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.overview-filter .filter-row{grid-template-columns:1fr}.overview-filter .filter-row input{grid-column:auto}.donut-wrap{flex-direction:column}.metric-card{min-height:138px}}
-</style>
+{% block title %}Founder Command Center{% endblock %}
+{% block page_title %}Founder Command Center{% endblock %}
+{% block page_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/founder-dashboard-v1.css', v='20260715-v1') }}"/>
 {% endblock %}
 
 {% block content %}
-<div class="dashboard-grid">
-
-  <div class="overview-shell">
-    <section class="overview-hero">
-      <div class="overview-hero__top">
-        <div>
-          <span class="overview-kicker">Live platform intelligence</span>
-          <h1>Platform Overview</h1>
-          <p>A focused view of growth, recurring revenue, subscription health, and the operational signals that need attention.</p>
-          <div class="overview-meta">
-            <span><iconify-icon icon="lucide:database" width="13"></iconify-icon> Live database metrics</span>
-            <span>•</span>
-            <span>{{ stats.currency_code }} reporting</span>
-          </div>
-        </div>
-        <div class="overview-actions">
-          <a href="{{ url_for('superadmin.tenant_new') }}" class="btn btn-primary"><iconify-icon icon="lucide:user-plus" width="15"></iconify-icon>New Tenant</a>
-          <a href="{{ url_for('superadmin.billing_overview') }}" class="btn btn-secondary"><iconify-icon icon="lucide:chart-no-axes-combined" width="15"></iconify-icon>Billing Analytics</a>
-          <a href="{{ url_for('root') }}" class="btn btn-ghost" target="_blank">View Site</a>
-        </div>
-      </div>
-    </section>
-
-    <section class="overview-filter">
-      <form method="get" class="dashboard-filter-form">
-        <div class="filter-row">
-          <input type="search" name="q" value="{{ q }}" placeholder="Search tenant, slug, or owner email" class="form-input" />
-          <select name="status" class="form-select">
-            <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All statuses</option>
-            <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
-            <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
-          </select>
-          <select name="plan" class="form-select">
-            <option value="all" {% if plan_filter == 'all' %}selected{% endif %}>All plans</option>
-            {% for plan_name in plan_breakdown.keys()|sort %}<option value="{{ plan_name }}" {% if plan_filter == plan_name %}selected{% endif %}>{{ plan_name }}</option>{% endfor %}
-          </select>
-          <button type="submit" class="btn btn-primary"><iconify-icon icon="lucide:sliders-horizontal" width="14"></iconify-icon>Apply</button>
-        </div>
-        <div class="filter-actions">
-          <button type="button" class="btn btn-ghost btn-sm" onclick="exportDashboard('csv')"><iconify-icon icon="lucide:download" width="13"></iconify-icon>CSV</button>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="exportDashboard('excel')"><iconify-icon icon="lucide:sheet" width="13"></iconify-icon>Excel</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="overview-metrics">
-      <article class="metric-card" style="--metric-accent:#818cf8">
-        <div class="metric-head"><span class="metric-label">Monthly recurring revenue</span><span class="metric-icon"><iconify-icon icon="lucide:badge-dollar-sign" width="17"></iconify-icon></span></div>
-        <div><div class="metric-value">{{ stats.currency_symbol }}{{ '%.2f'|format(stats.mrr) }}</div><div class="metric-note">Normalized monthly value of active subscriptions</div></div>
-      </article>
-      <article class="metric-card" style="--metric-accent:#34d399">
-        <div class="metric-head"><span class="metric-label">Active tenants</span><span class="metric-icon"><iconify-icon icon="lucide:users-round" width="17"></iconify-icon></span></div>
-        <div><div class="metric-value">{{ stats.active_tenants }}<span style="font-size:.9rem;color:var(--text-dim)"> / {{ stats.total_tenants }}</span></div><span class="metric-chip">{{ stats.active_rate }}% active</span></div>
-      </article>
-      <article class="metric-card" style="--metric-accent:#22d3ee">
-        <div class="metric-head"><span class="metric-label">Recorded revenue</span><span class="metric-icon"><iconify-icon icon="lucide:wallet-cards" width="17"></iconify-icon></span></div>
-        <div><div class="metric-value">{{ stats.currency_symbol }}{{ '%.2f'|format(stats.revenue) }}</div><div class="metric-note">Dodo, PayMongo, and approved manual payments</div></div>
-      </article>
-      <article class="metric-card" style="--metric-accent:#f59e0b">
-        <div class="metric-head"><span class="metric-label">Pending payments</span><span class="metric-icon"><iconify-icon icon="lucide:clock-3" width="17"></iconify-icon></span></div>
-        <div><div class="metric-value">{{ stats.pending_payments }}</div><div class="metric-note">Manual submissions awaiting review</div></div>
-      </article>
-      <article class="metric-card" style="--metric-accent:#fb7185">
-        <div class="metric-head"><span class="metric-label">Expiring soon</span><span class="metric-icon"><iconify-icon icon="lucide:calendar-clock" width="17"></iconify-icon></span></div>
-        <div><div class="metric-value">{{ stats.expiring_accounts }}</div><div class="metric-note">Subscriptions ending within 30 days</div></div>
-      </article>
-      <article class="metric-card" style="--metric-accent:#f87171">
-        <div class="metric-head"><span class="metric-label">Churn signal</span><span class="metric-icon"><iconify-icon icon="lucide:activity" width="17"></iconify-icon></span></div>
-        <div><div class="metric-value">{{ stats.churn_rate }}%</div><div class="metric-note">{{ stats.expired_accounts }} expired or cancelled subscriptions</div></div>
-      </article>
-    </section>
-
-    <section class="analytics-grid">
-      <article class="analytics-card">
-        <div class="analytics-card__head"><div><span class="section-tag">Revenue trend</span><h2>Recorded payments over time</h2><p>Six-month provider-normalized revenue view</p></div><span class="analytics-period">Last 6 months</span></div>
-        <div class="revenue-chart">
-          <svg viewBox="0 0 100 94" preserveAspectRatio="none" role="img" aria-label="Six month revenue trend">
-            {% for y in [18,40,62,84] %}<line x1="4" y1="{{ y }}" x2="96" y2="{{ y }}" class="chart-grid-line" />{% endfor %}
-            <defs><linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#818cf8" stop-opacity=".32"/><stop offset="100%" stop-color="#818cf8" stop-opacity="0"/></linearGradient></defs>
-            {% if revenue_area %}<polygon points="{{ revenue_area }}" fill="url(#revenueFill)"/>{% endif %}
-            {% if revenue_polyline %}<polyline points="{{ revenue_polyline }}" fill="none" stroke="#818cf8" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>{% endif %}
-            {% for point in revenue_chart %}
-              <circle cx="{{ point.x }}" cy="{{ point.y }}" r="1.5" fill="#0f172a" stroke="#a5b4fc" stroke-width=".65" vector-effect="non-scaling-stroke"/>
-              {% if point.value > 0 %}<g transform="translate({{ point.x - 7 }},{{ [point.y - 10, 2]|max }})"><rect width="14" height="7" rx="2" class="chart-tooltip-bg"/><text x="7" y="4.8" text-anchor="middle" class="chart-tooltip-value">{{ stats.currency_symbol }}{{ '%.0f'|format(point.value) }}</text></g>{% endif %}
-            {% endfor %}
-          </svg>
-          <div class="chart-axis">{% for point in revenue_chart %}<span>{{ point.label }}</span>{% endfor %}</div>
-        </div>
-      </article>
-
-      <article class="analytics-card">
-        <div class="analytics-card__head"><div><span class="section-tag">Tenant growth</span><h2>New accounts</h2><p>Monthly tenant registrations</p></div></div>
-        <div class="tenant-bars">
-          {% for item in tenant_growth_chart %}
-          <div class="tenant-bar-item"><span class="tenant-bar-value">{{ item.value }}</span><div class="tenant-bar-track"><div class="tenant-bar-fill" style="height:{{ item.height if item.height > 0 else 3 }}%"></div></div><span class="tenant-bar-label">{{ item.label }}</span></div>
-          {% endfor %}
-        </div>
-      </article>
-    </section>
-
-    <section class="insight-grid">
-      <article class="analytics-card">
-        <div class="analytics-card__head"><div><span class="section-tag">Payment mix</span><h2>Revenue by provider</h2><p>Clear separation across collection channels</p></div><a href="{{ url_for('superadmin.billing_overview') }}" class="btn btn-sm btn-ghost">Details</a></div>
-        <div class="provider-list">
-          {% set providers = [('dodo','Dodo Payments','#34d399','lucide:zap'),('paymongo','PayMongo','#818cf8','lucide:credit-card'),('manual','Manual Payments','#f59e0b','lucide:receipt-text')] %}
-          {% for key,name,color,icon in providers %}{% set row = provider_mix[key] %}
-          <div class="provider-row" style="--provider-color:{{ color }}"><span class="provider-dot"></span><div><div class="provider-name">{{ name }}</div><div class="provider-sub">{{ row.active }} active subscription{{ '' if row.active == 1 else 's' }}</div></div><div class="provider-amount">{{ stats.currency_symbol }}{{ '%.2f'|format(row.amount) }}<div class="provider-share">{{ row.share }}%</div></div></div>
-          {% endfor %}
-        </div>
-      </article>
-
-      <article class="analytics-card">
-        <div class="analytics-card__head"><div><span class="section-tag">Portfolio mix</span><h2>Plan distribution</h2><p>Current tenant access levels</p></div></div>
-        {% set total_plans = plan_breakdown.values()|sum %}
-        {% set sorted_plans = plan_breakdown.items()|list %}
-        {% set pa = ((sorted_plans[0][1] / total_plans * 100) if total_plans and sorted_plans|length > 0 else 0) %}
-        {% set pb = ((sorted_plans[1][1] / total_plans * 100) if total_plans and sorted_plans|length > 1 else 0) %}
-        {% set pc = ((sorted_plans[2][1] / total_plans * 100) if total_plans and sorted_plans|length > 2 else 0) %}
-        <div class="donut-wrap">
-          <div class="donut" style="--plan-a:{{ pa }}%;--plan-b:{{ pb }}%;--plan-c:{{ pc }}%"><div class="donut-center"><div><strong>{{ total_plans }}</strong><span>tenants</span></div></div></div>
-          <div class="legend">{% for plan_name,count in plan_breakdown.items() %}<div class="legend-row"><span class="legend-key"><span class="legend-swatch" style="background:{{ ['#818cf8','#34d399','#f59e0b','#64748b','#fb7185'][loop.index0 % 5] }}"></span>{{ plan_name }}</span><span class="legend-value">{{ count }}</span></div>{% endfor %}</div>
-        </div>
-      </article>
-    </section>
-  </div>
-
-  {# ── Recent Tenants + Payments ─────────────────────────── #}
-  <div class="dashboard-cols">
-
-    <div class="dash-panel">
-      <div class="panel-header">
-        <div>
-          <span class="section-tag">Tenants</span>
-          <h2>Recent Tenants</h2>
-        </div>
-        <a href="{{ url_for('superadmin.tenants') }}" class="btn btn-sm btn-primary">
-          <iconify-icon icon="lucide:users" width="13"></iconify-icon>
-          Manage All
-        </a>
-      </div>
-      {% if recent_tenants %}
-        <div class="data-table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Tenant</th>
-                <th>Email</th>
-                <th>Plan</th>
-                <th>Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for tenant in recent_tenants %}
-              <tr>
-                <td data-label="Tenant">
-                  <div class="sa-tenant-cell" style="display:flex;align-items:center;gap:0.6rem">
-                    <div class="tenant-avatar" style="width:28px;height:28px;font-size:0.7rem">
-                      {{ (tenant.name or 'T')[0].upper() }}
-                    </div>
-                    <div>
-                      <div style="font-weight:500;font-size:0.85rem">{{ tenant.name or 'Untitled' }}</div>
-                      <div style="font-size:0.72rem;color:var(--text-dim)">{{ tenant.tenant_slug }}</div>
-                    </div>
-                  </div>
-                </td>
-                <td data-label="Email" class="muted sa-table-email">{{ tenant.email or '—' }}</td>
-                <td data-label="Plan">
-                  {% set recent_plan = recent_tenant_plan_labels.get(tenant.tenant_slug, tenant.plan or 'Basic') if recent_tenant_plan_labels is defined else (tenant.plan or 'Basic') %}
-                  <span class="badge-status badge-active" style="font-size:0.68rem">{{ recent_plan }}</span>
-                  {% if recent_tenant_trial_days is defined and recent_tenant_trial_days.get(tenant.tenant_slug) is not none %}
-                    <span class="badge-status" style="font-size:0.65rem;background:rgba(245,158,11,.12);color:#fbbf24;margin-left:.25rem">{{ recent_tenant_trial_days.get(tenant.tenant_slug) }}d trial</span>
-                  {% endif %}
-                </td>
-                <td data-label="Updated" class="muted">{{ tenant.updated_at.strftime('%b %d') if tenant.updated_at else '—' }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% else %}
-        <div class="empty-state-v2" style="padding:2rem">
-          <div class="empty-icon"><iconify-icon icon="lucide:users" width="24"></iconify-icon></div>
-          <p>No tenants match the current filter.</p>
-        </div>
-      {% endif %}
-    </div>
-
-    <div class="dash-panel">
-      <div class="panel-header">
-        <div>
-          <span class="section-tag">Payments</span>
-          <h2>Latest Submissions</h2>
-        </div>
-        <a href="{{ url_for('superadmin.billing_submissions') }}" class="btn btn-sm btn-ghost">View All</a>
-      </div>
-      {% if recent_payments %}
-        <div class="data-table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Tenant</th>
-                <th>Method</th>
-                <th>Amount</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for payment in recent_payments %}
-              <tr>
-                <td data-label="Tenant" style="font-weight:500;font-size:0.85rem">
-                  {{ payment.tenant.slug if payment.tenant else 'Unknown' }}
-                </td>
-                <td data-label="Method" class="muted">{{ payment.payment_method or 'Manual' }}</td>
-                <td data-label="Amount" style="font-family:var(--font-display);font-weight:600">
-                  {{ stats.currency_symbol }}{{ '%.2f'|format(payment.amount_paid or 0) }}
-                </td>
-                <td data-label="Status">
-                  <span class="badge-status badge-{{ payment.status | lower if payment.status else 'pending' }}">
-                    {{ payment.status | title if payment.status else 'Pending' }}
-                  </span>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% else %}
-        <div class="empty-state-v2" style="padding:2rem">
-          <div class="empty-icon"><iconify-icon icon="lucide:credit-card" width="24"></iconify-icon></div>
-          <p>No recent payment submissions.</p>
-        </div>
-      {% endif %}
-    </div>
-
-  </div>
-
-
-  {# ── Quick Actions ─────────────────────────────────────── #}
-  <div class="quick-actions">
-    <h2>Quick Actions</h2>
-    <div class="actions-grid">
-      <a href="{{ url_for('superadmin.tenant_new') }}" class="action-card">
-        <span class="action-icon">
-          <iconify-icon icon="lucide:user-plus" width="22"></iconify-icon>
-        </span>
-        <span>New Tenant</span>
-      </a>
-      <a href="{{ url_for('superadmin.send_message') }}" class="action-card">
-        <span class="action-icon">
-          <iconify-icon icon="lucide:send" width="22"></iconify-icon>
-        </span>
-        <span>Send Message</span>
-      </a>
-      <a href="{{ url_for('superadmin.billing_submissions') }}" class="action-card action-card--secondary">
-        <span class="action-icon">
-          <iconify-icon icon="lucide:credit-card" width="22"></iconify-icon>
-        </span>
-        <span>Billing Submissions</span>
-      </a>
-      <a href="{{ url_for('superadmin.media') }}" class="action-card">
-        <span class="action-icon">
-          <iconify-icon icon="lucide:image" width="22"></iconify-icon>
-        </span>
-        <span>Media Library</span>
-      </a>
-      <a href="{{ url_for('superadmin.logs') }}" class="action-card">
-        <span class="action-icon">
-          <iconify-icon icon="lucide:scroll-text" width="22"></iconify-icon>
-        </span>
-        <span>Audit Logs</span>
-      </a>
-      <a href="{{ url_for('superadmin.settings') }}" class="action-card action-card--outline">
-        <span class="action-icon">
-          <iconify-icon icon="lucide:settings" width="22"></iconify-icon>
-        </span>
-        <span>Settings</span>
-      </a>
-    </div>
-  </div>
-
-  {# ── Heartbeat / Uptime ──────────────────────────────── #}
-  <div class="dash-panel heartbeat-panel">
-    <div class="panel-header">
-      <div>
-        <span class="section-tag">Monitoring</span>
-        <h2>Uptime &amp; Heartbeat</h2>
-      </div>
-      <a href="/health" target="_blank" class="btn btn-sm btn-ghost">
-        Full Report
-        <iconify-icon icon="lucide:external-link" width="12"></iconify-icon>
-      </a>
-    </div>
-
-    <div class="heartbeat-grid">
-      <div class="hb-card">
-        <div class="hb-label">Last Heartbeat</div>
-        {% if heartbeat_state.last_heartbeat_at %}
-          <div class="hb-value hb-ok">
-            <span class="hb-dot hb-dot--green"></span>
-            <span class="hb-time" title="{{ heartbeat_state.last_heartbeat_at }}">
-              {{ heartbeat_state.last_heartbeat_at[:19] | replace("T"," ") }} UTC
-            </span>
-          </div>
-        {% elif heartbeat_state.uptime_seconds is defined %}
-          {% set up = heartbeat_state.uptime_seconds|int %}
-          {% set up_days = up // 86400 %}
-          {% set up_hours = (up % 86400) // 3600 %}
-          {% set up_minutes = (up % 3600) // 60 %}
-          <div class="hb-value hb-ok">
-            <span class="hb-dot hb-dot--green"></span>
-            <span title="Live dashboard check: {{ heartbeat_state.dashboard_checked_at|default('now') }}">
-              App running{% if up_days %} {{ up_days }}d{% endif %} {{ up_hours }}h {{ up_minutes }}m
-            </span>
-          </div>
-        {% else %}
-          <div class="hb-value hb-warn">
-            <span class="hb-dot hb-dot--yellow"></span>
-            <span>No ping yet, dashboard checked live</span>
-          </div>
-        {% endif %}
-      </div>
-      <div class="hb-card">
-        <div class="hb-label">Database</div>
-        {% if heartbeat_state.db_ok is none %}
-          <div class="hb-value hb-neutral"><span class="hb-dot hb-dot--grey"></span> Not checked yet</div>
-        {% elif heartbeat_state.db_ok %}
-          <div class="hb-value hb-ok" title="{{ heartbeat_state.db_detail|default('Live database probe passed') }}"><span class="hb-dot hb-dot--green"></span> Connected</div>
-        {% else %}
-          <div class="hb-value hb-error" title="{{ heartbeat_state.db_detail|default('Database probe failed') }}"><span class="hb-dot hb-dot--red"></span> Unreachable</div>
-        {% endif %}
-      </div>
-      <div class="hb-card">
-        <div class="hb-label">Self-Ping</div>
-        {% if heartbeat_state.last_selfping_at %}
-          <div class="hb-value {% if heartbeat_state.selfping_ok %}hb-ok{% else %}hb-error{% endif %}">
-            <span class="hb-dot {% if heartbeat_state.selfping_ok %}hb-dot--green{% else %}hb-dot--red{% endif %}"></span>
-            <span class="hb-time">{{ heartbeat_state.last_selfping_at[:19] | replace("T"," ") }} UTC</span>
-          </div>
-        {% elif heartbeat_state.db_ok %}
-          <div class="hb-value hb-ok" title="No external self-ping has run yet, but the dashboard live health probe passed.">
-            <span class="hb-dot hb-dot--green"></span> Dashboard live
-          </div>
-        {% else %}
-          <div class="hb-value hb-neutral"><span class="hb-dot hb-dot--grey"></span> Not configured</div>
-        {% endif %}
-      </div>
-      <div class="hb-card hb-card--links">
-        <div class="hb-label">Endpoints</div>
-        <div class="hb-links">
-          <a href="/heartbeat" target="_blank" class="hb-link">/heartbeat</a>
-          <a href="/api/heartbeat" target="_blank" class="hb-link">/api/heartbeat</a>
-          <a href="/health" target="_blank" class="hb-link">/health</a>
-        </div>
+<main class="fd-shell" aria-labelledby="fd-title">
+  <header class="fd-hero">
+    <div>
+      <p class="fd-eyebrow">Restricted platform command center</p>
+      <h1 id="fd-title">Founder Dashboard</h1>
+      <p>Versioned growth, finance, portfolio, AI, and operations evidence composed from each domain's trusted read model.</p>
+      <div class="fd-meta">
+        <span>{{ founder.version }}</span>
+        <span>Generated {{ founder.generated_at }} UTC</span>
+        <span>Cache {{ 'hit' if founder.cache.hit else 'miss' }} · {{ founder.cache.status }}</span>
+        <span>Assembly {{ founder.performance.assembly_ms }} ms / {{ founder.performance.budget_ms }} ms budget</span>
       </div>
     </div>
-  </div>
+    <div class="fd-export-box">
+      <strong>Aggregate CSV export</strong>
+      <p>Requires a current password and fresh TOTP confirmation. Every export is audited.</p>
+      {% if export_reauthenticated %}<span class="fd-badge fd-badge-success">Reauthenticated</span>{% else %}<a class="btn btn-secondary btn-sm" href="{{ url_for('superadmin.founder_reauth') }}">Reauthenticate</a>{% endif %}
+    </div>
+  </header>
 
-</div>
+  <section class="fd-card" aria-labelledby="fd-filter-title">
+    <div class="fd-section-heading"><div><p class="fd-eyebrow">Scope</p><h2 id="fd-filter-title">UTC reporting interval and segments</h2></div><p>{{ founder.periods.start_at }} to {{ founder.periods.end_at }}</p></div>
+    <form method="get" action="{{ url_for('superadmin.dashboard') }}" class="fd-filter-form">
+      <label>Range<select name="range"><option value="7" {% if filters.days == 7 %}selected{% endif %}>Last 7 days</option><option value="30" {% if filters.days == 30 %}selected{% endif %}>Last 30 days</option><option value="90" {% if filters.days == 90 %}selected{% endif %}>Last 90 days</option><option value="365" {% if filters.days == 365 %}selected{% endif %}>Last 365 days</option></select></label>
+      <label>Comparison<select name="compare"><option value="previous" {% if filters.comparison == 'previous' %}selected{% endif %}>Previous interval</option><option value="none" {% if filters.comparison == 'none' %}selected{% endif %}>None</option></select></label>
+      <label>Payment provider<select name="payment_provider"><option value="all">All providers</option>{% for value in ['dodo','paymongo','manual'] %}<option value="{{ value }}" {% if filters.payment_provider == value %}selected{% endif %}>{{ value|title }}</option>{% endfor %}</select></label>
+      <label>AI provider<select name="ai_provider"><option value="all">All providers</option>{% for value in ['openai','anthropic','gemini','groq','openrouter','ollama','azure_openai'] %}<option value="{{ value }}" {% if filters.ai_provider == value %}selected{% endif %}>{{ value|replace('_',' ')|title }}</option>{% endfor %}</select></label>
+      <label>Effective plan<select name="plan"><option value="all">All plans</option>{% for value in ['trial','starter','pro','business','enterprise','administrator'] %}<option value="{{ value }}" {% if filters.plan == value %}selected{% endif %}>{{ value|title }}</option>{% endfor %}</select></label>
+      <button class="btn btn-primary" type="submit">Apply filters</button>
+    </form>
+    <form method="post" action="{{ url_for('superadmin.founder_export') }}" class="fd-export-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <input type="hidden" name="range" value="{{ filters.days }}"/>
+      <input type="hidden" name="compare" value="{{ filters.comparison }}"/>
+      <input type="hidden" name="payment_provider" value="{{ filters.payment_provider }}"/>
+      <input type="hidden" name="ai_provider" value="{{ filters.ai_provider }}"/>
+      <input type="hidden" name="plan" value="{{ filters.plan }}"/>
+      <button class="btn btn-ghost btn-sm" type="submit">Export this aggregate view</button>
+    </form>
+  </section>
 
-{% endblock %}{# /block content #}
+  <section aria-labelledby="fd-growth-title">
+    <div class="fd-section-heading"><div><p class="fd-eyebrow">Lifecycle</p><h2 id="fd-growth-title">Growth and subscriptions</h2></div><p>{{ founder.lifecycle.definition_version }}</p></div>
+    <div class="fd-metric-grid">
+      <article class="fd-metric"><span>New tenants</span><strong>{{ founder.lifecycle.signups }}</strong>{% if founder.lifecycle.comparison %}<small>{% if founder.lifecycle.comparison.signups.available %}{{ founder.lifecycle.comparison.signups.percent }}% vs previous{% else %}Comparison unavailable{% endif %}</small>{% endif %}</article>
+      <article class="fd-metric"><span>Activation events</span><strong>{{ founder.lifecycle.activation_events }}</strong>{% if founder.lifecycle.comparison %}<small>{% if founder.lifecycle.comparison.activations.available %}{{ founder.lifecycle.comparison.activations.percent }}% vs previous{% else %}Comparison unavailable{% endif %}</small>{% endif %}</article>
+      <article class="fd-metric"><span>Active subscriptions</span><strong>{% if founder.lifecycle.active_subscriptions_available %}{{ founder.lifecycle.active_subscriptions }}{% else %}Unavailable{% endif %}</strong><small>{% if founder.lifecycle.active_subscriptions_available %}Current at interval end{% else %}Legacy active subscriptions lack provider assignment{% endif %}</small></article>
+      <article class="fd-metric"><span>Current trials</span><strong>{% if founder.lifecycle.trial_tenants_available %}{{ founder.lifecycle.trial_tenants }}{% else %}Unavailable{% endif %}</strong><small>{% if founder.lifecycle.trial_tenants_available %}Effective lifecycle state{% else %}Trials have no payment-provider dimension{% endif %}</small></article>
+      <article class="fd-metric"><span>Conversion</span><strong>{% if founder.lifecycle.conversion.available %}{{ founder.lifecycle.conversion.value }}%{% else %}Unavailable{% endif %}</strong><small>{{ founder.lifecycle.conversion.reason or 'Cohort activation by interval end' }}</small></article>
+      <article class="fd-metric"><span>Churn</span><strong>{% if founder.lifecycle.churn.available %}{{ founder.lifecycle.churn.value }}%{% else %}Unavailable{% endif %}</strong><small>{{ founder.lifecycle.churn.reason or 'Terminal transitions from interval-start active cohort' }}</small></article>
+    </div>
+    {% if not founder.lifecycle.coverage.complete %}<div class="fd-notice"><strong>Lifecycle coverage is incomplete.</strong><span>{{ founder.lifecycle.coverage.active_with_versioned_event }} of {{ founder.lifecycle.coverage.active_subscriptions }} active subscriptions have versioned activation evidence. Rates remain unavailable.</span></div>{% endif %}
+  </section>
 
-{% block extra_js %}
-<script>
-function exportDashboard(format) {
-  const form = document.querySelector('.dashboard-filter-form');
-  if (!form) return;
-  const input = document.createElement('input');
-  input.type = 'hidden';
-  input.name = 'export';
-  input.value = format;
-  form.appendChild(input);
-  form.submit();
-  setTimeout(() => { if (input.parentNode) form.removeChild(input); }, 500);
-}
-</script>
-{% endblock %}{# /block extra_js #}
+  <section aria-labelledby="fd-finance-title">
+    <div class="fd-section-heading"><div><p class="fd-eyebrow">Finance</p><h2 id="fd-finance-title">Ledger-backed revenue</h2></div><p>{{ founder.financial.definition_version }} · {{ founder.financial.freshness.label }}</p></div>
+    <div class="fd-metric-grid">
+      <article class="fd-metric"><span>Gross cash</span><strong>USD {{ '%.2f'|format(founder.financial.gross_cash_revenue) }}</strong><small>Positive settlements and adjustments</small></article>
+      <article class="fd-metric"><span>Net cash</span><strong>USD {{ '%.2f'|format(founder.financial.net_cash_revenue) }}</strong><small>{% if founder.comparisons.net_cash.available %}{{ founder.comparisons.net_cash.percent }}% vs previous{% else %}{{ founder.comparisons.net_cash.reason }}{% endif %}</small></article>
+      <article class="fd-metric"><span>Refunds and reversals</span><strong>USD {{ '%.2f'|format(founder.financial.refunds) }}</strong><small>Linked negative ledger facts</small></article>
+      <article class="fd-metric"><span>MRR</span><strong>USD {{ '%.2f'|format(founder.financial.mrr) }}</strong><small>Current latest posted recurring settlement</small></article>
+      <article class="fd-metric"><span>ARR</span><strong>USD {{ '%.2f'|format(founder.financial.arr) }}</strong><small>MRR × 12 under the versioned definition</small></article>
+      <article class="fd-metric"><span>Review coverage</span><strong>{{ founder.financial.source_coverage.posted }}</strong><small>{{ founder.financial.source_coverage.review_required }} interval item(s) require review</small></article>
+    </div>
+    <div class="fd-card fd-table-card"><h3>Provider split</h3><div class="fd-table-wrap"><table><thead><tr><th>Provider</th><th>Net cash</th><th>Scope</th></tr></thead><tbody>{% for provider, amount in founder.financial.provider_net.items() %}<tr><td>{{ provider|title }}</td><td>USD {{ '%.2f'|format(amount) }}</td><td>{{ 'Included' if filters.payment_provider in ('all', provider) else 'Filtered out' }}</td></tr>{% endfor %}</tbody></table></div></div>
+  </section>
+
+  <section class="fd-grid-two" aria-label="Portfolio and AI evidence">
+    <article class="fd-card">
+      <div class="fd-section-heading"><div><p class="fd-eyebrow">Portfolio</p><h2>Publication and engagement</h2></div><p>{{ founder.portfolio.definition_version }}</p></div>
+      <dl class="fd-definition-list">
+        <div><dt>Published portfolios</dt><dd>{{ founder.portfolio.published_portfolios }}</dd></div>
+        <div><dt>Published projects</dt><dd>{{ founder.portfolio.published_projects }}</dd></div>
+        <div><dt>Visible services</dt><dd>{{ founder.portfolio.visible_services }}</dd></div>
+        <div><dt>Visitor inquiries in interval</dt><dd>{{ founder.portfolio.contacts.inquiries }}</dd></div>
+        <div><dt>Delivered inquiries</dt><dd>{{ founder.portfolio.contacts.delivered }}</dd></div>
+        <div><dt>Portfolio completion</dt><dd>{% if founder.portfolio.completion.available %}{{ founder.portfolio.completion.average_score }} average{% else %}Unavailable{% endif %}</dd></div>
+      </dl>
+      <p class="fd-help">Project views {{ founder.portfolio.project_engagement.views }}, likes {{ founder.portfolio.project_engagement.likes }}, and reactions {{ founder.portfolio.project_engagement.reactions }} are cumulative. Interval project engagement is unavailable. Service engagement is unavailable because no event source exists.</p>
+    </article>
+    <article class="fd-card">
+      <div class="fd-section-heading"><div><p class="fd-eyebrow">AI</p><h2>Usage, cost, and errors</h2></div><a href="{{ url_for('superadmin.ai_center', tab='usage') }}">Open AI Center</a></div>
+      <dl class="fd-definition-list">
+        <div><dt>Requests</dt><dd>{{ founder.ai.requests }}</dd></div>
+        <div><dt>Failures</dt><dd>{{ founder.ai.failures }}</dd></div>
+        <div><dt>Average latency</dt><dd>{% if founder.ai.average_latency_ms is not none %}{{ founder.ai.average_latency_ms }} ms{% else %}Unavailable{% endif %}</dd></div>
+        <div><dt>Known cost</dt><dd>{% if founder.ai.known_cost_microunits is not none %}{{ founder.ai.known_cost_microunits }} microunits{% else %}Unavailable{% endif %}</dd></div>
+        <div><dt>Cost unavailable</dt><dd>{{ founder.ai.unavailable_cost_count }} request(s)</dd></div>
+      </dl>
+      {% if founder.ai.provider_requests %}<div class="fd-tag-list">{% for provider, count in founder.ai.provider_requests.items() %}<span>{{ provider }} · {{ count }}</span>{% endfor %}</div>{% else %}<p class="fd-help">No retained AI usage evidence matches this interval.</p>{% endif %}
+    </article>
+  </section>
+
+  <section aria-labelledby="fd-health-title">
+    <div class="fd-section-heading"><div><p class="fd-eyebrow">Operations</p><h2 id="fd-health-title">Real telemetry and explicit gaps</h2></div><p>{{ founder.operations.definition_version }}</p></div>
+    <div class="fd-health-grid">
+      {% for key, item in founder.operations.health.items() %}
+      <article class="fd-health"><span>{{ key|replace('_',' ')|title }}</span><strong class="fd-status-{{ item.status }}">{{ item.status|replace('_',' ')|title }}</strong>{% if item.reason %}<small>{{ item.reason }}</small>{% elif item.observed_at %}<small>{{ item.observed_at }}</small>{% endif %}</article>
+      {% endfor %}
+      <article class="fd-health"><span>Email outbox</span><strong>{{ founder.operations.email_outbox.failed }} failed · {{ founder.operations.email_outbox.dead }} dead</strong><small>{{ founder.operations.email_outbox.pending }} pending in selected interval</small></article>
+      <article class="fd-health"><span>Unprocessed webhooks</span><strong>{{ founder.operations.unprocessed_webhooks }}</strong><small>Received in selected interval</small></article>
+    </div>
+  </section>
+
+  <section class="fd-grid-two" aria-label="Incidents and audit summary">
+    <article class="fd-card fd-table-card">
+      <div class="fd-section-heading"><div><p class="fd-eyebrow">Incidents</p><h2>Failure evidence</h2></div></div>
+      <div class="fd-table-wrap"><table><thead><tr><th>Source</th><th>Signal</th><th>Status</th><th>Time</th></tr></thead><tbody>{% for item in founder.operations.incidents %}<tr><td><a href="{{ url_for(item.route, **item.route_params) }}">{{ item.source }}</a></td><td>{{ item.kind }}</td><td><span class="fd-badge fd-badge-warning">{{ item.status }}</span></td><td>{{ item.occurred_at }}</td></tr>{% else %}<tr><td colspan="4">No retained failure evidence matches this interval.</td></tr>{% endfor %}</tbody></table></div>
+    </article>
+    <article class="fd-card fd-table-card">
+      <div class="fd-section-heading"><div><p class="fd-eyebrow">Audit</p><h2>Recent durable actions</h2></div><a href="{{ url_for('superadmin.logs') }}">Open logs</a></div>
+      <div class="fd-table-wrap"><table><thead><tr><th>Domain</th><th>Event</th><th>Actor</th><th>Time</th></tr></thead><tbody>{% for item in founder.operations.audits %}<tr><td><a href="{{ url_for(item.route) }}">{{ item.source }}</a></td><td>{{ item.event }} · {{ item.entity }}</td><td>{{ item.actor }}</td><td>{{ item.occurred_at }}</td></tr>{% else %}<tr><td colspan="4">No retained audit actions match this interval.</td></tr>{% endfor %}</tbody></table></div>
+    </article>
+  </section>
+
+  <section class="fd-card">
+    <div class="fd-section-heading"><div><p class="fd-eyebrow">Source contract</p><h2>Definitions and freshness</h2></div></div>
+    <div class="fd-table-wrap"><table><thead><tr><th>Domain</th><th>Definition version</th><th>Freshness evidence</th></tr></thead><tbody>{% for domain, version in founder.definitions.items() %}<tr><td>{{ domain|title }}</td><td><code>{{ version }}</code></td><td>{% if founder.freshness.get(domain) %}{{ founder.freshness.get(domain) }}{% elif domain == 'operations' %}{{ founder.operations.freshness }}{% else %}Unavailable{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+    <p class="fd-help">Late-arriving lifecycle and payment events are assigned by provider occurrence time. Their later recorded timestamps change the source watermark and invalidate the cached composition.</p>
+  </section>
+
+  <nav class="fd-actions" aria-label="Owning operational centers">
+    <a href="{{ url_for('superadmin.billing_overview') }}">Billing Center</a>
+    <a href="{{ url_for('superadmin.subscription_monitor') }}">Subscription Monitor</a>
+    <a href="{{ url_for('superadmin.ai_center') }}">AI Center</a>
+    <a href="{{ url_for('superadmin.notifications') }}">Notifications</a>
+    <a href="{{ url_for('superadmin.logs') }}">Audit Logs</a>
+  </nav>
+</main>
+{% endblock %}

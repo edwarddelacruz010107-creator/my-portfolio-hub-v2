@@ -56,42 +56,46 @@ def _safe_url(url: str) -> str:
 
 
 # ── Target metadata ───────────────────────────────────────────────────────────
-from app import create_app, db  # noqa: E402
+from app.extensions import db  # noqa: E402
 
-# Import ALL models so SQLAlchemy metadata is fully populated.
-# Alembic compares this metadata against the live DB to generate diffs.
-from app.models.portfolio import (        # noqa: F401
-    Profile, Skill, Project, WorkExperience,
-    Testimonial, ActivityLog, Inquiry,
-    Subscription, PaymentMethod, PaymentInstruction,
-    PaymentSubmission, WebhookEvent, PlatformSetting,
-    TenantCommunicationSettings, GlobalEmailConfig,
-    SubscriptionNotification,
-)
-from app.models.tenant_form_settings import TenantFormSettings  # noqa: F401
-
-_flask_env = os.environ.get('FLASK_ENV', 'development')
-_app = create_app(_flask_env)
-
-with _app.app_context():
-    from app.models import User  # noqa: F401
+# Import only core-bound models.  Importing the Flask application factory here
+# used to construct a second complete application during every Alembic command,
+# which could run startup schema repair code before the migration transaction.
+# Model registration does not require an application instance.
+from app.models import core as _core_models  # noqa: E402,F401
+from app.models import core_additions as _core_additions  # noqa: E402,F401
+from app.models import ledger as _ledger_models  # noqa: E402,F401
+from app.models import notification as _notification_models  # noqa: E402,F401
+from app.models import tenant_form_settings as _form_settings  # noqa: E402,F401
 
 target_metadata = db.metadata
+
+_TENANT_TABLE_NAMES = {
+    'profile',
+    'skills',
+    'projects',
+    'project_reactions',
+    'testimonials',
+    'services',
+    'certificates',
+    'work_experiences',
+}
 
 # ── Alembic diff options ──────────────────────────────────────────────────────
 def include_object(obj, name, type_, reflected, compare_to):
     """
     Filter function for Alembic autogenerate.
     
-    Excludes tables that have table.info['bind_key'] == 'tenant' from
-    core migration generation. This prevents tenant-bound models from
-    polluting core migrations.
-    
-    Tenant-bound tables should only appear in migrations/tenant/versions/
-    (if using a separate tenant migration chain) or handled via the
-    cli_ensure_tenant_schema command.
+    Tenant-bound tables live in a separate SQLAlchemy metadata collection and
+    a separate Alembic history under migrations/tenant.  The info check is a
+    defensive guard for custom tables that explicitly set a bind marker.
     """
     if type_ == 'table':
+        # Reflected database tables do not carry SQLAlchemy bind metadata.  The
+        # explicit name guard prevents core autogenerate from proposing tenant
+        # table drops in supported single-Postgres deployments.
+        if name in _TENANT_TABLE_NAMES:
+            return False
         # Exclude tables marked as tenant-bound
         if hasattr(obj, 'info') and obj.info.get('bind_key') == 'tenant':
             return False
@@ -114,7 +118,7 @@ def _pg_connect_args(url: str) -> dict:
     if 'sqlite' in url or 'memory' in url:
         return {}
     return {
-        'sslmode':         'require',
+        'sslmode':         os.environ.get('DB_SSLMODE', 'require'),
         'connect_timeout': 30,
         'options':         '-c lock_timeout=60000 -c statement_timeout=120000',
     }

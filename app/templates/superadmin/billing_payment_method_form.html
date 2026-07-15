@@ -305,5 +305,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/payment-method-form.js') }}?v=20260710-1" defer></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/payment-method-form.js') }}?v=20260710-1" defer></script>
 {% endblock %}

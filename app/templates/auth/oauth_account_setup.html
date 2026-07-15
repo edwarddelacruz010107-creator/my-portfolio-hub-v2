@@ -1,14 +1,14 @@
+{% import 'components/ui.html' as ui %}
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" data-theme-storage="phPublicTheme">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   {% include 'partials/_favicons.html' %}
   <title>Finish account setup — MyPortfolioHub</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-  <script>(function(){try{var t=localStorage.getItem('phPublicTheme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/theme-bootstrap.js', v='20260714-v1') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css', v='20260714-v3') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components-v1.css', v='20260714-v1') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/oauth-account-setup.css', v='20260711b') }}"/>
 </head>
 <body>
@@ -59,7 +59,7 @@
 
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% for category, message in messages %}
-            <div class="oauth-flash oauth-flash--{{ category }}" role="alert">{{ message }}</div>
+            {{ ui.alert(message, 'danger' if category == 'danger' else category) }}
           {% endfor %}
         {% endwith %}
 
@@ -109,6 +109,7 @@
       </div>
     </section>
   </main>
-  <script src="{{ url_for('static', filename='js/oauth-account-setup.js', v='20260711b') }}" defer></script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/components-v1.js', v='20260714-v1') }}"></script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/oauth-account-setup.js', v='20260711b') }}"></script>
 </body>
 </html>

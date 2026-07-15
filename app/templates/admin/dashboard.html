@@ -29,6 +29,27 @@
 {% endif %}
 <div class="dashboard-grid">
 
+  {% if onboarding and onboarding.steps and onboarding.completed < onboarding.total %}
+  <section class="dash-panel onboarding-checklist" aria-labelledby="onboardingChecklistTitle">
+    <div class="panel-header">
+      <div>
+        <span class="section-tag">Getting started</span>
+        <h2 id="onboardingChecklistTitle">Build your portfolio with your own work</h2>
+      </div>
+      <span class="badge-status">{{ onboarding.completed }}/{{ onboarding.total }}</span>
+    </div>
+    <p>Your workspace starts empty. Nothing is published until you add and publish real content.</p>
+    <ul class="onboarding-checklist-list">
+      {% for step in onboarding.steps %}
+      <li class="{{ 'is-done' if step.done else '' }}">
+        <span aria-hidden="true">{{ '✓' if step.done else '○' }}</span>
+        {% if step.done %}<span>{{ step.label }}</span>{% else %}<a href="{{ url_for(step.endpoint) }}">{{ step.label }}</a>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
   {# ── Hero Card ───────────────────────────────────────── #}
   <div class="dashboard-hero">
     <div class="hero-card">
@@ -434,13 +455,13 @@
 </div>
 
 {% if payment_state %}
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 .payment-result-card{display:flex;align-items:center;gap:14px;padding:16px 18px;margin:0 0 18px;border:1px solid rgba(99,102,241,.35);border-radius:16px;background:linear-gradient(135deg,rgba(79,70,229,.13),rgba(15,23,42,.76));box-shadow:0 12px 35px rgba(0,0,0,.12)}
 .payment-result-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:rgba(99,102,241,.16);color:#a5b4fc;flex:0 0 auto}.payment-result-success .payment-result-icon,.payment-result-processing .payment-result-icon{animation:paymentSpin 1.2s linear infinite}.payment-result-copy{flex:1}.payment-result-copy strong{display:block;font-size:1rem}.payment-result-copy p{margin:4px 0 0;color:var(--text-muted,#94a3b8);line-height:1.45}.payment-result-actions{display:flex;gap:8px;flex-wrap:wrap}@keyframes paymentSpin{to{transform:rotate(360deg)}}
 .payment-result-active{border-color:rgba(16,185,129,.42);background:linear-gradient(135deg,rgba(16,185,129,.14),rgba(15,23,42,.76))}.payment-result-active .payment-result-icon{color:#34d399;animation:none}.payment-result-failed{border-color:rgba(239,68,68,.4)}
 @media(max-width:760px){.payment-result-card{align-items:flex-start;flex-wrap:wrap}.payment-result-actions{width:100%}}
 </style>
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 (() => {
   const initial = {{ payment_state|tojson }};
   if (!['success','processing'].includes(initial)) return;

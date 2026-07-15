@@ -250,7 +250,7 @@
   </div>
 </form>
 
-<script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 // Toggle Basin endpoint field based on provider selection
 document.querySelectorAll('input[name="form_provider"]').forEach(function(radio) {
   radio.addEventListener('change', function() {

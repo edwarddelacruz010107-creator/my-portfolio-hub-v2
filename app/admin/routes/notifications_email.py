@@ -13,7 +13,7 @@ from functools import wraps
 from typing import Optional
 
 from flask import (session, Blueprint, render_template, redirect, url_for,
-                   flash, request, jsonify, current_app, Response)
+                   flash, request, jsonify, current_app, Response, abort)
 from flask_login import login_required, current_user
 
 from app import db
@@ -97,6 +97,14 @@ def _active_email_tenant_id() -> int | None:
     return int(tenant_id) if tenant_id is not None else None
 
 
+def _tenant_notification_context():
+    from app.services.notification_service import RecipientContext
+    tenant_id = _active_email_tenant_id()
+    if tenant_id is None:
+        abort(404)
+    return RecipientContext.tenant_admin(user_id=int(current_user.id), tenant_id=tenant_id)
+
+
 def _email_services_wants_json() -> bool:
     return (
         request.is_json
@@ -118,34 +126,73 @@ def _email_services_error(message: str, status: int = 400):
 @admin.route('/notifications')
 @login_required
 def notifications():
-    """Full notifications page for the tenant admin."""
-    from app.services.notification_service import get_notifications, mark_all_read, get_unread_count
-    tenant_id = current_user.tenant_id
-    notifs = get_notifications(tenant_id, limit=50)
-    unread = get_unread_count(tenant_id)
+    """Cursor-paginated, server-authorized tenant notification feed."""
+    from app.services.notification_service import list_notifications
+    context = _tenant_notification_context()
+    try:
+        date_from = _notification_date(request.args.get('date_from'))
+        date_to = _notification_date(request.args.get('date_to'), end=True)
+        page = list_notifications(
+            context,
+            limit=25,
+            cursor=request.args.get('cursor'),
+            event_type=request.args.get('event_type') or None,
+            status=request.args.get('status') or None,
+            date_from=date_from,
+            date_to=date_to,
+            url_builder=url_for,
+        )
+    except ValueError:
+        flash('The notification cursor or date filter is invalid.', 'warning')
+        return redirect(url_for('admin.notifications'))
     return render_template(
         'admin/notifications.html',
-        notifications=notifs,
-        unread_count=unread,
+        notifications=page.items,
+        unread_count=page.unread_count,
+        next_cursor=page.next_cursor,
+        event_type=request.args.get('event_type', ''),
+        status_filter=request.args.get('status', ''),
+        date_from=request.args.get('date_from', ''),
+        date_to=request.args.get('date_to', ''),
     )
+
+
+def _notification_date(raw: str | None, *, end: bool = False):
+    value = str(raw or '').strip()
+    if not value:
+        return None
+    parsed = datetime.strptime(value, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+    return parsed + timedelta(days=1) if end else parsed
 
 @admin.route('/notifications/mark-all-read', methods=['POST'])
 @login_required
 def notifications_mark_all_read():
-    from app.services.notification_service import mark_all_read
-    mark_all_read(current_user.tenant_id)
+    from app.services.notification_service import mark_all_read_for_context
+    context = _tenant_notification_context()
+    mark_all_read_for_context(context)
     return redirect(url_for('admin.notifications'))
 
+@admin.route('/notifications/<string:notif_id>/read', methods=['POST'])
 @admin.route('/notifications/<int:notif_id>/read', methods=['POST'])
 @login_required
 def notification_mark_read(notif_id):
-    from app.services.notification_service import mark_notification_read
-    mark_notification_read(notif_id, current_user.tenant_id)
+    from app.services.notification_service import mark_read_for_context
+    context = _tenant_notification_context()
+    mark_read_for_context(notif_id, context)
     # HIGH-07: validate referrer to prevent open redirect
     from app.auth import _is_safe_url
     referrer = request.referrer
     safe_target = referrer if (referrer and _is_safe_url(referrer)) else url_for('admin.notifications')
     return redirect(safe_target)
+
+
+@admin.route('/notifications/<string:notif_id>/archive', methods=['POST'])
+@login_required
+def notification_archive(notif_id):
+    from app.services.notification_service import archive_for_context
+    context = _tenant_notification_context()
+    archive_for_context(notif_id, context)
+    return redirect(url_for('admin.notifications'))
 
 @admin.route('/settings/contact-form', methods=['POST'])
 @login_required
@@ -223,26 +270,34 @@ def update_contact_form_provider():
 @admin.route('/api/notifications/unread-count')
 @login_required
 def api_notifications_unread_count():
-    """JSON endpoint for bell badge polling."""
-    from flask import jsonify
-    from app.services.notification_service import get_unread_count, get_notifications
-    tenant_id = current_user.tenant_id
-    unread = get_unread_count(tenant_id)
-    recent = get_notifications(tenant_id, limit=5)
-    return jsonify({
-        'unread_count': unread,
+    """Conditional JSON feed for the shared bell."""
+    from app.services.notification_service import feed_etag, list_notifications
+    context = _tenant_notification_context()
+    etag = feed_etag(context)
+    if request.headers.get('If-None-Match') == etag:
+        response = Response(status=304)
+        response.headers['ETag'] = etag
+        response.headers['Cache-Control'] = 'private, no-cache'
+        return response
+    page = list_notifications(context, limit=5, url_builder=url_for)
+    response = jsonify({
+        'unread_count': page.unread_count,
         'notifications': [
             {
                 'id': n.id,
-                'type': n.notification_type,
+                'type': n.event_type,
                 'title': n.title,
                 'message': n.message,
                 'is_read': n.is_read,
                 'created_at': n.created_at.isoformat() if n.created_at else None,
+                'action_url': n.action_url,
             }
-            for n in recent
+            for n in page.items
         ],
     })
+    response.headers['ETag'] = etag
+    response.headers['Cache-Control'] = 'private, no-cache'
+    return response
 
 @admin.route('/email-services')
 @admin_required

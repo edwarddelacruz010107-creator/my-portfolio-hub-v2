@@ -1,0 +1,121 @@
+{% extends "admin/base.html" %}
+{% block title %}Portfolio Intelligence{% endblock %}
+{% block page_title %}Portfolio Intelligence{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/portfolio-intelligence-v1.css', v='20260714-v1') }}">
+{% endblock %}
+
+{% block content %}
+<main class="pi-shell" aria-labelledby="pi-title">
+  <header class="pi-hero">
+    <div>
+      <span class="pi-eyebrow">Evidence-backed readiness</span>
+      <h1 id="pi-title">Portfolio intelligence</h1>
+      <p>{{ intelligence.definition }}</p>
+    </div>
+    <a class="btn btn-ghost" href="{{ seo_preview.canonical }}" target="_blank" rel="noopener">
+      <iconify-icon icon="lucide:external-link" width="16"></iconify-icon> View portfolio
+    </a>
+  </header>
+
+  <section class="pi-score-grid" aria-label="Portfolio score summary">
+    <article class="pi-score-card">
+      <span class="pi-card-label">Readiness score</span>
+      <strong class="pi-score-value">
+        {% if intelligence.total_score is not none %}{{ intelligence.total_score }}<small>/100</small>{% else %}Not evaluated{% endif %}
+      </strong>
+      <progress max="100" value="{{ intelligence.total_score or 0 }}">{{ intelligence.total_score or 0 }}%</progress>
+    </article>
+    <article class="pi-meta-card">
+      <span class="pi-card-label">Rubric</span>
+      <strong>{{ intelligence.rubric_version }}</strong>
+      <small>Versioned so future rubric changes remain explainable.</small>
+    </article>
+    <article class="pi-meta-card">
+      <span class="pi-card-label">Evaluated coverage</span>
+      <strong>{{ intelligence.evaluated_weight }} of 100 weighted points</strong>
+      <small>Unavailable checks are excluded, never counted as zero.</small>
+    </article>
+    <article class="pi-meta-card">
+      <span class="pi-card-label">Calculated</span>
+      <strong>{{ calculated_label }}</strong>
+      <small>Recalculated when relevant stored content changes.</small>
+    </article>
+  </section>
+
+  <section class="pi-panel" aria-labelledby="pi-dimensions-title">
+    <div class="pi-section-head">
+      <div><span class="pi-card-label">Stored facts</span><h2 id="pi-dimensions-title">Readiness by section</h2></div>
+      <p>Open the exact editor for any section that needs work.</p>
+    </div>
+    <div class="pi-dimension-grid">
+      {% for dimension in intelligence.dimensions %}
+      <article class="pi-dimension-card">
+        <div class="pi-dimension-head">
+          <div><h3>{{ dimension.label }}</h3><small>Weight {{ dimension.weight }}</small></div>
+          <strong>{% if dimension.score is not none %}{{ dimension.score }}%{% else %}N/E{% endif %}</strong>
+        </div>
+        <progress max="100" value="{{ dimension.score or 0 }}">{{ dimension.score or 0 }}%</progress>
+        <div class="pi-status-counts" aria-label="Evidence status counts">
+          <span data-status="pass">{{ dimension.status_counts.pass }} passed</span>
+          <span data-status="fail">{{ dimension.status_counts.fail }} needs work</span>
+          <span data-status="not_evaluated">{{ dimension.status_counts.not_evaluated }} not evaluated</span>
+        </div>
+        {% if dimension.action_url %}<a href="{{ dimension.action_url }}">Open {{ dimension.label|lower }} editor <span aria-hidden="true">→</span></a>{% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="pi-split">
+    <section class="pi-panel" aria-labelledby="pi-seo-title">
+      <div class="pi-section-head">
+        <div><span class="pi-card-label">Deterministic preview</span><h2 id="pi-seo-title">SEO and sharing</h2></div>
+        <a href="{{ url_for('admin.seo_settings') }}">Edit SEO</a>
+      </div>
+      <dl class="pi-preview-list">
+        <div><dt>Title</dt><dd>{{ seo_preview.title or 'Not set' }}</dd></div>
+        <div><dt>Description</dt><dd>{{ seo_preview.description or 'Not set' }}</dd></div>
+        <div><dt>Canonical</dt><dd><a href="{{ seo_preview.canonical }}" target="_blank" rel="noopener">{{ seo_preview.canonical }}</a></dd></div>
+        <div><dt>Social image</dt><dd>{{ 'Configured' if seo_preview.social_image else 'Not set' }}</dd></div>
+        <div><dt>Indexability</dt><dd>{{ 'Indexable' if seo_preview.indexable else 'Not indexable' }}</dd></div>
+      </dl>
+    </section>
+
+    <section class="pi-panel" aria-labelledby="pi-accessibility-title">
+      <div class="pi-section-head">
+        <div><span class="pi-card-label">Evidence boundary</span><h2 id="pi-accessibility-title">Accessibility checks</h2></div>
+      </div>
+      {% set accessibility = intelligence.dimensions|selectattr('key', 'equalto', 'accessibility')|first %}
+      <div class="pi-evidence-list">
+        {% for check in accessibility.evidence %}
+        <article>
+          <span class="pi-status" data-status="{{ check.status }}">{{ check.status|replace('_', ' ') }}</span>
+          <div><strong>{{ check.label }}</strong><p>{{ check.explanation }}</p><small>{{ 'Stored-field check' if check.evidence_type == 'stored_fact' else 'Rendered evidence unavailable' }}</small></div>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <section class="pi-panel" aria-labelledby="pi-actions-title">
+    <div class="pi-section-head">
+      <div><span class="pi-card-label">Prioritized plan</span><h2 id="pi-actions-title">Next best actions</h2></div>
+      <p>Ordered by impact, effort, and available rubric points.</p>
+    </div>
+    {% if intelligence.recommendations %}
+    <ol class="pi-action-list">
+      {% for item in intelligence.recommendations %}
+      <li>
+        <div class="pi-action-rank">{{ loop.index }}</div>
+        <div><strong>{{ item.title }}</strong><p>{{ item.recommendation }}</p><small>{{ item.dimension|title }} · {{ item.available_points }} points available</small></div>
+        <div class="pi-action-meta"><span>{{ item.impact }} impact</span><span>{{ item.effort }} effort</span>{% if item.action_url %}<a href="{{ item.action_url }}">Fix now <span aria-hidden="true">→</span></a>{% endif %}</div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <div class="pi-empty">All currently evaluated rubric checks pass. Checks without stored or rendered evidence remain marked not evaluated.</div>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

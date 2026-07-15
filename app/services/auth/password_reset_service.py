@@ -138,8 +138,8 @@ def _get_reset_token_ttl_minutes() -> int:
 
 
 def _get_ip() -> str:
-    fwd = flask_request.headers.get('X-Forwarded-For', '')
-    return fwd.split(',')[0].strip() if fwd else (flask_request.remote_addr or 'unknown')
+    from app.request_security import get_client_ip
+    return get_client_ip()
 
 
 def _get_ua() -> str:

@@ -4,6 +4,7 @@
   "icon": "🧱",
   "icon_label": "Blockform Brutal icon",
   "version": "1.0.0",
+  "manifest_schema_version": "1.0.0",
   "description": "A neubrutalist developer portfolio theme based on the uploaded Blockform HTML. Fully wired to the Portfolio CMS theme contract: profile, avatar, projects, skills, services, work experience, testimonials, certificates/badges, social links, resume, billing links, and contact form.",
   "author": "Pypy Project + Portfolio CMS",
   "premium": true,
@@ -37,5 +38,23 @@
     "background": "#fdfaf3",
     "text": "#111111"
   },
-  "sort_order": 25
+  "sort_order": 25,
+  "template_entry_points": {"portfolio": "index.html"},
+  "assets": [
+    {"path": "css/theme-contract.css", "type": "style"},
+    {"path": "themes/blockform_brutal/theme.css", "type": "style"},
+    {"path": "themes/blockform_brutal/theme.js", "type": "script"},
+    {"path": "themes/blockform_brutal/preview.svg", "type": "preview"}
+  ],
+  "supported_sections": {"profile": true, "projects": true, "project_links": true, "skills": true, "services": true, "testimonials": true, "certificates": true, "experience": true, "contact": true, "reactions": false, "seo": true, "analytics_hooks": true, "mobile_navigation": true, "consent_privacy": true, "empty_states": true},
+  "configurable_tokens": {
+    "accent": {"label": "Primary block", "css_variable": "--yellow", "type": "color", "default": "#ffd23f"},
+    "background": {"label": "Background", "css_variable": "--bg", "type": "color", "default": "#fdfaf3"},
+    "text": {"label": "Text", "css_variable": "--ink", "type": "color", "default": "#111111"},
+    "corner_radius": {"label": "Corner radius", "css_variable": "--radius", "type": "length", "unit": "px", "min": 0, "max": 24, "default": "0px"}
+  },
+  "csp": {"remote_hosts": [], "inline_scripts": false, "inline_event_handlers": false},
+  "screenshot_provenance": {"source": "bundled_preview_asset", "content": "labeled_design_fixture", "captured_at": "2026-07-14"},
+  "compatibility": {"contract": "theme-contract-1.0", "app_min": "6.5", "app_max": "7.x"},
+  "migration_notes": ["Existing selected_theme=blockform_brutal rows remain compatible."]
 }

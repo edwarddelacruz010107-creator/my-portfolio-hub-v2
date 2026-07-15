@@ -1,0 +1,722 @@
+{
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "name": "@asamuzakjp/css-color",
+      "purl": "pkg:npm/@asamuzakjp/css-color@5.1.11",
+      "type": "library",
+      "version": "5.1.11"
+    },
+    {
+      "name": "@asamuzakjp/dom-selector",
+      "purl": "pkg:npm/@asamuzakjp/dom-selector@7.1.1",
+      "type": "library",
+      "version": "7.1.1"
+    },
+    {
+      "name": "@asamuzakjp/generational-cache",
+      "purl": "pkg:npm/@asamuzakjp/generational-cache@1.0.1",
+      "type": "library",
+      "version": "1.0.1"
+    },
+    {
+      "name": "@asamuzakjp/nwsapi",
+      "purl": "pkg:npm/@asamuzakjp/nwsapi@2.3.9",
+      "type": "library",
+      "version": "2.3.9"
+    },
+    {
+      "name": "@bramus/specificity",
+      "purl": "pkg:npm/@bramus/specificity@2.4.2",
+      "type": "library",
+      "version": "2.4.2"
+    },
+    {
+      "name": "@csstools/color-helpers",
+      "purl": "pkg:npm/@csstools/color-helpers@6.1.0",
+      "type": "library",
+      "version": "6.1.0"
+    },
+    {
+      "name": "@csstools/css-calc",
+      "purl": "pkg:npm/@csstools/css-calc@3.2.1",
+      "type": "library",
+      "version": "3.2.1"
+    },
+    {
+      "name": "@csstools/css-color-parser",
+      "purl": "pkg:npm/@csstools/css-color-parser@4.1.9",
+      "type": "library",
+      "version": "4.1.9"
+    },
+    {
+      "name": "@csstools/css-parser-algorithms",
+      "purl": "pkg:npm/@csstools/css-parser-algorithms@4.0.0",
+      "type": "library",
+      "version": "4.0.0"
+    },
+    {
+      "name": "@csstools/css-syntax-patches-for-csstree",
+      "purl": "pkg:npm/@csstools/css-syntax-patches-for-csstree@1.1.6",
+      "type": "library",
+      "version": "1.1.6"
+    },
+    {
+      "name": "@csstools/css-tokenizer",
+      "purl": "pkg:npm/@csstools/css-tokenizer@4.0.0",
+      "type": "library",
+      "version": "4.0.0"
+    },
+    {
+      "name": "@exodus/bytes",
+      "purl": "pkg:npm/@exodus/bytes@1.15.1",
+      "type": "library",
+      "version": "1.15.1"
+    },
+    {
+      "name": "bidi-js",
+      "purl": "pkg:npm/bidi-js@1.0.3",
+      "type": "library",
+      "version": "1.0.3"
+    },
+    {
+      "name": "css-tree",
+      "purl": "pkg:npm/css-tree@3.2.1",
+      "type": "library",
+      "version": "3.2.1"
+    },
+    {
+      "name": "data-urls",
+      "purl": "pkg:npm/data-urls@7.0.0",
+      "type": "library",
+      "version": "7.0.0"
+    },
+    {
+      "name": "decimal.js",
+      "purl": "pkg:npm/decimal.js@10.6.0",
+      "type": "library",
+      "version": "10.6.0"
+    },
+    {
+      "name": "entities",
+      "purl": "pkg:npm/entities@8.0.0",
+      "type": "library",
+      "version": "8.0.0"
+    },
+    {
+      "name": "html-encoding-sniffer",
+      "purl": "pkg:npm/html-encoding-sniffer@6.0.0",
+      "type": "library",
+      "version": "6.0.0"
+    },
+    {
+      "name": "is-potential-custom-element-name",
+      "purl": "pkg:npm/is-potential-custom-element-name@1.0.1",
+      "type": "library",
+      "version": "1.0.1"
+    },
+    {
+      "name": "jsdom",
+      "purl": "pkg:npm/jsdom@29.1.1",
+      "type": "library",
+      "version": "29.1.1"
+    },
+    {
+      "name": "lru-cache",
+      "purl": "pkg:npm/lru-cache@11.5.2",
+      "type": "library",
+      "version": "11.5.2"
+    },
+    {
+      "name": "mdn-data",
+      "purl": "pkg:npm/mdn-data@2.27.1",
+      "type": "library",
+      "version": "2.27.1"
+    },
+    {
+      "name": "parse5",
+      "purl": "pkg:npm/parse5@8.0.1",
+      "type": "library",
+      "version": "8.0.1"
+    },
+    {
+      "name": "punycode",
+      "purl": "pkg:npm/punycode@2.3.1",
+      "type": "library",
+      "version": "2.3.1"
+    },
+    {
+      "name": "require-from-string",
+      "purl": "pkg:npm/require-from-string@2.0.2",
+      "type": "library",
+      "version": "2.0.2"
+    },
+    {
+      "name": "saxes",
+      "purl": "pkg:npm/saxes@6.0.0",
+      "type": "library",
+      "version": "6.0.0"
+    },
+    {
+      "name": "source-map-js",
+      "purl": "pkg:npm/source-map-js@1.2.1",
+      "type": "library",
+      "version": "1.2.1"
+    },
+    {
+      "name": "symbol-tree",
+      "purl": "pkg:npm/symbol-tree@3.2.4",
+      "type": "library",
+      "version": "3.2.4"
+    },
+    {
+      "name": "tldts-core",
+      "purl": "pkg:npm/tldts-core@7.4.8",
+      "type": "library",
+      "version": "7.4.8"
+    },
+    {
+      "name": "tldts",
+      "purl": "pkg:npm/tldts@7.4.8",
+      "type": "library",
+      "version": "7.4.8"
+    },
+    {
+      "name": "tough-cookie",
+      "purl": "pkg:npm/tough-cookie@6.0.2",
+      "type": "library",
+      "version": "6.0.2"
+    },
+    {
+      "name": "tr46",
+      "purl": "pkg:npm/tr46@6.0.0",
+      "type": "library",
+      "version": "6.0.0"
+    },
+    {
+      "name": "undici",
+      "purl": "pkg:npm/undici@7.28.0",
+      "type": "library",
+      "version": "7.28.0"
+    },
+    {
+      "name": "w3c-xmlserializer",
+      "purl": "pkg:npm/w3c-xmlserializer@5.0.0",
+      "type": "library",
+      "version": "5.0.0"
+    },
+    {
+      "name": "webidl-conversions",
+      "purl": "pkg:npm/webidl-conversions@8.0.1",
+      "type": "library",
+      "version": "8.0.1"
+    },
+    {
+      "name": "whatwg-mimetype",
+      "purl": "pkg:npm/whatwg-mimetype@5.0.0",
+      "type": "library",
+      "version": "5.0.0"
+    },
+    {
+      "name": "whatwg-url",
+      "purl": "pkg:npm/whatwg-url@16.0.1",
+      "type": "library",
+      "version": "16.0.1"
+    },
+    {
+      "name": "xml-name-validator",
+      "purl": "pkg:npm/xml-name-validator@5.0.0",
+      "type": "library",
+      "version": "5.0.0"
+    },
+    {
+      "name": "xmlchars",
+      "purl": "pkg:npm/xmlchars@2.2.0",
+      "type": "library",
+      "version": "2.2.0"
+    },
+    {
+      "name": "alembic",
+      "purl": "pkg:pypi/alembic@1.18.5",
+      "type": "library",
+      "version": "1.18.5"
+    },
+    {
+      "name": "annotated-types",
+      "purl": "pkg:pypi/annotated-types@0.7.0",
+      "type": "library",
+      "version": "0.7.0"
+    },
+    {
+      "name": "anyio",
+      "purl": "pkg:pypi/anyio@4.14.1",
+      "type": "library",
+      "version": "4.14.1"
+    },
+    {
+      "name": "apscheduler",
+      "purl": "pkg:pypi/apscheduler@3.11.3",
+      "type": "library",
+      "version": "3.11.3"
+    },
+    {
+      "name": "authlib",
+      "purl": "pkg:pypi/authlib@1.7.2",
+      "type": "library",
+      "version": "1.7.2"
+    },
+    {
+      "name": "blinker",
+      "purl": "pkg:pypi/blinker@1.9.0",
+      "type": "library",
+      "version": "1.9.0"
+    },
+    {
+      "name": "cachelib",
+      "purl": "pkg:pypi/cachelib@0.14.0",
+      "type": "library",
+      "version": "0.14.0"
+    },
+    {
+      "name": "certifi",
+      "purl": "pkg:pypi/certifi@2026.6.17",
+      "type": "library",
+      "version": "2026.6.17"
+    },
+    {
+      "name": "cffi",
+      "purl": "pkg:pypi/cffi@2.0.0",
+      "type": "library",
+      "version": "2.0.0"
+    },
+    {
+      "name": "charset-normalizer",
+      "purl": "pkg:pypi/charset-normalizer@3.4.7",
+      "type": "library",
+      "version": "3.4.7"
+    },
+    {
+      "name": "click",
+      "purl": "pkg:pypi/click@8.4.2",
+      "type": "library",
+      "version": "8.4.2"
+    },
+    {
+      "name": "cloudinary",
+      "purl": "pkg:pypi/cloudinary@1.45.0",
+      "type": "library",
+      "version": "1.45.0"
+    },
+    {
+      "name": "cryptography",
+      "purl": "pkg:pypi/cryptography@49.0.0",
+      "type": "library",
+      "version": "49.0.0"
+    },
+    {
+      "name": "deprecated",
+      "purl": "pkg:pypi/deprecated@1.3.1",
+      "type": "library",
+      "version": "1.3.1"
+    },
+    {
+      "name": "deprecation",
+      "purl": "pkg:pypi/deprecation@2.1.0",
+      "type": "library",
+      "version": "2.1.0"
+    },
+    {
+      "name": "dnspython",
+      "purl": "pkg:pypi/dnspython@2.8.0",
+      "type": "library",
+      "version": "2.8.0"
+    },
+    {
+      "name": "email-validator",
+      "purl": "pkg:pypi/email-validator@2.3.0",
+      "type": "library",
+      "version": "2.3.0"
+    },
+    {
+      "name": "flask-caching",
+      "purl": "pkg:pypi/flask-caching@2.4.0",
+      "type": "library",
+      "version": "2.4.0"
+    },
+    {
+      "name": "flask-limiter",
+      "purl": "pkg:pypi/flask-limiter@4.1.1",
+      "type": "library",
+      "version": "4.1.1"
+    },
+    {
+      "name": "flask-login",
+      "purl": "pkg:pypi/flask-login@0.6.3",
+      "type": "library",
+      "version": "0.6.3"
+    },
+    {
+      "name": "flask-migrate",
+      "purl": "pkg:pypi/flask-migrate@4.1.0",
+      "type": "library",
+      "version": "4.1.0"
+    },
+    {
+      "name": "flask-sqlalchemy",
+      "purl": "pkg:pypi/flask-sqlalchemy@3.1.1",
+      "type": "library",
+      "version": "3.1.1"
+    },
+    {
+      "name": "flask-talisman",
+      "purl": "pkg:pypi/flask-talisman@1.1.0",
+      "type": "library",
+      "version": "1.1.0"
+    },
+    {
+      "name": "flask-wtf",
+      "purl": "pkg:pypi/flask-wtf@1.3.0",
+      "type": "library",
+      "version": "1.3.0"
+    },
+    {
+      "name": "flask",
+      "purl": "pkg:pypi/flask@3.1.3",
+      "type": "library",
+      "version": "3.1.3"
+    },
+    {
+      "name": "greenlet",
+      "purl": "pkg:pypi/greenlet@3.5.3",
+      "type": "library",
+      "version": "3.5.3"
+    },
+    {
+      "name": "gunicorn",
+      "purl": "pkg:pypi/gunicorn@26.0.0",
+      "type": "library",
+      "version": "26.0.0"
+    },
+    {
+      "name": "h11",
+      "purl": "pkg:pypi/h11@0.16.0",
+      "type": "library",
+      "version": "0.16.0"
+    },
+    {
+      "name": "h2",
+      "purl": "pkg:pypi/h2@4.3.0",
+      "type": "library",
+      "version": "4.3.0"
+    },
+    {
+      "name": "hpack",
+      "purl": "pkg:pypi/hpack@4.2.0",
+      "type": "library",
+      "version": "4.2.0"
+    },
+    {
+      "name": "httpcore",
+      "purl": "pkg:pypi/httpcore@1.0.9",
+      "type": "library",
+      "version": "1.0.9"
+    },
+    {
+      "name": "httpx",
+      "purl": "pkg:pypi/httpx@0.28.1",
+      "type": "library",
+      "version": "0.28.1"
+    },
+    {
+      "name": "hyperframe",
+      "purl": "pkg:pypi/hyperframe@6.1.0",
+      "type": "library",
+      "version": "6.1.0"
+    },
+    {
+      "name": "idna",
+      "purl": "pkg:pypi/idna@3.18",
+      "type": "library",
+      "version": "3.18"
+    },
+    {
+      "name": "itsdangerous",
+      "purl": "pkg:pypi/itsdangerous@2.2.0",
+      "type": "library",
+      "version": "2.2.0"
+    },
+    {
+      "name": "jinja2",
+      "purl": "pkg:pypi/jinja2@3.1.6",
+      "type": "library",
+      "version": "3.1.6"
+    },
+    {
+      "name": "joserfc",
+      "purl": "pkg:pypi/joserfc@1.7.2",
+      "type": "library",
+      "version": "1.7.2"
+    },
+    {
+      "name": "limits",
+      "purl": "pkg:pypi/limits@5.8.0",
+      "type": "library",
+      "version": "5.8.0"
+    },
+    {
+      "name": "mailersend",
+      "purl": "pkg:pypi/mailersend@2.0.3",
+      "type": "library",
+      "version": "2.0.3"
+    },
+    {
+      "name": "mako",
+      "purl": "pkg:pypi/mako@1.3.12",
+      "type": "library",
+      "version": "1.3.12"
+    },
+    {
+      "name": "markupsafe",
+      "purl": "pkg:pypi/markupsafe@3.0.3",
+      "type": "library",
+      "version": "3.0.3"
+    },
+    {
+      "name": "multidict",
+      "purl": "pkg:pypi/multidict@6.7.1",
+      "type": "library",
+      "version": "6.7.1"
+    },
+    {
+      "name": "ordered-set",
+      "purl": "pkg:pypi/ordered-set@4.1.0",
+      "type": "library",
+      "version": "4.1.0"
+    },
+    {
+      "name": "packaging",
+      "purl": "pkg:pypi/packaging@26.2",
+      "type": "library",
+      "version": "26.2"
+    },
+    {
+      "name": "pillow",
+      "purl": "pkg:pypi/pillow@12.3.0",
+      "type": "library",
+      "version": "12.3.0"
+    },
+    {
+      "name": "postgrest",
+      "purl": "pkg:pypi/postgrest@2.31.0",
+      "type": "library",
+      "version": "2.31.0"
+    },
+    {
+      "name": "propcache",
+      "purl": "pkg:pypi/propcache@0.5.2",
+      "type": "library",
+      "version": "0.5.2"
+    },
+    {
+      "name": "psycopg2-binary",
+      "purl": "pkg:pypi/psycopg2-binary@2.9.12",
+      "type": "library",
+      "version": "2.9.12"
+    },
+    {
+      "name": "pycparser",
+      "purl": "pkg:pypi/pycparser@3.0",
+      "type": "library",
+      "version": "3.0"
+    },
+    {
+      "name": "pydantic",
+      "purl": "pkg:pypi/pydantic@2.13.4",
+      "type": "library",
+      "version": "2.13.4"
+    },
+    {
+      "name": "pydantic_core",
+      "purl": "pkg:pypi/pydantic_core@2.46.4",
+      "type": "library",
+      "version": "2.46.4"
+    },
+    {
+      "name": "pyjwt",
+      "purl": "pkg:pypi/pyjwt@2.13.0",
+      "type": "library",
+      "version": "2.13.0"
+    },
+    {
+      "name": "pyotp",
+      "purl": "pkg:pypi/pyotp@2.10.0",
+      "type": "library",
+      "version": "2.10.0"
+    },
+    {
+      "name": "python-dateutil",
+      "purl": "pkg:pypi/python-dateutil@2.9.0.post0",
+      "type": "library",
+      "version": "2.9.0.post0"
+    },
+    {
+      "name": "python-dotenv",
+      "purl": "pkg:pypi/python-dotenv@1.2.2",
+      "type": "library",
+      "version": "1.2.2"
+    },
+    {
+      "name": "python-multipart",
+      "purl": "pkg:pypi/python-multipart@0.0.32",
+      "type": "library",
+      "version": "0.0.32"
+    },
+    {
+      "name": "qrcode",
+      "purl": "pkg:pypi/qrcode@8.2",
+      "type": "library",
+      "version": "8.2"
+    },
+    {
+      "name": "realtime",
+      "purl": "pkg:pypi/realtime@2.31.0",
+      "type": "library",
+      "version": "2.31.0"
+    },
+    {
+      "name": "redis",
+      "purl": "pkg:pypi/redis@8.0.1",
+      "type": "library",
+      "version": "8.0.1"
+    },
+    {
+      "name": "reportlab",
+      "purl": "pkg:pypi/reportlab@4.4.9",
+      "type": "library",
+      "version": "4.4.9"
+    },
+    {
+      "name": "requests",
+      "purl": "pkg:pypi/requests@2.34.2",
+      "type": "library",
+      "version": "2.34.2"
+    },
+    {
+      "name": "sentry-sdk",
+      "purl": "pkg:pypi/sentry-sdk@2.64.0",
+      "type": "library",
+      "version": "2.64.0"
+    },
+    {
+      "name": "six",
+      "purl": "pkg:pypi/six@1.17.0",
+      "type": "library",
+      "version": "1.17.0"
+    },
+    {
+      "name": "slug",
+      "purl": "pkg:pypi/slug@2.0",
+      "type": "library",
+      "version": "2.0"
+    },
+    {
+      "name": "sqlalchemy",
+      "purl": "pkg:pypi/sqlalchemy@2.0.51",
+      "type": "library",
+      "version": "2.0.51"
+    },
+    {
+      "name": "storage3",
+      "purl": "pkg:pypi/storage3@2.31.0",
+      "type": "library",
+      "version": "2.31.0"
+    },
+    {
+      "name": "strenum",
+      "purl": "pkg:pypi/strenum@0.4.15",
+      "type": "library",
+      "version": "0.4.15"
+    },
+    {
+      "name": "supabase-auth",
+      "purl": "pkg:pypi/supabase-auth@2.31.0",
+      "type": "library",
+      "version": "2.31.0"
+    },
+    {
+      "name": "supabase-functions",
+      "purl": "pkg:pypi/supabase-functions@2.31.0",
+      "type": "library",
+      "version": "2.31.0"
+    },
+    {
+      "name": "supabase",
+      "purl": "pkg:pypi/supabase@2.31.0",
+      "type": "library",
+      "version": "2.31.0"
+    },
+    {
+      "name": "typing-inspection",
+      "purl": "pkg:pypi/typing-inspection@0.4.2",
+      "type": "library",
+      "version": "0.4.2"
+    },
+    {
+      "name": "typing_extensions",
+      "purl": "pkg:pypi/typing_extensions@4.15.0",
+      "type": "library",
+      "version": "4.15.0"
+    },
+    {
+      "name": "tzlocal",
+      "purl": "pkg:pypi/tzlocal@5.4.4",
+      "type": "library",
+      "version": "5.4.4"
+    },
+    {
+      "name": "urllib3",
+      "purl": "pkg:pypi/urllib3@2.7.0",
+      "type": "library",
+      "version": "2.7.0"
+    },
+    {
+      "name": "websockets",
+      "purl": "pkg:pypi/websockets@15.0.1",
+      "type": "library",
+      "version": "15.0.1"
+    },
+    {
+      "name": "werkzeug",
+      "purl": "pkg:pypi/werkzeug@3.1.8",
+      "type": "library",
+      "version": "3.1.8"
+    },
+    {
+      "name": "wrapt",
+      "purl": "pkg:pypi/wrapt@2.2.2",
+      "type": "library",
+      "version": "2.2.2"
+    },
+    {
+      "name": "wtforms",
+      "purl": "pkg:pypi/wtforms@3.2.2",
+      "type": "library",
+      "version": "3.2.2"
+    },
+    {
+      "name": "yarl",
+      "purl": "pkg:pypi/yarl@1.24.2",
+      "type": "library",
+      "version": "1.24.2"
+    }
+  ],
+  "metadata": {
+    "component": {
+      "name": "portfolio-hub",
+      "type": "application"
+    }
+  },
+  "serialNumber": "urn:uuid:3475ae975b6dae30769ec07d0a1fbfb2",
+  "specVersion": "1.5",
+  "version": 1
+}

@@ -13,8 +13,6 @@ import os
 import sys
 import logging
 
-from sqlalchemy import inspect, text
-
 logger = logging.getLogger(__name__)
 
 # Minimum acceptable entropy for SECRET_KEY (chars, not bits)
@@ -201,106 +199,22 @@ def validate_startup_env(app) -> None:
             logger.warning("Development mode — startup validation errors are non-fatal.")
 
 
-def _has_table(engine, table_name: str) -> bool:
-    inspector = inspect(engine)
-    return inspector.has_table(table_name)
-
-
-def _table_columns(engine, table_name: str) -> set[str]:
-    inspector = inspect(engine)
-    if not inspector.has_table(table_name):
-        return set()
-    return {column['name'] for column in inspector.get_columns(table_name)}
-
-
-def _execute_ddl(engine, statement: str) -> None:
-    with engine.begin() as connection:
-        connection.execute(text(statement))
-
-
 def ensure_tenant_schema(app, engine) -> None:
-    """Auto-heal tenant schema for project reaction support on startup."""
-    from app.models.tenant_data import (
-        Certificate,
-        WorkExperience,
-        Profile,
-        Project,
-        ProjectReaction,
-        Service,
-        Skill,
-        Testimonial,
-    )
+    """Read-only compatibility wrapper for the former startup schema healer.
 
-    if not _has_table(engine, 'projects'):
-        app.logger.warning(
-            '[SCHEMA] Tenant schema incomplete: projects table missing on TENANT_DATABASE_URL. Creating tenant tables.'
+    Schema changes now belong exclusively to ``migrations/tenant``.  Keeping
+    this function name avoids breaking older call sites while making startup
+    fail visibly on drift instead of mutating a live database.
+    """
+    from app.services.database_migrations import tenant_schema_drift
+
+    drift = tenant_schema_drift(engine)
+    if drift:
+        details = "; ".join(drift[:20])
+        if len(drift) > 20:
+            details += f"; and {len(drift) - 20} more"
+        raise RuntimeError(
+            "Tenant schema is behind its migration head. "
+            f"Run `flask db-upgrade-all`: {details}"
         )
-        for model in (Profile, Skill, Project, ProjectReaction, Testimonial, Service, Certificate, WorkExperience):
-            model.__table__.create(bind=engine, checkfirst=True)
-        return
-
-    projects_columns = _table_columns(engine, 'projects')
-    if 'view_count' not in projects_columns:
-        column_ddl = 'INTEGER NOT NULL DEFAULT 0'
-        _execute_ddl(engine, f'ALTER TABLE projects ADD COLUMN view_count {column_ddl}')
-        app.logger.info('[SCHEMA] Added missing column projects.view_count')
-    if 'like_count' not in projects_columns:
-        column_ddl = 'INTEGER NOT NULL DEFAULT 0'
-        _execute_ddl(engine, f'ALTER TABLE projects ADD COLUMN like_count {column_ddl}')
-        app.logger.info('[SCHEMA] Added missing column projects.like_count')
-
-    # Professional case-study and SEO fields. These idempotent additions keep
-    # existing Render databases compatible even when the legacy migration
-    # chain is bypassed in favor of ensure-tenant-schema.
-    project_column_ddls = {
-        'image_alt': "VARCHAR(200) DEFAULT ''",
-        'before_image': "VARCHAR(500) DEFAULT ''",
-        'before_image_alt': "VARCHAR(200) DEFAULT ''",
-        'after_image': "VARCHAR(500) DEFAULT ''",
-        'after_image_alt': "VARCHAR(200) DEFAULT ''",
-        'prototype_url': "VARCHAR(500) DEFAULT ''",
-        'problem_statement': "TEXT DEFAULT ''",
-        'solution_overview': "TEXT DEFAULT ''",
-        'outcome_summary': "TEXT DEFAULT ''",
-        'client_quote': "TEXT DEFAULT ''",
-        'client_name': "VARCHAR(120) DEFAULT ''",
-        'client_role': "VARCHAR(160) DEFAULT ''",
-        'meta_title': "VARCHAR(200) DEFAULT ''",
-        'meta_description': "VARCHAR(300) DEFAULT ''",
-        'case_study_enabled': 'BOOLEAN NOT NULL DEFAULT TRUE',
-    }
-    for column_name, column_ddl in project_column_ddls.items():
-        if column_name not in projects_columns:
-            _execute_ddl(engine, f'ALTER TABLE projects ADD COLUMN {column_name} {column_ddl}')
-            app.logger.info('[SCHEMA] Added missing column projects.%s', column_name)
-
-    profile_columns = _table_columns(engine, 'profile')
-    profile_column_ddls = {
-        'profile_image_alt': "VARCHAR(200) DEFAULT ''",
-        'seo_keywords': "VARCHAR(300) DEFAULT ''",
-        'seo_indexable': 'BOOLEAN NOT NULL DEFAULT TRUE',
-    }
-    for column_name, column_ddl in profile_column_ddls.items():
-        if column_name not in profile_columns:
-            _execute_ddl(engine, f'ALTER TABLE profile ADD COLUMN {column_name} {column_ddl}')
-            app.logger.info('[SCHEMA] Added missing column profile.%s', column_name)
-
-    reaction_columns = _table_columns(engine, 'project_reactions')
-    if not _has_table(engine, 'project_reactions'):
-        ProjectReaction.__table__.create(bind=engine, checkfirst=True)
-        app.logger.info('[SCHEMA] Created missing table project_reactions')
-
-    if not _has_table(engine, 'work_experiences'):
-        WorkExperience.__table__.create(bind=engine, checkfirst=True)
-        app.logger.info('[SCHEMA] Created missing table work_experiences')
-
-    if _has_table(engine, 'project_reactions'):
-        if 'tenant_id' not in reaction_columns:
-            _execute_ddl(engine, 'ALTER TABLE project_reactions ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 0')
-            app.logger.info('[SCHEMA] Added missing column project_reactions.tenant_id')
-        if 'ip_address' not in reaction_columns:
-            _execute_ddl(engine, 'ALTER TABLE project_reactions ADD COLUMN ip_address VARCHAR(45)')
-            app.logger.info('[SCHEMA] Added missing column project_reactions.ip_address')
-        if 'created_at' not in reaction_columns:
-            _execute_ddl(engine, 'ALTER TABLE project_reactions ADD COLUMN created_at TIMESTAMP')
-            app.logger.info('[SCHEMA] Added missing column project_reactions.created_at')
+    app.logger.info("[SCHEMA] Tenant schema is consistent with the current models.")

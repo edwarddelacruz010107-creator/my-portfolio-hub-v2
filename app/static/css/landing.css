@@ -33,9 +33,9 @@
   --danger: #FB7185;
 
   /* ---- Type ---- */
-  --font-display: 'Space Grotesk', 'Inter', sans-serif;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SFMono-Regular', monospace;
+  --font-display: 'Syne', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
   /* ---- Radius ---- */
   --r-sm: 8px;
@@ -956,6 +956,21 @@ section { position: relative; padding: 120px 0; }
   height: 100%;
   object-fit: cover;
   object-position: top center;
+}
+
+.theme-preview-provenance {
+  position: absolute;
+  inset-inline-start: 12px;
+  bottom: 12px;
+  padding: 4px 10px;
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 999px;
+  background: rgba(8,10,15,0.86);
+  color: #f6f7fa;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
 }
 
 .theme-mock-bar { width: 46%; height: 10px; border-radius: 4px; background: var(--tc4, #fff); opacity: 0.9; }

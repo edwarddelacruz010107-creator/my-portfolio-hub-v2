@@ -1,0 +1,214 @@
+{% extends 'superadmin/base.html' %}
+{% block title %}AI Center{% endblock %}
+{% block page_title %}AI Center{% endblock %}
+{% block page_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/ai-center-v1.css', v='20260715-v1') }}"/>
+{% endblock %}
+
+{% block content %}
+<section class="ai-shell" aria-labelledby="ai-title">
+  <header class="ai-hero">
+    <div>
+      <p class="ai-eyebrow">Provider-neutral control plane</p>
+      <h1 id="ai-title">AI Center</h1>
+      <p>Configure live providers and models, publish immutable prompts, enforce tenant policy, and reconcile exact usage evidence.</p>
+    </div>
+    <div class="ai-status-note">
+      <strong>Live requests only</strong>
+      <span>No simulated provider output is generated.</span>
+    </div>
+  </header>
+
+  <nav class="ai-tabs" aria-label="AI Center sections">
+    {% for key, label in [('overview','Overview'),('providers','Providers & API Keys'),('models','Models'),('features','Feature Flags'),('prompts','Prompt Library'),('knowledge','Knowledge Base'),('usage','Usage & Cost'),('logs','Logs'),('test','Test Console')] %}
+      <a href="{{ url_for('superadmin.ai_center', tab=key) }}" class="ai-tab{% if selected_tab == key %} is-active{% endif %}" {% if selected_tab == key %}aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+
+  {% if selected_tab == 'overview' %}
+  <div class="ai-metric-grid" aria-label="AI operating metrics">
+    <article class="ai-metric"><span>Recent requests</span><strong>{{ metrics.requests }}</strong><small>latest retained ledger window</small></article>
+    <article class="ai-metric"><span>Known cost</span><strong>{{ metrics.known_cost_microunits }}</strong><small>microunits; {{ metrics.unavailable_cost_count }} unavailable</small></article>
+    <article class="ai-metric"><span>Average latency</span><strong>{% if metrics.average_latency_ms is not none %}{{ metrics.average_latency_ms }} ms{% else %}Unavailable{% endif %}</strong><small>successful requests with evidence</small></article>
+    <article class="ai-metric"><span>Failures</span><strong>{{ metrics.failures }}</strong><small>terminal failures in retained ledger</small></article>
+  </div>
+  <div class="ai-grid ai-grid-two">
+    <article class="ai-card">
+      <h2>Control-plane readiness</h2>
+      <dl class="ai-definition-list">
+        <div><dt>Configured providers</dt><dd>{{ providers|selectattr('configured')|list|length }} / {{ providers|length }}</dd></div>
+        <div><dt>Enabled models</dt><dd>{{ models|selectattr('enabled')|list|length }}</dd></div>
+        <div><dt>Enabled policies</dt><dd>{{ policies|selectattr('enabled')|list|length }}</dd></div>
+        <div><dt>Published prompts</dt><dd>{{ prompts|length }}</dd></div>
+      </dl>
+    </article>
+    <article class="ai-card">
+      <h2>30-day budget ledger</h2>
+      <dl class="ai-definition-list">
+        <div><dt>Actual microunits</dt><dd>{{ metrics.actual_microunits_30d }}</dd></div>
+        <div><dt>Currently reserved</dt><dd>{{ metrics.reserved_microunits_30d }}</dd></div>
+      </dl>
+      <p class="ai-help">A cost remains explicitly unavailable when a provider does not return complete usage evidence.</p>
+    </article>
+  </div>
+  {% endif %}
+
+  {% if selected_tab == 'providers' %}
+  <div class="ai-grid ai-grid-two">
+    {% for provider in providers %}
+    <article class="ai-card">
+      <header class="ai-card-header">
+        <div><h2>{{ provider.name }}</h2><p>{{ provider.protocol }}</p></div>
+        <span class="ai-badge ai-badge-{% if provider.enabled %}success{% else %}neutral{% endif %}">{{ 'Enabled' if provider.enabled else 'Disabled' }}</span>
+      </header>
+      <p class="ai-help">Observed health: <strong>{{ provider.health }}</strong>{% if provider.health_observed_at %} at {{ provider.health_observed_at }}{% endif %}. Health is based only on retained live request evidence.</p>
+      <form method="post" action="{{ url_for('superadmin.ai_provider_save') }}" class="ai-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="provider_code" value="{{ provider.code }}"/>
+        <label>API base URL<input name="base_url" value="{{ provider.base_url }}" required autocomplete="url"/></label>
+        <label>Timeout seconds<input name="timeout_seconds" value="{{ provider.timeout_seconds }}" inputmode="numeric" required/></label>
+        <label>API key or credential
+          <input name="api_key" type="password" value="" autocomplete="new-password" aria-describedby="credential-{{ provider.code }}"/>
+        </label>
+        <p class="ai-help" id="credential-{{ provider.code }}">Stored value: {{ provider.masked_credential }}. Leave blank to keep it.</p>
+        <div class="ai-check-row">
+          <label><input type="checkbox" name="enabled" value="1" {% if provider.enabled %}checked{% endif %}/> Enable provider</label>
+          <label><input type="checkbox" name="clear_credential" value="1"/> Clear stored credential</label>
+        </div>
+        <div class="ai-form-actions">
+          <a href="{{ provider.docs }}" target="_blank" rel="noopener noreferrer">Official API docs</a>
+          <button class="btn btn-primary" type="submit">Save provider</button>
+        </div>
+      </form>
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if selected_tab == 'models' %}
+  <div class="ai-grid ai-grid-sidebar">
+    <article class="ai-card">
+      <h2>Add or update a model</h2>
+      <form method="post" action="{{ url_for('superadmin.ai_model_save') }}" class="ai-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <label>Configured provider<select name="provider_config_id" required><option value="">Select provider</option>{% for provider in providers if provider.configured %}<option value="{{ provider.id }}">{{ provider.name }}</option>{% endfor %}</select></label>
+        <label>Provider model ID<input name="model_key" required maxlength="160" autocomplete="off"/></label>
+        <label>Display name<input name="display_name" required maxlength="160"/></label>
+        <fieldset><legend>Implemented capabilities</legend><div class="ai-check-row"><label><input type="checkbox" name="capabilities" value="text" checked/> Text</label><label><input type="checkbox" name="capabilities" value="structured"/> Structured JSON</label></div></fieldset>
+        <label>Context window<input name="context_window" value="8192" inputmode="numeric" required/></label>
+        <label>Input price — microunits per 1M units<input name="input_price_microunits_per_million" value="0" inputmode="numeric" required/></label>
+        <label>Output price — microunits per 1M units<input name="output_price_microunits_per_million" value="0" inputmode="numeric" required/></label>
+        <div class="ai-form-pair"><label>Currency<input name="pricing_currency" value="USD" minlength="3" maxlength="3" required/></label><label>Pricing version<input name="pricing_version" placeholder="2026-07-15" maxlength="80" required/></label></div>
+        <label><input type="checkbox" name="enabled" value="1"/> Enable model</label>
+        <button class="btn btn-primary" type="submit">Save model</button>
+      </form>
+    </article>
+    <article class="ai-card ai-table-card">
+      <h2>Model registry</h2>
+      <div class="ai-table-wrap"><table><thead><tr><th>Provider / model</th><th>Capabilities</th><th>Pricing</th><th>Status</th></tr></thead><tbody>
+      {% for model in models %}<tr><td><strong>{{ model.provider }}</strong><br/><span>{{ model.model_key }}</span></td><td>{{ model.capabilities|join(', ') }}</td><td>{{ model.input_price }} / {{ model.output_price }} {{ model.currency }}<br/><span>{{ model.pricing_version }}</span></td><td><span class="ai-badge ai-badge-{% if model.enabled %}success{% else %}neutral{% endif %}">{{ 'Enabled' if model.enabled else 'Disabled' }}</span></td></tr>{% else %}<tr><td colspan="4">No models configured.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </article>
+  </div>
+  {% endif %}
+
+  {% if selected_tab == 'features' %}
+  <div class="ai-grid ai-grid-sidebar">
+    <article class="ai-card">
+      <h2>Feature assignment</h2>
+      <form method="post" action="{{ url_for('superadmin.ai_feature_save') }}" class="ai-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <label>Feature key<input name="feature_key" placeholder="portfolio.summary" maxlength="80" required/></label>
+        <label>Tenant ID <span>(blank = global)</span><input name="tenant_id" inputmode="numeric"/></label>
+        <label>Model<select name="model_config_id" required><option value="">Select model</option>{% for model in models %}<option value="{{ model.id }}">{{ model.provider }} / {{ model.model_key }}</option>{% endfor %}</select></label>
+        <label>Minimum plan<select name="min_plan"><option value="enterprise">Enterprise</option><option value="premium">Premium</option><option value="pro">Pro</option><option value="basic">Basic</option><option value="trial">Trial</option><option value="administrator">Administrator</option></select></label>
+        <label>Daily budget in microunits <span>(blank = unlimited)</span><input name="daily_budget_microunits" inputmode="numeric"/></label>
+        <div class="ai-form-pair"><label>Max output units<input name="max_output_units" value="1024" inputmode="numeric" required/></label><label>Payload retention days<input name="retention_days" value="7" inputmode="numeric" required/></label></div>
+        <label><input type="checkbox" name="enabled" value="1"/> Enable feature</label>
+        <button class="btn btn-primary" type="submit">Save policy</button>
+      </form>
+    </article>
+    <article class="ai-card ai-table-card">
+      <h2>Effective assignments</h2>
+      <div class="ai-table-wrap"><table><thead><tr><th>Scope / feature</th><th>Model</th><th>Guardrails</th><th>Status</th></tr></thead><tbody>
+      {% for policy in policies %}<tr><td><strong>{{ policy.scope }}</strong><br/><span>{{ policy.feature }}</span></td><td>{{ policy.model }}</td><td>{{ policy.min_plan }} · max {{ policy.max_output }}<br/><span>budget {% if policy.budget is none %}unlimited{% else %}{{ policy.budget }}{% endif %}; retain {{ policy.retention_days }}d</span></td><td><span class="ai-badge ai-badge-{% if policy.enabled %}success{% else %}neutral{% endif %}">{{ 'Enabled' if policy.enabled else 'Disabled' }}</span></td></tr>{% else %}<tr><td colspan="4">No feature policies configured.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </article>
+  </div>
+  {% endif %}
+
+  {% if selected_tab == 'prompts' %}
+  <div class="ai-grid ai-grid-sidebar">
+    <article class="ai-card">
+      <h2>Publish prompt version</h2>
+      <p class="ai-help">Publishing appends a version and moves only the active pointer. Published versions cannot be edited or deleted.</p>
+      <form method="post" action="{{ url_for('superadmin.ai_prompt_publish') }}" class="ai-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="ai-form-pair"><label>Prompt key<input name="prompt_key" placeholder="portfolio.summary.v1" maxlength="80" required/></label><label>Feature key<input name="feature_key" placeholder="portfolio.summary" maxlength="80" required/></label></div>
+        <label>Name<input name="name" maxlength="160" required/></label>
+        <label>Description<textarea name="description" rows="2" maxlength="500"></textarea></label>
+        <label>System instruction<textarea name="system_text" rows="4" maxlength="50000"></textarea></label>
+        <label>Template<textarea name="template_text" rows="9" maxlength="200000" placeholder="Summarize {portfolio_text}" required></textarea></label>
+        <p class="ai-help">Variables use simple lowercase braces, for example <code>{portfolio_text}</code>. The allowlist is derived and stored with the version.</p>
+        <label>Required change note<input name="change_note" maxlength="500" required/></label>
+        <button class="btn btn-primary" type="submit">Publish immutable version</button>
+      </form>
+    </article>
+    <div class="ai-stack">
+      {% for prompt in prompts %}<article class="ai-card"><header class="ai-card-header"><div><h2>{{ prompt.name }}</h2><p><code>{{ prompt.key }}</code> · {{ prompt.feature }}</p></div></header><p>{{ prompt.description }}</p><ol class="ai-version-list">{% for version in prompt.versions %}<li><strong>v{{ version.number }}</strong>{% if version.active %} <span class="ai-badge ai-badge-success">Active</span>{% else %}<form method="post" action="{{ url_for('superadmin.ai_prompt_activate', prompt_id=prompt.id, version_id=version.id) }}" class="ai-inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/><button class="btn btn-secondary btn-sm" type="submit">Activate</button></form>{% endif %}<span>{{ version.change_note }}</span><small>Variables: {{ version.variables|join(', ') if version.variables else 'none' }}</small></li>{% endfor %}</ol></article>{% else %}<article class="ai-card"><p>No prompt versions published.</p></article>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if selected_tab == 'knowledge' %}
+  <article class="ai-card ai-empty-state">
+    <span class="ai-badge ai-badge-warning">Unavailable by design</span>
+    <h2>{{ knowledge_base.status }}</h2>
+    <p>A knowledge-base toggle would be misleading without a real ingestion, isolation, provenance, retention, and deletion lifecycle.</p>
+    <h3>Required before activation</h3>
+    <ul>{% for item in knowledge_base.prerequisites %}<li>{{ item }}</li>{% endfor %}</ul>
+  </article>
+  {% endif %}
+
+  {% if selected_tab == 'usage' %}
+  <div class="ai-metric-grid">
+    <article class="ai-metric"><span>Requests</span><strong>{{ metrics.requests }}</strong></article>
+    <article class="ai-metric"><span>Known microunits</span><strong>{{ metrics.known_cost_microunits }}</strong></article>
+    <article class="ai-metric"><span>Cost unavailable</span><strong>{{ metrics.unavailable_cost_count }}</strong></article>
+    <article class="ai-metric"><span>Failures</span><strong>{{ metrics.failures }}</strong></article>
+  </div>
+  <article class="ai-card ai-table-card"><h2>Append-only usage ledger</h2><div class="ai-table-wrap"><table><thead><tr><th>Time / scope</th><th>Provider / operation</th><th>Units</th><th>Latency</th><th>Cost</th><th>Outcome</th></tr></thead><tbody>
+  {% for item in usage %}<tr><td>{{ item.created_at }}<br/><span>tenant {{ item.tenant_id if item.tenant_id else 'global' }} · {{ item.feature }}</span></td><td>{{ item.provider }} / {{ item.model }}<br/><span>{{ item.operation }}{% if item.request_suffix %} · …{{ item.request_suffix }}{% endif %}</span></td><td>{% if item.input_units is not none %}{{ item.input_units }} in / {{ item.output_units }} out{% else %}Unavailable{% endif %}</td><td>{{ item.latency_ms }} ms</td><td>{% if item.cost_microunits is not none %}{{ item.cost_microunits }} {{ item.currency }}{% else %}Unavailable{% endif %}</td><td><span class="ai-badge ai-badge-{% if item.outcome == 'succeeded' %}success{% else %}danger{% endif %}">{{ item.outcome }}</span>{% if item.error_class %}<br/><span>{{ item.error_class }}</span>{% endif %}</td></tr>{% else %}<tr><td colspan="6">No provider usage recorded.</td></tr>{% endfor %}
+  </tbody></table></div></article>
+  {% endif %}
+
+  {% if selected_tab == 'logs' %}
+  <div class="ai-grid ai-grid-two">
+    <article class="ai-card ai-table-card"><h2>Request jobs</h2><div class="ai-table-wrap"><table><thead><tr><th>Request</th><th>Status</th><th>Error</th></tr></thead><tbody>{% for job in jobs %}<tr><td><code>{{ job.id }}</code><br/><span>{{ job.feature }} · {{ job.operation }} · {{ job.attempts }} attempt(s)</span></td><td><span class="ai-badge ai-badge-neutral">{{ job.status }}</span></td><td>{{ job.error_class or '—' }}{% if job.error_message %}<br/><span>{{ job.error_message }}</span>{% endif %}</td></tr>{% else %}<tr><td colspan="3">No request jobs.</td></tr>{% endfor %}</tbody></table></div></article>
+    <article class="ai-card ai-table-card"><h2>Configuration audit</h2><div class="ai-table-wrap"><table><thead><tr><th>Event</th><th>Entity</th><th>Time</th></tr></thead><tbody>{% for audit in audits %}<tr><td>{{ audit.event }}</td><td>{{ audit.entity }}<br/><code>{{ audit.entity_id }}</code></td><td>{{ audit.created_at }}</td></tr>{% else %}<tr><td colspan="3">No audit events.</td></tr>{% endfor %}</tbody></table></div></article>
+  </div>
+  {% endif %}
+
+  {% if selected_tab == 'test' %}
+  <div class="ai-grid ai-grid-two">
+    <article class="ai-card">
+      <h2>Live test console</h2>
+      <div class="ai-warning"><strong>Billing warning</strong><p>This sends a real request through the selected global feature policy and may incur provider charges.</p></div>
+      <form method="post" action="{{ url_for('superadmin.ai_test_console') }}" class="ai-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <label>Global feature key<input name="feature_key" maxlength="80" required/></label>
+        <label>System instruction<textarea name="system_text" rows="3" maxlength="50000"></textarea></label>
+        <label>Input<textarea name="input_text" rows="9" maxlength="200000" required></textarea></label>
+        <label>Max output units<input name="max_output_units" value="256" inputmode="numeric" required/></label>
+        <label class="ai-ack"><input type="checkbox" name="billing_ack" value="yes" required/> I understand this is a live, potentially billable provider request.</label>
+        <button class="btn btn-primary" type="submit">Run live test</button>
+      </form>
+    </article>
+    <article class="ai-card">
+      <h2>Latest result</h2>
+      {% if test_result %}<pre class="ai-output">{{ test_result.text }}</pre><dl class="ai-definition-list"><div><dt>Input units</dt><dd>{{ test_result.usage.input_units if test_result.usage.input_units is not none else 'Unavailable' }}</dd></div><div><dt>Output units</dt><dd>{{ test_result.usage.output_units if test_result.usage.output_units is not none else 'Unavailable' }}</dd></div><div><dt>Cost</dt><dd>{{ test_result.usage.cost_microunits if test_result.usage.cost_microunits is not none else 'Unavailable' }}</dd></div><div><dt>Request ID</dt><dd><code>{{ test_result.request_id }}</code></dd></div></dl>{% else %}<p class="ai-help">Results appear only after a successful live request. No mock response is substituted.</p>{% endif %}
+    </article>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

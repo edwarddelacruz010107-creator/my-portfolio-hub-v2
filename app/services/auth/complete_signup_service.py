@@ -13,7 +13,7 @@ from typing import Optional, cast
 from app import db
 from app.models import PendingSignup, Tenant, User
 from app.security import log_security_event
-from app.services.tenant.onboarding_service import create_default_portfolio_for
+from app.services.tenant.onboarding_service import ensure_onboarding_workspace
 from app.services.auth.otp_service import generate_otp
 from app.services.auth.email_policy import (
     EmailPolicyError,
@@ -553,7 +553,7 @@ def complete_pending_signup(
         db.session.add(user)
         db.session.flush()
 
-        create_default_portfolio_for(user, commit=False)
+        ensure_onboarding_workspace(user, display_name=full_name, commit=False)
         db.session.delete(pending_signup)
         db.session.commit()
     except Exception:
@@ -563,5 +563,5 @@ def complete_pending_signup(
     log_activity('register', 'user', user.username,
                  f'Local signup from {ip_address}', tenant_slug=tenant.slug)
     log_security_event('signup_local', user, f'Signup from {ip_address}', 'info')
-    logger.info('REGISTER: completed signup user id=%s tenant=%s', user.id, tenant.slug)
+    logger.info('REGISTER: completed signup user id=%s tenant=%s with empty portfolio', user.id, tenant.slug)
     return user

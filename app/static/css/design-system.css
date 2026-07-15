@@ -1,3 +1,24 @@
+@layer reset, tokens, base, components, utilities, compatibility;
+
+/* Self-hosted, version-pinned font assets. Sources and licenses live under
+   app/static/fonts/licenses/. */
+@font-face { font-family: 'Syne'; src: url('../fonts/syne-latin-400-normal.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Syne'; src: url('../fonts/syne-latin-500-normal.woff2') format('woff2'); font-style: normal; font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Syne'; src: url('../fonts/syne-latin-600-normal.woff2') format('woff2'); font-style: normal; font-weight: 600; font-display: swap; }
+@font-face { font-family: 'Syne'; src: url('../fonts/syne-latin-700-normal.woff2') format('woff2'); font-style: normal; font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Syne'; src: url('../fonts/syne-latin-800-normal.woff2') format('woff2'); font-style: normal; font-weight: 800; font-display: swap; }
+@font-face { font-family: 'DM Sans'; src: url('../fonts/dm-sans-latin-300-normal.woff2') format('woff2'); font-style: normal; font-weight: 300; font-display: swap; }
+@font-face { font-family: 'DM Sans'; src: url('../fonts/dm-sans-latin-300-italic.woff2') format('woff2'); font-style: italic; font-weight: 300; font-display: swap; }
+@font-face { font-family: 'DM Sans'; src: url('../fonts/dm-sans-latin-400-normal.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: 'DM Sans'; src: url('../fonts/dm-sans-latin-400-italic.woff2') format('woff2'); font-style: italic; font-weight: 400; font-display: swap; }
+@font-face { font-family: 'DM Sans'; src: url('../fonts/dm-sans-latin-500-normal.woff2') format('woff2'); font-style: normal; font-weight: 500; font-display: swap; }
+@font-face { font-family: 'DM Sans'; src: url('../fonts/dm-sans-latin-500-italic.woff2') format('woff2'); font-style: italic; font-weight: 500; font-display: swap; }
+@font-face { font-family: 'DM Sans'; src: url('../fonts/dm-sans-latin-600-normal.woff2') format('woff2'); font-style: normal; font-weight: 600; font-display: swap; }
+@font-face { font-family: 'DM Sans'; src: url('../fonts/dm-sans-latin-700-normal.woff2') format('woff2'); font-style: normal; font-weight: 700; font-display: swap; }
+@font-face { font-family: 'JetBrains Mono'; src: url('../fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: 'JetBrains Mono'; src: url('../fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2'); font-style: normal; font-weight: 500; font-display: swap; }
+@font-face { font-family: 'JetBrains Mono'; src: url('../fonts/jetbrains-mono-latin-700-normal.woff2') format('woff2'); font-style: normal; font-weight: 700; font-display: swap; }
+
 /* ═══════════════════════════════════════════════════════════════
    PORTFOLIO CMS — GLOBAL DESIGN SYSTEM
    v2.0 · Enterprise SaaS · Vercel × Stripe × Linear DNA
@@ -5,10 +26,10 @@
 
    ARCHITECTURE
    ─────────────
-   · This file owns ALL design tokens (CSS custom properties).
-   · It must be loaded FIRST before admin.css / superadmin.css.
-   · Never declare :root variables in other CSS files.
-   · All other files consume these tokens via var(--*).
+   · This file owns the canonical platform token API.
+   · It must be loaded before legacy compatibility styles.
+   · New platform CSS must consume these tokens via var(--*).
+   · Remaining legacy roots are tracked in DESIGN_TOKEN_DEPRECATIONS.md.
 
    TOKEN GROUPS
    ─────────────
@@ -30,13 +51,44 @@
 html[data-theme="dark"] {
   color-scheme: dark;
 
+  /* Canonical semantic color API. */
+  --color-canvas: #080a0f;
+  --color-surface-1: #0d1117;
+  --color-surface-2: #111827;
+  --color-surface-3: #161d2e;
+  --color-surface-4: #1a2237;
+  --color-overlay: rgba(8, 10, 15, 0.85);
+  --color-text-primary: #e8eaf0;
+  --color-text-secondary: #a7adbd;
+  --color-text-tertiary: #8892a4;
+  --color-text-disabled: #667085;
+  --color-brand: #6366f1;
+  --color-brand-emphasis: #818cf8;
+  --color-brand-strong: #4f46e5;
+  --color-focus-ring: #a5b4fc;
+  --color-selected: rgba(99, 102, 241, 0.14);
+  --color-disabled-bg: rgba(255, 255, 255, 0.04);
+  --color-disabled-border: rgba(255, 255, 255, 0.08);
+  --color-positive: #10b981;
+  --color-warning: #f59e0b;
+  --color-negative: #ef4444;
+  --color-info: #6366f1;
+  --color-chart-1: #818cf8;
+  --color-chart-2: #22d3ee;
+  --color-chart-3: #34d399;
+  --color-chart-4: #fbbf24;
+  --color-chart-5: #fb7185;
+  --color-provider-paymongo: #635bff;
+  --color-provider-dodo: #22c55e;
+  --color-provider-manual: #f59e0b;
+
   /* ── Surface layers (cinematic dark navy) ─────────────── */
-  --bg:          #080a0f;
-  --bg-1:        #0d1117;
-  --bg-2:        #111827;
-  --bg-3:        #161d2e;
-  --bg-4:        #1a2237;
-  --bg-overlay:  rgba(8, 10, 15, 0.85);
+  --bg:          var(--color-canvas);
+  --bg-1:        var(--color-surface-1);
+  --bg-2:        var(--color-surface-2);
+  --bg-3:        var(--color-surface-3);
+  --bg-4:        var(--color-surface-4);
+  --bg-overlay:  var(--color-overlay);
 
   /* ── Elevated surface for cards ───────────────────────── */
   --surface:         var(--bg-2);
@@ -44,32 +96,32 @@ html[data-theme="dark"] {
   --surface-overlay: rgba(17, 24, 39, 0.95);
 
   /* ── Text hierarchy ───────────────────────────────────── */
-  --text:       #e8eaf0;
-  --text-muted: #7a8094;
-  --text-dim:   #8892a4;
-  --text-faint: #4b5268;
+  --text:       var(--color-text-primary);
+  --text-muted: var(--color-text-secondary);
+  --text-dim:   var(--color-text-tertiary);
+  --text-faint: var(--color-text-disabled);
 
   /* ── Indigo accent ────────────────────────────────────── */
-  --accent:       #6366f1;
-  --accent-light: #818cf8;
-  --accent-dark:  #4f46e5;
+  --accent:       var(--color-brand);
+  --accent-light: var(--color-brand-emphasis);
+  --accent-dark:  var(--color-brand-strong);
   --accent-glow:  rgba(99, 102, 241, 0.25);
   --accent-bg:    rgba(99, 102, 241, 0.08);
   --accent-bg-md: rgba(99, 102, 241, 0.14);
 
   /* ── Semantic colors ──────────────────────────────────── */
-  --success:     #10b981;
+  --success:     var(--color-positive);
   --success-bg:  rgba(16, 185, 129, 0.10);
   --success-glow:rgba(16, 185, 129, 0.20);
 
-  --warn:        #f59e0b;
+  --warn:        var(--color-warning);
   --warn-bg:     rgba(245, 158, 11, 0.10);
 
-  --danger:      #ef4444;
+  --danger:      var(--color-negative);
   --danger-bg:   rgba(239, 68, 68, 0.10);
   --danger-glow: rgba(239, 68, 68, 0.20);
 
-  --info:        #6366f1;
+  --info:        var(--color-info);
   --info-bg:     rgba(99, 102, 241, 0.10);
 
   /* ── Borders ──────────────────────────────────────────── */
@@ -97,45 +149,75 @@ html[data-theme="dark"] {
 html[data-theme="light"] {
   color-scheme: light;
 
+  --color-canvas: #f8fafc;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #ffffff;
+  --color-surface-3: #f1f5f9;
+  --color-surface-4: #e8edf5;
+  --color-overlay: rgba(248, 250, 252, 0.90);
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-tertiary: #64748b;
+  --color-text-disabled: #94a3b8;
+  --color-brand: #4f46e5;
+  --color-brand-emphasis: #4338ca;
+  --color-brand-strong: #3730a3;
+  --color-focus-ring: #4338ca;
+  --color-selected: rgba(79, 70, 229, 0.10);
+  --color-disabled-bg: #f1f5f9;
+  --color-disabled-border: rgba(15, 23, 42, 0.10);
+  --color-positive: #047857;
+  --color-warning: #b45309;
+  --color-negative: #b91c1c;
+  --color-info: #4f46e5;
+  --color-chart-1: #4f46e5;
+  --color-chart-2: #0e7490;
+  --color-chart-3: #047857;
+  --color-chart-4: #b45309;
+  --color-chart-5: #be123c;
+  --color-provider-paymongo: #4f46e5;
+  --color-provider-dodo: #15803d;
+  --color-provider-manual: #b45309;
+
   /* ── Surface layers (airy, Notion-like) ───────────────── */
-  --bg:          #f8fafc;
-  --bg-1:        #ffffff;
-  --bg-2:        #ffffff;
-  --bg-3:        #f1f5f9;
-  --bg-4:        #e8edf5;
-  --bg-overlay:  rgba(248, 250, 252, 0.90);
+  --bg:          var(--color-canvas);
+  --bg-1:        var(--color-surface-1);
+  --bg-2:        var(--color-surface-2);
+  --bg-3:        var(--color-surface-3);
+  --bg-4:        var(--color-surface-4);
+  --bg-overlay:  var(--color-overlay);
 
   --surface:         #ffffff;
   --surface-raised:  #f8fafc;
   --surface-overlay: rgba(255, 255, 255, 0.97);
 
   /* ── Text ─────────────────────────────────────────────── */
-  --text:       #0f172a;
-  --text-muted: #475569;
-  --text-dim:   #64748b;
-  --text-faint: #94a3b8;
+  --text:       var(--color-text-primary);
+  --text-muted: var(--color-text-secondary);
+  --text-dim:   var(--color-text-tertiary);
+  --text-faint: var(--color-text-disabled);
 
   /* ── Accent (same hue, lighter backgrounds) ───────────── */
-  --accent:       #6366f1;
-  --accent-light: #818cf8;
-  --accent-dark:  #4f46e5;
+  --accent:       var(--color-brand);
+  --accent-light: var(--color-brand-emphasis);
+  --accent-dark:  var(--color-brand-strong);
   --accent-glow:  rgba(99, 102, 241, 0.15);
   --accent-bg:    rgba(99, 102, 241, 0.06);
   --accent-bg-md: rgba(99, 102, 241, 0.10);
 
   /* ── Semantic ─────────────────────────────────────────── */
-  --success:     #059669;
+  --success:     var(--color-positive);
   --success-bg:  rgba(5, 150, 105, 0.08);
   --success-glow:rgba(5, 150, 105, 0.15);
 
-  --warn:        #d97706;
+  --warn:        var(--color-warning);
   --warn-bg:     rgba(217, 119, 6, 0.08);
 
-  --danger:      #dc2626;
+  --danger:      var(--color-negative);
   --danger-bg:   rgba(220, 38, 38, 0.08);
   --danger-glow: rgba(220, 38, 38, 0.15);
 
-  --info:        #6366f1;
+  --info:        var(--color-info);
   --info-bg:     rgba(99, 102, 241, 0.06);
 
   /* ── Borders ──────────────────────────────────────────── */
@@ -161,6 +243,30 @@ html[data-theme="light"] {
 
 /* ─── STATIC TOKENS (theme-independent) ──────────────────────── */
 :root {
+  /* ── Responsive layout contract ───────────────────────── */
+  --container-sm: 40rem;
+  --container-md: 56rem;
+  --container-lg: 72rem;
+  --container-xl: 87.5rem;
+  --content-gutter: clamp(1rem, 3vw, 2rem);
+  --touch-target-min: 44px;
+
+  /* Breakpoint values are documentation tokens; CSS custom properties cannot
+     be interpolated into media-query conditions. */
+  --breakpoint-sm: 30rem;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 64rem;
+  --breakpoint-xl: 80rem;
+
+  /* ── Layering contract ────────────────────────────────── */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 100;
+  --z-sidebar: 200;
+  --z-dropdown: 400;
+  --z-overlay: 800;
+  --z-dialog: 900;
+  --z-toast: 1000;
   /* ── Border radius ────────────────────────────────────── */
   --radius-xs:   4px;
   --radius-sm:   6px;
@@ -195,9 +301,12 @@ html[data-theme="light"] {
   --topbar-h:   60px;
 
   /* ── Typography ───────────────────────────────────────── */
-  --font-display: 'Syne', sans-serif;
-  --font-body:    'DM Sans', sans-serif;
-  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+  --font-display: 'Syne', ui-sans-serif, system-ui, sans-serif;
+  --font-body:    'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --line-compact: 1.2;
+  --line-body: 1.6;
+  --line-relaxed: 1.75;
 
   /* ── Type scale ───────────────────────────────────────── */
   --text-xs:   0.72rem;
@@ -240,7 +349,7 @@ html {
 body {
   font-family: var(--font-body);
   font-size: var(--text-base);
-  line-height: 1.6;
+  line-height: var(--line-body);
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
@@ -252,6 +361,25 @@ a { color: inherit; text-decoration: none; }
 button { cursor: pointer; font: inherit; }
 input, select, textarea, button { font: inherit; color: inherit; }
 ul, ol { list-style: none; }
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 3px;
+}
+
+:where(button, input, select, textarea):disabled,
+:where(button, input, select, textarea)[aria-disabled="true"] {
+  background-color: var(--color-disabled-bg);
+  border-color: var(--color-disabled-border);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+:where(h1, h2, h3, .page-title, .page-heading, .topbar-title, .logo-text) {
+  font-family: var(--font-display);
+  line-height: var(--line-compact);
+}
 
 /* ─── LAYOUT SHELL ───────────────────────────────────────────── */
 .admin-body {

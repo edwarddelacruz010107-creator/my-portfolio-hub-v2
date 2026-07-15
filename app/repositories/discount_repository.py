@@ -33,6 +33,17 @@ class DiscountCampaignRepository(BaseRepository[DiscountCampaign]):
             .first()
         )
 
+    def get_for_update(self, campaign_id: int) -> Optional[DiscountCampaign]:
+        """Lock one campaign while validating and consuming a redemption.
+
+        PostgreSQL serializes last-use contenders on this row. SQLite is used
+        only for local tests and ignores row-level locking semantics.
+        """
+        query = DiscountCampaign.query.filter_by(id=campaign_id)
+        if db.session.get_bind().dialect.name != "sqlite":
+            query = query.with_for_update()
+        return query.first()
+
     def list_active(self) -> list[DiscountCampaign]:
         """Active campaigns whose date window currently includes now.
 

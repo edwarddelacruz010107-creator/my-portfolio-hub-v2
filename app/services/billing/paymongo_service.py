@@ -498,16 +498,21 @@ def record_webhook_event(
         # Check if event was already processed
         existing = db_session.query(WebhookEvent).filter_by(event_id=event_id).first()
         if existing:
-            logger.info('Webhook event already processed: %s', event_id)
-            return False
+            if existing.processed:
+                logger.info('Webhook event already processed: %s', event_id)
+                return False
+            logger.info('Retrying previously unprocessed webhook event: %s', event_id)
+            return True
         
         # Create new event record
         event = WebhookEvent(
             event_id=event_id,
             event_type=event_type,
-            payload=json.dumps(event_data)[:5000],  # Store truncated payload
+            payload_summary=json.dumps({
+                "provider": "paymongo",
+                "event_type": event_type,
+            }),
             processed=False,
-            processed_at=None,
         )
         db_session.add(event)
         db_session.commit()
@@ -529,7 +534,6 @@ def mark_webhook_processed(db_session, event_id: str, success: bool) -> None:
         event = db_session.query(WebhookEvent).filter_by(event_id=event_id).first()
         if event:
             event.processed = success
-            event.processed_at = datetime.now(timezone.utc)
             db_session.commit()
             logger.info('Webhook marked processed: id=%s success=%s', event_id, success)
     except SQLAlchemyError as exc:

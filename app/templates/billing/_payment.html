@@ -292,7 +292,7 @@
   </form>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 .payment-page{max-width:1280px;margin:0 auto;padding-bottom:3rem;color:var(--text,#f5f7ff)}
 .payment-page *{box-sizing:border-box}.payment-page form{display:grid;gap:1.15rem;min-width:0}
 .payment-page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:2rem;margin-bottom:1.25rem}

@@ -1,97 +1,77 @@
 {% extends 'admin/base.html' %}
+{% import 'components/ui.html' as ui with context %}
 {% block title %}Notifications{% endblock %}
+{% block page_title %}Notifications{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <div class="page-header-left">
-    <h1 class="page-title">
-      <span class="page-title-icon">🔔</span>
-      Notifications
-      {% if unread_count %}
-        <span class="badge badge-danger ms-2">{{ unread_count }} unread</span>
-      {% endif %}
-    </h1>
-  </div>
-  <div class="page-header-right">
+<section class="notification-page" aria-labelledby="notification-page-title">
+  <header class="notification-page__header">
+    <div>
+      <span class="section-tag">Activity center</span>
+      <h1 id="notification-page-title">Notifications</h1>
+      <p>Billing, engagement, inquiry, and system events for this tenant.</p>
+    </div>
     {% if unread_count %}
-    <form method="POST" action="{{ url_for('admin.notifications_mark_all_read') }}" style="display:inline;">
+    <form method="post" action="{{ url_for('admin.notifications_mark_all_read') }}" data-ui-submit-guard>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="btn btn-outline-secondary btn-sm">
-        ✓ Mark All as Read
-      </button>
+      {{ ui.button('Mark all read', variant='secondary', size='sm', type='submit', icon_name='lucide:check-check') }}
     </form>
     {% endif %}
-  </div>
-</div>
+  </header>
 
-<div class="card">
-  <div class="card-body p-0">
-    {% if notifications %}
-    <ul class="notification-list">
-      {% for n in notifications %}
-      <li class="notification-item {% if not n.is_read %}notification-item--unread{% endif %}">
-        <div class="notification-icon notif-type-{{ n.notification_type }}">
-          {% if n.notification_type in ('reminder_7d', 'reminder_30d') %}⚠
-          {% elif n.notification_type == 'expired' %}❌
-          {% elif n.notification_type == 'renewed' %}✅
-          {% elif n.notification_type == 'activated' %}🎉
-          {% elif n.notification_type == 'project_like' %}♥
-          {% else %}📢{% endif %}
+  <form class="notification-filters" method="get" aria-label="Notification filters">
+    {{ ui.search_input('event_type', 'Event type', event_type, 'billing.payment_approved') }}
+    <div class="ui-field">
+      <label class="ui-label" for="notification-status">Status</label>
+      <select class="ui-input ui-select" id="notification-status" name="status">
+        <option value=""{% if not status_filter %} selected{% endif %}>All</option>
+        <option value="unread"{% if status_filter == 'unread' %} selected{% endif %}>Unread</option>
+        <option value="read"{% if status_filter == 'read' %} selected{% endif %}>Read</option>
+      </select>
+    </div>
+    {{ ui.input('date_from', 'From', date_from, 'date') }}
+    {{ ui.input('date_to', 'To', date_to, 'date') }}
+    {{ ui.button('Apply filters', variant='primary', type='submit', icon_name='lucide:filter') }}
+  </form>
+
+  {% if notifications %}
+  <ol class="notification-feed" aria-label="Notification feed">
+    {% for notification in notifications %}
+    <li class="notification-feed__item{{ ' is-unread' if not notification.is_read }}" data-priority="{{ notification.priority }}">
+      <div class="notification-feed__icon" aria-hidden="true">{{ ui.icon('lucide:bell-ring', 18) }}</div>
+      <div class="notification-feed__content">
+        <div class="notification-feed__heading">
+          <strong>{{ notification.title }}</strong>
+          {{ ui.badge(notification.event_type|replace('.', ' '), 'neutral') }}
         </div>
-        <div class="notification-body">
-          <div class="notification-title">{{ n.title }}</div>
-          <div class="notification-message">{{ n.message }}</div>
-          <div class="notification-meta">
-            {{ n.created_at.strftime('%b %d, %Y %H:%M UTC') if n.created_at else '' }}
-            {% if n.sent_via_email %}
-              &nbsp;·&nbsp;<span class="notif-email-badge">📧 Email sent</span>
-            {% endif %}
-          </div>
-        </div>
-        {% if not n.is_read %}
-        <div class="notification-actions">
-          <form method="POST" action="{{ url_for('admin.notification_mark_read', notif_id=n.id) }}">
+        <p>{{ notification.message }}</p>
+        <small>{{ ui.timestamp(notification.created_at.isoformat(), notification.created_at.strftime('%b %d, %Y · %H:%M UTC')) }}</small>
+        <div class="notification-feed__actions">
+          {% if notification.action_url %}{{ ui.button('Open', href=notification.action_url, variant='secondary', size='sm') }}{% endif %}
+          {% if not notification.is_read %}
+          <form method="post" action="{{ url_for('admin.notification_mark_read', notif_id=notification.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn-mark-read" title="Mark as read">✓</button>
+            {{ ui.button('Mark read', variant='ghost', size='sm', type='submit') }}
+          </form>
+          {% endif %}
+          <form method="post" action="{{ url_for('admin.notification_archive', notif_id=notification.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {{ ui.button('Archive', variant='ghost', size='sm', type='submit') }}
           </form>
         </div>
-        {% endif %}
-      </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-    <div class="empty-state py-5 text-center">
-      <div style="font-size:3rem;">🔔</div>
-      <p class="text-muted mt-2">No notifications yet.</p>
-    </div>
-    {% endif %}
-  </div>
-</div>
+      </div>
+      {% if not notification.is_read %}<span class="notification-feed__unread"><span class="sr-only">Unread</span></span>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+    {{ ui.empty_state('No matching notifications', 'New, real activity will appear here. Try changing the filters if you expected an older event.', icon_name='lucide:bell-off') }}
+  {% endif %}
 
-<style>
-.notification-list { list-style:none; margin:0; padding:0; }
-.notification-item {
-  display:flex; align-items:flex-start; gap:1rem;
-  padding:1rem 1.25rem; border-bottom:1px solid var(--border-color, #eee);
-  transition:background 0.15s;
-}
-.notification-item:last-child { border-bottom:none; }
-.notification-item--unread { background:rgba(var(--primary-rgb,59,130,246),.05); }
-.notification-icon {
-  font-size:1.4rem; flex-shrink:0; width:2rem; text-align:center; padding-top:2px;
-}
-.notif-type-project_like { color:#fb7185; }
-.notification-body { flex:1; min-width:0; }
-.notification-title { font-weight:600; font-size:.9rem; margin-bottom:.25rem; }
-.notification-message { font-size:.85rem; color:var(--text-muted,#666); white-space:pre-line; }
-.notification-meta { font-size:.75rem; color:var(--text-muted,#999); margin-top:.4rem; }
-.notif-email-badge { background:#e8f4fd; color:#0369a1; padding:1px 6px; border-radius:4px; font-size:.72rem; }
-.notification-actions { flex-shrink:0; }
-.btn-mark-read {
-  background:none; border:1px solid var(--border-color,#ccc);
-  border-radius:50%; width:28px; height:28px; cursor:pointer; font-size:.85rem;
-  color:var(--text-muted,#666); transition:all .15s;
-}
-.btn-mark-read:hover { background:var(--primary,#3b82f6); color:#fff; border-color:var(--primary,#3b82f6); }
-</style>
+  {% if next_cursor %}
+  <nav class="ui-pagination" aria-label="Notification pages">
+    {{ ui.button('Load older', href=url_for('admin.notifications', cursor=next_cursor, event_type=event_type, status=status_filter, date_from=date_from, date_to=date_to), variant='secondary') }}
+  </nav>
+  {% endif %}
+</section>
 {% endblock %}

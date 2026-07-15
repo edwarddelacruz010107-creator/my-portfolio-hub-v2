@@ -163,7 +163,7 @@
 {% endblock %}
 
 {% block extra_css %}
-<style>
+<style nonce="{{ csp_nonce() if csp_nonce is defined else '' }}">
 .detail-grid  { display:flex;flex-direction:column;gap:0; }
 .detail-row   { display:flex;align-items:flex-start;gap:1rem;padding:.65rem 0;border-bottom:1px solid var(--border-color,rgba(255,255,255,.05)); }
 .detail-row:last-child { border-bottom:none; }

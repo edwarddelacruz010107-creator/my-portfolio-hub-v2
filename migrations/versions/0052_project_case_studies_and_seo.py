@@ -23,6 +23,10 @@ def _columns(inspector, table: str) -> set[str]:
 
 
 def upgrade() -> None:
+    # Profile and projects are tenant-bind tables. Their current columns are
+    # reconciled by the tenant baseline, not by the core history.
+    return
+
     bind = op.get_bind()
     inspector = sa.inspect(bind)
 
@@ -64,6 +68,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    return
+
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     if inspector.has_table('projects'):

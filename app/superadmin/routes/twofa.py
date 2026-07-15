@@ -110,12 +110,8 @@ def enable_2fa():
     )
 
     form = TOTPSetupForm()
-    ip = (
-        request.headers.get('CF-Connecting-IP')
-        or request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
-        or request.remote_addr
-        or 'unknown'
-    )
+    from app.request_security import get_client_ip
+    ip = get_client_ip()
 
     try:
         rate_limit_totp_verify(ip)

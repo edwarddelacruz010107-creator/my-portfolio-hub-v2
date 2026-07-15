@@ -12,13 +12,12 @@ import re
 import secrets
 import string
 import time
-from decimal import Decimal, InvalidOperation
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from functools import wraps
 
 from flask import (
     Blueprint, render_template, redirect, url_for,
-    flash, request, session, current_app, Response,
+    abort, flash, request, session, current_app, Response,
 )
 from urllib.parse import urlparse
 from flask_login import current_user, logout_user, login_required
@@ -57,11 +56,10 @@ from app.services.tenant_admin import delete_tenant_completely
 from app.utils import is_paymongo_enabled, set_paymongo_enabled
 from app.models import User
 from app.models.portfolio import (Profile, PaymentMethod, PaymentSubmission, Subscription, WebhookEvent,
-                                   ActivityLog, Project, Inquiry, Tenant, PaymentInstruction, PAID_PLAN_NAMES,
-                                   normalize_plan_name)
+                                   ActivityLog, Project, Inquiry, Tenant, PaymentInstruction, PAID_PLAN_NAMES)
 
 
-from app.utils import log_activity, BILLING_PLANS, YEARLY_DISCOUNT
+from app.utils import log_activity
 from app.security import log_security_event
 from app.tenant_security import RESERVED_SLUGS, validate_slug, stamp_session_tenant
 from app.models.portfolio import TenantCommunicationSettings
@@ -135,429 +133,130 @@ def forgot_password():
 @superadmin.route('/')
 @superadmin_required
 def dashboard():
-    q = request.args.get('q', '').strip()
-    status_filter = request.args.get('status', 'all').strip()
-    plan_filter = request.args.get('plan', 'all').strip()
-    export_format = request.args.get('export', '').strip().lower()
+    """Restricted Phase 9 founder command center; all metrics come from one assembler."""
+    from app.services.founder.access_control import has_founder_capability
+    from app.services.founder.domain import FounderFilters
+    from app.services.founder.dashboard_service import build_founder_dashboard
 
-    total_tenants = profile_repository.query.count()
-    active_tenants = profile_repository.query.filter(Profile.is_available == True).count()   # noqa: E712
-    revenue = db.session.query(func.coalesce(func.sum(Subscription.amount_paid), 0.0))
-    revenue = revenue.filter(Subscription.status == 'active').scalar() or 0.0
-    pending_payments = payment_submission_repository.query.filter_by(status='pending').count()
-
-    today = datetime.now(timezone.utc)
-    expiring_threshold = today + timedelta(days=30)
-    expiring_accounts = (
-        subscription_repository.query
-        .filter(
-            Subscription.status == 'active',
-            Subscription.expires_at.isnot(None),
-            Subscription.expires_at > today,
-            Subscription.expires_at <= expiring_threshold,
-        )
-        .count()
-    )
-    expired_accounts = (
-        subscription_repository.query
-        .filter(Subscription.status.in_(['expired', 'cancelled']))
-        .count()
-    )
-
-    query = profile_repository.query.order_by(Profile.updated_at.desc())
-    if q:
-        query = query.filter(
-            or_(
-                Profile.name.ilike(f'%{q}%'),
-                Profile.tenant_slug.ilike(f'%{q}%'),
-                Profile.email.ilike(f'%{q}%'),
-            )
-        )
-    if status_filter == 'active':
-        query = query.filter(Profile.is_available == True)   # noqa: E712
-    elif status_filter == 'inactive':
-        query = query.filter(Profile.is_available == False)   # noqa: E712
-    if plan_filter != 'all':
-        query = query.filter(Profile.plan == plan_filter)
-
-    if export_format in ('csv', 'excel'):
-        return _dashboard_export(query.all(), export_format, q, status_filter, plan_filter)
-
-    # Display plan analytics using the effective runtime plan, so active trials
-    # do not appear as Basic just because Profile.plan has a fallback value.
-    plan_breakdown = {}
-    try:
-        for profile in profile_repository.query.all():
-            try:
-                if has_administrator_access(profile):
-                    label = 'Administrator'
-                elif profile.is_trial_active() or ((getattr(getattr(profile, 'tenant', None), 'subscription_state', '') or '').strip().lower() == 'trial'):
-                    label = 'Trial'
-                else:
-                    raw = profile.effective_plan() if callable(getattr(profile, 'effective_plan', None)) else (profile.plan or 'Basic')
-                    label = {'starter': 'Basic', 'business': 'Business', 'pro': 'Pro', 'enterprise': 'Enterprise', 'trial': 'Trial', 'administrator': 'Administrator'}.get((raw or '').lower(), str(raw).title())
-            except Exception:
-                label = {'starter': 'Basic', 'business': 'Business', 'pro': 'Pro', 'enterprise': 'Enterprise', 'trial': 'Trial', 'administrator': 'Administrator'}.get((profile.plan or '').lower(), profile.plan or 'Unknown')
-            plan_breakdown[label] = plan_breakdown.get(label, 0) + 1
-    except Exception:
-        plan_breakdown_rows = (
-            db.session.query(Profile.plan, func.count(Profile.id))
-            .group_by(Profile.plan)
-            .all()
-        )
-        plan_breakdown = {row[0] or 'Unknown': row[1] for row in plan_breakdown_rows}
-
-    subscription_status_rows = (
-        db.session.query(Subscription.status, func.count(Subscription.id))
-        .group_by(Subscription.status)
-        .all()
-    )
-    subscription_status = {row[0]: row[1] for row in subscription_status_rows}
-
-    recent_tenants = query.limit(6).all()
-    recent_activity = (
-        activity_log_repository.query
-        .order_by(ActivityLog.created_at.desc())
-        .limit(6)
-        .all()
-    )
-    recent_payments = (
-        payment_submission_repository.query
-        .order_by(PaymentSubmission.submitted_at.desc())
-        .limit(5)
-        .all()
-    )
-
-    # Currency and revenue analytics use the same normalization rules as the
-    # dedicated subscription analytics page. Gateway charges may be localized
-    # (for example PHP 65.98 for a USD 1.00 product), so raw provider amounts
-    # must never be rendered under the plan-settings currency symbol.
-    _any_plan = next(iter(BILLING_PLANS.values()), {})
-    currency_symbol = _any_plan.get('currency_symbol', '$') or '$'
-    currency_code = (_any_plan.get('currency_code', 'USD') or 'USD').upper()
-
-    def _configured_plan_amount(sub):
-        plan_key = normalize_plan_name(getattr(sub, 'plan', None) or '')
-        plan_data = BILLING_PLANS.get(plan_key) or BILLING_PLANS.get(getattr(sub, 'plan', None)) or {}
-        cycle = str(getattr(sub, 'billing_cycle', 'monthly') or 'monthly').lower()
-        if cycle in ('yearly', 'annual', 'annually', 'year'):
-            value = plan_data.get('price_yearly', plan_data.get('base_price_yearly_usd'))
-        else:
-            value = plan_data.get('price_monthly', plan_data.get('base_price_usd', plan_data.get('price')))
-        try:
-            return float(Decimal(str(value or 0)))
-        except (InvalidOperation, TypeError, ValueError):
-            return 0.0
-
-    def _normalized_subscription_amount(sub):
-        """Return revenue in the Plan Settings currency.
-
-        Dodo may store the localized checkout amount (for example PHP 65.98)
-        in ``amount_paid`` while older rows have no reliable currency snapshot.
-        For automated subscriptions, the configured plan price is therefore
-        the authoritative analytics amount. This prevents a localized charge
-        from being displayed as USD 65.98 when the plan price is USD 1.00.
-        """
-        provider = str(getattr(sub, 'payment_provider', '') or '').strip().lower()
-        is_dodo = provider == 'dodo' or bool(getattr(sub, 'dodo_subscription_id', None))
-        is_paymongo = (
-            provider == 'paymongo'
-            or bool(getattr(sub, 'paymongo_subscription_id', None))
-            or str(getattr(sub, 'payment_method', '') or '').strip().lower() == 'paymongo'
-        )
-
-        configured = _configured_plan_amount(sub)
-        if (is_dodo or is_paymongo) and configured > 0:
-            return configured
-
-        raw = float(getattr(sub, 'amount_paid', 0) or 0)
-        source_currency = str(getattr(sub, 'provider_currency', '') or '').upper()
-        if source_currency and source_currency != currency_code.upper():
-            return configured if configured > 0 else 0.0
-        return raw
-
-    all_subscriptions = Subscription.query.all()
-    provider_revenue = {'dodo': 0.0, 'paymongo': 0.0, 'manual': 0.0}
-    provider_active = {'dodo': 0, 'paymongo': 0, 'manual': 0}
-    monthly_recurring_revenue = 0.0
-
-    for sub in all_subscriptions:
-        if str(getattr(sub, 'plan', '') or '').strip().lower() == 'administrator':
-            continue
-        provider = (
-            'dodo' if getattr(sub, 'payment_provider', '') == 'dodo' or getattr(sub, 'dodo_subscription_id', None)
-            else 'paymongo' if getattr(sub, 'payment_provider', '') == 'paymongo' or getattr(sub, 'paymongo_subscription_id', None) or getattr(sub, 'payment_method', '') == 'paymongo'
-            else 'manual'
-        )
-        if getattr(sub, 'status', '') == 'active':
-            provider_active[provider] += 1
-            recurring = _configured_plan_amount(sub) or _normalized_subscription_amount(sub)
-            if str(getattr(sub, 'billing_cycle', 'monthly') or 'monthly').lower() in ('yearly', 'annual', 'annually', 'year'):
-                recurring = recurring / 12.0
-            monthly_recurring_revenue += recurring
-        if provider in ('dodo', 'paymongo'):
-            provider_revenue[provider] += _normalized_subscription_amount(sub)
-
-    approved_manual = PaymentSubmission.query.filter(
-        PaymentSubmission.status.in_(['approved', 'paid', 'completed'])
-    ).all()
-    for payment in approved_manual:
-        payment_currency = str(getattr(payment, 'currency_code', '') or '').upper()
-        if currency_code == 'USD' and getattr(payment, 'amount_usd', None) is not None:
-            provider_revenue['manual'] += float(payment.amount_usd or 0)
-        elif not payment_currency or payment_currency == currency_code:
-            provider_revenue['manual'] += float(payment.amount_paid or 0)
-
-    recorded_revenue = round(sum(provider_revenue.values()), 2)
-    active_rate = round((active_tenants / total_tenants * 100), 1) if total_tenants else 0.0
-    churn_rate = round((expired_accounts / max(len(all_subscriptions), 1)) * 100, 1)
-
-    # Six complete/current calendar months for compact trend charts.
-    def _month_floor(value):
-        return datetime(value.year, value.month, 1, tzinfo=timezone.utc)
-
-    def _shift_month(value, delta):
-        absolute = value.year * 12 + (value.month - 1) + delta
-        return datetime(absolute // 12, absolute % 12 + 1, 1, tzinfo=timezone.utc)
-
-    current_month = _month_floor(today)
-    month_starts = [_shift_month(current_month, offset) for offset in range(-5, 1)]
-    revenue_by_month = [0.0 for _ in month_starts]
-    tenants_by_month = [0 for _ in month_starts]
-
-    for sub in all_subscriptions:
-        created = getattr(sub, 'created_at', None)
-        if not created:
-            continue
-        if created.tzinfo is None:
-            created = created.replace(tzinfo=timezone.utc)
-        for idx, start in enumerate(month_starts):
-            end = _shift_month(start, 1)
-            if start <= created < end and (getattr(sub, 'payment_provider', '') in ('dodo', 'paymongo') or getattr(sub, 'dodo_subscription_id', None) or getattr(sub, 'paymongo_subscription_id', None)):
-                revenue_by_month[idx] += _normalized_subscription_amount(sub)
-                break
-
-    for payment in approved_manual:
-        created = getattr(payment, 'reviewed_at', None) or getattr(payment, 'submitted_at', None)
-        if not created:
-            continue
-        if created.tzinfo is None:
-            created = created.replace(tzinfo=timezone.utc)
-        value = float(payment.amount_usd or 0) if currency_code == 'USD' and getattr(payment, 'amount_usd', None) is not None else float(payment.amount_paid or 0)
-        for idx, start in enumerate(month_starts):
-            if start <= created < _shift_month(start, 1):
-                revenue_by_month[idx] += value
-                break
-
-    try:
-        all_tenants_for_growth = tenant_repository.query.all()
-        for tenant in all_tenants_for_growth:
-            created = getattr(tenant, 'created_at', None)
-            if not created:
-                continue
-            if created.tzinfo is None:
-                created = created.replace(tzinfo=timezone.utc)
-            for idx, start in enumerate(month_starts):
-                if start <= created < _shift_month(start, 1):
-                    tenants_by_month[idx] += 1
-                    break
-    except Exception:
-        pass
-
-    chart_max = max(revenue_by_month) if revenue_by_month else 0
-    revenue_chart = []
-    for idx, (start, value) in enumerate(zip(month_starts, revenue_by_month)):
-        x = 8 + (idx * (84 / max(len(month_starts) - 1, 1)))
-        y = 84 - ((value / chart_max) * 66 if chart_max else 0)
-        revenue_chart.append({
-            'label': start.strftime('%b'),
-            'value': round(value, 2),
-            'x': round(x, 2),
-            'y': round(y, 2),
-        })
-    revenue_polyline = ' '.join(f"{point['x']},{point['y']}" for point in revenue_chart)
-    revenue_area = f"8,90 {revenue_polyline} 92,90" if revenue_polyline else ''
-    tenant_chart_max = max(tenants_by_month) if tenants_by_month else 0
-    tenant_growth_chart = [
-        {
-            'label': start.strftime('%b'),
-            'value': value,
-            'height': round((value / tenant_chart_max) * 100, 1) if tenant_chart_max else 0,
-        }
-        for start, value in zip(month_starts, tenants_by_month)
-    ]
-
-    provider_total = sum(provider_revenue.values())
-    provider_mix = {
-        key: {
-            'amount': round(value, 2),
-            'active': provider_active.get(key, 0),
-            'share': round((value / provider_total * 100), 1) if provider_total else 0.0,
-        }
-        for key, value in provider_revenue.items()
-    }
-
-    stats = {
-        'total_tenants': total_tenants,
-        'active_tenants': active_tenants,
-        'active_rate': active_rate,
-        'revenue': recorded_revenue,
-        'mrr': round(monthly_recurring_revenue, 2),
-        'currency_symbol': currency_symbol,
-        'currency_code': currency_code,
-        'pending_payments': pending_payments,
-        'expiring_accounts': expiring_accounts,
-        'expired_accounts': expired_accounts,
-        'churn_rate': churn_rate,
-    }
-
-    # Shared source of truth: Platform Overview uses the exact same billing,
-    # provider, MRR, churn, and trend calculations as Subscription Monitor.
-    from app.services.analytics.dashboard_analytics_service import build_superadmin_analytics
-    analytics = build_superadmin_analytics()
-    shared = analytics['metrics']
-    stats.update({
-        'total_tenants': shared['total_tenants'],
-        'active_tenants': shared['active_tenants'],
-        'active_rate': shared['active_rate'],
-        'revenue': shared['total_revenue'],
-        'mrr': shared['mrr'],
-        'currency_symbol': analytics['currency_symbol'],
-        'currency_code': analytics['currency_code'],
-        'pending_payments': shared['total_pending'],
-        'expiring_accounts': shared['expiring_30'],
-        'expired_accounts': shared['total_expired'] + shared['total_cancelled'],
-        'churn_rate': shared['churn_rate'],
-    })
-    provider_mix = analytics['provider_mix']
-    revenue_chart = analytics['revenue_chart']
-    revenue_polyline = analytics['revenue_polyline']
-    revenue_area = analytics['revenue_area']
-    tenant_growth_chart = analytics['tenant_growth_chart']
-
-    # ── Monitoring: superadmin-only ops data ─────────────────────────────────
-    heartbeat_state: dict = {}
-    try:
-        from app.heartbeat import get_heartbeat_state
-        heartbeat_state = get_heartbeat_state() or {}
-    except Exception:
-        heartbeat_state = {}
-
-    # Dashboard monitor should show live app/database state even when no external
-    # BetterStack/self-ping has hit /heartbeat yet. The previous card depended
-    # only on the in-memory heartbeat state, so a healthy deployed app could
-    # incorrectly show "Not checked yet" until a monitor ping arrived.
-    try:
-        db.session.execute(db.text('SELECT 1'))
-        db.session.remove()
-        heartbeat_state['db_ok'] = True
-        heartbeat_state['db_detail'] = 'Connected via live dashboard probe'
-    except Exception as exc:
-        try:
-            db.session.rollback()
-            db.session.remove()
-        except Exception:
-            pass
-        heartbeat_state['db_ok'] = False
-        heartbeat_state['db_detail'] = str(exc)
-
-    try:
-        start_time = heartbeat_state.get('start_time')
-        if start_time is not None:
-            heartbeat_state['uptime_seconds'] = max(0, int(time.monotonic() - float(start_time)))
-    except Exception:
-        pass
-    heartbeat_state['dashboard_checked_at'] = datetime.now(timezone.utc).isoformat()
-
-    # Make recent tenant plan labels reflect the active subscription state, not
-    # only the stored profile.plan fallback. Trial users should show Trial.
-    recent_tenant_plan_labels = {}
-    recent_tenant_trial_days = {}
-    for tenant in recent_tenants:
-        try:
-            if has_administrator_access(tenant):
-                recent_tenant_plan_labels[tenant.tenant_slug] = 'Administrator'
-                recent_tenant_trial_days[tenant.tenant_slug] = None
-                continue
-            tenant_obj = getattr(tenant, 'tenant', None)
-            state = (getattr(tenant_obj, 'subscription_state', '') or '').strip().lower() if tenant_obj else ''
-            if state == 'trial' or tenant.is_trial_active():
-                recent_tenant_plan_labels[tenant.tenant_slug] = 'Trial'
-                recent_tenant_trial_days[tenant.tenant_slug] = tenant.trial_days_remaining()
-            else:
-                label = tenant.effective_plan() if callable(getattr(tenant, 'effective_plan', None)) else (tenant.plan or 'Basic')
-                label = {'starter': 'Basic', 'business': 'Business', 'pro': 'Pro', 'enterprise': 'Enterprise', 'trial': 'Trial', 'administrator': 'Administrator'}.get((label or '').lower(), str(label).title())
-                recent_tenant_plan_labels[tenant.tenant_slug] = label
-                recent_tenant_trial_days[tenant.tenant_slug] = None
-        except Exception:
-            recent_tenant_plan_labels[tenant.tenant_slug] = tenant.plan or 'Basic'
-            recent_tenant_trial_days[tenant.tenant_slug] = None
-
+    if not has_founder_capability(current_user):
+        abort(403)
+    if request.args.get('export'):
+        flash('Dashboard exports now require a recent password and TOTP reauthentication.', 'warning')
+        return redirect(url_for('superadmin.founder_reauth'))
+    filters = FounderFilters.from_mapping(request.args)
+    founder = build_founder_dashboard(filters=filters)
     return render_template(
         'superadmin/dashboard.html',
-        stats=stats,
-        recent_tenants=recent_tenants,
-        recent_activity=recent_activity,
-        recent_payments=recent_payments,
-        plan_breakdown=plan_breakdown,
-        subscription_status=subscription_status,
-        q=q,
-        status_filter=status_filter,
-        plan_filter=plan_filter,
-        heartbeat_state=heartbeat_state,
-        recent_tenant_plan_labels=recent_tenant_plan_labels,
-        recent_tenant_trial_days=recent_tenant_trial_days,
-        provider_mix=provider_mix,
-        revenue_chart=revenue_chart,
-        revenue_polyline=revenue_polyline,
-        revenue_area=revenue_area,
-        tenant_growth_chart=tenant_growth_chart,
-        analytics=analytics,
+        founder=founder,
+        filters=founder['filters'],
+        export_reauthenticated=request.args.get('reauth') == 'ok',
     )
 
-def _dashboard_export(tenants, export_format, q, status_filter, plan_filter):
-    filename_base = 'tenant_export'
-    timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
-    filename = f'{filename_base}_{timestamp}.{"xlsx" if export_format == "excel" else "csv"}'
-    headers = ['Tenant', 'Slug', 'Email', 'Plan', 'Status', 'Updated']
 
-    if export_format == 'csv':
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(headers)
-        for tenant in tenants:
-            writer.writerow([
-                tenant.name or '',
-                tenant.tenant_slug or '',
-                tenant.email or '',
-                tenant.plan or '',
-                'Active' if tenant.is_available else 'Inactive',
-                tenant.updated_at.strftime('%Y-%m-%d %H:%M:%S') if tenant.updated_at else '',
-            ])
-        payload = output.getvalue()
-        mimetype = 'text/csv'
-    else:
-        output = io.StringIO()
-        output.write('<table><tr>')
-        for header in headers:
-            output.write(f'<th>{header}</th>')
-        output.write('</tr>')
-        for tenant in tenants:
-            output.write('<tr>')
-            output.write(f'<td>{tenant.name or ""}</td>')
-            output.write(f'<td>{tenant.tenant_slug or ""}</td>')
-            output.write(f'<td>{tenant.email or ""}</td>')
-            output.write(f'<td>{tenant.plan or ""}</td>')
-            output.write(f'<td>{"Active" if tenant.is_available else "Inactive"}</td>')
-            output.write(f'<td>{tenant.updated_at.strftime("%Y-%m-%d %H:%M:%S") if tenant.updated_at else ""}</td>')
-            output.write('</tr>')
-        output.write('</table>')
-        payload = output.getvalue()
-        mimetype = 'application/vnd.ms-excel'
+@superadmin.route('/founder/reauth', methods=['GET', 'POST'])
+@superadmin_required
+@limiter.limit('5 per minute')
+def founder_reauth():
+    """Require current password plus a fresh, non-replayed TOTP before export."""
+    from app.services.founder.access_control import (
+        FOUNDER_EXPORT_CAPABILITY,
+        has_founder_capability,
+        mark_strong_reauth,
+    )
 
-    response = Response(payload, mimetype=mimetype)
-    response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+    if not has_founder_capability(current_user, FOUNDER_EXPORT_CAPABILITY):
+        abort(403)
+    if not current_user.totp_enabled:
+        flash('Enable TOTP before using founder dashboard exports.', 'danger')
+        return redirect(url_for('superadmin.setup_2fa'))
+    if request.method == 'POST':
+        password = request.form.get('password') or ''
+        totp_code = (request.form.get('totp_code') or '').strip()
+        if current_user.verify_password(password) and current_user.verify_totp(totp_code):
+            db.session.commit()
+            mark_strong_reauth(session, current_user)
+            log_security_event(
+                'founder_export_reauth', current_user,
+                'Strong reauthentication completed for aggregate founder export', 'info',
+            )
+            return redirect(url_for('superadmin.dashboard', reauth='ok'))
+        db.session.rollback()
+        log_security_event(
+            'founder_export_reauth_failed', current_user,
+            'Strong reauthentication failed for founder export', 'warning',
+        )
+        flash('Password or authenticator code was not accepted.', 'danger')
+    return render_template('superadmin/founder_reauth.html', page_title='Confirm founder export')
+
+
+@superadmin.route('/founder/export.csv', methods=['POST'])
+@superadmin_required
+@limiter.limit('10 per hour')
+def founder_export():
+    """Bounded aggregate export with explicit capability, reauth, and audit."""
+    from app.services.founder.access_control import (
+        FOUNDER_EXPORT_CAPABILITY,
+        has_founder_capability,
+        has_recent_strong_reauth,
+    )
+    from app.services.founder.domain import FounderFilters
+    from app.services.founder.dashboard_service import build_founder_dashboard
+
+    if not has_founder_capability(current_user, FOUNDER_EXPORT_CAPABILITY):
+        abort(403)
+    if not has_recent_strong_reauth(session, current_user):
+        flash('Reauthenticate with your password and TOTP before exporting.', 'warning')
+        return redirect(url_for('superadmin.founder_reauth'))
+    filters = FounderFilters.from_mapping(request.form)
+    founder = build_founder_dashboard(filters=filters)
+    rows = [
+        ('dashboard_version', founder['version']),
+        ('generated_at_utc', founder['generated_at'].isoformat()),
+        ('range_start_utc', founder['periods']['start_at'].isoformat()),
+        ('range_end_utc', founder['periods']['end_at'].isoformat()),
+        ('plan_filter', filters.plan),
+        ('payment_provider_filter', filters.payment_provider),
+        ('ai_provider_filter', filters.ai_provider),
+        ('tenant_signups', founder['lifecycle']['signups']),
+        ('activation_events', founder['lifecycle']['activation_events']),
+        ('active_subscriptions', founder['lifecycle']['active_subscriptions']),
+        ('trial_tenants', founder['lifecycle']['trial_tenants']),
+        ('conversion_percent', founder['lifecycle']['conversion']['value'] if founder['lifecycle']['conversion']['available'] else 'unavailable'),
+        ('churn_percent', founder['lifecycle']['churn']['value'] if founder['lifecycle']['churn']['available'] else 'unavailable'),
+        ('gross_cash_usd', founder['financial']['gross_cash_revenue']),
+        ('net_cash_usd', founder['financial']['net_cash_revenue']),
+        ('refunds_usd', founder['financial']['refunds']),
+        ('mrr_usd', founder['financial']['mrr']),
+        ('arr_usd', founder['financial']['arr']),
+        ('published_portfolios', founder['portfolio']['published_portfolios']),
+        ('published_projects', founder['portfolio']['published_projects']),
+        ('contact_inquiries', founder['portfolio']['contacts']['inquiries']),
+        ('ai_requests', founder['ai']['requests']),
+        ('ai_failures', founder['ai']['failures']),
+        ('ai_known_cost_microunits', founder['ai']['known_cost_microunits'] if founder['ai']['known_cost_microunits'] is not None else 'unavailable'),
+        ('ai_unavailable_cost_count', founder['ai']['unavailable_cost_count']),
+    ]
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(('metric', 'value'))
+    writer.writerows(rows)
+    db.session.add(ActivityLog(
+        user_id=int(current_user.id),
+        username=current_user.username,
+        action='export',
+        entity_type='founder_dashboard',
+        entity_name=founder['version'],
+        description=f'Aggregate founder dashboard CSV export ({filters.cache_fragment()})',
+        ip_address=request.remote_addr,
+    ))
+    db.session.commit()
+    response = Response(output.getvalue(), mimetype='text/csv')
+    response.headers['Content-Disposition'] = 'attachment; filename="founder-dashboard.csv"'
+    response.headers['Cache-Control'] = 'private, no-store'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Content-Security-Policy'] = "default-src 'none'; sandbox"
     return response
+
 
 @superadmin.route('/dashboard')
 def dashboard_alias():

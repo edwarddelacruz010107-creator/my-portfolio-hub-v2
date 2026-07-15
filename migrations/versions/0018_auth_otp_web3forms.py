@@ -24,6 +24,72 @@ depends_on    = None
 
 
 def upgrade():
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    tenant_columns = {column['name'] for column in inspector.get_columns('tenants')}
+    if 'contact_email' not in tenant_columns:
+        op.add_column('tenants', sa.Column('contact_email', sa.String(120), nullable=True))
+    tenant_indexes = {index['name'] for index in sa.inspect(bind).get_indexes('tenants')}
+    if 'ix_tenants_contact_email' not in tenant_indexes:
+        op.create_index('ix_tenants_contact_email', 'tenants', ['contact_email'])
+    bind.execute(sa.text(
+        "UPDATE tenants SET contact_email = email "
+        "WHERE contact_email IS NULL AND email != ''"
+    ))
+
+    inspector = sa.inspect(bind)
+    if not inspector.has_table('password_reset_otps'):
+        op.create_table(
+            'password_reset_otps',
+            sa.Column('id', sa.Integer(), primary_key=True),
+            sa.Column('user_type', sa.String(20), nullable=False),
+            sa.Column('user_id', sa.Integer(), nullable=False),
+            sa.Column('tenant_id', sa.Integer(), nullable=True),
+            sa.Column('email', sa.String(120), nullable=False),
+            sa.Column('otp_hash', sa.String(64), nullable=False),
+            sa.Column('attempts', sa.Integer(), nullable=False, server_default='0'),
+            sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+            sa.Column('used', sa.Boolean(), nullable=False, server_default=sa.false()),
+            sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+            sa.Column('ip_address', sa.String(45), nullable=True),
+            sa.Column('user_agent', sa.String(300), nullable=True),
+        )
+    otp_indexes = {
+        index['name'] for index in sa.inspect(bind).get_indexes('password_reset_otps')
+    }
+    for name, columns in (
+        ('ix_otp_user_type_user_id', ['user_type', 'user_id']),
+        ('ix_otp_tenant_id', ['tenant_id']),
+        ('ix_otp_expires_at', ['expires_at']),
+    ):
+        if name not in otp_indexes:
+            op.create_index(name, 'password_reset_otps', columns)
+
+    inspector = sa.inspect(bind)
+    if not inspector.has_table('global_email_config'):
+        op.create_table(
+            'global_email_config',
+            sa.Column('id', sa.Integer(), primary_key=True),
+            sa.Column('web3forms_key', sa.Text(), nullable=True),
+            sa.Column('sender_name', sa.String(200), nullable=True),
+            sa.Column('sender_email', sa.String(200), nullable=True),
+            sa.Column('otp_expiry_minutes', sa.Integer(), nullable=False, server_default='10'),
+            sa.Column('recovery_enabled', sa.Boolean(), nullable=False, server_default=sa.true()),
+            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+            sa.Column('updated_by', sa.String(120), nullable=True),
+        )
+    existing = bind.execute(
+        sa.text('SELECT COUNT(*) FROM global_email_config WHERE id = 1')
+    ).scalar()
+    if not existing:
+        bind.execute(sa.text(
+            "INSERT INTO global_email_config "
+            "(id, sender_name, otp_expiry_minutes, recovery_enabled) "
+            "VALUES (1, 'Portfolio CMS', 10, 1)"
+        ))
+    return
+
     # ── 1. tenants.contact_email ─────────────────────────────────────────────
     with op.batch_alter_table('tenants', schema=None) as batch_op:
         batch_op.add_column(

@@ -1,5 +1,6 @@
+{% import 'components/ui.html' as ui %}
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" data-theme-storage="cms_theme" data-theme-aliases="adminTheme">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -7,15 +8,12 @@
   <title>{% block title %}Admin{% endblock %} — CMS</title>
 
   <!-- ① PRE-HYDRATION THEME INIT — must run before any paint -->
-  <script>(function(){var t=localStorage.getItem('cms_theme')||localStorage.getItem('adminTheme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&display=swap" rel="stylesheet"/>
-  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/theme-bootstrap.js', v='20260714-v1') }}"></script>
+  <script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js" defer></script>
 
   <!-- ② DESIGN SYSTEM (tokens first) -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components-v1.css', v='20260714-v1') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css', v='20260710-toast-ui-fix') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}"/>
@@ -24,23 +22,6 @@
   {% block extra_css %}{% endblock %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard-mobile.css', v='20260711-mobile-drawer') }}"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/typography-consistency.css', v='20260712-type-system-v1') }}"/>
-  
-<style>
-.topbar-notification-bell {
-  position: relative; width: 40px; height: 40px; display: inline-flex;
-  align-items: center; justify-content: center; border-radius: 12px;
-  color: var(--text-secondary); border: 1px solid var(--border-color);
-  background: var(--surface-2); transition: .2s ease;
-}
-.topbar-notification-bell:hover { color: var(--text-primary); border-color: var(--primary); transform: translateY(-1px); }
-.topbar-notification-badge {
-  position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px;
-  padding: 0 5px; border-radius: 999px; display: inline-flex; align-items: center;
-  justify-content: center; background: #ef4444; color: #fff; font-size: 10px;
-  font-weight: 700; line-height: 1; border: 2px solid var(--bg-primary, #0b0f17);
-}
-.topbar-notification-badge.is-hidden { display: none; }
-</style>
 </head>
 <body class="admin-body">
 
@@ -115,6 +96,12 @@
          {% if request.endpoint == 'admin.dashboard' %}aria-current="page"{% endif %}>
         <span class="nav-icon"><iconify-icon icon="lucide:layout-dashboard" width="17"></iconify-icon></span>
         Dashboard
+      </a>
+      <a href="{{ url_for('admin.portfolio_intelligence') }}"
+         class="nav-item {% if request.endpoint == 'admin.portfolio_intelligence' %}active{% endif %}"
+         {% if request.endpoint == 'admin.portfolio_intelligence' %}aria-current="page"{% endif %}>
+        <span class="nav-icon"><iconify-icon icon="lucide:gauge" width="17"></iconify-icon></span>
+        Intelligence
       </a>
     </div>
 
@@ -260,12 +247,6 @@
         View Portfolio
       </a>
       <div style="display:flex;gap:0.4rem;align-items:center;">
-        <a href="{{ url_for('admin.notifications') }}" class="nav-bell" data-unread-url="{{ url_for('admin.api_notifications_unread_count') }}" title="Notifications" aria-label="Notifications">
-          <iconify-icon icon="lucide:bell" width="16"></iconify-icon>
-          {% if notification_count %}
-          <span class="nav-bell-badge">{{ notification_count }}</span>
-          {% endif %}
-        </a>
         <a href="{{ url_for('auth.logout') }}" class="logout-btn" style="flex:1;">
           <iconify-icon icon="lucide:log-out" width="14"></iconify-icon>
           Sign Out
@@ -328,16 +309,8 @@
       </div>
       {% endif %}
 
-      {% if current_user.is_authenticated and not current_user.is_superadmin %}
-      <a href="{{ url_for('admin.notifications') }}"
-         class="topbar-notification-bell"
-         data-notification-bell
-         data-unread-url="{{ url_for('admin.api_notifications_unread_count') }}"
-         title="Notifications"
-         aria-label="Notifications{% if notification_count %}, {{ notification_count }} unread{% endif %}">
-        <iconify-icon icon="lucide:bell" width="18"></iconify-icon>
-        <span class="topbar-notification-badge{% if not notification_count %} is-hidden{% endif %}" data-notification-badge>{{ notification_count or 0 }}</span>
-      </a>
+      {% if current_user.is_authenticated %}
+      {{ ui.notification_center('admin-notification-menu', url_for('admin.notifications'), url_for('admin.api_notifications_unread_count'), notification_count or 0) }}
       {% endif %}
 
       <!-- Premium animated theme toggle -->
@@ -374,20 +347,9 @@
   <!-- Flash messages -->
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-      <div class="flash-container" id="flashContainer" aria-live="polite">
+      <div class="ui-toast-region" id="flashContainer" aria-live="polite" aria-relevant="additions">
         {% for category, message in messages %}
-          <div class="toast toast-{{ category }}" data-auto-close role="alert">
-            <span class="toast-icon">
-              {% if category == 'success' %}<iconify-icon icon="lucide:check-circle" width="15"></iconify-icon>
-              {% elif category == 'danger' %}<iconify-icon icon="lucide:x-circle" width="15"></iconify-icon>
-              {% elif category == 'warning'%}<iconify-icon icon="lucide:alert-triangle" width="15"></iconify-icon>
-              {% else %}<iconify-icon icon="lucide:info" width="15"></iconify-icon>{% endif %}
-            </span>
-            <span class="toast-msg">{{ message }}</span>
-            <button type="button" class="toast-close" data-toast-close aria-label="Dismiss notification">
-              <iconify-icon icon="lucide:x" width="13"></iconify-icon>
-            </button>
-          </div>
+          {{ ui.toast(message, category, auto_close=true) }}
         {% endfor %}
       </div>
     {% endif %}
@@ -400,79 +362,17 @@
   </main>
 </div>
 
-<!-- ─── Delete confirm modal ─────────────────────────────────── -->
-<div class="modal-backdrop hidden" id="deleteModal" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-header-icon" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-glow);">
-        <iconify-icon icon="lucide:trash-2" width="18"></iconify-icon>
-      </div>
-      <h3 id="deleteModalTitle">Confirm Delete</h3>
-    </div>
-    <div class="modal-body">
-      <p id="deleteModalMsg">Are you sure you want to delete this item? This cannot be undone.</p>
-    </div>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-ghost" data-close-delete-modal>Cancel</button>
-      <form id="deleteModalForm" method="POST" class="inline-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-        <button type="submit" class="btn btn-danger">
-          <iconify-icon icon="lucide:trash-2" width="14"></iconify-icon>
-          Delete
-        </button>
-      </form>
-    </div>
-  </div>
-</div>
+<!-- ─── Delete confirm dialog ────────────────────────────────── -->
+{{ ui.confirmation_dialog('deleteModal', 'Confirm delete', 'Are you sure you want to delete this item? This cannot be undone.', csrf_token(), confirm_label='Delete', form_id='deleteModalForm', message_id='deleteModalMsg') }}
 
 <!-- ─── Scripts ──────────────────────────────────────────────── -->
 <!-- Theme engine must load synchronously early -->
-<script src="{{ url_for('static', filename='js/theme-engine.js') }}"></script>
-<script src="{{ url_for('static', filename='js/admin.js', v='20260710-toast-ui-fix') }}"></script>
-<script src="{{ url_for('static', filename='js/dashboard-motion.js') }}"></script>
-<script src="{{ url_for('static', filename='js/dashboard-shell.js', v='20260711-mobile-drawer') }}"></script>
-
-
-<script>
-(() => {
-  const bell = document.querySelector('[data-notification-bell]');
-  if (!bell) return;
-  const badge = bell.querySelector('[data-notification-badge]');
-  const endpoint = bell.dataset.unreadUrl;
-  let lastCount = Number(badge?.textContent || 0);
-
-  const refreshNotifications = async () => {
-    try {
-      const response = await fetch(endpoint, {
-        headers: {'Accept': 'application/json'},
-        credentials: 'same-origin',
-        cache: 'no-store'
-      });
-      if (!response.ok) return;
-      const data = await response.json();
-      const count = Number(data.unread_count || 0);
-      if (badge) {
-        badge.textContent = count > 99 ? '99+' : String(count);
-        badge.classList.toggle('is-hidden', count < 1);
-      }
-      bell.setAttribute('aria-label', count ? `Notifications, ${count} unread` : 'Notifications');
-      if (count > lastCount) {
-        bell.animate(
-          [{transform:'scale(1)'}, {transform:'scale(1.12)'}, {transform:'scale(1)'}],
-          {duration: 420, easing: 'ease-out'}
-        );
-      }
-      lastCount = count;
-    } catch (_) {}
-  };
-
-  refreshNotifications();
-  window.setInterval(refreshNotifications, 30000);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') refreshNotifications();
-  });
-})();
-</script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/theme-engine.js') }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/components-v1.js', v='20260714-v1') }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/notifications-v1.js', v='20260714-phase4') }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/admin.js', v='20260710-toast-ui-fix') }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/dashboard-motion.js') }}"></script>
+<script nonce="{{ csp_nonce() if csp_nonce is defined else '' }}" src="{{ url_for('static', filename='js/dashboard-shell.js', v='20260711-mobile-drawer') }}"></script>
 
 {% block extra_js %}{% endblock %}
 </body>

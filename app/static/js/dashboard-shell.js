@@ -4,6 +4,9 @@
 (function () {
   'use strict';
 
+  // Notification centers (including the legacy [data-notification-bell]
+  // contract) are owned by notifications-v1.js so this shell never double-polls.
+
   var MOBILE_QUERY = '(max-width: 900px)';
 
   function isMobile() {
@@ -135,21 +138,32 @@
     var dangerButton = modal.querySelector('.btn-danger');
 
     function isHidden() {
+      if (typeof modal.showModal === 'function') return !modal.open;
       return modal.classList.contains('hidden') || modal.style.display === 'none';
     }
 
     function openModal(action, text) {
       if (action) form.action = action;
       if (message && text) message.textContent = text;
-      modal.classList.remove('hidden');
-      modal.style.display = 'flex';
+      if (modal.matches('[data-ui-dialog]') && window.MPHUI) {
+        window.MPHUI.openDialog(modal, document.activeElement);
+      } else if (typeof modal.showModal === 'function') {
+        if (!modal.open) modal.showModal();
+      } else {
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+      }
       document.body.classList.add('modal-open');
       if (dangerButton) dangerButton.focus({ preventScroll: true });
     }
 
     function closeModal() {
-      modal.classList.add('hidden');
-      modal.style.display = 'none';
+      if (modal.matches('[data-ui-dialog]') && window.MPHUI) window.MPHUI.closeDialog(modal);
+      else if (typeof modal.close === 'function' && modal.open) modal.close();
+      else {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+      }
       document.body.classList.remove('modal-open');
     }
 
@@ -184,44 +198,10 @@
     });
   }
 
-  function initNotificationRefresh() {
-    var bellLink = document.querySelector('.nav-bell[data-unread-url]');
-    if (!bellLink) return;
-
-    var url = bellLink.dataset.unreadUrl;
-    var badge = bellLink.querySelector('.nav-bell-badge');
-
-    function refresh() {
-      fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-        .then(function (response) {
-          if (!response.ok) throw new Error('Unread-count request failed');
-          return response.json();
-        })
-        .then(function (data) {
-          var count = Number(data.unread_count || 0);
-          if (count > 0) {
-            if (!badge) {
-              badge = document.createElement('span');
-              badge.className = 'nav-bell-badge';
-              bellLink.appendChild(badge);
-            }
-            badge.textContent = String(count);
-          } else if (badge) {
-            badge.remove();
-            badge = null;
-          }
-        })
-        .catch(function () {});
-    }
-
-    window.setInterval(refresh, 60000);
-  }
-
   function init() {
     initSidebarDrawer();
     initToasts();
     initDeleteModal();
-    initNotificationRefresh();
   }
 
   if (document.readyState === 'loading') {

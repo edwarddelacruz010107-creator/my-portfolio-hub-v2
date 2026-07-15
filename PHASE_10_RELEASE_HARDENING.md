@@ -14,14 +14,14 @@
 - The deterministic source gate blocks raw forwarding-header use, missing CSP nonces, global inline block policy, dangerous JavaScript execution primitives, and insecure database defaults.
 - Empty or drifted databases are detected by required-table, core/tenant migration-head, and tenant-model checks. Production fails before serving; development returns a controlled setup page. `setup-local.ps1` is the one-command Windows bootstrap.
 - The reviewed 46-occurrence first-party `innerHTML` inventory is locked by path and normalized source-context digest. New or changed sinks fail the release gate.
-- The canonical Render deployment is Docker-based, installs ClamAV signatures, verifies scanner availability, runs as a non-root user under `tini`, and probes `/readyz`.
+- The canonical Render deployment is Docker-based, installs ClamAV without refreshing signatures in the memory-bounded build, initializes and verifies signatures in the Standard 2 GiB Gunicorn runtime, runs as a non-root user under `tini`, and probes `/readyz`.
 - A CycloneDX 1.5 SBOM inventories 123 pinned Python and npm components, including reduced vendored icon artifacts.
 
 ## Verification completed
 
 | Evidence | Result |
 |---|---:|
-| Phase 0B–5 and 7–10 plus release-candidate contracts | 139 passed |
+| Phase 0B–5 and 7–10 plus release-candidate contracts | 140 passed |
 | Phase 6 deterministic functions | 16 passed |
 | JavaScript DOM/security contracts | 7 passed |
 | Design-token lint | 9 files passed |
@@ -35,7 +35,7 @@
 
 The source gate inventories 67 inline handler attributes and 654 style attributes. They no longer require `unsafe-inline`: exact response hashes authorize only the rendered values. The 46 first-party HTML-rendering occurrences are classified and digest-locked; user/network/database strings that previously entered high-risk sinks were converted to safe DOM/text APIs. Frontend still owns gradual attribute removal, but any new or changed HTML-rendering sink now requires explicit security review.
 
-The workspace did not include Flask/Jinja/SQLAlchemy/Alembic, PostgreSQL, Redis, a browser, a container daemon, or the `pip-audit`, Bandit, Semgrep, Trivy/Grype, and ClamAV executables. The 13 runtime-dependent test modules could not be collected here; the 139 source/domain contracts and 16 deterministic functions are not substitutes for the exact-image staging suite.
+The workspace did not include Flask/Jinja/SQLAlchemy/Alembic, PostgreSQL, Redis, a browser, a container daemon, or the `pip-audit`, Bandit, Semgrep, Trivy/Grype, and ClamAV executables. The 13 runtime-dependent test modules could not be collected here; the 140 source/domain contracts and 16 deterministic functions are not substitutes for the exact-image staging suite. Render rehearsals found and source-fixed a misplaced `0057` check constraint plus a 512 MiB ClamAV build/runtime and non-root log-path failure. The corrected PostgreSQL migration retry and exact Standard-tier scanner startup remain required deployment checks.
 
 ## Mandatory release gates
 

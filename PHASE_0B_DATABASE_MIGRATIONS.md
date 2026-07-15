@@ -76,7 +76,9 @@ port-5432 URLs for migrations where a provider exposes pooled and direct URLs.
 
 The image entrypoint runs `flask db-upgrade-all` when
 `RUN_MIGRATIONS=true`. Local Compose sets `DB_SSLMODE=disable` only for its
-private, non-TLS PostgreSQL network. Hosted production must use `require`.
+private, non-TLS PostgreSQL network. The canonical Render Blueprint uses its
+`preDeployCommand`, so Render must keep `RUN_MIGRATIONS=false`. Hosted
+production must use `DB_SSLMODE=require`.
 
 ### Manual verification
 

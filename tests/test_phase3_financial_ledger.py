@@ -1,6 +1,7 @@
 """Phase 3 financial-ledger contract tests (stdlib-only execution)."""
 from __future__ import annotations
 
+import ast
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import importlib.util
@@ -196,6 +197,54 @@ class SourceContractTests(unittest.TestCase):
         self.assertIn("before_update", model)
         self.assertIn("BEFORE UPDATE OR DELETE", migration)
         self.assertIn("reject_financial_ledger_mutation", migration)
+
+    def test_ledger_backfill_constraint_is_attached_to_its_own_table(self):
+        """Keep every 0057 table constraint scoped to columns on that table."""
+        path = ROOT / "migrations/versions/0057_add_append_only_payment_ledger.py"
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        tables = {}
+
+        for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
+            if not (
+                isinstance(call.func, ast.Attribute)
+                and call.func.attr == "create_table"
+                and call.args
+                and isinstance(call.args[0], ast.Constant)
+            ):
+                continue
+            columns = {
+                item.args[0].value
+                for item in call.args[1:]
+                if (
+                    isinstance(item, ast.Call)
+                    and isinstance(item.func, ast.Attribute)
+                    and item.func.attr == "Column"
+                    and item.args
+                    and isinstance(item.args[0], ast.Constant)
+                )
+            }
+            constraints = {
+                keyword.value.value
+                for item in call.args[1:]
+                if (
+                    isinstance(item, ast.Call)
+                    and isinstance(item.func, ast.Attribute)
+                    and item.func.attr == "CheckConstraint"
+                )
+                for keyword in item.keywords
+                if (
+                    keyword.arg == "name"
+                    and isinstance(keyword.value, ast.Constant)
+                )
+            }
+            tables[call.args[0].value] = (columns, constraints)
+
+        audit_columns, audit_constraints = tables["financial_audit_events"]
+        backfill_columns, backfill_constraints = tables["ledger_backfill_items"]
+        self.assertNotIn("disposition", audit_columns)
+        self.assertNotIn("ck_ledger_backfill_disposition", audit_constraints)
+        self.assertIn("disposition", backfill_columns)
+        self.assertIn("ck_ledger_backfill_disposition", backfill_constraints)
 
     def test_all_three_producers_post_through_canonical_service(self):
         webhooks = self.read("app/webhooks/__init__.py")

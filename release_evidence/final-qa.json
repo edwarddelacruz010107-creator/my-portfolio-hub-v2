@@ -4,7 +4,7 @@
   "generated_on": "2026-07-15",
   "reason": "Source is a production release candidate; staging, exact-image, browser, database, container and authorized penetration evidence is not available in this workspace.",
   "completed": {
-    "phase_unittest_contracts": 139,
+    "phase_unittest_contracts": 140,
     "phase6_function_contracts": 16,
     "javascript_dom_security_contracts": 7,
     "design_token_files": 9,
@@ -22,7 +22,7 @@
   },
   "required_before_release": [
     "exact pinned image dependency, SAST, secret and container scans",
-    "PostgreSQL and Redis integration, race, query-plan and multi-worker tests",
+    "corrected 0057 PostgreSQL migration retry plus PostgreSQL and Redis integration, race, query-plan and multi-worker tests",
     "full authorization and tenant-isolation negative matrix",
     "CSP staging enforcement with zero blocked first-party assets",
     "malware engine clean, EICAR, timeout and outage tests",

@@ -25,6 +25,7 @@ def evaluate() -> dict:
     init = (ROOT / "app" / "__init__.py").read_text()
     compose = (ROOT / "docker-compose.prod.yml").read_text()
     dockerfile = (ROOT / "Dockerfile").read_text()
+    entrypoint = (ROOT / "docker-entrypoint.sh").read_text()
     dockerignore = (ROOT / ".dockerignore").read_text()
 
     failures: list[str] = []
@@ -57,8 +58,10 @@ def evaluate() -> dict:
             failures.append(f"missing_blueprint_auth_guard:{path.relative_to(ROOT)}")
     if "inspect_schema_state(db)" not in init or "raise RuntimeError(message)" not in init:
         failures.append("missing_production_schema_startup_guard")
-    if "clamav" not in dockerfile or "freshclam --quiet" not in dockerfile:
+    if "clamav" not in dockerfile or "freshclam --quiet" not in entrypoint:
         failures.append("production_image_missing_malware_scanner")
+    if "&& freshclam" in dockerfile:
+        failures.append("memory_heavy_signature_refresh_during_image_build")
     if not re.search(r"^app/static/uploads/$", dockerignore, re.M):
         failures.append("docker_image_does_not_exclude_runtime_uploads")
     if re.search(r"(?:eval\s*\(|new\s+Function\s*\(|document\.write\s*\()", "\n".join(p.read_text(errors="ignore") for p in js_files)):

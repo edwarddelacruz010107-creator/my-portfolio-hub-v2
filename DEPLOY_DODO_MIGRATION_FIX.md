@@ -8,4 +8,7 @@ Migration `0055_add_dodo_payments_fields.py` referenced a nonexistent Alembic pa
 - Updated the migration docstring to match.
 
 ## Deploy
-Keep `RUN_MIGRATIONS=true` and redeploy. The startup sequence should proceed from `Applying incremental Alembic migrations after bootstrap...` to `Ensuring tenant-bound schema...`, then `Launching app...`.
+For the canonical Render Blueprint, keep `RUN_MIGRATIONS=false` and redeploy;
+`preDeployCommand` owns `db-upgrade-all`. Set `RUN_MIGRATIONS=true` only for a
+self-hosted Docker deployment that has no separate pre-deploy migration phase.
+Never enable both paths.

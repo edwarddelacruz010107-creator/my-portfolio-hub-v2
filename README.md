@@ -553,9 +553,12 @@ Recommended manual checks before every release:
 ## Production Deployment Notes
 
 The canonical production target is the checked-in Docker image. It installs
-and updates the ClamAV engine during the image build, runs as a non-root user,
-uses `/readyz`, and fails startup when required secrets, schema heads, Redis,
-or the required malware scanner are unavailable.
+the ClamAV engine during the image build, then downloads and verifies signatures
+in the 2 GiB runtime before Gunicorn starts. It runs as a non-root user, uses
+`/readyz`, and fails startup when required secrets, schema heads, Redis, or the
+required malware scanner are unavailable. Render Free/Starter have only
+512 MiB and are not supported for the inline ClamAV configuration; use the
+Standard service tier declared in `render.yaml`.
 
 Recommended production flow:
 

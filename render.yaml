@@ -41,7 +41,9 @@ services:
       flask ensure-default-tenant &&
       flask create-superadmin
 
-    plan: starter
+    # Inline ClamAV exceeds the 512 MiB Free/Starter limit. Standard provides
+    # 2 GiB and is the minimum supported production tier for this image.
+    plan: standard
     autoDeploy: true
     healthCheckPath: /readyz
 
@@ -68,6 +70,8 @@ services:
         value: "/var/lib/clamav"
       - key: MALWARE_SIGNATURE_MAX_AGE_HOURS
         value: "24"
+      - key: CLAMAV_UPDATE_INTERVAL_SECONDS
+        value: "21600"
 
       # ── Docker entrypoint controls ─────────────────────────────────
       # These are used when deploying with the Dockerfile.
@@ -86,7 +90,7 @@ services:
       - key: REDIS_URL
         fromService:
           name: portfolio-redis
-          type: redis
+          type: keyvalue
           property: connectionString
 
       # ── Core secrets ─────────────────────────────────────────────
@@ -197,7 +201,9 @@ services:
         value: "60"
 
   # ── Redis ────────────────────────────────────────────────────────────────
-  - type: redis
+  - type: keyvalue
     name: portfolio-redis
     plan: free
     maxmemoryPolicy: allkeys-lru
+    # Private-network access only; block public Key Value connections.
+    ipAllowList: []

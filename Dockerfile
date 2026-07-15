@@ -12,7 +12,7 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /build
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
     postgresql-client \
@@ -40,13 +40,15 @@ RUN useradd -m -u 1000 appuser
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Signature download and verification happen in the 2 GiB runtime. Running
+# freshclam in Render's 512 MiB build worker can exhaust its memory.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     postgresql-client \
     curl \
     clamav \
     clamav-freshclam \
     tini \
-    && freshclam --quiet \
+    && sed -i '/^[[:space:]]*UpdateLogFile[[:space:]]/d' /etc/clamav/freshclam.conf \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
@@ -55,8 +57,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --chown=appuser:appuser . .
 COPY --chown=appuser:appuser docker-entrypoint.sh /app/docker-entrypoint.sh
 
-RUN mkdir -p /app/logs /app/storage /app/instance /app/app/static/uploads && \
-    chown -R appuser:appuser /app /var/lib/clamav
+RUN mkdir -p /app/logs /app/storage /app/instance /app/app/static/uploads \
+        /var/lib/clamav /var/log/clamav && \
+    chown -R appuser:appuser /app /var/lib/clamav /var/log/clamav
 
 RUN chmod 0555 /app/docker-entrypoint.sh
 
